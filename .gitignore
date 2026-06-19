@@ -1,0 +1,12 @@
+# Dependencies
+node_modules/
+
+# Live training data (auto-created by server.js on first run, never commit)
+database.json
+
+# Backups exported from the app
+ironwave-backup-*.json
+
+# OS / editor cruft
+.DS_Store
+*.log
