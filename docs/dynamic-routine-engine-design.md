@@ -388,9 +388,12 @@ training: {
   timeMode: 'unlimited',           // 'unlimited' | 'custom'
   timeCapMin: null,                // number (minutes) when timeMode === 'custom'
   muscleFocus: {                   // bodybuilding sliders, 0..6, default 3 = balanced
-    arms: 3, chest: 3, back: 3, glutes: 3, legs: 3, calves: 3,
+    arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3,
   },
 },
+experience: 'intermediate',        // 'beginner' | 'intermediate' | 'advanced' (seeds landmarks)
+trainingAge: { startedTs: null, blocksCompleted: 0 },  // grows; drives MEV drift over time
+landmarks: { /* per movement category, see 5.6 - seeded from VOLUME_LANDMARKS, then evolves */ },
 // NOTE: `otherSports` and weekday-scheduling are intentionally NOT here. The
 // sport-aware scheduling feature is deferred to its own branch (see §10).
 ```
@@ -414,13 +417,16 @@ const t = s.profile.training = s.profile.training || {};
 t.track      = t.track      || 'powerbuilding';
 t.timeMode   = t.timeMode   || 'unlimited';
 if (t.timeCapMin === undefined) t.timeCapMin = null;
-t.muscleFocus = Object.assign({ arms:3, chest:3, back:3, glutes:3, legs:3, calves:3 },
-                              t.muscleFocus || {});
+const F0 = { arms:3, chest:3, back:3, shoulders:3, glutes:3, legs:3, calves:3 };
+t.muscleFocus = Object.assign({}, F0, t.muscleFocus || {});  // backfills `shoulders` on old saves
+s.profile.experience = s.profile.experience || 'intermediate';
+s.profile.trainingAge = s.profile.trainingAge || { startedTs: s.program?.startDate || null, blocksCompleted: 0 };
+// landmarks are seeded lazily (next program creation) or here from VOLUME_LANDMARKS * factor:
+if (!s.profile.landmarks) s.profile.landmarks = seedLandmarks(s.profile.experience);
 if (s.program && !s.program.trainingConfig) {
   // legacy programs predate tracks: stamp them as the powerbuilding default
   s.program.trainingConfig = { track:'powerbuilding', timeMode:'unlimited',
-    timeCapMin:null,
-    muscleFocus:{ arms:3, chest:3, back:3, glutes:3, legs:3, calves:3 } };
+    timeCapMin:null, muscleFocus: Object.assign({}, F0) };
 }
 ```
 
@@ -434,16 +440,15 @@ The six product sliders aggregate the engine's finer `MOVEMENTS` categories:
 
 ```js
 const SLIDER_MOVEMENTS = {
-  arms:   ['bicep', 'tricep'],
-  chest:  ['chest'],
-  back:   ['vpull', 'hpull', 'upperback'],
-  glutes: ['glute'],
-  legs:   ['quad', 'ham'],
-  calves: ['calf'],
+  arms:      ['bicep', 'tricep'],
+  chest:     ['chest'],
+  back:      ['vpull', 'hpull', 'upperback'],
+  shoulders: ['shoulder'],          // 7th slider added: side delts are a top aesthetic muscle
+  glutes:    ['glute'],
+  legs:      ['quad', 'ham'],
+  calves:    ['calf'],
 };
-// shoulder (delts), lowback, abs, forearms are NOT on a product slider; they stay at baseline
-// and ride their parent compounds. NOTE: side delts are a major aesthetic muscle with no
-// slider in the 6-slider spec - flagged as a possible 7th slider (see open questions).
+// lowback, abs, forearms are NOT on a slider; they stay at baseline and ride parent compounds.
 ```
 
 ### 5.5 Per-muscle volume landmarks (sourced)
@@ -488,14 +493,74 @@ const VOLUME_LANDMARKS = {
   the single `shoulder` category (side-delt numbers used). The single RP "Back" landmark was
   applied across `vpull`/`hpull`/`upperback`. Revisit if a finer taxonomy is wanted.
 
-### 5.6 TypeScript interfaces (documentation only)
+> **The static grid above is only a SEED.** It is *not* what the engine reads at runtime.
+> At program creation it is copied (scaled by experience) into the athlete's own
+> `profile.landmarks`, and from then on the athlete's stored, evolving landmarks are used. See §5.6.
+
+### 5.6 Per-athlete, evolving volume landmarks (the important part)
+
+The book is explicit that volume landmarks are **individual and shift with training age**:
+MEV rises as you advance, the MV→MEV gap widens for advanced lifters (p345), and your true MRV
+is found **empirically** by adding sets until recovery/performance breaks down, not read from a
+chart (Set Progression Algorithm p99, MEV stimulus estimator p96-97). So landmarks must be
+**stored per athlete and must evolve**, not be fixed constants.
+
+**Storage.** `profile.landmarks[movement] = { mv, mev, mrv }` (same keys as `VOLUME_LANDMARKS`),
+plus `profile.experience` and `profile.trainingAge`. These persist across programs (they are a
+property of the lifter, not a cycle).
+
+**Seeding (at program creation).** Copy `VOLUME_LANDMARKS` into `profile.landmarks`, scaled by
+the onboarding experience answer, because the sourced grid is an intermediate/advanced baseline:
+
+```js
+const EXPERIENCE_FACTOR = { beginner: 0.65, intermediate: 0.85, advanced: 1.0 };
+// landmarks[m] = round(VOLUME_LANDMARKS[m] * factor), with mev >= mv+1 etc. enforced
+```
+If `profile.landmarks` already exists (returning athlete), it is kept, not reseeded.
+
+**Evolution (the "ages up" requirement).** A `recalibrateLandmarks()` pass runs **once per
+completed accumulation block** (hooked where `advanceWeek()` increments `pointer.block`), using
+signals the app *already logs* — the same inputs RP's estimator uses:
+
+| RP signal (book) | IRONWAVE source already present |
+|---|---|
+| Performance rising / holding | logged sets vs target + `Engine.bestE1RM` trend across the block (`S.sessions`, `S.records`) |
+| Recovery / soreness | per-muscle check-in sliders (`S.checkins`) at the peak week + `S.readinessLog` trend |
+| Reached MRV (can't recover) | readiness trending down + soreness high + performance falling *before* the peak week |
+
+Per muscle trained in the block (mirrors the Set Progression Algorithm, p99):
+
+```
+tolerated well  (recovery OK AND performance not falling at peak volume)
+                  -> mrv += 1 (cap), mev += 0.5 drift            // you adapted; you can do more
+under-recovered (readiness down OR high soreness OR perf fell early)
+                  -> mrv -= 1 (floor)                            // back off; you overreached
+otherwise         -> hold
+trainingAge.blocksCompleted += 1; small MEV upward drift with accumulated blocks (training age)
+```
+
+**Safety / rate-limiting.** Changes are capped at roughly **+/-1-2 sets per muscle per block**
+and clamped to sane bounds, because the book warns that *rapid* volume increases drive injury
+risk (p352). Landmarks drift; they do not jump. (This is the same caution behind the 0/6 slider
+warning in §1.4.)
+
+**Scope and C1 (critical).** Landmarks feed **only** the bodybuilding-track slider reallocation,
+and only the *endpoints* (1 = MV, 6 = MRV) and interpolation. They do **not** change the
+Powerbuilding/Powerlifting scheme output, and they do **not** move the slider-3 baseline (which
+stays anchored to the scheme, §1.1). Therefore evolving landmarks **cannot** alter a default
+user's routine, and cannot even alter an all-3s bodybuilding user's routine — C1 is preserved.
+Evolution only changes *how much* an emphasized (4-6) or maintained (1) muscle gets, for users
+who actually moved a slider.
+
+### 5.7 TypeScript interfaces (documentation only)
 
 ```ts
 type Track = 'powerlifting' | 'powerbuilding' | 'bodybuilding';
 type TimeMode = 'unlimited' | 'custom';
+type Experience = 'beginner' | 'intermediate' | 'advanced';
 
 interface MuscleFocus {           // each 0..6, 3 = balanced default; 0 = remove, 6 = MRV
-  arms: number; chest: number; back: number;
+  arms: number; chest: number; back: number; shoulders: number;
   glutes: number; legs: number; calves: number;
 }
 interface TrainingConfig {
@@ -504,7 +569,10 @@ interface TrainingConfig {
   timeCapMin: number | null;      // minutes; required iff timeMode === 'custom'
   muscleFocus: MuscleFocus;       // (no otherSports: sport scheduling deferred, §10)
 }
-interface VolumeLandmark { mv: number; mev: number; mrv: number; }   // weekly sets
+interface VolumeLandmark { mv: number; mev: number; mrv: number; }   // weekly sets, per athlete
+interface TrainingAge { startedTs: number | null; blocksCompleted: number; }
+// profile.landmarks: Record<movement, VolumeLandmark>  -- seeded then evolved (§5.6)
+// profile.experience: Experience                       -- seeds the landmarks
 interface SynergistCoverage { [movement: string]: number; }          // 0..1 per covered muscle
 ```
 
@@ -518,6 +586,7 @@ The default path must equal today's output. Each new stage is a guarded no-op at
 |---|---|---|
 | Template select | `track = 'powerbuilding'` | picks the existing `powerbuilding` template |
 | FOCUS reallocation | all sliders = 3 | target = baseline for every muscle → set counts unchanged |
+| Landmark evolution | any | only feeds slider endpoints (≠3) on the bodybuilding track; never touches scheme output or the slider-3 baseline (§5.6) |
 | TIME check | `timeMode = 'unlimited'` | stage skipped entirely → no rest compression, no pruning |
 | Pipeline | above all true | collapses to `BASE → RENDER`, i.e. `resolveSlot` as written today |
 
@@ -537,12 +606,16 @@ The current 3-step flow (name/bodyweight → days/week → maxes) gains a **trac
 Step 0  Name + bodyweight                                  (unchanged)
 Step 1  Training days per week                             (unchanged this branch; see §10)
 Step 2  Primary goal:  Powerlifting | Powerbuilding | Bodybuilding   (NEW)
+Step 2b Experience:  Beginner | Intermediate | Advanced              (NEW; seeds landmarks, §5.6)
 Step 3  Time per session:  As much as necessary | Enter minutes      (NEW)
-Step 3b (bodybuilding only) Muscle focus: 6 sliders 0-6, default 3,   (NEW)
+Step 3b (bodybuilding only) Muscle focus: 7 sliders 0-6, default 3,  (NEW)
+        Arms / Chest / Back / Shoulders / Glutes / Legs / Calves
         warning fires at 0 (remove) and 6 (rapid-volume/overuse) + "~2 months max" note (§1.4)
 Step 4  Maxes (1RMs)                                       (unchanged)
 ```
 (No "other sports" question this branch; sport-aware scheduling is deferred, §10.)
+The experience answer only seeds the starting landmarks; from there they evolve from logged
+performance and recovery (§5.6), so an honest-but-imperfect pick self-corrects within a block.
 
 Choosing Powerbuilding + "As much as necessary" + (no sliders shown) reproduces the exact
 current onboarding result, satisfying C1 at the UX layer too.
@@ -561,21 +634,28 @@ current onboarding result, satisfying C1 at the UX layer too.
 4. **Powerlifting track scope:** just a different `PROGRAM_TEMPLATES` block ratio (more
    `jm2-wave`, less `jbb-hyp`), or its own scheme? Recommend the former first.
 5. **Time cap granularity:** one cap for all days, or per-day caps (leg day naturally longer)?
-6. **A 7th slider for shoulders/side delts?** The 6-slider spec has no delts, yet side delts
-   are a primary aesthetic muscle (MRV ~26). Add a "Shoulders" slider, or leave delts at
-   baseline?
+6. ~~7th slider for shoulders~~ **RESOLVED:** added a **Shoulders** slider (side delts, MRV ~26).
+7. **Landmark evolution rate:** is +/-1 set per muscle per block (§5.6) the right step, and
+   should evolution run per block (recommended) or per full mesocycle/macrocycle?
+8. **Experience seeding:** confirm the `EXPERIENCE_FACTOR` values (0.65 / 0.85 / 1.0). Since
+   landmarks self-correct from logged data within a block, this only affects the first block.
 
 ---
 
 ## 9. Implementation sequencing (when approved)
 
-1. State + migration (§5) behind defaults; add the regression guard (§6). No behavior change.
-2. Onboarding steps (§7), writing config only. Still no engine change for default users.
-3. `SLIDER_MOVEMENTS`, `VOLUME_LANDMARKS`, `SYNERGIST_COVERAGE` data tables (§4, §5).
-4. FOCUS reallocation pass in the resolver (bodybuilding only), gated by slider != 3.
-5. Time estimator `T(day, w)` (§2) + block-level projection in the dashboard/preview.
-6. MITIGATE loop (rest compression → coherent pruning) (§3.3, §4).
-7. Powerlifting template (§8.3) last.
+1. State + migration (§5) behind defaults, including per-athlete `landmarks`/`experience`/
+   `trainingAge` seeding; add the regression guard (§6). No behavior change.
+2. Onboarding steps (§7: track, experience, time, 7 sliders), writing config only. No engine
+   change for default users.
+3. `SLIDER_MOVEMENTS`, `VOLUME_LANDMARKS` (seed), `SYNERGIST_COVERAGE` data tables (§4, §5).
+4. FOCUS reallocation pass in the resolver (bodybuilding only), gated by slider != 3, reading
+   the athlete's stored landmarks.
+5. `recalibrateLandmarks()` evolution pass at block boundaries (§5.6), reusing existing
+   session/check-in/readiness signals.
+6. Time estimator `T(day, w)` (§2) + block-level projection in the dashboard/preview.
+7. MITIGATE loop (rest compression → coherent pruning) (§3.3, §4).
+8. Powerlifting template (§8.4) last.
 
 Each step is independently shippable and a no-op for default users until the one that
 introduces its UI.
