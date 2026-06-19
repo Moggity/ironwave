@@ -43,8 +43,14 @@ This design adds three capabilities without disturbing that core:
 
 ## 1. Hypertrophy Alignment Analysis
 
-How the proposed 0-7 slider system and paired-swap logic line up with the book, and where
-they need adjusting.
+How the proposed muscle-focus slider system and paired-swap logic line up with the book, and
+where they need adjusting.
+
+> **Revision 2 (confirmed with product):** the slider scale is **0-6** (default 3, the true
+> center), slider **0 = full removal** of that muscle's direct work behind a warning (injury
+> accommodation and personal choice are valid reasons), the **paired-swap map is dropped** in
+> favor of the recovery-budget model below, and the **"other sports" feature is deferred** to
+> its own branch (see §10). Per-muscle landmark numbers are now sourced (§5.5).
 
 ### 1.1 The slider scale vs. volume landmarks
 
@@ -59,29 +65,40 @@ The slider should therefore not be an abstract "intensity knob"; it should map t
 
 | Slider | Meaning | Target weekly volume |
 |---|---|---|
-| 0 | De-prioritize / maintain only | **MV** (floor, ~minimum maintenance sets) |
-| 1-2 | Reduced | between MV and MEV |
+| 0 | Remove (warned) | **none** (direct work removed; see §1.2) |
+| 1 | Maintain | ≈ **MV** (maintenance floor) |
+| 2 | Reduced | between MV and baseline |
 | **3 (default)** | **Balanced baseline** | **current program's volume (≈MEV start → MAV)** |
-| 4-6 | Emphasized | scaled toward MRV |
-| 7 | Specialized | **MRV** (ceiling) |
+| 4 | Emphasized | between baseline and MRV |
+| 5 | High | approaching MRV |
+| 6 | Specialized | ≈ **MRV** (ceiling) |
 
-This makes slider `3` the identity point, which is exactly what C1 needs: at all-3s the
-target equals what the current program already prescribes, so the transform is a no-op.
+The scale is **symmetric about 3**: three steps down (3→0) and three up (3→6), with 0 as the
+explicit "remove" endpoint. Slider `3` is the **identity point**, which is exactly what C1
+needs: at all-3s the target equals what the current program already prescribes, so the
+transform is a no-op. Endpoints are tied to each muscle's *real* landmarks (§5.5), so "6"
+literally means "train this muscle at its MRV" and "1" means "just maintain it."
 
-### 1.2 Conflict: "a 0 completely deletes that muscle group"
+### 1.2 Slider 0 = full removal, behind a warning (confirmed)
 
-This **conflicts with the book.** RP's de-prioritization method is explicit: when you
-specialize, you "train the rest of their muscles **at MV**" to free recovery capacity, which
-"maintains the others" (p359). MV is a real, **non-zero** floor (figure example ~4 sets/week
-for an advanced lifter, p345); the book never recommends dropping a muscle to literal zero as
-a maintenance strategy. Going *below* MV causes muscle **loss** (p61).
+The book's own de-prioritization method is to hold a muscle at **MV** (maintenance), not zero
+(p359), and going below MV causes muscle **loss** (p61). However, product has confirmed that
+**slider 0 fully removes** the muscle's direct work, for two legitimate reasons the book does
+not cover: (a) lifters who simply will not train a body part, and (b) **injury** that makes
+the movement physically impossible. Forcing a maintenance dose on an injured user is worse
+than honoring the removal.
 
-**Recommendation:** Slider `0` should default to **MV (maintain)**, not deletion. Keep the
-muscle in the routine at minimal volume (heavier, low-set work; the book prefers the
-"5-10 rep range" for maintenance, p277). If the product still wants a true "remove it"
-option (the summer-body user who refuses to train legs at all), make it an **explicit second
-action** ("Remove entirely") with an honest warning that the muscle will *detrain and lose
-size* (book-supported), rather than silently equating slider 0 with deletion.
+**Design:** slider `0` removes that muscle's direct (isolation) work and shows a clear,
+**non-blocking** warning before it takes effect:
+
+> "Removing Legs means no direct leg training. Over a full block this leads to size and
+> strength loss there, and large imbalances can stress your joints. If you're working around
+> an injury or this is a deliberate choice, that's fine. Plan to rebalance within ~2 months."
+
+Slider `1` is the **maintain** option (≈MV) for users who want to keep the muscle minimally.
+Removal applies to direct work; a compound that also trains the removed muscle (e.g. squats
+for an injured-knee user) can be swapped out or removed via the existing per-slot Swap control.
+The "rebalance within ~2 months" guidance is the book's specialization time-box (p359, §1.4).
 
 ### 1.3 Conflict / simplification: the paired-swap map
 
@@ -95,23 +112,23 @@ holding most muscles at MV frees capacity to push 1-2 muscles MEV→MRV, p345, p
 **Recommendation:** Replace the fixed pairs with a **normalized weekly-set budget**:
 
 1. Each muscle has landmark bounds `[MV, MRV]` and a baseline (slider 3) target.
-2. Slider values become weights `w_m`. Convert to target sets by interpolating each muscle
-   between its own MV and MRV by `slider/7`, then **clamp to [MV, MRV]**.
+2. Slider values map to target sets piecewise on the symmetric 0-6 scale: `0` = remove,
+   `1` ≈ MV, `3` = baseline, `6` ≈ MRV, linear between those anchors; then **clamp to [MV, MRV]**.
 3. Optionally hold the **total weekly working sets** near the program's baseline total
    (recovery conservation): if the summed targets exceed the baseline budget, scale the
    *above-baseline* muscles down proportionally; the freed sets from de-prioritized muscles
    are what fund the emphasized ones.
 
-This handles the "summer body" case gracefully: upper sliders to 7 push Chest/Back/Arms
-toward MRV; lower sliders to 0 drop Legs/Glutes/Calves to MV; the recovery budget balances
-because the de-prioritized lower body is now cheap. No arbitrary Chest-for-Legs swap is
-needed, and every muscle stays inside its physiological bounds.
+This handles the "summer body" case gracefully: upper sliders to 6 push Chest/Back/Arms
+toward MRV; lower sliders to 0 remove Legs/Glutes (and Calves toward 1/MV); the recovery
+budget balances because the de-prioritized lower body is now cheap or gone. No arbitrary
+Chest-for-Legs swap is needed, and every retained muscle stays inside its physiological bounds.
 
 > If product strongly prefers the paired UX for simplicity, the pairs can be kept **purely as
 > a UI affordance** (moving one slider nudges its partner) while the *math underneath* is the
 > budget model above. The pairs must not be the physiological model.
 
-### 1.4 The 0/7 safety guardrail
+### 1.4 The 0/6 safety guardrail
 
 The brainstorm says imbalanced training "can cause injuries" and should run "1 mesocycle
 (up to 2 months) max." Against the book:
@@ -127,25 +144,25 @@ The brainstorm says imbalanced training "can cause injuries" and should run "1 m
 
 **Recommendation — reframe the warning to what the book actually says:**
 
-- Cranking a slider to **7** = a large, fast volume jump → "increased injury and overuse risk;
+- Cranking a slider to **6** = a large, fast volume jump → "increased injury and overuse risk;
   ease into this volume." (book-supported, p352)
-- Dropping a slider to **0** = below maintenance → "this muscle will lose size over time."
-  (book-supported, p61)
+- Dropping a slider to **0** = removal → "this muscle will lose size and strength; large
+  imbalances can stress joints." (muscle loss is book-supported, p61; see §1.2 warning copy)
 - Keep the **"run for one mesocycle, ~2 months max, then rebalance"** time-box (p359).
 - A general structural-balance/joint-stress note is fine as soft advice, but should not be
   presented as the primary, book-backed risk.
 
 ### 1.5 Net alignment verdict
 
-| Brainstorm rule | Verdict | Action |
+| Brainstorm rule | Verdict | Action (confirmed) |
 |---|---|---|
-| Slider 0-7, default 3 = balanced | Aligned | Map to MV..MRV with 3 = current baseline |
-| Slider 0 = delete muscle | **Conflict** | Default 0 → MV; deletion is an explicit, warned opt-in |
-| Fixed pairs Chest⇔Legs etc. | **Not physiological** | Use recovery-budget reallocation; pairs at most a UI nicety |
-| 7 overloads a muscle | Aligned | Clamp to MRV; warn about rapid-volume injury risk |
-| "Imbalance causes injury" | **Partly unsupported** | Lead with rapid-volume risk + below-MV muscle loss |
+| Slider scale, default 3 = balanced | Aligned (now **0-6**) | Symmetric about 3; endpoints = MV (1) and MRV (6); 3 = current baseline |
+| Slider 0 = delete muscle | **Confirmed by product** | 0 = full removal behind a warning; slider 1 = maintain (MV) for the softer option |
+| Fixed pairs Chest⇔Legs etc. | **Dropped** | Recovery-budget reallocation instead; pairs not used even as UI |
+| 6 overloads a muscle | Aligned | Clamp to MRV; warn about rapid-volume injury risk |
+| "Imbalance causes injury" | **Partly unsupported** | Lead with rapid-volume risk + muscle loss; imbalance as soft note |
 | 1 meso / 2 months max | **Aligned** | Keep, matches "switch every couple mesos" (p359) |
-| De-prioritized muscles fund emphasized ones | Aligned | This is exactly the MV-frees-recovery model (p345, p359) |
+| De-prioritized muscles fund emphasized ones | Aligned | The MV-frees-recovery model (p345, p359) |
 
 ---
 
@@ -370,11 +387,12 @@ training: {
   track: 'powerbuilding',          // 'powerlifting' | 'powerbuilding' | 'bodybuilding'
   timeMode: 'unlimited',           // 'unlimited' | 'custom'
   timeCapMin: null,                // number (minutes) when timeMode === 'custom'
-  otherSports: false,              // gates out of the pure-default path when true
-  muscleFocus: {                   // bodybuilding sliders, 0..7, default 3 = balanced
+  muscleFocus: {                   // bodybuilding sliders, 0..6, default 3 = balanced
     arms: 3, chest: 3, back: 3, glutes: 3, legs: 3, calves: 3,
   },
 },
+// NOTE: `otherSports` and weekday-scheduling are intentionally NOT here. The
+// sport-aware scheduling feature is deferred to its own branch (see §10).
 ```
 
 `program` stores a **snapshot** of the config used to build it (so editing profile later does
@@ -396,13 +414,12 @@ const t = s.profile.training = s.profile.training || {};
 t.track      = t.track      || 'powerbuilding';
 t.timeMode   = t.timeMode   || 'unlimited';
 if (t.timeCapMin === undefined) t.timeCapMin = null;
-if (t.otherSports === undefined) t.otherSports = false;
 t.muscleFocus = Object.assign({ arms:3, chest:3, back:3, glutes:3, legs:3, calves:3 },
                               t.muscleFocus || {});
 if (s.program && !s.program.trainingConfig) {
   // legacy programs predate tracks: stamp them as the powerbuilding default
   s.program.trainingConfig = { track:'powerbuilding', timeMode:'unlimited',
-    timeCapMin:null, otherSports:false,
+    timeCapMin:null,
     muscleFocus:{ arms:3, chest:3, back:3, glutes:3, legs:3, calves:3 } };
 }
 ```
@@ -424,33 +441,52 @@ const SLIDER_MOVEMENTS = {
   legs:   ['quad', 'ham'],
   calves: ['calf'],
 };
-// lowback and abs are not on a slider; they track their parent compounds / stay at baseline.
+// shoulder (delts), lowback, abs, forearms are NOT on a product slider; they stay at baseline
+// and ride their parent compounds. NOTE: side delts are a major aesthetic muscle with no
+// slider in the 6-slider spec - flagged as a possible 7th slider (see open questions).
 ```
 
-### 5.5 Per-muscle volume landmarks
+### 5.5 Per-muscle volume landmarks (sourced)
 
-A static table of `[MV, MEV, MRV]` weekly sets per movement category, seeded from the book's
-ranges (p119, p345; tuned per category). Slider targets interpolate within these bounds (§1.1).
+Weekly working-set landmarks per movement category. **Source: Renaissance Periodization's
+published per-muscle "Training Tips for Hypertrophy" article series (rpstrength.com, ~2017-19),
+the classic landmark grid -- EXTERNAL to the attached 2020 book**, which only teaches the
+method, not these constants. Values target intermediate-to-advanced lifters and are starting
+points to individualize. They are *data, not logic*, so they tune without touching the
+pipeline. `mev`/`mrv` drive the slider endpoints (§1.1). Mapped to IRONWAVE `MOVEMENTS`:
 
 ```js
-// weekly working-set landmarks per movement category (intermediate baseline)
+// weekly working-set landmarks (RP classic grid)
 const VOLUME_LANDMARKS = {
-  chest:  { mv: 4, mev: 8,  mrv: 22 },
-  back:   { mv: 6, mev: 10, mrv: 25 },
-  quad:   { mv: 6, mev: 8,  mrv: 20 },
-  ham:    { mv: 3, mev: 6,  mrv: 16 },
-  glute:  { mv: 0, mev: 4,  mrv: 16 },   // heavily trained by squats/deadlifts indirectly
-  calf:   { mv: 6, mev: 8,  mrv: 20 },
-  bicep:  { mv: 4, mev: 8,  mrv: 20 },
-  tricep: { mv: 4, mev: 8,  mrv: 20 },
-  shoulder:{ mv: 6, mev: 8, mrv: 22 },
-  // ... abs, upperback, lowback as needed
+  chest:    { mv: 8, mev: 10, mrv: 22 },
+  // RP gives one "Back" landmark; applied across vpull + hpull + upperback
+  vpull:    { mv: 8, mev: 10, mrv: 25 },
+  hpull:    { mv: 8, mev: 10, mrv: 25 },
+  upperback:{ mv: 8, mev: 10, mrv: 25 },
+  quad:     { mv: 6, mev: 8,  mrv: 20 },
+  ham:      { mv: 4, mev: 6,  mrv: 20 },
+  glute:    { mv: 0, mev: 0,  mrv: 16 },   // MEV 0: squats/deadlifts cover it indirectly (RP)
+  bicep:    { mv: 4, mev: 8,  mrv: 26 },
+  tricep:   { mv: 4, mev: 6,  mrv: 18 },
+  shoulder: { mv: 6, mev: 8,  mrv: 26 },   // side delts (main aesthetic head)
+  calf:     { mv: 6, mev: 8,  mrv: 20 },
+  abs:      { mv: 0, mev: 0,  mrv: 25 },   // MEV 0: covered by bracing on compounds (RP)
+  lowback:  { mv: 0, mev: 0,  mrv: 12 },   // covered by squats/deadlifts; rarely direct
 };
 ```
 
-> These numbers are a starting point consistent with the book's published ranges; they are
-> data, not logic, so they can be tuned without touching the pipeline. They should be reviewed
-> against the RP per-muscle tables (which live outside the read chapters) before shipping.
+**Confidence / caveats (read before shipping):**
+- WebFetch was **blocked (403) for rpstrength.com and all non-GitHub domains** here, so numbers
+  came from search-result snippets quoting RP, cross-checked against two consolidated
+  reproductions. **Chest (10/22) and Back (10/25) are directly quoted, high-confidence;** the
+  rest match the canonical republished grid (consistent across sources) but were not read from
+  the live RP page. **Traps, Abs, Forearms are lower-confidence.**
+- **A second, divergent RP dataset exists:** the current **RP Hypertrophy App / Help Center**
+  uses revised, generally lower, range-based numbers (e.g. Chest ~MEV 4-6 / MRV 16-24). The
+  grid above is the **classic published series**. Pick which dataset (open question).
+- RP's delt granularity is finer than `MOVEMENTS`: front/side/rear delts were collapsed into
+  the single `shoulder` category (side-delt numbers used). The single RP "Back" landmark was
+  applied across `vpull`/`hpull`/`upperback`. Revisit if a finer taxonomy is wanted.
 
 ### 5.6 TypeScript interfaces (documentation only)
 
@@ -458,7 +494,7 @@ const VOLUME_LANDMARKS = {
 type Track = 'powerlifting' | 'powerbuilding' | 'bodybuilding';
 type TimeMode = 'unlimited' | 'custom';
 
-interface MuscleFocus {           // each 0..7, 3 = balanced default
+interface MuscleFocus {           // each 0..6, 3 = balanced default; 0 = remove, 6 = MRV
   arms: number; chest: number; back: number;
   glutes: number; legs: number; calves: number;
 }
@@ -466,8 +502,7 @@ interface TrainingConfig {
   track: Track;
   timeMode: TimeMode;
   timeCapMin: number | null;      // minutes; required iff timeMode === 'custom'
-  otherSports: boolean;
-  muscleFocus: MuscleFocus;
+  muscleFocus: MuscleFocus;       // (no otherSports: sport scheduling deferred, §10)
 }
 interface VolumeLandmark { mv: number; mev: number; mrv: number; }   // weekly sets
 interface SynergistCoverage { [movement: string]: number; }          // 0..1 per covered muscle
@@ -481,7 +516,7 @@ The default path must equal today's output. Each new stage is a guarded no-op at
 
 | Stage | Default input | Behavior at default |
 |---|---|---|
-| Template select | `track = 'powerbuilding'`, `otherSports = false` | picks the existing `powerbuilding` template |
+| Template select | `track = 'powerbuilding'` | picks the existing `powerbuilding` template |
 | FOCUS reallocation | all sliders = 3 | target = baseline for every muscle → set counts unchanged |
 | TIME check | `timeMode = 'unlimited'` | stage skipped entirely → no rest compression, no pruning |
 | Pipeline | above all true | collapses to `BASE → RENDER`, i.e. `resolveSlot` as written today |
@@ -500,13 +535,14 @@ The current 3-step flow (name/bodyweight → days/week → maxes) gains a **trac
 
 ```
 Step 0  Name + bodyweight                                  (unchanged)
-Step 1  Training days per week                             (unchanged)
+Step 1  Training days per week                             (unchanged this branch; see §10)
 Step 2  Primary goal:  Powerlifting | Powerbuilding | Bodybuilding   (NEW)
 Step 3  Time per session:  As much as necessary | Enter minutes      (NEW)
-Step 3b (bodybuilding only) Muscle focus: 6 sliders 0-7, default 3,   (NEW)
-        with the 0/7 warning + "1 meso / ~2 months max" note (§1.4)
+Step 3b (bodybuilding only) Muscle focus: 6 sliders 0-6, default 3,   (NEW)
+        warning fires at 0 (remove) and 6 (rapid-volume/overuse) + "~2 months max" note (§1.4)
 Step 4  Maxes (1RMs)                                       (unchanged)
 ```
+(No "other sports" question this branch; sport-aware scheduling is deferred, §10.)
 
 Choosing Powerbuilding + "As much as necessary" + (no sliders shown) reproduces the exact
 current onboarding result, satisfying C1 at the UX layer too.
@@ -515,16 +551,19 @@ current onboarding result, satisfying C1 at the UX layer too.
 
 ## 8. Open questions for product
 
-1. **Slider 0 semantics:** default to MV (recommended, §1.2) or allow true removal behind a
-   warning? Affects whether de-prioritized muscles ever fully disappear from a day.
-2. **Total-volume conservation:** should emphasizing muscles be funded *only* by de-emphasized
+1. ~~Slider 0 semantics~~ **RESOLVED:** 0 = full removal behind a warning; slider 1 = maintain
+   (MV) for the softer option (§1.2).
+2. **Landmark dataset:** use the **classic RP grid** (in §5.5) or the **newer RP App** numbers
+   (generally lower, range-based)? They differ materially and change every set count.
+3. **Total-volume conservation:** should emphasizing muscles be funded *only* by de-emphasized
    ones (fixed recovery budget), or may total weekly sets rise when time allows? The book
    favors a bounded recovery budget for advanced lifters (p345).
-3. **Powerlifting track scope:** is it just a different `PROGRAM_TEMPLATES` block ratio (more
-   `jm2-wave`, less `jbb-hyp`), or does it need its own scheme? Recommend the former first.
-4. **Time cap granularity:** one cap for all days, or per-day caps (leg day naturally longer)?
-5. **`VOLUME_LANDMARKS` numbers:** confirm against the RP per-muscle tables before shipping;
-   the values in §5.5 are book-consistent estimates, not transcribed from a single table.
+4. **Powerlifting track scope:** just a different `PROGRAM_TEMPLATES` block ratio (more
+   `jm2-wave`, less `jbb-hyp`), or its own scheme? Recommend the former first.
+5. **Time cap granularity:** one cap for all days, or per-day caps (leg day naturally longer)?
+6. **A 7th slider for shoulders/side delts?** The 6-slider spec has no delts, yet side delts
+   are a primary aesthetic muscle (MRV ~26). Add a "Shoulders" slider, or leave delts at
+   baseline?
 
 ---
 
@@ -540,3 +579,31 @@ current onboarding result, satisfying C1 at the UX layer too.
 
 Each step is independently shippable and a no-op for default users until the one that
 introduces its UI.
+
+---
+
+## 10. Deferred epic: sport-aware scheduling (separate branch)
+
+Out of scope for this branch by decision. Captured here so it is not lost. This is a distinct
+subsystem, not a tweak, and warrants its own design pass + branch (e.g. `feat/sport-scheduling`).
+
+**Goal:** avoid injury from stacking training fatigue against an athlete's sport. Real example:
+soccer (forward) every Friday loads the lower body hard, so the builder should keep heavy lower
+-body sessions off **Thursday and Saturday** (the days flanking game day).
+
+**What it requires (why it is its own effort):**
+1. **Sport → muscle-fatigue dataset.** Identify common sports (soccer, basketball, running,
+   cycling, climbing, tennis, swimming, martial arts, ...) and, per sport, which muscle groups
+   they fatigue and how hard. This is research + a data table, comparable in effort to the
+   volume-landmark sourcing.
+2. **Calendar-aware day placement.** Replace "how many days per week" with **"pick which days
+   you train"** (Mon-Sun selection), store actual weekdays, and place sessions so high lower
+   -body (or sport-overlapping) fatigue does not land adjacent to game day. This is a
+   constraint-placement problem, not a count.
+3. **Named days.** Days are currently fixed `DAY_TEMPLATES` keyed by *count* and rendered as
+   "Day 1". Sport scheduling needs **weekday-labeled days** ("Monday - Lower", etc.), a
+   real change to how days are stored and shown across dashboard, workout, preview, and history.
+
+**Interaction with this branch:** the time-cap and muscle-focus systems are independent of
+scheduling and ship first; sport scheduling layers on later by constraining which day each
+session lands on, without changing how a session's volume or time is computed.
