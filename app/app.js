@@ -692,7 +692,17 @@ function openDay(i) {
   nav('workout');
 }
 function completeWeek(allDone) {
-  if (!allDone && !confirm('Not every day is logged. Complete the week anyway?')) return;
+  if (!allDone) {
+    confirmModal({
+      title: 'Complete week?',
+      message: 'Not every day is logged. You can complete the week anyway and move on.',
+      confirmLabel: 'Complete week',
+    }, doCompleteWeek);
+    return;
+  }
+  doCompleteWeek();
+}
+function doCompleteWeek() {
   const p = P();
   const up = nextPointer(p.pointer.block, p.pointer.week);
   // Change 2: only autoregulate into a genuine work week (accumulation / intensification / realization).
@@ -886,7 +896,14 @@ function commitReorder(di, order) {
 }
 
 function skipWorkout(di) {
-  if (!confirm('Skip this workout? Skipping lowers your readiness.')) return;
+  confirmModal({
+    title: 'Skip this workout?',
+    message: 'Skipping lowers your readiness, and the penalty decays over the next few days.',
+    confirmLabel: 'Skip workout',
+    danger: true,
+  }, () => doSkipWorkout(di));
+}
+function doSkipWorkout(di) {
   const p = P();
   p.completedDays[dayKey(p.pointer.block, p.pointer.week, di)] = 'skipped';
   S.skipPenalty = Math.min(6, decayedSkipPenalty() + 2);
@@ -1108,7 +1125,11 @@ function topWorkWeight(e) {
 function toggleNotes(ei) { V.draft.entries[ei].notesOpen = !V.draft.entries[ei].notesOpen; render(); }
 function setNotes(ei, v) { V.draft.entries[ei].notes = v; }
 function abandonSession() {
-  if (confirm('Leave this session? Logged sets stay saved in the draft.')) nav('workout');
+  confirmModal({
+    title: 'Leave this session?',
+    message: 'Your logged sets stay saved in the draft, so you can pick this session back up.',
+    confirmLabel: 'Leave session',
+  }, () => nav('workout'));
 }
 
 // ------------------------------------------------------------
@@ -1310,6 +1331,41 @@ function modalShell(anim, title, body, oncloseJs) {
 }
 
 // ------------------------------------------------------------
+// CONFIRM DIALOG
+// In-app replacement for native window.confirm(). Rides the modal
+// stack, so it layers over an open modal (e.g. delete from the
+// exercise-detail sheet) and returns to it on cancel. The X button
+// and backdrop tap both count as cancel. Set opts.danger for a red
+// primary button and warning icon on destructive actions.
+// ------------------------------------------------------------
+let CONFIRM = null;
+function confirmModal(opts, onConfirm, onCancel) {
+  CONFIRM = { onConfirm, onCancel };
+  CONFIRM.opts = opts;
+  showModal(renderConfirm);
+}
+function renderConfirm(anim) {
+  const o = CONFIRM.opts;
+  const danger = !!o.danger;
+  $modal.innerHTML = modalShell(anim, o.title || 'Confirm', `
+        <div class="confirm-body">
+          <div class="confirm-icon ${danger ? 'danger' : ''}">${danger ? '⚠' : '?'}</div>
+          <p class="confirm-msg">${esc(o.message)}</p>
+        </div>
+        <button class="btn ${danger ? 'btn-red' : 'btn-blue'}" onclick="confirmResolve(true)">${esc(o.confirmLabel || 'Confirm')}</button>
+        <button class="btn btn-outline mt8" onclick="confirmResolve(false)">${esc(o.cancelLabel || 'Cancel')}</button>`,
+    'confirmResolve(false)');
+}
+function confirmResolve(yes) {
+  const c = CONFIRM;
+  CONFIRM = null;
+  closeModal();
+  if (!c) return;
+  if (yes) { if (c.onConfirm) c.onConfirm(); }
+  else if (c.onCancel) c.onCancel();
+}
+
+// ------------------------------------------------------------
 // SESSION RATING + FINISH
 // ------------------------------------------------------------
 let SR = 7;
@@ -1318,7 +1374,17 @@ const SR_WORDS = { 5: 'Felt like a warmup', 6: 'Comfortably hard', 7: 'Solid wor
 function openSessionRating() {
   const dr = V.draft;
   const loggedAny = dr.entries.some(e => e.sets.some(s => s.done));
-  if (!loggedAny && !confirm('No sets logged. Finish anyway?')) return;
+  if (!loggedAny) {
+    confirmModal({
+      title: 'Finish with no sets?',
+      message: 'You have not logged any sets for this session. You can finish it anyway.',
+      confirmLabel: 'Finish anyway',
+    }, showSessionRating);
+    return;
+  }
+  showSessionRating();
+}
+function showSessionRating() {
   SR = 7;
   showModal(renderSR);
 }
@@ -1530,11 +1596,17 @@ function redoDay(i) {
   const k = dayKey(p.pointer.block, p.pointer.week, i);
   const sid = p.completedDays[k];
   if (!sid || sid === 'skipped') { startCheckin(i); return; }
-  if (!confirm('Redo this day from scratch? The logged session for this day will be removed and replaced.')) return;
-  S.sessions = S.sessions.filter(x => x.id !== sid); // drop the prior session so nothing is orphaned
-  delete p.completedDays[k];
-  save();
-  startCheckin(i);
+  confirmModal({
+    title: 'Redo this day?',
+    message: 'The logged session for this day will be removed and replaced from scratch.',
+    confirmLabel: 'Redo day',
+    danger: true,
+  }, () => {
+    S.sessions = S.sessions.filter(x => x.id !== sid); // drop the prior session so nothing is orphaned
+    delete p.completedDays[k];
+    save();
+    startCheckin(i);
+  });
 }
 
 // ------------------------------------------------------------
@@ -1720,10 +1792,16 @@ function saveExLoading() {
   save(); toast('Loading saved'); rerenderTop();
 }
 function deleteCustomEx(id) {
-  if (!confirm('Delete this exercise and its records?')) return;
-  S.customEx = S.customEx.filter(e => e.id !== id);
-  delete S.records[id];
-  save(); closeAllModals(); render();
+  confirmModal({
+    title: 'Delete exercise?',
+    message: 'This removes the custom exercise and every set logged against it. This cannot be undone.',
+    confirmLabel: 'Delete exercise',
+    danger: true,
+  }, () => {
+    S.customEx = S.customEx.filter(e => e.id !== id);
+    delete S.records[id];
+    save(); closeAllModals(); render();
+  });
 }
 
 // ------------------------------------------------------------
@@ -1773,7 +1851,13 @@ function vProgram() {
   </div>${tabbar()}`;
 }
 function confirmNewProgram() {
-  if (!confirm('Start a fresh program? Your history, records and maxes stay. The current program pointer resets to week 1.')) return;
+  confirmModal({
+    title: 'Start a new program?',
+    message: 'Your history, records and maxes stay. The current program pointer resets to week 1.',
+    confirmLabel: 'Start new program',
+  }, doNewProgram);
+}
+function doNewProgram() {
   const keepMaxes = {};
   for (const l of ['comp-squat', 'comp-bench', 'comp-deadlift', 'military-press']) {
     if (P()?.wm?.[l]) keepMaxes[l] = P().wm[l] / 0.9; // back to ~1RM for re-seed
@@ -1869,8 +1953,20 @@ function importData(input) {
   input.value = '';
 }
 function fullReset() {
-  if (!confirm('Erase ALL data: program, history, records? This cannot be undone.')) return;
-  if (!confirm('Last chance. Really erase everything?')) return;
+  // Two-stage confirm for the most destructive action in the app.
+  confirmModal({
+    title: 'Erase everything?',
+    message: 'This erases all of your data: program, history and records. This cannot be undone.',
+    confirmLabel: 'Continue',
+    danger: true,
+  }, () => confirmModal({
+    title: 'Last chance',
+    message: 'Really erase everything? There is no way to recover this once it is gone.',
+    confirmLabel: 'Erase everything',
+    danger: true,
+  }, doFullReset));
+}
+function doFullReset() {
   S = defaultState();
   save();
   V = { view: 'onboarding', tab: 'dashboard', dayIdx: null, libTab: 'alpha', libSearch: '', obStep: 0, ob: null, draft: null };
