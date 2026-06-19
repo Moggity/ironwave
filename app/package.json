@@ -1,0 +1,30 @@
+{
+  "name": "ironwave",
+  "version": "1.0.0",
+  "description": "Self-hosted powerbuilding web app built on the Juggernaut Method 2.0 wave system, with server-side JSON persistence.",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "fitness",
+    "powerbuilding",
+    "juggernaut-method",
+    "strength-training",
+    "workout-tracker",
+    "self-hosted",
+    "vanilla-js"
+  ],
+  "author": "Martin Arocha",
+  "license": "MIT",
+  "private": true,
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  }
+}
