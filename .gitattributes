@@ -1,0 +1,5 @@
+# Normalize all text files to LF in the repository and on checkout.
+* text=auto eol=lf
+
+# Windows launchers must stay CRLF so they run correctly.
+*.bat text eol=crlf
