@@ -487,8 +487,9 @@ const VOLUME_LANDMARKS = {
   rest match the canonical republished grid (consistent across sources) but were not read from
   the live RP page. **Traps, Abs, Forearms are lower-confidence.**
 - **A second, divergent RP dataset exists:** the current **RP Hypertrophy App / Help Center**
-  uses revised, generally lower, range-based numbers (e.g. Chest ~MEV 4-6 / MRV 16-24). The
-  grid above is the **classic published series**. Pick which dataset (open question).
+  uses revised, generally lower, range-based numbers (e.g. Chest ~MEV 4-6 / MRV 16-24). **Decision:
+  use the classic grid above** (it is the verifiable, publicly republished dataset; the App
+  numbers could not be confirmed here). See §8.2.
 - RP's delt granularity is finer than `MOVEMENTS`: front/side/rear delts were collapsed into
   the single `shoulder` category (side-delt numbers used). The single RP "Back" landmark was
   applied across `vpull`/`hpull`/`upperback`. Revisit if a finer taxonomy is wanted.
@@ -624,21 +625,28 @@ current onboarding result, satisfying C1 at the UX layer too.
 
 ## 8. Open questions for product
 
+All blocking decisions are now resolved. Remaining items are tuning, safe to adjust later.
+
 1. ~~Slider 0 semantics~~ **RESOLVED:** 0 = full removal behind a warning; slider 1 = maintain
    (MV) for the softer option (§1.2).
-2. **Landmark dataset:** use the **classic RP grid** (in §5.5) or the **newer RP App** numbers
-   (generally lower, range-based)? They differ materially and change every set count.
-3. **Total-volume conservation:** should emphasizing muscles be funded *only* by de-emphasized
-   ones (fixed recovery budget), or may total weekly sets rise when time allows? The book
-   favors a bounded recovery budget for advanced lifters (p345).
-4. **Powerlifting track scope:** just a different `PROGRAM_TEMPLATES` block ratio (more
-   `jm2-wave`, less `jbb-hyp`), or its own scheme? Recommend the former first.
-5. **Time cap granularity:** one cap for all days, or per-day caps (leg day naturally longer)?
+2. ~~Landmark dataset~~ **RESOLVED: classic RP grid** (§5.5). Chosen for verifiability: the
+   classic numbers are publicly republished and cross-checked (chest/back directly quoted);
+   the RP App numbers sit behind the paid app and could not be verified here. Revisit only if
+   confirmed RP App values become available.
+3. ~~Total-volume conservation~~ **DECIDED: bounded recovery budget (zero-sum reallocation).**
+   Emphasizing a muscle is funded by de-emphasizing others; total weekly sets stay near the
+   program baseline, each muscle clamped to [MV, MRV]. This is the book's recovery logic for
+   advanced lifters (p345) and the safe default. (A future "let total rise when time allows"
+   mode can be added, but only when the time-cap system can absorb it.)
+4. ~~Powerlifting track scope~~ **DECIDED: a different `PROGRAM_TEMPLATES` block ratio** (more
+   `jm2-wave`, fewer `jbb-hyp`), no new scheme. Reuses the proven engine; lowest risk.
+5. **Time cap granularity (tuning):** one cap for all days, or per-day caps (leg day naturally
+   longer)? Default to one cap; per-day is a later refinement.
 6. ~~7th slider for shoulders~~ **RESOLVED:** added a **Shoulders** slider (side delts, MRV ~26).
-7. **Landmark evolution rate:** is +/-1 set per muscle per block (§5.6) the right step, and
-   should evolution run per block (recommended) or per full mesocycle/macrocycle?
-8. **Experience seeding:** confirm the `EXPERIENCE_FACTOR` values (0.65 / 0.85 / 1.0). Since
-   landmarks self-correct from logged data within a block, this only affects the first block.
+7. ~~Landmark evolution cadence~~ **RESOLVED: per accumulation block, +/-1-set MRV step**, MEV
+   drifting +0.5/block with training age, all clamped and rate-limited (§5.6).
+8. **Experience seeding (tuning):** `EXPERIENCE_FACTOR` 0.65 / 0.85 / 1.0. Low stakes since
+   landmarks self-correct from logged data within a block; can be retuned anytime.
 
 ---
 
