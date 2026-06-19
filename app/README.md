@@ -5,7 +5,7 @@ A self-hosted powerbuilding webapp built on the **Juggernaut Method 2.0** wave s
 ## Run it on your computer (localhost)
 
 ```bash
-cd juggernaut-app
+cd app
 npm install
 npm start
 ```

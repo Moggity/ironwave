@@ -1,5 +1,25 @@
 # IRONWAVE — Changelog
 
+## [In-app confirm dialogs] (2026-06-19)
+- Replaced every native `window.confirm()` with an in-app confirm dialog so
+  the app, not the browser, draws and triggers these prompts. They now match
+  the dark theme, ride the existing modal stack, and animate like the rest of
+  the UI (backdrop fade, bottom-sheet slide up, a small icon pop). Nine call
+  sites converted: complete week, skip workout, leave session, finish with no
+  sets, redo day, delete custom exercise, start new program, and the two-stage
+  erase-everything reset.
+- New `confirmModal({ title, message, confirmLabel, cancelLabel, danger }, onConfirm, onCancel)`
+  helper. Destructive actions (skip, redo, delete, erase) set `danger` for a
+  red primary button and a warning icon; the rest use the blue primary. The X
+  button and a backdrop tap both count as cancel. Because it uses the modal
+  stack, a confirm raised from inside another modal (delete from the exercise
+  detail sheet) layers over it and returns to it on cancel.
+- `fullReset` keeps its deliberate two-stage confirm, now as two chained
+  dialogs. Engine, prescription, and persistence logic are untouched; this is
+  the confirmation UI layer only.
+- Also added a subtle backdrop fade-in to every modal (`.modal-wrap`), which
+  improves all existing modals, not just the new dialogs.
+
 ## [Calibration-state preview display + em-dash cleanup] (2026-06-18)
 - Week preview (`openWeekPreview`) now detects when a lift is uncalibrated
   (main lift with no working max, or accessory with no logged e1RM yet) and
