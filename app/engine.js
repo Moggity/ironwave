@@ -354,3 +354,25 @@ Engine.schemeFor = function (block) {
   const id = block.scheme || (block.type === 'hypertrophy' ? 'jbb-hyp' : 'jm2-wave');
   return Engine.schemes[id] || Engine.schemes['jm2-wave'];
 };
+
+/* ============================================================
+   DYNAMIC ROUTINE ADAPTATION ENGINE — per-athlete landmarks
+   See docs/dynamic-routine-engine-design.md (5.5-5.7). These read
+   the data tables in data.js. Nothing here runs for a default
+   (Powerbuilding / unlimited-time) user, so legacy output is intact.
+   ============================================================ */
+
+// Seed a fresh per-athlete landmark grid from the published RP grid, scaled by
+// training experience. Stored on profile.landmarks, then evolved over time.
+Engine.seedLandmarks = function (experience) {
+  const f = (typeof EXPERIENCE_FACTOR !== 'undefined' && EXPERIENCE_FACTOR[experience]) || 0.85;
+  const out = {};
+  for (const m in VOLUME_LANDMARKS) {
+    const L = VOLUME_LANDMARKS[m];
+    const mv = Math.round(L.mv * f);
+    const mev = Math.max(mv, Math.round(L.mev * f));   // mev>=0 preserved (glutes/abs MEV 0)
+    const mrv = Math.max(mev + 1, Math.round(L.mrv * f));
+    out[m] = { mv, mev, mrv };
+  }
+  return out;
+};

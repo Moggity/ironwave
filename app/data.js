@@ -276,6 +276,37 @@ const PROGRAM_TEMPLATES = {
     ],
     weeksPerBlock: 5,
   },
+  // Pure-appearance track: all hypertrophy blocks (jbb-hyp). Triggers the
+  // muscle-focus slider system. Reuses the same day templates; only the block
+  // periodization differs. mesoIdx clamps at 3 rows, so blocks 4-5 reuse the top.
+  bodybuilding: {
+    id: 'bodybuilding',
+    label: 'Bodybuilding',
+    methodology: 'Bodybuilding (ascending volume)',
+    blocks: [
+      { type: 'hypertrophy', wave: '10s', label: 'Hypertrophy 1', scheme: 'jbb-hyp' },
+      { type: 'hypertrophy', wave: '8s',  label: 'Hypertrophy 2', scheme: 'jbb-hyp' },
+      { type: 'hypertrophy', wave: '8s',  label: 'Hypertrophy 3', scheme: 'jbb-hyp' },
+      { type: 'hypertrophy', wave: '10s', label: 'Hypertrophy 4', scheme: 'jbb-hyp' },
+      { type: 'hypertrophy', wave: '8s',  label: 'Hypertrophy 5', scheme: 'jbb-hyp' },
+    ],
+    weeksPerBlock: 5,
+  },
+  // Strength track: one hypertrophy base block then four book-wave strength
+  // blocks (jm2-wave). No slider system. Lowest-risk: reuses both schemes.
+  powerlifting: {
+    id: 'powerlifting',
+    label: 'Powerlifting',
+    methodology: 'Juggernaut strength focus',
+    blocks: [
+      { type: 'hypertrophy', wave: '8s', label: 'Hypertrophy Base', scheme: 'jbb-hyp' },
+      { type: 'strength',    wave: '5s', label: 'Strength 1',        scheme: 'jm2-wave' },
+      { type: 'strength',    wave: '5s', label: 'Strength 2',        scheme: 'jm2-wave' },
+      { type: 'strength',    wave: '3s', label: 'Strength 3',        scheme: 'jm2-wave' },
+      { type: 'strength',    wave: '3s', label: 'Strength 4',        scheme: 'jm2-wave' },
+    ],
+    weeksPerBlock: 5,
+  },
 };
 
 // [Juggernaut + Bodybuilding] ascending-volume hypertrophy config.
@@ -484,4 +515,77 @@ const RPE_DESCRIPTIONS = {
   6:   'Could do 4 more reps',
   5.5: 'Could do 4, maybe 5 more reps',
   5:   'Could do 5+ more reps, felt like a warmup',
+};
+
+/* ============================================================
+   DYNAMIC ROUTINE ADAPTATION ENGINE — config tables
+   See docs/dynamic-routine-engine-design.md. All of this is data,
+   not logic: the engine functions (engine.js) read these. None of
+   it affects a default user (Powerbuilding, unlimited time), so the
+   legacy routine output is byte-identical.
+   ============================================================ */
+
+// The 7 bodybuilding focus sliders aggregate the finer MOVEMENTS categories.
+const SLIDER_MOVEMENTS = {
+  arms:      ['bicep', 'tricep'],
+  chest:     ['chest'],
+  back:      ['vpull', 'hpull', 'upperback'],
+  shoulders: ['shoulder'],
+  glutes:    ['glute'],
+  legs:      ['quad', 'ham'],
+  calves:    ['calf'],
+};
+// Reverse lookup: movement category -> slider key (lowback/abs/forearm have none).
+const MOVEMENT_SLIDER = (() => {
+  const m = {};
+  for (const k in SLIDER_MOVEMENTS) for (const mv of SLIDER_MOVEMENTS[k]) m[mv] = k;
+  return m;
+})();
+
+// Per-muscle weekly working-set landmarks. SOURCE: Renaissance Periodization's
+// classic published "Training Tips for Hypertrophy" grid (rpstrength.com),
+// EXTERNAL to the 2020 book. Intermediate/advanced baseline; used only as a
+// SEED — each athlete's evolving copy lives in profile.landmarks (see engine.js).
+const VOLUME_LANDMARKS = {
+  chest:     { mv: 8, mev: 10, mrv: 22 },
+  vpull:     { mv: 8, mev: 10, mrv: 25 },   // RP "Back" applied across the back movements
+  hpull:     { mv: 8, mev: 10, mrv: 25 },
+  upperback: { mv: 8, mev: 10, mrv: 25 },
+  quad:      { mv: 6, mev: 8,  mrv: 20 },
+  ham:       { mv: 4, mev: 6,  mrv: 20 },
+  glute:     { mv: 0, mev: 0,  mrv: 16 },   // MEV 0: covered indirectly by squats/deadlifts
+  bicep:     { mv: 4, mev: 8,  mrv: 26 },
+  tricep:    { mv: 4, mev: 6,  mrv: 18 },
+  shoulder:  { mv: 6, mev: 8,  mrv: 26 },   // side delts (main aesthetic head)
+  calf:      { mv: 6, mev: 8,  mrv: 20 },
+  abs:       { mv: 0, mev: 0,  mrv: 25 },   // MEV 0: covered by bracing on compounds
+  lowback:   { mv: 0, mev: 0,  mrv: 12 },   // covered by squats/deadlifts; rarely direct
+};
+
+// Seeds the landmark grid by training experience (the RP grid is intermediate+).
+const EXPERIENCE_FACTOR = { beginner: 0.65, intermediate: 0.85, advanced: 1.0 };
+
+// Movement categories a compound already trains indirectly, with a coverage
+// weight 0..1 (1 = fully covers the muscle for that day). Drives coherent
+// accessory pruning under a time deficit. Grounded in the book (p29-30, p159-160):
+// squats already hit glutes/erectors; presses hit triceps/front delts; rows hit
+// rear delts/forearms (NOT biceps). Keyed by the main/secondary lift's movement.
+const SYNERGIST_COVERAGE = {
+  squat:    { quad: 1.0, glute: 0.7, lowback: 0.5, ham: 0.3 },
+  deadlift: { ham: 0.8, glute: 0.8, lowback: 1.0, upperback: 0.4 },
+  bench:    { chest: 1.0, tricep: 0.7, shoulder: 0.4 },
+  press:    { shoulder: 1.0, tricep: 0.7 },
+  hpull:    { hpull: 1.0, upperback: 1.0, shoulder: 0.3 },  // rear delt, not bicep
+  vpull:    { vpull: 1.0, upperback: 0.6, bicep: 0.5 },
+};
+
+// "Eyeballed" time constants for the session-time estimator (see engine.js).
+// execSecPerRep: brainstorm "1-2 min / 10 reps" = 6-12 s/rep; book "3-9 s/rep"
+// controlled (p65). Mains slower (heavier, unrack/rerack), accessories faster.
+const TIME_MODEL = {
+  execSecPerRep: { main: 12, secondary: 10, accessory: 6 },
+  restSec:       { main: 120, secondary: 120, accessory: 90 },
+  restSecTight:  { main: 90,  secondary: 90,  accessory: 60 },  // after rest compression
+  warmupSecPerSet: 45,   // light warmup set + change plates
+  sessionOverheadSec: 180,
 };

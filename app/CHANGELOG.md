@@ -1,5 +1,28 @@
 # IRONWAVE — Changelog
 
+## [Dynamic engine: onboarding tracks, time, muscle focus] (2026-06-19) — in progress
+
+Implements docs/dynamic-routine-engine-design.md. Shipped incrementally; each
+commit keeps a default user (Powerbuilding, unlimited time) byte-identical.
+
+### Foundation (this commit)
+- New training tracks: Powerbuilding (existing), Powerlifting (hypertrophy base
+  + four book-wave strength blocks), Bodybuilding (all hypertrophy, drives the
+  muscle-focus sliders). Tracks only change block periodization; day layouts and
+  the jm2-wave / jbb-hyp schemes are untouched.
+- Onboarding gains goal (track), experience, time-per-session (unlimited or a
+  minute cap), and, for Bodybuilding, seven 0-6 muscle-focus sliders (Arms,
+  Chest, Back, Shoulders, Glutes, Legs, Calves; 3 = balanced). Sliders at 0
+  (remove) or 6 (max) show a warning. Non-bodybuilding tracks skip the slider step.
+- Per-athlete volume landmarks (MV/MEV/MRV) stored in profile.landmarks, seeded
+  from the RP classic grid scaled by experience. Engine.seedLandmarks added.
+- State, migration (backfills all new fields and seeds landmarks on old saves),
+  and makeProgram (selects template by track, snapshots trainingConfig) updated.
+  State version unchanged; old database.json and backups load unchanged.
+- Verified: legacy resolveSlot output unchanged (calibrated and uncalibrated
+  lifts), migration idempotent, and the full bodybuilding onboarding flow, all
+  via a headless JSDOM harness.
+
 ## [In-app confirm dialogs] (2026-06-19)
 - Replaced every native `window.confirm()` with an in-app confirm dialog so
   the app, not the browser, draws and triggers these prompts. They now match

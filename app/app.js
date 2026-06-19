@@ -22,7 +22,14 @@ function defaultState() {
     v: 1,
     profile: { name: '', bodyweight: null, barWeight: 20, rounding: 2.5,
                dbIncrement: 2.5, machineStep: 5,
-               plates: JSON.parse(JSON.stringify(DEFAULT_PLATES)) },
+               plates: JSON.parse(JSON.stringify(DEFAULT_PLATES)),
+               // Dynamic engine (see docs/dynamic-routine-engine-design.md). All
+               // defaults make a routine identical to the legacy output.
+               training: { track: 'powerbuilding', timeMode: 'unlimited', timeCapMin: null,
+                 muscleFocus: { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 } },
+               experience: 'intermediate',
+               trainingAge: { startedTs: null, blocksCompleted: 0 },
+               landmarks: {} },
     program: null,
     records: {},      // exId -> [{ts, weight, reps, rpe}]
     loadingProfiles: {}, // exId -> { mode, count, barWeight } — per-exercise loading, persists across programs
@@ -63,6 +70,23 @@ function migrateState(s) {
     if (s.program.weeksPerBlock == null) s.program.weeksPerBlock = 5;
     if (!s.program.completedDays) s.program.completedDays = {};
     if (s.program.weekMod === undefined) s.program.weekMod = null;
+  }
+  // Dynamic engine fields (additive, idempotent). A save predating the engine
+  // backfills to the legacy-identical defaults, so its routine is unchanged.
+  const p = s.profile || (s.profile = {});
+  const t = p.training = p.training || {};
+  t.track = t.track || 'powerbuilding';
+  t.timeMode = t.timeMode || 'unlimited';
+  if (t.timeCapMin === undefined) t.timeCapMin = null;
+  t.muscleFocus = Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
+                                t.muscleFocus || {});
+  p.experience = p.experience || 'intermediate';
+  if (!p.trainingAge) p.trainingAge = { startedTs: (s.program && s.program.startDate) || null, blocksCompleted: 0 };
+  if (!p.landmarks || !Object.keys(p.landmarks).length) p.landmarks = Engine.seedLandmarks(p.experience);
+  if (s.program && !s.program.trainingConfig) {
+    // Legacy programs predate tracks: stamp them as the powerbuilding default.
+    s.program.trainingConfig = { track: 'powerbuilding', timeMode: 'unlimited', timeCapMin: null,
+      muscleFocus: Object.assign({}, t.muscleFocus) };
   }
 }
 // save() now serializes overlapping writes (last-write-wins is fine for a
@@ -189,7 +213,10 @@ function stampMesoIdx(blocks) {
   });
 }
 function makeProgram(ob) {
-  const tpl = PROGRAM_TEMPLATES.powerbuilding;
+  // Track selects the block periodization; day layouts are shared. Defaults to
+  // powerbuilding so an onboarding without a track behaves exactly as before.
+  const track = ob.track || 'powerbuilding';
+  const tpl = PROGRAM_TEMPLATES[track] || PROGRAM_TEMPLATES.powerbuilding;
   const days = JSON.parse(JSON.stringify(DAY_TEMPLATES[ob.daysPerWeek]));
   const blocks = JSON.parse(JSON.stringify(tpl.blocks));
   stampMesoIdx(blocks);
@@ -201,6 +228,7 @@ function makeProgram(ob) {
     wm[lift] = ob.maxes[lift] ? Math.round(ob.maxes[lift] * 0.9 / 1.25) * 1.25 : null;
     increments[lift] = Engine.defaultIncrement(lift);
   }
+  const focus = { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 };
   return {
     template: tpl.id, daysPerWeek: ob.daysPerWeek,
     methodology: tpl.methodology || 'Juggernaut + Bodybuilding',
@@ -212,6 +240,14 @@ function makeProgram(ob) {
     days, wm, increments,
     completedDays: {},
     weekMod: null, // Change 2: single-use end-of-week autoregulation modifier for the upcoming week
+    // Snapshot of the config this cycle was built with, so editing profile later
+    // does not silently rewrite an in-flight program.
+    trainingConfig: {
+      track,
+      timeMode: ob.timeMode || 'unlimited',
+      timeCapMin: ob.timeMode === 'custom' ? (ob.timeCapMin || null) : null,
+      muscleFocus: Object.assign(focus, ob.muscleFocus || {}),
+    },
   };
 }
 function P() { return S.program; }
@@ -440,8 +476,42 @@ function topbar(title) {
 // ------------------------------------------------------------
 // VIEW: ONBOARDING
 // ------------------------------------------------------------
+// Step indices. The muscle-focus step (5) is shown only for the bodybuilding
+// track; obNext skips it otherwise, so other tracks keep the legacy-length flow.
+const OB_TRACKS = [
+  ['powerbuilding', 'Powerbuilding', 'Balanced size and strength. The original IRONWAVE mix: 3 hypertrophy blocks, 2 strength blocks.'],
+  ['powerlifting',  'Powerlifting',  'Get as strong as possible. A hypertrophy base, then four book-wave strength blocks.'],
+  ['bodybuilding',  'Bodybuilding',  'Size and appearance. All hypertrophy, with per-muscle focus sliders you set next.'],
+];
+const OB_EXP = [
+  ['beginner', 'Beginner', 'Under a year of serious training. Starts your volume lower.'],
+  ['intermediate', 'Intermediate', '1 to 3 years. The standard starting point.'],
+  ['advanced', 'Advanced', '3+ years. Starts your volume near the top of the range.'],
+];
+const FOCUS_KEYS = ['arms', 'chest', 'back', 'shoulders', 'glutes', 'legs', 'calves'];
+const FOCUS_LABELS = { arms: 'Arms', chest: 'Chest', back: 'Back', shoulders: 'Shoulders',
+                       glutes: 'Glutes', legs: 'Legs', calves: 'Calves' };
+
+function obDefaults() {
+  return { name: '', bodyweight: '', daysPerWeek: 4, track: 'powerbuilding',
+           experience: 'intermediate', timeMode: 'unlimited', timeCapMin: '',
+           muscleFocus: { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
+           maxes: {} };
+}
+// Warning copy for any slider at the extremes (0 = removed, 6 = maxed).
+function obFocusWarning(focus) {
+  const removed = FOCUS_KEYS.filter(k => focus[k] === 0).map(k => FOCUS_LABELS[k]);
+  const maxed = FOCUS_KEYS.filter(k => focus[k] === 6).map(k => FOCUS_LABELS[k]);
+  if (!removed.length && !maxed.length) return '';
+  const parts = [];
+  if (removed.length) parts.push(`Removing ${removed.join(', ')} means no direct work there. Over a block you lose size and strength there, and big imbalances can stress your joints. Fine for an injury or a deliberate choice.`);
+  if (maxed.length) parts.push(`Maxing ${maxed.join(', ')} is a large jump in volume, which raises injury and overuse risk. Ease into it.`);
+  parts.push('Run a focus like this for about one block, 2 months at most, then rebalance.');
+  return `<div class="banner-warn mt8">${parts.join(' ')}</div>`;
+}
+
 function vOnboarding() {
-  if (!V.ob) V.ob = { name: '', bodyweight: '', daysPerWeek: 4, maxes: {}, knowsMaxes: true };
+  if (!V.ob) V.ob = obDefaults();
   const ob = V.ob;
   const step = V.obStep;
   let body = '';
@@ -449,8 +519,8 @@ function vOnboarding() {
   if (step === 0) {
     body = `
       <div class="ob-title">Welcome to<br>IRON<span style="color:var(--blue)">WAVE</span></div>
-      <p class="subtle">Auto-regulating powerbuilding built on the Juggernaut Method 2.0 wave system.
-      3 hypertrophy blocks, 2 strength blocks, then you test.</p>
+      <p class="subtle">Auto-regulating training built on the Juggernaut Method 2.0 wave system.
+      A few quick questions and we build your program.</p>
       <div class="field"><label>Your name</label>
         <input id="ob-name" value="${esc(ob.name)}" placeholder="Lifter name"></div>
       <div class="field"><label>Bodyweight (kg)</label>
@@ -464,11 +534,49 @@ function vOnboarding() {
         ${[3,4,5,6].map(n => `<button class="${ob.daysPerWeek===n?'on':''}" onclick="obDays(${n})">${n}</button>`).join('')}
       </div>
       <p class="faint mt16">${{3:'Full-body emphasis. Squat / Bench / Deadlift+Press days.',
-        4:'Classic split: Bench · Squat · Press · Deadlift.',
+        4:'Classic split: Bench, Squat, Press, Deadlift.',
         5:'Classic split plus a volume bench/pump day.',
         6:'Classic split plus a secondary bench day and a secondary deadlift/squat volume day.'}[ob.daysPerWeek]}</p>
       <button class="btn btn-green mt24" onclick="obNext(1)">Continue</button>`;
   } else if (step === 2) {
+    body = `
+      <div class="ob-title">Primary goal</div>
+      <p class="subtle">This sets how your blocks are periodized. You can start a fresh program later if your goal changes.</p>
+      ${OB_TRACKS.map(([id, label, desc]) => `
+        <button class="pick-card ${ob.track===id?'on':''}" onclick="obTrack('${id}')">
+          <b>${label}</b><span class="faint">${desc}</span></button>`).join('')}
+      <button class="btn btn-green mt16" onclick="obNext(2)">Continue</button>`;
+  } else if (step === 3) {
+    body = `
+      <div class="ob-title">Experience</div>
+      <p class="subtle">How long have you trained seriously? This only seeds your starting volume. It adjusts to your logged performance from there.</p>
+      ${OB_EXP.map(([id, label, desc]) => `
+        <button class="pick-card ${ob.experience===id?'on':''}" onclick="obExp('${id}')">
+          <b>${label}</b><span class="faint">${desc}</span></button>`).join('')}
+      <button class="btn btn-green mt16" onclick="obNext(3)">Continue</button>`;
+  } else if (step === 4) {
+    body = `
+      <div class="ob-title">Time per session</div>
+      <p class="subtle">If you set a cap, the app keeps each session inside it as volume climbs, by trimming rest and pruning accessories your main lift already covers. Your main lifts and weights are never cut.</p>
+      <div class="seg mt16">
+        <button class="${ob.timeMode==='unlimited'?'on':''}" onclick="obTimeMode('unlimited')">As much as necessary</button>
+        <button class="${ob.timeMode==='custom'?'on':''}" onclick="obTimeMode('custom')">Enter time</button>
+      </div>
+      ${ob.timeMode==='custom' ? `<div class="field mt16"><label>Minutes per session</label>
+        <input id="ob-time" type="number" inputmode="numeric" value="${esc(ob.timeCapMin)}" placeholder="60"></div>` : ''}
+      <button class="btn btn-green mt24" onclick="obNext(4)">Continue</button>`;
+  } else if (step === 5) {
+    body = `
+      <div class="ob-title">Muscle focus</div>
+      <p class="subtle">Pull what you want to grow toward 6, and what you care less about toward 0. 3 is balanced. 0 removes that muscle's direct work.</p>
+      ${FOCUS_KEYS.map(k => `
+        <div class="focus-row">
+          <div class="row"><span>${FOCUS_LABELS[k]}</span><b id="mf-val-${k}">${ob.muscleFocus[k]}</b></div>
+          <input type="range" min="0" max="6" step="1" value="${ob.muscleFocus[k]}" oninput="obSlider('${k}', this.value)">
+        </div>`).join('')}
+      <div id="mf-warn">${obFocusWarning(ob.muscleFocus)}</div>
+      <button class="btn btn-green mt16" onclick="obNext(5)">Continue</button>`;
+  } else if (step === 6) {
     const lifts = [['comp-squat','Comp Squat'],['comp-bench','Comp Bench'],['comp-deadlift','Comp Deadlift'],['military-press','Military Press']];
     body = `
       <div class="ob-title">Your maxes</div>
@@ -477,11 +585,20 @@ function vOnboarding() {
         <div class="field"><label>${label} · 1RM (kg)</label>
           <input id="ob-max-${id}" type="number" inputmode="decimal"
             value="${ob.maxes[id] ?? ''}" placeholder="Calibrate in week 1"></div>`).join('')}
-      <button class="btn btn-green mt16" onclick="obNext(2)">Create my program</button>`;
+      <button class="btn btn-green mt16" onclick="obNext(6)">Create my program</button>`;
   }
   return `${topbar()}<div class="view">${body}</div>`;
 }
 function obDays(n) { V.ob.daysPerWeek = n; render(); }
+function obTrack(id) { V.ob.track = id; render(); }
+function obExp(id) { V.ob.experience = id; render(); }
+function obTimeMode(mode) { V.ob.timeMode = mode; render(); }
+// Update slider value + warning live, without a full re-render (keeps the drag smooth).
+function obSlider(k, v) {
+  V.ob.muscleFocus[k] = parseInt(v);
+  const el = byId('mf-val-' + k); if (el) el.textContent = v;
+  const w = byId('mf-warn'); if (w) w.innerHTML = obFocusWarning(V.ob.muscleFocus);
+}
 function obNext(step) {
   const ob = V.ob;
   if (step === 0) {
@@ -491,6 +608,19 @@ function obNext(step) {
   } else if (step === 1) {
     V.obStep = 2;
   } else if (step === 2) {
+    V.obStep = 3;
+  } else if (step === 3) {
+    V.obStep = 4;
+  } else if (step === 4) {
+    if (ob.timeMode === 'custom') {
+      const el = document.getElementById('ob-time');
+      ob.timeCapMin = el ? (parseInt(el.value) || '') : '';
+    }
+    // Skip the muscle-focus step unless this is the bodybuilding track.
+    V.obStep = ob.track === 'bodybuilding' ? 5 : 6;
+  } else if (step === 5) {
+    V.obStep = 6;
+  } else if (step === 6) {
     try {
       for (const id of ['comp-squat','comp-bench','comp-deadlift','military-press']) {
         const el = document.getElementById('ob-max-' + id);
@@ -499,6 +629,17 @@ function obNext(step) {
       }
       S.profile.name = ob.name;
       S.profile.bodyweight = ob.bodyweight;
+      S.profile.experience = ob.experience;
+      S.profile.training = {
+        track: ob.track,
+        timeMode: ob.timeMode,
+        timeCapMin: ob.timeMode === 'custom' ? (parseInt(ob.timeCapMin) || null) : null,
+        muscleFocus: Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 }, ob.muscleFocus),
+      };
+      S.profile.trainingAge = { startedTs: Date.now(), blocksCompleted: 0 };
+      if (!S.profile.landmarks || !Object.keys(S.profile.landmarks).length) {
+        S.profile.landmarks = Engine.seedLandmarks(ob.experience);
+      }
       S.program = makeProgram(ob);
       logReadiness(computeReadiness());
       save().then(() => {
@@ -1862,8 +2003,16 @@ function doNewProgram() {
   for (const l of ['comp-squat', 'comp-bench', 'comp-deadlift', 'military-press']) {
     if (P()?.wm?.[l]) keepMaxes[l] = P().wm[l] / 0.9; // back to ~1RM for re-seed
   }
+  // Carry the athlete's track and focus into the new cycle (landmarks/trainingAge
+  // persist on profile and keep evolving; we do not reseed them here).
+  const tr = S.profile.training || {};
   V.ob = { name: S.profile.name, bodyweight: S.profile.bodyweight,
-           daysPerWeek: P()?.daysPerWeek || 4, maxes: keepMaxes };
+           daysPerWeek: P()?.daysPerWeek || 4, maxes: keepMaxes,
+           track: tr.track || 'powerbuilding',
+           experience: S.profile.experience || 'intermediate',
+           timeMode: tr.timeMode || 'unlimited',
+           timeCapMin: tr.timeCapMin || '',
+           muscleFocus: Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 }, tr.muscleFocus || {}) };
   S.program = makeProgram(V.ob);
   save(); toast('New cycle created. Working maxes carried over');
   V.tab = 'dashboard'; nav('dashboard');
