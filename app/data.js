@@ -588,10 +588,10 @@ const SYNERGIST_COVERAGE = {
 // controlled (p65). Mains slower (heavier, unrack/rerack), accessories faster.
 const TIME_MODEL = {
   execSecPerRep: { main: 12, secondary: 10, accessory: 6 },
-  restSec:       { main: 120, secondary: 120, accessory: 90 },
-  restSecTight:  { main: 90,  secondary: 90,  accessory: 60 },  // after rest compression
-  warmupSecPerSet: 45,   // light warmup set + change plates
-  sessionOverheadSec: 180,
+  restSec:       { main: 210, secondary: 180, accessory: 120 },  // real rest on hard sets
+  restSecTight:  { main: 150, secondary: 135, accessory: 90 },   // after rest compression
+  warmupSecPerSet: 90,   // a warmup ramp set with its short rest
+  sessionOverheadSec: 360,  // arrive, change, plate-load, station-hop, water
 };
 
 // Bodybuilding muscle-focus slider (0..6) -> accessory set-count multiplier vs

@@ -107,6 +107,11 @@ balanced sliders) remain byte-identical throughout; every new behavior is gated.
   (uses the chosen days, sliders, and experience already collected). Verified by
   harness: shown and live-updating, plausible values across configs, and the
   program/landmarks left untouched.
+- Recalibrated TIME_MODEL to match real training (the first pass ran generous):
+  rest 3:30 main / 3:00 secondary / 2:00 accessory, warmup 90s per ramp set,
+  session overhead 6 min; compressed (time-cap) rest scaled up to match. A
+  balanced bodybuilding week-4 peak day now estimates ~73 min (squat day),
+  ~56 min typical, versus ~54/40 before. This also feeds the time-cap mitigation.
 
 ## [In-app confirm dialogs] (2026-06-19)
 - Replaced every native `window.confirm()` with an in-app confirm dialog so
