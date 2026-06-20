@@ -966,8 +966,12 @@ function doCompleteWeek() {
 }
 function advanceWeek() {
   const p = P();
+  const finishedBlock = p.pointer.block;
   p.pointer.week++;
   if (p.pointer.week >= p.weeksPerBlock) {
+    // Block just completed: evolve the athlete's volume landmarks from how the
+    // block actually went (Step 5). This grows MV/MEV/MRV as the lifter ages up.
+    recalibrateLandmarks(finishedBlock);
     p.pointer.week = 0;
     p.pointer.block++;
     if (p.pointer.block < p.blocks.length) {
@@ -985,6 +989,52 @@ function advanceWeek() {
   }
   V.dayIdx = null;
   save(); render();
+}
+// ------------------------------------------------------------
+// LANDMARK EVOLUTION (Step 5)
+// Once per completed accumulation block, nudge the athlete's per-muscle volume
+// landmarks from the same signals RP uses: did logged effort stay on target
+// (tolerated, room to grow) or run hot (overreached)? Reuses readiness trend.
+// Changes are capped at +/-1 set per muscle per block and clamped, because the
+// book pins injury risk on rapid volume jumps. Only feeds the bodybuilding
+// FOCUS endpoints, so other tracks see no routine change from this.
+// ------------------------------------------------------------
+function bumpTrainingAge() {
+  if (!S.profile.trainingAge) S.profile.trainingAge = { startedTs: Date.now(), blocksCompleted: 0 };
+  S.profile.trainingAge.blocksCompleted++;
+}
+function recalibrateLandmarks(blockIdx) {
+  const lm = S.profile.landmarks;
+  if (!lm) { bumpTrainingAge(); return; }
+  const sessions = S.sessions.filter(s => !s.skipped && s.b === blockIdx && s.entries && s.entries.length);
+  if (!sessions.length) { bumpTrainingAge(); return; }
+  const down = readinessTrendingDown();
+  // Mean (actual - target) RPE per movement over real working sets logged this block.
+  const agg = {};
+  for (const s of sessions) for (const e of s.entries) {
+    const mv = (exById(e.exId) || {}).movement;
+    if (!mv || !lm[mv]) continue;
+    for (const st of e.sets) {
+      if (st.done && st.rpe && st.targetRpe && !st.amrap && !st.calib && !st.ramp) {
+        (agg[mv] = agg[mv] || { sum: 0, n: 0 });
+        agg[mv].sum += st.rpe - st.targetRpe; agg[mv].n++;
+      }
+    }
+  }
+  for (const mv in agg) {
+    if (agg[mv].n < 3) continue;                       // not enough signal to move a landmark
+    const delta = agg[mv].sum / agg[mv].n;             // <0 easier than target, >0 harder
+    const L = lm[mv];
+    const seed = VOLUME_LANDMARKS[mv] || L;
+    const ceil = Math.round(seed.mrv * 1.4);           // do not let it run away
+    if (delta <= 0.5 && !down) {                        // tolerated: room to grow
+      L.mrv = Math.min(ceil, L.mrv + 1);
+      if (L.mrv - L.mev > 12) L.mev = L.mev + 1;        // let the productive window follow up slowly
+    } else if (delta >= 1.0 || down) {                  // overreached: back off
+      L.mrv = Math.max(L.mev + 1, L.mrv - 1);
+    }
+  }
+  bumpTrainingAge();
 }
 // --- end-of-week feel slider (Change 2) ---
 let WF = 3;

@@ -47,6 +47,19 @@ commit keeps a default user (Powerbuilding, unlimited time) byte-identical.
   estimate magnitude, fit-without-prune, tight-cap pruning with mains kept, and
   coherent prune order (squat-covered leg extension before hamstring curl).
 
+### Evolving volume landmarks
+- Once per completed block, each muscle's landmarks adjust from how the block
+  actually went: logged effort that stayed on target (room to grow) nudges MRV up,
+  effort that ran hot or a falling readiness trend nudges it down. Capped at +/-1
+  set per muscle per block and clamped, so volume drifts rather than jumps. Needs
+  at least a few logged sets for a muscle before it moves. Training age increments.
+- Landmarks only feed the bodybuilding focus endpoints, so this changes no routine
+  off that track. Verified by harness: tolerated up, overreached down, weak signal
+  held, rate-limited across blocks, empty block holds.
+
+This completes the dynamic engine. Default users (Powerbuilding, unlimited time,
+balanced sliders) remain byte-identical throughout; every new behavior is gated.
+
 ## [In-app confirm dialogs] (2026-06-19)
 - Replaced every native `window.confirm()` with an in-app confirm dialog so
   the app, not the browser, draws and triggers these prompts. They now match
