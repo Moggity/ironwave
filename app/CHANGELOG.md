@@ -76,6 +76,26 @@ balanced sliders) remain byte-identical throughout; every new behavior is gated.
   This honors an injured athlete who cannot perform the lift. Mains are still
   never volume-scaled, and other tracks keep every lift (deadlift included).
 
+### Full refill: focus-aware day rebuild (bodybuilding)
+- The bodybuilding day layout is now rebuilt at program creation around the
+  athlete's muscle focus, instead of editing a fixed template in place:
+  - Emphasis (slider 4-6) now adds real exercises (more movements for that
+    muscle, up to its landmark budget) rather than inflating one exercise's set
+    count. This avoids overshooting MRV and matches how specialization works.
+  - Select-only muscles (glutes, calves) that are emphasized now get real
+    default exercises, so the slider is no longer a no-op for them.
+  - Freed slots (from removals) and any emptied day are refilled with the
+    athlete's top-priority muscles, so no chosen training day is left empty.
+  - A muscle at 6 on a 5 or 6 day split gets an extra main dose: a second,
+    spaced exposure of its main lift (chest -> bench, legs -> squat, shoulders
+    -> press) as a secondary volume session, so it never adds a second
+    working-max-moving AMRAP.
+- If an athlete zeroes essentially every muscle, the only remaining empty day
+  shows guidance to add an exercise or rebalance, instead of an empty session.
+- Other tracks are untouched (rebuild is bodybuilding-only); default routines
+  stay byte-identical. Verified by harness against the two reported degenerate
+  configs (lower-only and upper-only), the extra-dose spacing, and all-zero.
+
 ## [In-app confirm dialogs] (2026-06-19)
 - Replaced every native `window.confirm()` with an in-app confirm dialog so
   the app, not the browser, draws and triggers these prompts. They now match

@@ -228,7 +228,13 @@ function makeProgram(ob) {
     wm[lift] = ob.maxes[lift] ? Math.round(ob.maxes[lift] * 0.9 / 1.25) * 1.25 : null;
     increments[lift] = Engine.defaultIncrement(lift);
   }
-  const focus = { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 };
+  const focus = Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
+                             ob.muscleFocus || {});
+  // Bodybuilding: rebuild the day layout around the athlete's muscle focus
+  // (drop deadlift + zeroed muscles, refill freed/empty slots and select-only
+  // emphasized muscles, add an extra main dose for a muscle at 6). Other tracks
+  // keep the shared templates untouched.
+  if (track === 'bodybuilding') buildFocusedDays(days, focus, ob.daysPerWeek);
   return {
     template: tpl.id, daysPerWeek: ob.daysPerWeek,
     methodology: tpl.methodology || 'Juggernaut + Bodybuilding',
@@ -246,9 +252,90 @@ function makeProgram(ob) {
       track,
       timeMode: ob.timeMode || 'unlimited',
       timeCapMin: ob.timeMode === 'custom' ? (ob.timeCapMin || null) : null,
-      muscleFocus: Object.assign(focus, ob.muscleFocus || {}),
+      muscleFocus: Object.assign({}, focus),
     },
   };
+}
+// ------------------------------------------------------------
+// BODYBUILDING DAY REBUILD (full refill)
+// Turns the fixed pattern-based templates into a muscle-focus-aware layout so
+// emphasis adds real exercises, removed muscles disappear, select-only muscles
+// (glutes/calves) actually get trained, and no chosen training day ends empty.
+// Runs once at program creation; sliders are fixed for the cycle.
+// ------------------------------------------------------------
+function buildFocusedDays(days, focus, daysPerWeek) {
+  const lm = (S.profile && S.profile.landmarks) || {};
+  const mvKey = m => MOVEMENT_SLIDER[m];
+  const slotKey = sl => {
+    if (sl.type === 'main' || sl.type === 'secondary') return mvKey((exById(sl.ex || sl.lift) || {}).movement);
+    const ex = sl.ex || sl.def;
+    return mvKey(ex ? (exById(ex) || {}).movement : sl.cat);
+  };
+  const isAcc = sl => sl.type !== 'main' && sl.type !== 'secondary';
+  // 1. Drop deadlift lifts and any slot whose muscle is set to 0.
+  for (const d of days) {
+    d.slots = d.slots.filter(sl => {
+      if ((sl.type === 'main' || sl.type === 'secondary') && (exById(sl.ex || sl.lift) || {}).movement === 'deadlift') return false;
+      const k = slotKey(sl);
+      return !(k && focus[k] === 0);
+    });
+  }
+  // Track every exercise already placed, so refill adds variety.
+  const used = new Set();
+  days.forEach(d => d.slots.forEach(sl => { const e = sl.ex || sl.def; if (e) used.add(e); }));
+  const pick = k => {
+    for (const id of (DEFAULT_ACC[k] || [])) if (!used.has(id)) { used.add(id); return id; }
+    return (DEFAULT_ACC[k] || [])[0] || null;
+  };
+  const muscleOnDay = (d, k) => d.slots.filter(sl => slotKey(sl) === k).length;
+  const addAcc = (d, k) => {
+    const ex = pick(k); if (!ex) return false;
+    d.slots.push({ type: 'acc', cat: (exById(ex) || {}).movement, def: ex, focusFill: true });
+    return true;
+  };
+  const filledAccFor = k => days.reduce((n, d) => n + d.slots.filter(sl => isAcc(sl) && (sl.ex || sl.def) && slotKey(sl) === k).length, 0);
+  // Weekly accessory-slot budget for a muscle, from its MRV (~4 sets per slot).
+  const budget = k => {
+    let mrv = 12;
+    for (const m of (SLIDER_MOVEMENTS[k] || [])) { const L = lm[m] || VOLUME_LANDMARKS[m]; if (L) mrv = Math.max(mrv, L.mrv); }
+    return Math.max(1, Math.round(mrv / 4));
+  };
+  // 2. Emphasized muscles (>3) get more exercises up to budget, spread across days.
+  const emph = FOCUS_KEYS.filter(k => focus[k] > 3).sort((a, b) => focus[b] - focus[a]);
+  for (const k of emph) {
+    const want = Math.min(budget(k), filledAccFor(k) + (focus[k] - 3)); // +1 slot per step above 3, capped
+    let guard = 0;
+    while (filledAccFor(k) < want && guard++ < 24) {
+      const day = days.filter(d => muscleOnDay(d, k) < 2).sort((a, b) => a.slots.length - b.slots.length)[0];
+      if (!day || !addAcc(day, k)) break;
+    }
+  }
+  // 3. Backfill thin/empty days with the top targets (emphasized, else kept).
+  const targets = (emph.length ? emph : FOCUS_KEYS.filter(k => focus[k] >= 1).sort((a, b) => focus[b] - focus[a]));
+  for (const d of days) {
+    let ti = 0, guard = 0;
+    while (targets.length && d.slots.length < 3 && guard++ < 12) {
+      const k = targets[ti % targets.length]; ti++;
+      if (muscleOnDay(d, k) >= 2) { if (ti > targets.length * 3) break; continue; }
+      if (!addAcc(d, k)) break;
+    }
+  }
+  // 4. Extra main dose for a muscle at 6 on a 5-6 day split, placed ~half a week
+  //    from its existing main exposure for recovery. Uses a secondary (volume)
+  //    exposure so it never adds a second working-max-moving AMRAP.
+  if (daysPerWeek >= 5) {
+    for (const k of ['chest', 'legs', 'shoulders']) {
+      if (focus[k] !== 6) continue;
+      const lift = MUSCLE_MAIN[k];
+      const at = days.findIndex(d => d.slots.some(sl => (sl.type === 'main' || sl.type === 'secondary') && (sl.lift === lift || sl.baseLift === lift)));
+      if (at < 0) continue;
+      const tgt = (at + Math.floor(days.length / 2)) % days.length;
+      if (tgt === at) continue;
+      const dup = days[tgt].slots.some(sl => (sl.type === 'main' || sl.type === 'secondary') && (sl.lift === lift || sl.baseLift === lift));
+      if (!dup) days[tgt].slots.unshift({ type: 'secondary', lift, baseLift: lift, focusFill: true });
+    }
+  }
+  return days;
 }
 function P() { return S.program; }
 function dayKey(b, w, d) { return `${b}-${w}-${d}`; }
@@ -1123,6 +1210,10 @@ function vWorkout() {
   const k = dayKey(p.pointer.block, w, di);
   const doneState = p.completedDays[k];
   const locked = doneState && doneState !== 'skipped'; // Change 3
+  // Empty-day safety net: only reachable if the athlete zeroed essentially every
+  // muscle (refill cannot find anything to train). Guide them instead of starting
+  // an empty session.
+  const emptyDay = !locked && resolveDayEntries(di, p.pointer.block, w).items.length === 0;
 
   const cards = day.slots.map((slot, si) => {
     const rs = resolveSlot(slot, p.pointer.block, w);
@@ -1169,6 +1260,10 @@ function vWorkout() {
       <p class="subtle mt8">You logged this day. Open the summary to review your sets, or use the arrows to move to another day.</p>
       <button class="btn btn-blue mt8" onclick="openSummaryFor('${doneState}')">View summary</button>
       <button class="btn btn-outline mt8" onclick="redoDay(${di})">Redo day</button>
+    </div>` : emptyDay ? `
+    <div class="card accent mt16"><b>No exercises for this day</b>
+      <p class="subtle mt8">Your muscle focus removed everything scheduled here. Add an exercise below, or start a new program and keep at least one muscle group above 0.</p>
+      <button class="btn btn-outline mt8" onclick="openAddExercise(${di})">＋ Add an exercise</button>
     </div>` : `
     <button class="btn btn-green mt16" onclick="startCheckin(${di})">Start Training →</button>
     <div class="btn-row">

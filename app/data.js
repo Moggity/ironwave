@@ -596,6 +596,21 @@ const TIME_MODEL = {
 
 // Bodybuilding muscle-focus slider (0..6) -> accessory set-count multiplier vs
 // the scheme baseline (slider 3 = 1.0 = unchanged). 0 removes the exercise.
-// Result is clamped to a per-session cap derived from the muscle's MRV, so an
-// emphasized muscle never blows past its landmark in one session.
-const FOCUS_FACTOR = { 0: 0, 1: 0.5, 2: 0.75, 3: 1, 4: 1.34, 5: 1.67, 6: 2.0 };
+// Emphasis (4-6) is expressed by ADDING exercises (refill, see app.js), not by
+// inflating set counts, so only de-emphasis (1-2) scales sets here.
+const FOCUS_FACTOR = { 0: 0, 1: 0.5, 2: 0.75, 3: 1, 4: 1, 5: 1, 6: 1 };
+
+// Default accessory pools per focus muscle, used to refill freed/empty slots and
+// to give a select-only emphasized muscle (glutes, calves) real exercises.
+const DEFAULT_ACC = {
+  chest:     ['dips', 'db-incline-bench', 'cable-fly', 'machine-chest-press', 'pec-deck', 'db-fly'],
+  back:      ['lat-pulldown', 'cable-row', 'chest-supported-row', 'barbell-row', 'face-pull', 'db-row'],
+  arms:      ['ez-curl', 'triceps-pushdown', 'db-curl', 'overhead-triceps-ext', 'hammer-curl', 'skullcrusher'],
+  shoulders: ['lateral-raise', 'db-shoulder-press', 'rear-delt-fly', 'cable-lateral-raise', 'front-raise'],
+  glutes:    ['bb-hip-thrust', 'glute-bridge', 'cable-kickback', 'frog-pumps'],
+  legs:      ['leg-extensions', 'hamstring-curls', 'leg-press', 'bulgarian-split-squat', 'walking-lunge', 'seated-leg-curl'],
+  calves:    ['standing-calf-raise', 'seated-calf-raise', 'leg-press-calf-raise'],
+};
+
+// Focus muscles that have a barbell main lift, for the slider-6 "extra main dose".
+const MUSCLE_MAIN = { chest: 'comp-bench', legs: 'comp-squat', shoulders: 'military-press' };
