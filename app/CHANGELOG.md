@@ -34,6 +34,19 @@ commit keeps a default user (Powerbuilding, unlimited time) byte-identical.
   at 3. Verified by harness: emphasize/de-emphasize/remove, mains untouched,
   calibration ramps unscaled, and byte-identical output off the bodybuilding track.
 
+### Session time cap (estimate + mitigation)
+- Per-session time estimate (execution + rest + warmup + overhead), scaling with
+  the week's set counts so the late-meso volume creep is predicted, not a surprise.
+- For a custom time cap, the session is fit to it: first rest is compressed, then
+  coherent accessories are pruned (an accessory the day's main already trains, via
+  SYNERGIST_COVERAGE, lowest training-priority first). Main lifts, secondaries,
+  and specialized muscles (slider >= 4) are never pruned. The workout view shows a
+  projection banner, the preview shows what was trimmed, and the live session is
+  built from the fitted plan.
+- A no-op for unlimited time, so default users are unaffected. Verified by harness:
+  estimate magnitude, fit-without-prune, tight-cap pruning with mains kept, and
+  coherent prune order (squat-covered leg extension before hamstring curl).
+
 ## [In-app confirm dialogs] (2026-06-19)
 - Replaced every native `window.confirm()` with an in-app confirm dialog so
   the app, not the browser, draws and triggers these prompts. They now match

@@ -341,6 +341,91 @@ function resolveSlot(slot, blockIdx, wIdx) {
 }
 
 // ------------------------------------------------------------
+// SESSION TIME ESTIMATE + MITIGATION (Steps 6-7)
+// Predicts session length and, for a custom time cap, fits the session to it
+// by compressing rest then pruning coherent accessories. A no-op when the
+// athlete has no time cap, so default users are unaffected.
+// ------------------------------------------------------------
+function estimateSessionSec(resolved, tight) {
+  const TM = TIME_MODEL;
+  const rest = tight ? TM.restSecTight : TM.restSec;
+  let t = TM.sessionOverheadSec;
+  for (const rs of resolved) {
+    const kind = rs.isMain ? 'main' : rs.isSecondary ? 'secondary' : 'accessory';
+    for (const st of rs.sets) {
+      t += (st.reps || 0) * TM.execSecPerRep[kind];   // execution
+      t += rest[kind];                                 // rest after each set
+    }
+    if (kind === 'main' && loadingFor(rs.exId).showPlates) {
+      const work = rs.sets.filter(s => s.weight);
+      const top = work.length ? Math.max(...work.map(s => s.weight)) : 0;
+      if (top) {
+        const bar = loadingFor(rs.exId).barWeight || S.profile.barWeight;
+        t += Engine.warmupSets(top, bar, S.profile.rounding).length * TM.warmupSecPerSet;
+      }
+    }
+  }
+  return t;
+}
+// Prune score: higher = trimmed first. Coherent (already trained by the day's
+// main) + de-prioritized rank highest. Returns null for protected entries
+// (a specialized muscle, slider >= 4, is never pruned).
+function prunePriority(rs, mainMovs, tc) {
+  const mov = (exById(rs.exId) || {}).movement;
+  let cov = 0;
+  for (const mm of mainMovs) { const c = (SYNERGIST_COVERAGE[mm] || {})[mov]; if (c > cov) cov = c; }
+  let deprior = 0;
+  if (tc && tc.track === 'bodybuilding' && tc.muscleFocus) {
+    const key = MOVEMENT_SLIDER[mov];
+    const v = key != null ? tc.muscleFocus[key] : null;
+    if (v != null) { if (v >= 4) return null; deprior = (3 - v) / 3; }
+  }
+  return cov + deprior;
+}
+// Build a day's training entries with FOCUS applied (via resolveSlot) and then
+// time mitigation. Returns { items:[{si, rs}], pruned:[names], estMin, capMin }.
+// Used by the live session and the previews so they always agree.
+function resolveDayEntries(di, bi, wi) {
+  const p = P();
+  let items = p.days[di].slots
+    .map((slot, si) => ({ si, rs: resolveSlot(slot, bi, wi) }))
+    .filter(x => !x.rs.isSelect && !x.rs.isRemoved && x.rs.sets.length);
+  const tc = p.trainingConfig;
+  const capMin = (tc && tc.timeMode === 'custom' && tc.timeCapMin) ? tc.timeCapMin : null;
+  const pruned = [];
+  let estSec = estimateSessionSec(items.map(x => x.rs), false);
+  if (capMin && estSec > capMin * 60) {
+    estSec = estimateSessionSec(items.map(x => x.rs), true); // step 1: compress rest
+    if (estSec > capMin * 60) {
+      const mains = items.filter(x => x.rs.isMain).map(x => (exById(x.rs.exId) || {}).movement);
+      const cand = items
+        .filter(x => !x.rs.isMain && !x.rs.isSecondary)
+        .map(x => ({ x, score: prunePriority(x.rs, mains, tc) }))
+        .filter(c => c.score !== null)
+        .sort((a, b) => b.score - a.score);
+      for (const c of cand) {                               // step 2: prune coherent accessories
+        items = items.filter(x => x !== c.x);
+        pruned.push(c.x.rs.name);
+        estSec = estimateSessionSec(items.map(x => x.rs), true);
+        if (estSec <= capMin * 60) break;
+      }
+    }
+  }
+  return { items, pruned, estMin: Math.round(estSec / 60), capMin };
+}
+// Heads-up banner in the workout view for athletes with a time cap.
+function timeBannerHTML(di) {
+  const p = P();
+  const tc = p && p.trainingConfig;
+  if (!tc || tc.timeMode !== 'custom' || !tc.timeCapMin) return '';
+  const built = resolveDayEntries(di, p.pointer.block, p.pointer.week);
+  if (built.pruned.length) {
+    return `<div class="banner-warn mt8">About ${built.estMin} min against your ${tc.timeCapMin} min cap. Trimmed to fit: ${esc(built.pruned.join(', '))}. Your main lifts and weights are kept.</div>`;
+  }
+  return `<div class="card mt8"><span class="faint">Projected ${built.estMin} min, within your ${tc.timeCapMin} min cap.</span></div>`;
+}
+
+// ------------------------------------------------------------
 // READINESS
 // ------------------------------------------------------------
 function decayedSkipPenalty() {
@@ -1000,6 +1085,7 @@ function vWorkout() {
       </div>
       <div class="subtle">${weekLabelFor(block, w)}${doneState ? ' · ' + (doneState === 'skipped' ? 'Skipped' : 'Completed ✓') : ''}</div>
     </div>
+    ${timeBannerHTML(di)}
     ${locked ? `
     <div class="card accent mt16"><b>Day complete ✓</b>
       <p class="subtle mt8">You logged this day. Open the summary to review your sets, or use the arrows to move to another day.</p>
@@ -1196,21 +1282,22 @@ function beginSession() {
 
   const p = P();
   const di = cd.di, b = p.pointer.block, w = p.pointer.week;
-  const entries = p.days[di].slots
-    .map((slot, si) => ({ slot, si, rs: resolveSlot(slot, b, w) }))
-    .filter(x => !x.rs.isSelect && !x.rs.isRemoved)
-    .map(x => ({
-      si: x.si, exId: x.rs.exId, name: x.rs.name,
-      isMain: !!x.rs.isMain, isSecondary: !!x.rs.isSecondary, wmKey: x.rs.wmKey || null,
-      notes: '', notesOpen: false,
-      sets: x.rs.sets.map(t => ({
-        targetWeight: t.weight ?? null, targetReps: t.reps, targetRpe: t.rpe ?? null,
-        amrap: !!t.amrap, ramp: !!t.ramp, calib: !!t.calib, note: t.note || null,
-        weight: null, reps: null, rpe: null, done: false,
-      })),
-    }));
+  // resolveDayEntries applies muscle focus and fits the time cap (rest
+  // compression then coherent pruning) so the logged session matches the plan.
+  const built = resolveDayEntries(di, b, w);
+  const entries = built.items.map(x => ({
+    si: x.si, exId: x.rs.exId, name: x.rs.name,
+    isMain: !!x.rs.isMain, isSecondary: !!x.rs.isSecondary, wmKey: x.rs.wmKey || null,
+    notes: '', notesOpen: false,
+    sets: x.rs.sets.map(t => ({
+      targetWeight: t.weight ?? null, targetReps: t.reps, targetRpe: t.rpe ?? null,
+      amrap: !!t.amrap, ramp: !!t.ramp, calib: !!t.calib, note: t.note || null,
+      weight: null, reps: null, rpe: null, done: false,
+    })),
+  }));
   V.draft = { id: 's' + Date.now(), ts: Date.now(), b, w, d: di, entries,
               sleepHours: cd.sleepHours, mindset: cd.mindset, sliders: { ...cd.sliders } };
+  if (built.pruned.length) toast(`Trimmed to fit ${built.capMin} min: ${built.pruned.join(', ')}`);
   save();
   nav('session');
 }
@@ -1598,12 +1685,13 @@ function finishSession() {
 // PREVIEW MODAL
 // ------------------------------------------------------------
 function openPreview(di) {
-  const p = P();
-  const blocks = p.days[di].slots
-    .map(slot => resolveSlot(slot, p.pointer.block, p.pointer.week))
-    .filter(rs => !rs.isSelect && !rs.isRemoved);
+  const built = resolveDayEntries(di, P().pointer.block, P().pointer.week);
+  const blocks = built.items.map(x => x.rs);
+  const timeNote = built.capMin
+    ? `<p class="faint" style="margin-bottom:10px">Projected ${built.estMin} min, cap ${built.capMin} min.${built.pruned.length ? ' Trimmed to fit: ' + esc(built.pruned.join(', ')) + '.' : ''}</p>`
+    : '';
   showModal(anim => {
-    $modal.innerHTML = modalShell(anim, 'Preview',
+    $modal.innerHTML = modalShell(anim, 'Preview', timeNote +
       blocks.map(rs => {
         const work = rs.sets.filter(s => !s.ramp);
         return `<div class="lift-card"><h3 style="font-size:1.2rem">${esc(rs.name)}</h3>
