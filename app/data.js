@@ -589,3 +589,9 @@ const TIME_MODEL = {
   warmupSecPerSet: 45,   // light warmup set + change plates
   sessionOverheadSec: 180,
 };
+
+// Bodybuilding muscle-focus slider (0..6) -> accessory set-count multiplier vs
+// the scheme baseline (slider 3 = 1.0 = unchanged). 0 removes the exercise.
+// Result is clamped to a per-session cap derived from the muscle's MRV, so an
+// emphasized muscle never blows past its landmark in one session.
+const FOCUS_FACTOR = { 0: 0, 1: 0.5, 2: 0.75, 3: 1, 4: 1.34, 5: 1.67, 6: 2.0 };

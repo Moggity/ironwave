@@ -23,6 +23,17 @@ commit keeps a default user (Powerbuilding, unlimited time) byte-identical.
   lifts), migration idempotent, and the full bodybuilding onboarding flow, all
   via a headless JSDOM harness.
 
+### Muscle-focus reallocation (FOCUS)
+- On the bodybuilding track, the focus sliders now reshape accessory volume:
+  emphasized muscles gain sets (toward their MRV), de-emphasized lose sets, and
+  a slider at 0 removes that muscle's accessories (shown muted in the workout
+  overview, dropped from sessions and previews). Bounded by the athlete's
+  per-session landmark cap. Main lifts and secondaries are never touched, so the
+  wave math and working-max progression are unaffected.
+- Strict no-op for the powerbuilding/powerlifting tracks and for any slider left
+  at 3. Verified by harness: emphasize/de-emphasize/remove, mains untouched,
+  calibration ramps unscaled, and byte-identical output off the bodybuilding track.
+
 ## [In-app confirm dialogs] (2026-06-19)
 - Replaced every native `window.confirm()` with an in-app confirm dialog so
   the app, not the browser, draws and triggers these prompts. They now match

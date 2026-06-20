@@ -286,6 +286,27 @@ function applySetDelta(sets, delta) {
   }
   return sets;
 }
+// FOCUS (Step 4): bodybuilding muscle-focus sliders reshape ACCESSORY volume.
+// A no-op for every other track and for any slider left at 3, so default and
+// powerbuilding/powerlifting routines are byte-identical. Mains and secondaries
+// are never touched (they carry the wave math and working-max progression).
+// Returns { removed } or { delta } of plain working sets to apply via applySetDelta.
+function focusForAccessory(exId, sets) {
+  const tc = P() && P().trainingConfig;
+  if (!tc || tc.track !== 'bodybuilding' || !tc.muscleFocus) return { delta: 0 };
+  const e = exById(exId);
+  const key = e && MOVEMENT_SLIDER[e.movement];
+  if (!key) return { delta: 0 };
+  const v = tc.muscleFocus[key];
+  if (v == null || v === 3) return { delta: 0 };
+  if (v === 0) return { removed: true };
+  const plain = sets.filter(s => !s.amrap && !s.ramp && !s.calib).length;
+  if (!plain) return { delta: 0 }; // a calibration ramp: nothing to scale yet
+  const lm = (S.profile.landmarks && S.profile.landmarks[e.movement]) || VOLUME_LANDMARKS[e.movement];
+  const perSessionCap = lm ? Math.max(1, Math.round(lm.mrv / 2)) : 8; // ~2 sessions/wk/muscle
+  const target = Math.max(1, Math.min(Math.round(plain * FOCUS_FACTOR[v]), perSessionCap));
+  return { delta: target - plain };
+}
 function resolveSlot(slot, blockIdx, wIdx) {
   const block = blockOf(blockIdx);
   const sch = Engine.schemeFor(block);
@@ -313,6 +334,9 @@ function resolveSlot(slot, blockIdx, wIdx) {
   const r = loadingFor(exId).totalInc;
   let sets = sch.accessory(block, wIdx, recordsFor(exId), r);
   if (mod) sets = applySetDelta(sets, mod.accSetDelta || 0);
+  const focus = focusForAccessory(exId, sets);
+  if (focus.removed) return { exId, name: exName(exId), sets: [], cat: slot.cat, isRemoved: true };
+  if (focus.delta) sets = applySetDelta(sets, focus.delta);
   return { exId, name: exName(exId), sets, cat: slot.cat };
 }
 
@@ -713,6 +737,7 @@ function openWeekPreview(bi, wi) {
     const days = p.days.map(d => {
       const rows = d.slots.map(slot => {
         const rs = resolveSlot(slot, bi, wi);
+        if (rs.isRemoved) return ''; // dropped by muscle focus (slider 0)
         if (rs.isSelect) return `<div class="row" style="padding:6px 0">
           <span class="subtle">Select ${MOVEMENTS[rs.cat].label}</span><span class="faint">—</span></div>`;
         const work = rs.sets.filter(s => !s.ramp);
@@ -939,6 +964,12 @@ function vWorkout() {
   const cards = day.slots.map((slot, si) => {
     const rs = resolveSlot(slot, p.pointer.block, w);
     const grip = `<span class="grip" onpointerdown="gripDown(event,${di},${si})">⠿</span>`;
+    if (rs.isRemoved) {
+      // Dropped by muscle focus (slider 0). Shown muted so it is not a mystery.
+      return `<div class="ex-card" data-si="${si}" style="opacity:.5">
+        ${grip}<span class="name">${esc(rs.name)}</span>
+        <span class="faint" style="font-size:.78rem">removed by focus</span></div>`;
+    }
     if (rs.isSelect) {
       return `<div class="ex-card" data-si="${si}">
         ${grip}
@@ -1167,7 +1198,7 @@ function beginSession() {
   const di = cd.di, b = p.pointer.block, w = p.pointer.week;
   const entries = p.days[di].slots
     .map((slot, si) => ({ slot, si, rs: resolveSlot(slot, b, w) }))
-    .filter(x => !x.rs.isSelect)
+    .filter(x => !x.rs.isSelect && !x.rs.isRemoved)
     .map(x => ({
       si: x.si, exId: x.rs.exId, name: x.rs.name,
       isMain: !!x.rs.isMain, isSecondary: !!x.rs.isSecondary, wmKey: x.rs.wmKey || null,
@@ -1570,7 +1601,7 @@ function openPreview(di) {
   const p = P();
   const blocks = p.days[di].slots
     .map(slot => resolveSlot(slot, p.pointer.block, p.pointer.week))
-    .filter(rs => !rs.isSelect);
+    .filter(rs => !rs.isSelect && !rs.isRemoved);
   showModal(anim => {
     $modal.innerHTML = modalShell(anim, 'Preview',
       blocks.map(rs => {
