@@ -330,7 +330,18 @@ function resolveSlot(slot, blockIdx, wIdx) {
     return { exId, name: exName(exId), sets, isSecondary: true, wmKey };
   }
   const exId = slot.ex || slot.def || null; // select slots may be unfilled
-  if (!exId) return { exId: null, name: null, isSelect: true, cat: slot.cat, sets: [] };
+  if (!exId) {
+    // A select slot for a muscle the athlete removed (slider 0) should not nag
+    // them to pick an exercise for it. Mark it removed instead of select.
+    const tc = P() && P().trainingConfig;
+    if (tc && tc.track === 'bodybuilding' && tc.muscleFocus && slot.cat) {
+      const key = MOVEMENT_SLIDER[slot.cat];
+      if (key && tc.muscleFocus[key] === 0) {
+        return { exId: null, name: (MOVEMENTS[slot.cat] || {}).label || slot.cat, isRemoved: true, cat: slot.cat, sets: [] };
+      }
+    }
+    return { exId: null, name: null, isSelect: true, cat: slot.cat, sets: [] };
+  }
   const r = loadingFor(exId).totalInc;
   let sets = sch.accessory(block, wIdx, recordsFor(exId), r);
   if (mod) sets = applySetDelta(sets, mod.accSetDelta || 0);

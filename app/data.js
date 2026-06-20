@@ -525,12 +525,16 @@ const RPE_DESCRIPTIONS = {
    legacy routine output is byte-identical.
    ============================================================ */
 
-// The 7 bodybuilding focus sliders aggregate the finer MOVEMENTS categories.
+// The bodybuilding focus sliders aggregate the finer MOVEMENTS categories.
+// Note: a few accessories are tagged by lift PATTERN (bench, press) rather than
+// the muscle they build, so those patterns are mapped into the matching slider
+// (e.g. a DB Incline Bench accessory is controlled by the Chest slider). Main
+// and secondary lifts are never focus-scaled, so the comp-bench main is unaffected.
 const SLIDER_MOVEMENTS = {
   arms:      ['bicep', 'tricep'],
-  chest:     ['chest'],
+  chest:     ['chest', 'bench'],
   back:      ['vpull', 'hpull', 'upperback'],
-  shoulders: ['shoulder'],
+  shoulders: ['shoulder', 'press'],
   glutes:    ['glute'],
   legs:      ['quad', 'ham'],
   calves:    ['calf'],

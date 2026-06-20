@@ -60,6 +60,15 @@ commit keeps a default user (Powerbuilding, unlimited time) byte-identical.
 This completes the dynamic engine. Default users (Powerbuilding, unlimited time,
 balanced sliders) remain byte-identical throughout; every new behavior is gated.
 
+### Focus fine-tunes (from edge-case testing)
+- Pressing accessories are tagged by lift pattern (bench, press) rather than the
+  muscle they build, so the Chest and Shoulders sliders previously ignored them.
+  Mapped bench -> Chest and press -> Shoulders so those sliders now control
+  pressing accessory volume. Main and secondary lifts stay unaffected.
+- A select ("Select X Exercise") slot for a muscle set to 0 no longer nags the
+  athlete to fill it; it is shown removed instead. Found by simulating a
+  Chest-6 / everything-else-0 athlete across a full mesocycle.
+
 ## [In-app confirm dialogs] (2026-06-19)
 - Replaced every native `window.confirm()` with an in-app confirm dialog so
   the app, not the browser, draws and triggers these prompts. They now match
