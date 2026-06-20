@@ -733,6 +733,39 @@ function obFocusWarning(focus) {
   parts.push('Run a focus like this for about one block, 2 months at most, then rebalance.');
   return `<div class="banner-warn mt8">${parts.join(' ')}</div>`;
 }
+// Informative only: median training-day length for the current focus. Builds a
+// throwaway bodybuilding program from the onboarding answers and times each day
+// (rest + execution + warmup + overhead). Computed with calibration-level loads
+// since maxes come on the next step; touches nothing persistent.
+function estimateFocusMedianMin(ob) {
+  if (typeof estimateSessionSec !== 'function') return null;
+  const savedProg = S.program, savedLm = S.profile.landmarks;
+  try {
+    if (!savedLm || !Object.keys(savedLm).length) S.profile.landmarks = Engine.seedLandmarks(ob.experience || 'intermediate');
+    const tmp = makeProgram(Object.assign({}, ob, { track: 'bodybuilding', maxes: ob.maxes || {} }));
+    // Give mains a nominal working max so the estimate reflects a real working
+    // session (weighted sets + warmup), not the week-1 calibration ramp.
+    for (const l of ['comp-squat', 'comp-bench', 'comp-deadlift', 'military-press']) {
+      if (!tmp.wm[l]) tmp.wm[l] = 100;
+    }
+    S.program = tmp;
+    const wk = 1; // a representative build week
+    const mins = tmp.days.map((d, di) => {
+      const entries = d.slots.map(sl => resolveSlot(sl, 0, wk)).filter(rs => !rs.isSelect && !rs.isRemoved && rs.sets.length);
+      return entries.length ? Math.round(estimateSessionSec(entries, false) / 60) : 0;
+    }).filter(m => m > 0).sort((a, b) => a - b);
+    if (!mins.length) return null;
+    return mins[Math.floor((mins.length - 1) / 2)];
+  } catch (e) {
+    return null;
+  } finally {
+    S.program = savedProg; S.profile.landmarks = savedLm;
+  }
+}
+function focusTimeLine(ob) {
+  const m = estimateFocusMedianMin(ob);
+  return m ? `Estimated median training session: about ${m} min (rest and execution, before any time cap)` : '';
+}
 
 function vOnboarding() {
   if (!V.ob) V.ob = obDefaults();
@@ -799,6 +832,7 @@ function vOnboarding() {
           <input type="range" min="0" max="6" step="1" value="${ob.muscleFocus[k]}" oninput="obSlider('${k}', this.value)">
         </div>`).join('')}
       <div id="mf-warn">${obFocusWarning(ob.muscleFocus)}</div>
+      <div id="mf-time" class="faint" style="margin:10px 2px">${focusTimeLine(ob)}</div>
       <button class="btn btn-green mt16" onclick="obNext(5)">Continue</button>`;
   } else if (step === 6) {
     const lifts = [['comp-squat','Comp Squat'],['comp-bench','Comp Bench'],['comp-deadlift','Comp Deadlift'],['military-press','Military Press']];
@@ -821,7 +855,8 @@ function obTimeMode(mode) { V.ob.timeMode = mode; render(); }
 function obSlider(k, v) {
   V.ob.muscleFocus[k] = parseInt(v);
   const el = byId('mf-val-' + k); if (el) el.textContent = v;
-  const w = byId('mf-warn'); if (w) w.innerHTML = obFocusWarning(V.ob.muscleFocus);
+  const wn = byId('mf-warn'); if (wn) wn.innerHTML = obFocusWarning(V.ob.muscleFocus);
+  const tl = byId('mf-time'); if (tl) tl.textContent = focusTimeLine(V.ob);
 }
 function obNext(step) {
   const ob = V.ob;

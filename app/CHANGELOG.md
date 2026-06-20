@@ -96,6 +96,18 @@ balanced sliders) remain byte-identical throughout; every new behavior is gated.
   stay byte-identical. Verified by harness against the two reported degenerate
   configs (lower-only and upper-only), the extra-dose spacing, and all-zero.
 
+### Informative session-time estimate on the focus step
+- The muscle-focus step now shows a live "estimated median training session"
+  in minutes, updating as sliders move, so the athlete sees how their focus
+  affects session length before committing. It builds a throwaway program from
+  the in-progress answers and medians the per-day time (rest + execution +
+  warmup + overhead from TIME_MODEL), using a nominal working max so the number
+  reflects a real working session rather than the week-1 calibration ramp.
+- Purely informative: it touches no persistent state and needs no new inputs
+  (uses the chosen days, sliders, and experience already collected). Verified by
+  harness: shown and live-updating, plausible values across configs, and the
+  program/landmarks left untouched.
+
 ## [In-app confirm dialogs] (2026-06-19)
 - Replaced every native `window.confirm()` with an in-app confirm dialog so
   the app, not the browser, draws and triggers these prompts. They now match
