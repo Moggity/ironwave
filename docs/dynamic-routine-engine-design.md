@@ -650,7 +650,14 @@ All blocking decisions are now resolved. Remaining items are tuning, safe to adj
 
 ---
 
-## 9. Implementation sequencing (when approved)
+## 9. Implementation sequencing (IMPLEMENTED on branch Onboarding-improvements)
+
+Status: all steps below are implemented, each as its own tested commit. Default
+users (Powerbuilding, unlimited time, balanced sliders) remain byte-identical;
+every new behavior is gated. FOCUS shipped as per-accessory landmark-bounded
+scaling (mains/secondaries untouched); the full cross-muscle zero-sum budget
+remains a documented refinement.
+
 
 1. State + migration (§5) behind defaults, including per-athlete `landmarks`/`experience`/
    `trainingAge` seeding; add the regression guard (§6). No behavior change.
