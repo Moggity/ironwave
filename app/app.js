@@ -535,9 +535,9 @@ function timeBannerHTML(di) {
   if (!tc || tc.timeMode !== 'custom' || !tc.timeCapMin) return '';
   const built = resolveDayEntries(di, p.pointer.block, p.pointer.week);
   if (built.pruned.length) {
-    return `<div class="banner-warn mt8">About ${built.estMin} min against your ${tc.timeCapMin} min cap. Trimmed to fit: ${esc(built.pruned.join(', '))}. Your main lifts and weights are kept.</div>`;
+    return `<div class="banner-warn mt8">Trimmed to fit your ${tc.timeCapMin} min limit: removed ${esc(built.pruned.join(', '))}. This day is now about ${built.estMin} min. Your main lifts and weights are kept.</div>`;
   }
-  return `<div class="card mt8"><span class="faint">Projected ${built.estMin} min, within your ${tc.timeCapMin} min cap.</span></div>`;
+  return `<div class="card mt8"><span class="faint">This day is about ${built.estMin} min, within your ${tc.timeCapMin} min limit.</span></div>`;
 }
 
 // ------------------------------------------------------------
@@ -764,7 +764,14 @@ function estimateFocusMedianMin(ob) {
 }
 function focusTimeLine(ob) {
   const m = estimateFocusMedianMin(ob);
-  return m ? `Estimated median training session: about ${m} min (rest and execution, before any time cap)` : '';
+  if (!m) return '';
+  const cap = (ob.timeMode === 'custom' && ob.timeCapMin) ? parseInt(ob.timeCapMin) : null;
+  if (cap) {
+    return m > cap
+      ? `Estimated median session about ${m} min, over your ${cap} min limit. Longer days will be trimmed to fit.`
+      : `Estimated median session about ${m} min, within your ${cap} min limit.`;
+  }
+  return `Estimated median session about ${m} min (rest and execution included).`;
 }
 
 function vOnboarding() {
@@ -832,7 +839,7 @@ function vOnboarding() {
           <input type="range" min="0" max="6" step="1" value="${ob.muscleFocus[k]}" oninput="obSlider('${k}', this.value)">
         </div>`).join('')}
       <div id="mf-warn">${obFocusWarning(ob.muscleFocus)}</div>
-      <div id="mf-time" class="faint" style="margin:10px 2px">${focusTimeLine(ob)}</div>
+      <div id="mf-time" class="focus-time">${focusTimeLine(ob)}</div>
       <button class="btn btn-green mt16" onclick="obNext(5)">Continue</button>`;
   } else if (step === 6) {
     const lifts = [['comp-squat','Comp Squat'],['comp-bench','Comp Bench'],['comp-deadlift','Comp Deadlift'],['military-press','Military Press']];
