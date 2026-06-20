@@ -307,6 +307,19 @@ function focusForAccessory(exId, sets) {
   const target = Math.max(1, Math.min(Math.round(plain * FOCUS_FACTOR[v]), perSessionCap));
   return { delta: target - plain };
 }
+// Bodybuilding (hypertrophy) removal of a big lift: the deadlift has no place in
+// a hypertrophy routine, and a muscle slider set to 0 (e.g. an injury the athlete
+// is working around) drops that muscle's main/secondary lift too. Returns a short
+// reason string, or null to keep the lift. Other tracks always keep their lifts.
+function bbLiftRemoval(exId) {
+  const tc = P() && P().trainingConfig;
+  if (!tc || tc.track !== 'bodybuilding') return null;
+  const mv = (exById(exId) || {}).movement;
+  if (mv === 'deadlift') return 'not used in hypertrophy';
+  const key = mv && MOVEMENT_SLIDER[mv];
+  if (key && tc.muscleFocus && tc.muscleFocus[key] === 0) return 'removed by focus';
+  return null;
+}
 function resolveSlot(slot, blockIdx, wIdx) {
   const block = blockOf(blockIdx);
   const sch = Engine.schemeFor(block);
@@ -317,6 +330,8 @@ function resolveSlot(slot, blockIdx, wIdx) {
   if (slot.type === 'main') {
     const wmKey = slot.lift;                  // wave math always keys off the base lift's WM
     const exId = slot.ex || slot.lift;        // …but the performed exercise can be swapped
+    const rm = bbLiftRemoval(exId);
+    if (rm) return { exId, name: exName(exId), sets: [], isMain: true, wmKey, isRemoved: true, removedReason: rm };
     const r = loadingFor(exId).totalInc;      // Change 1: round the total to this implement's increment
     let sets = sch.main(block, wIdx, P().wm[wmKey], r, modPct);
     if (mod) sets = applySetDelta(sets, mod.mainSetDelta || 0);
@@ -325,6 +340,8 @@ function resolveSlot(slot, blockIdx, wIdx) {
   if (slot.type === 'secondary') {
     const wmKey = slot.baseLift || slot.lift;
     const exId = slot.ex || slot.lift;
+    const rm = bbLiftRemoval(exId);
+    if (rm) return { exId, name: exName(exId), sets: [], isSecondary: true, wmKey, isRemoved: true, removedReason: rm };
     const r = loadingFor(exId).totalInc;
     const sets = sch.secondary(block, wIdx, P().wm[wmKey], r, (slot.pctMod || 1) * modPct);
     return { exId, name: exName(exId), sets, isSecondary: true, wmKey };
@@ -1114,7 +1131,7 @@ function vWorkout() {
       // Dropped by muscle focus (slider 0). Shown muted so it is not a mystery.
       return `<div class="ex-card" data-si="${si}" style="opacity:.5">
         ${grip}<span class="name">${esc(rs.name)}</span>
-        <span class="faint" style="font-size:.78rem">removed by focus</span></div>`;
+        <span class="faint" style="font-size:.78rem">${esc(rs.removedReason || 'removed by focus')}</span></div>`;
     }
     if (rs.isSelect) {
       return `<div class="ex-card" data-si="${si}">

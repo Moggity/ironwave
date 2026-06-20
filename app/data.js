@@ -536,7 +536,7 @@ const SLIDER_MOVEMENTS = {
   back:      ['vpull', 'hpull', 'upperback'],
   shoulders: ['shoulder', 'press'],
   glutes:    ['glute'],
-  legs:      ['quad', 'ham'],
+  legs:      ['quad', 'ham', 'squat'],   // squat pattern -> Legs (so Legs 0 also drops the squat main)
   calves:    ['calf'],
 };
 // Reverse lookup: movement category -> slider key (lowback/abs/forearm have none).

@@ -68,6 +68,13 @@ balanced sliders) remain byte-identical throughout; every new behavior is gated.
 - A select ("Select X Exercise") slot for a muscle set to 0 no longer nags the
   athlete to fill it; it is shown removed instead. Found by simulating a
   Chest-6 / everything-else-0 athlete across a full mesocycle.
+- Bodybuilding track now drops the deadlift entirely (the heavy deadlift main and
+  its variations have no place in a hypertrophy routine; RDLs and good-mornings,
+  which build hamstrings, are kept). A muscle slider at 0 now also removes that
+  muscle's main and secondary lifts, not just its accessories: Chest 0 means no
+  Comp Bench, Legs 0 means no Comp Squat, Shoulders 0 means no Military Press.
+  This honors an injured athlete who cannot perform the lift. Mains are still
+  never volume-scaled, and other tracks keep every lift (deadlift included).
 
 ## [In-app confirm dialogs] (2026-06-19)
 - Replaced every native `window.confirm()` with an in-app confirm dialog so
