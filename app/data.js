@@ -755,3 +755,22 @@ const DEFAULT_ACC = {
 
 // Focus muscles that have a barbell main lift, for the slider-6 "extra main dose".
 const MUSCLE_MAIN = { chest: 'comp-bench', legs: 'comp-squat', shoulders: 'military-press' };
+
+// ---- Frequency-driven split generator (bodybuilding) ----
+// Slider -> weekly training frequency (days the muscle is trained). Per product:
+// focus is frequency. 3 = 2x/week baseline; 4 = 2x but a day's primary focus with
+// more volume; 5-6 = 3x. 0 removes the muscle.
+const SPLIT_FREQ = { 0: 0, 1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 3 };
+const UPPER_MUSCLES = ['chest', 'back', 'shoulders', 'arms'];
+const LOWER_MUSCLES = ['legs', 'glutes', 'calves'];
+// A day is themed/anchored by its highest-ranked muscle. Muscles with a compound
+// lead anchor a day; arms/glutes/calves only fill when nothing bigger is present.
+const ANCHOR_RANK = { chest: 3, back: 3, legs: 3, shoulders: 2, arms: 1, glutes: 1, calves: 0 };
+// Lead movement for a day whose primary focus is this muscle. `main` = a working-
+// max barbell anchor (correct wave/AMRAP weights); `acc` = a big lead accessory.
+const PRIMARY_ANCHOR = {
+  chest:     { main: 'comp-bench' },
+  shoulders: { main: 'military-press' },
+  legs:      { main: 'comp-squat' },
+  back:      { acc: 'lat-pulldown' },
+};

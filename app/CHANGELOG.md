@@ -1,5 +1,25 @@
 # IRONWAVE — Changelog
 
+## [Frequency-driven bodybuilding split] (2026-06-19)
+
+The bodybuilding split was a fixed template (upper/lower etc.) chosen by day
+count; the sliders only adjusted volume within it, so the split shape ignored
+the focus distribution (an upper-heavy lifter still got 2 upper / 2 lower).
+
+- The bodybuilding week is now generated from the sliders. Focus = frequency:
+  3 = 2x/week, 4 = 2x as a day's primary focus, 5-6 = 3x, 0 = removed.
+- Region day counts are proportional to slider points: arms/chest/back/shoulders
+  vs glutes/legs/calves. Example: arms3 chest3 back3 shoulders4 glutes1 legs2
+  calves1 on 4 days now yields 3 upper + 1 lower (was 2/2), with a Shoulders day,
+  a Chest day, a Back day, and a Legs day.
+- Leadership rotates: each anchor-capable muscle (chest/back/legs/shoulders)
+  leads a day in turn, so you get distinct themed days instead of one muscle
+  leading every session. The day shows its theme ("Upper - Shoulders").
+- One working-max main per lift drives the AMRAP/progression; extra weekly
+  exposures of that lift are secondary volume (no second working-max move).
+- Day titles are "Day N" with the theme as a subtitle (dashboard, preview,
+  workout). Other tracks keep the strength templates and are byte-identical.
+
 ## [Dedicated bodybuilding day templates] (2026-06-19)
 
 The bodybuilding track previously reused the strength-oriented shared day
