@@ -217,7 +217,10 @@ function makeProgram(ob) {
   // powerbuilding so an onboarding without a track behaves exactly as before.
   const track = ob.track || 'powerbuilding';
   const tpl = PROGRAM_TEMPLATES[track] || PROGRAM_TEMPLATES.powerbuilding;
-  const days = JSON.parse(JSON.stringify(DAY_TEMPLATES[ob.daysPerWeek]));
+  // Bodybuilding uses hypertrophy day templates (PPL / upper-lower, no deadlift);
+  // other tracks keep the strength-oriented shared templates.
+  const dayTpl = (track === 'bodybuilding' && BB_DAY_TEMPLATES[ob.daysPerWeek]) ? BB_DAY_TEMPLATES : DAY_TEMPLATES;
+  const days = JSON.parse(JSON.stringify(dayTpl[ob.daysPerWeek]));
   const blocks = JSON.parse(JSON.stringify(tpl.blocks));
   stampMesoIdx(blocks);
   const totalWeeks = blocks.length * tpl.weeksPerBlock;

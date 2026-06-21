@@ -1,5 +1,25 @@
 # IRONWAVE — Changelog
 
+## [Dedicated bodybuilding day templates] (2026-06-19)
+
+The bodybuilding track previously reused the strength-oriented shared day
+templates (built around the four competition barbell lifts), so dropping the
+deadlift for hypertrophy left an orphaned day led by Good Mornings, and the
+exercise selection leaked a powerlifting philosophy.
+
+- Bodybuilding now has its own hypertrophy splits: 3 = full body x3, 4 =
+  upper/lower x2, 5 = push/pull/legs/upper/lower, 6 = push/pull/legs x2. No
+  deadlift, no Good-Mornings-as-lead.
+- Exercise selection leans bodybuilding: pull days lead with a pulldown/row,
+  hamstrings are RDLs and leg curls (not Good Mornings), and machine/cable/
+  isolation work fills the accessories.
+- The barbell compounds (bench/squat/press) stay as the working-max anchors so
+  the wave/AMRAP weights remain correct, and they are swappable. Non-anchor days
+  (pull, second lower) lead with a bodybuilding movement, barbell available as a swap.
+- Muscle focus, removal, refill, the extra-main-dose, time tiers, and the
+  carryover all work unchanged on the new templates. Powerlifting and
+  powerbuilding keep the strength templates, so they are byte-identical.
+
 ## [Core / Optional time tiers + onboarding clarity] (2026-06-19)
 
 ### Core vs Optional (replaces silent trimming)

@@ -479,6 +479,147 @@ const DAY_TEMPLATES = {
   ],
 };
 
+// ============================================================
+// BODYBUILDING DAY TEMPLATES (hypertrophy splits)
+// Used for the bodybuilding track instead of the strength-oriented
+// DAY_TEMPLATES above. Splits: 3 = full body x3, 4 = upper/lower x2,
+// 5 = push/pull/legs/upper/lower, 6 = push/pull/legs x2. No deadlift.
+// The barbell compounds (bench/squat/press) remain the working-max
+// anchors (the wave/AMRAP math needs the real lift for correct weights);
+// they are swappable. Non-anchor days lead with a big bodybuilding
+// movement (a pulldown or row, a leg press), with barbell as a swap.
+// ============================================================
+const BB_DAY_TEMPLATES = {
+  3: [
+    { name: 'Full Body A', slots: [
+      { type:'main', lift:'comp-bench' },
+      { type:'acc', cat:'vpull', def:'lat-pulldown' },
+      { type:'acc', cat:'quad',  def:'leg-press' },
+      { type:'acc', cat:'ham',   def:'seated-leg-curl' },
+      { type:'select', cat:'shoulder' },
+    ]},
+    { name: 'Full Body B', slots: [
+      { type:'main', lift:'comp-squat' },
+      { type:'acc', cat:'hpull', def:'chest-supported-row' },
+      { type:'acc', cat:'bench', def:'db-incline-bench' },
+      { type:'acc', cat:'calf',  def:'standing-calf-raise' },
+      { type:'select', cat:'bicep' },
+    ]},
+    { name: 'Full Body C', slots: [
+      { type:'main', lift:'military-press' },
+      { type:'acc', cat:'vpull', def:'pullup' },
+      { type:'acc', cat:'ham',   def:'romanian-deadlift' },
+      { type:'acc', cat:'tricep', def:'triceps-pushdown' },
+      { type:'select', cat:'bicep' },
+    ]},
+  ],
+  4: [
+    { name: 'Upper A', slots: [
+      { type:'main', lift:'comp-bench' },
+      { type:'acc', cat:'vpull', def:'lat-pulldown' },
+      { type:'acc', cat:'hpull', def:'chest-supported-row' },
+      { type:'acc', cat:'shoulder', def:'lateral-raise' },
+      { type:'select', cat:'tricep' },
+    ]},
+    { name: 'Lower A', slots: [
+      { type:'main', lift:'comp-squat' },
+      { type:'acc', cat:'ham',  def:'romanian-deadlift' },
+      { type:'acc', cat:'quad', def:'leg-extensions' },
+      { type:'acc', cat:'calf', def:'standing-calf-raise' },
+      { type:'select', cat:'glute' },
+    ]},
+    { name: 'Upper B', slots: [
+      { type:'main', lift:'military-press' },
+      { type:'acc', cat:'vpull', def:'pullup' },
+      { type:'acc', cat:'bench', def:'db-incline-bench' },
+      { type:'acc', cat:'upperback', def:'face-pull' },
+      { type:'select', cat:'bicep' },
+    ]},
+    { name: 'Lower B', slots: [
+      { type:'acc', cat:'quad', def:'leg-press' },
+      { type:'acc', cat:'ham',  def:'seated-leg-curl' },
+      { type:'acc', cat:'glute', def:'bb-hip-thrust' },
+      { type:'acc', cat:'calf', def:'seated-calf-raise' },
+      { type:'select', cat:'abs' },
+    ]},
+  ],
+  5: [
+    { name: 'Push', slots: [
+      { type:'main', lift:'comp-bench' },
+      { type:'acc', cat:'bench', def:'db-incline-bench' },
+      { type:'acc', cat:'shoulder', def:'lateral-raise' },
+      { type:'acc', cat:'tricep', def:'triceps-pushdown' },
+      { type:'select', cat:'chest' },
+    ]},
+    { name: 'Pull', slots: [
+      { type:'acc', cat:'vpull', def:'lat-pulldown' },
+      { type:'acc', cat:'hpull', def:'barbell-row' },
+      { type:'acc', cat:'upperback', def:'face-pull' },
+      { type:'acc', cat:'bicep', def:'ez-curl' },
+      { type:'select', cat:'bicep' },
+    ]},
+    { name: 'Legs', slots: [
+      { type:'main', lift:'comp-squat' },
+      { type:'acc', cat:'ham',  def:'romanian-deadlift' },
+      { type:'acc', cat:'quad', def:'leg-extensions' },
+      { type:'acc', cat:'calf', def:'standing-calf-raise' },
+      { type:'select', cat:'glute' },
+    ]},
+    { name: 'Upper', slots: [
+      { type:'main', lift:'military-press' },
+      { type:'acc', cat:'vpull', def:'chinup' },
+      { type:'acc', cat:'hpull', def:'chest-supported-row' },
+      { type:'acc', cat:'bench', def:'machine-chest-press' },
+      { type:'select', cat:'tricep' },
+    ]},
+    { name: 'Lower', slots: [
+      { type:'acc', cat:'quad', def:'leg-press' },
+      { type:'acc', cat:'ham',  def:'seated-leg-curl' },
+      { type:'acc', cat:'glute', def:'bb-hip-thrust' },
+      { type:'acc', cat:'calf', def:'seated-calf-raise' },
+      { type:'select', cat:'abs' },
+    ]},
+  ],
+  6: [
+    { name: 'Push A', slots: [
+      { type:'main', lift:'comp-bench' },
+      { type:'acc', cat:'bench', def:'db-incline-bench' },
+      { type:'acc', cat:'shoulder', def:'lateral-raise' },
+      { type:'acc', cat:'tricep', def:'triceps-pushdown' },
+    ]},
+    { name: 'Pull A', slots: [
+      { type:'acc', cat:'vpull', def:'lat-pulldown' },
+      { type:'acc', cat:'hpull', def:'barbell-row' },
+      { type:'acc', cat:'upperback', def:'face-pull' },
+      { type:'acc', cat:'bicep', def:'ez-curl' },
+    ]},
+    { name: 'Legs A', slots: [
+      { type:'main', lift:'comp-squat' },
+      { type:'acc', cat:'ham',  def:'romanian-deadlift' },
+      { type:'acc', cat:'quad', def:'leg-extensions' },
+      { type:'acc', cat:'calf', def:'standing-calf-raise' },
+    ]},
+    { name: 'Push B', slots: [
+      { type:'main', lift:'military-press' },
+      { type:'acc', cat:'bench', def:'machine-chest-press' },
+      { type:'acc', cat:'shoulder', def:'cable-lateral-raise' },
+      { type:'acc', cat:'tricep', def:'overhead-triceps-ext' },
+    ]},
+    { name: 'Pull B', slots: [
+      { type:'acc', cat:'vpull', def:'pullup' },
+      { type:'acc', cat:'hpull', def:'cable-row' },
+      { type:'acc', cat:'upperback', def:'rear-delt-fly' },
+      { type:'acc', cat:'bicep', def:'hammer-curl' },
+    ]},
+    { name: 'Legs B', slots: [
+      { type:'acc', cat:'quad', def:'leg-press' },
+      { type:'acc', cat:'ham',  def:'seated-leg-curl' },
+      { type:'acc', cat:'glute', def:'bb-hip-thrust' },
+      { type:'acc', cat:'calf', def:'seated-calf-raise' },
+    ]},
+  ],
+};
+
 // Muscle-group check-in questions per main movement on the day
 const CHECKIN_GROUPS = {
   bench:    { key:'bench', label:'Pecs / Shoulders / Triceps' },
