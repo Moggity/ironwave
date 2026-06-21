@@ -482,9 +482,11 @@ function estimateSessionSec(resolved, tight) {
   }
   return t;
 }
-// Prune score: higher = trimmed first. Coherent (already trained by the day's
-// main) + de-prioritized rank highest. Returns null for protected entries
-// (a specialized muscle, slider >= 4, is never pruned).
+// Keep priority for the core/optional split. LOWER = kept in core first.
+// Specialized muscles (slider >= 4) score negative so they are kept hardest, but
+// they are not immune: if the mains alone already fill the cap, even specialized
+// accessories fall to the optional tail (shown, not deleted) so the model never
+// claims a session fits when it cannot.
 function prunePriority(rs, mainMovs, tc) {
   const mov = (exById(rs.exId) || {}).movement;
   let cov = 0;
@@ -493,40 +495,47 @@ function prunePriority(rs, mainMovs, tc) {
   if (tc && tc.track === 'bodybuilding' && tc.muscleFocus) {
     const key = MOVEMENT_SLIDER[mov];
     const v = key != null ? tc.muscleFocus[key] : null;
-    if (v != null) { if (v >= 4) return null; deprior = (3 - v) / 3; }
+    if (v != null) {
+      if (v >= 4) return -(v - 3);          // specialized: kept first (more emphasis = harder)
+      deprior = (3 - v) / 3;
+    }
   }
   return cov + deprior;
 }
-// Build a day's training entries with FOCUS applied (via resolveSlot) and then
-// time mitigation. Returns { items:[{si, rs}], pruned:[names], estMin, capMin }.
-// Used by the live session and the previews so they always agree.
+// Build a day's training entries with FOCUS applied (via resolveSlot), then
+// split into CORE and OPTIONAL for a time-capped athlete. Core = mains,
+// secondaries, and the highest-priority accessories that fit the cap; it is
+// never trimmed. Optional = the lower-priority tail that runs over the limit;
+// it is shown and trainable, just flagged. No cap -> everything is core.
+// Returns { items:[{si,rs}], coreItems, optItems, coreMin, fullMin, capMin, optionalNames }.
 function resolveDayEntries(di, bi, wi) {
   const p = P();
-  let items = p.days[di].slots
+  const items = p.days[di].slots
     .map((slot, si) => ({ si, rs: resolveSlot(slot, bi, wi) }))
     .filter(x => !x.rs.isSelect && !x.rs.isRemoved && x.rs.sets.length);
   const tc = p.trainingConfig;
   const capMin = (tc && tc.timeMode === 'custom' && tc.timeCapMin) ? tc.timeCapMin : null;
-  const pruned = [];
-  let estSec = estimateSessionSec(items.map(x => x.rs), false);
-  if (capMin && estSec > capMin * 60) {
-    estSec = estimateSessionSec(items.map(x => x.rs), true); // step 1: compress rest
-    if (estSec > capMin * 60) {
-      const mains = items.filter(x => x.rs.isMain).map(x => (exById(x.rs.exId) || {}).movement);
-      const cand = items
-        .filter(x => !x.rs.isMain && !x.rs.isSecondary)
-        .map(x => ({ x, score: prunePriority(x.rs, mains, tc) }))
-        .filter(c => c.score !== null)
-        .sort((a, b) => b.score - a.score);
-      for (const c of cand) {                               // step 2: prune coherent accessories
-        items = items.filter(x => x !== c.x);
-        pruned.push(c.x.rs.name);
-        estSec = estimateSessionSec(items.map(x => x.rs), true);
-        if (estSec <= capMin * 60) break;
-      }
+  if (capMin) {
+    const mains = items.filter(x => x.rs.isMain).map(x => (exById(x.rs.exId) || {}).movement);
+    const core = items.filter(x => x.rs.isMain || x.rs.isSecondary); // always core
+    const accs = items.filter(x => !x.rs.isMain && !x.rs.isSecondary)
+      .map(x => ({ x, score: prunePriority(x.rs, mains, tc) }))
+      .sort((a, b) => a.score - b.score); // keep highest-priority (lowest score) first
+    let full = false;
+    for (const a of accs) {
+      if (!full && estimateSessionSec(core.concat([a.x]).map(t => t.rs), false) <= capMin * 60) {
+        core.push(a.x);
+      } else { a.x.rs.optional = true; full = true; }
     }
   }
-  return { items, pruned, estMin: Math.round(estSec / 60), capMin };
+  const coreItems = items.filter(x => !x.rs.optional);
+  const optItems = items.filter(x => x.rs.optional);
+  return {
+    items, coreItems, optItems, capMin,
+    coreMin: Math.round(estimateSessionSec(coreItems.map(x => x.rs), false) / 60),
+    fullMin: Math.round(estimateSessionSec(items.map(x => x.rs), false) / 60),
+    optionalNames: optItems.map(x => x.rs.name),
+  };
 }
 // Heads-up banner in the workout view for athletes with a time cap.
 function timeBannerHTML(di) {
@@ -534,10 +543,14 @@ function timeBannerHTML(di) {
   const tc = p && p.trainingConfig;
   if (!tc || tc.timeMode !== 'custom' || !tc.timeCapMin) return '';
   const built = resolveDayEntries(di, p.pointer.block, p.pointer.week);
-  if (built.pruned.length) {
-    return `<div class="banner-warn mt8">Trimmed to fit your ${tc.timeCapMin} min limit: removed ${esc(built.pruned.join(', '))}. This day is now about ${built.estMin} min. Your main lifts and weights are kept.</div>`;
+  if (built.coreMin > tc.timeCapMin) {
+    // Even the unavoidable core (mains + top priorities) runs over the limit.
+    return `<div class="banner-warn mt8">Your core work is about ${built.coreMin} min, over your ${tc.timeCapMin} min limit. Main lifts come first and are never cut, so to fit you would need to raise your time limit or ease a muscle focus.${built.optItems.length ? ' Optional extras: ' + esc(built.optionalNames.join(', ')) + '.' : ''}</div>`;
   }
-  return `<div class="card mt8"><span class="faint">This day is about ${built.estMin} min, within your ${tc.timeCapMin} min limit.</span></div>`;
+  if (built.optItems.length) {
+    return `<div class="banner-warn mt8">Core fits your ${tc.timeCapMin} min limit (about ${built.coreMin} min). Optional, if you have time: ${esc(built.optionalNames.join(', '))} (about ${built.fullMin - built.coreMin} min more). Skip it and you stay on time. Keep skipping it all block and it gets dropped next block.</div>`;
+  }
+  return `<div class="card mt8"><span class="faint">This day is about ${built.coreMin} min, within your ${tc.timeCapMin} min limit.</span></div>`;
 }
 
 // ------------------------------------------------------------
@@ -1129,6 +1142,9 @@ function advanceWeek() {
     // Block just completed: evolve the athlete's volume landmarks from how the
     // block actually went (Step 5). This grows MV/MEV/MRV as the lifter ages up.
     recalibrateLandmarks(finishedBlock);
+    // Carryover: drop optional accessories the athlete never trained all block.
+    const dropped = carryoverOptionalDrops(finishedBlock);
+    if (dropped.length) toast(`Dropped from your routine: ${dropped.join(', ')} (you skipped it all block)`);
     p.pointer.week = 0;
     p.pointer.block++;
     if (p.pointer.block < p.blocks.length) {
@@ -1193,6 +1209,31 @@ function recalibrateLandmarks(blockIdx) {
   }
   bumpTrainingAge();
 }
+// Carryover (one block): an accessory that was offered as optional (over the
+// time limit) at least twice in the block and was never trained once is dropped
+// from the routine, so a time-capped athlete stops being shown work they keep
+// skipping. Anything they did at least once is kept. Mains/secondaries never drop.
+function carryoverOptionalDrops(blockIdx) {
+  const sessions = S.sessions.filter(s => !s.skipped && s.b === blockIdx && s.entries);
+  if (!sessions.length) return [];
+  const stat = {};
+  for (const s of sessions) for (const e of s.entries) {
+    if (e.isMain || e.isSecondary || !e.exId) continue;
+    const st = stat[e.exId] = stat[e.exId] || { opt: 0, done: 0 };
+    if (e.optional) st.opt++;
+    if (e.sets && e.sets.some(x => x.done)) st.done++;
+  }
+  const drop = Object.keys(stat).filter(id => stat[id].opt >= 2 && stat[id].done === 0);
+  if (!drop.length) return [];
+  for (const d of P().days) {
+    d.slots = d.slots.filter(sl => {
+      if (sl.type === 'main' || sl.type === 'secondary') return true;
+      const id = sl.ex || sl.def;
+      return !(id && drop.includes(id));
+    });
+  }
+  return drop.map(exName);
+}
 // --- end-of-week feel slider (Change 2) ---
 let WF = 3;
 function openWeekFeel(up) { WF = 3; V.wfUp = up; showModal(renderWeekFeel); }
@@ -1255,7 +1296,9 @@ function vWorkout() {
   // Empty-day safety net: only reachable if the athlete zeroed essentially every
   // muscle (refill cannot find anything to train). Guide them instead of starting
   // an empty session.
-  const emptyDay = !locked && resolveDayEntries(di, p.pointer.block, w).items.length === 0;
+  const dayBuilt = resolveDayEntries(di, p.pointer.block, w);
+  const emptyDay = !locked && dayBuilt.items.length === 0;
+  const optSi = new Set(dayBuilt.optItems.map(x => x.si));
 
   const cards = day.slots.map((slot, si) => {
     const rs = resolveSlot(slot, p.pointer.block, w);
@@ -1272,9 +1315,10 @@ function vWorkout() {
         <button class="name select" onclick="openSwap(${di},${si})">Select ${MOVEMENTS[rs.cat].label} Exercise ⚙</button>
       </div>`;
     }
-    return `<div class="ex-card" data-si="${si}">
+    const opt = optSi.has(si);
+    return `<div class="ex-card ${opt ? 'optional' : ''}" data-si="${si}">
       ${grip}
-      <span class="name">${esc(rs.name)}</span>
+      <span class="name">${esc(rs.name)}${opt ? ' <span class="opt-tag">optional</span>' : ''}</span>
       <span class="actions">
         <button class="icon-btn" onclick="openExDetail('${rs.exId}')"><span class="ic">ⓘ</span>Info</button>
         <button class="icon-btn" onclick="openSwap(${di},${si})"><span class="ic">⇄</span>Swap</button>
@@ -1497,12 +1541,14 @@ function beginSession() {
 
   const p = P();
   const di = cd.di, b = p.pointer.block, w = p.pointer.week;
-  // resolveDayEntries applies muscle focus and fits the time cap (rest
-  // compression then coherent pruning) so the logged session matches the plan.
+  // resolveDayEntries applies muscle focus and classifies each exercise as core
+  // or optional for a time-capped athlete. All are logged; optional ones are
+  // flagged so the session shows them and the block-end carryover can learn.
   const built = resolveDayEntries(di, b, w);
   const entries = built.items.map(x => ({
     si: x.si, exId: x.rs.exId, name: x.rs.name,
     isMain: !!x.rs.isMain, isSecondary: !!x.rs.isSecondary, wmKey: x.rs.wmKey || null,
+    optional: !!x.rs.optional,
     notes: '', notesOpen: false,
     sets: x.rs.sets.map(t => ({
       targetWeight: t.weight ?? null, targetReps: t.reps, targetRpe: t.rpe ?? null,
@@ -1512,7 +1558,6 @@ function beginSession() {
   }));
   V.draft = { id: 's' + Date.now(), ts: Date.now(), b, w, d: di, entries,
               sleepHours: cd.sleepHours, mindset: cd.mindset, sliders: { ...cd.sliders } };
-  if (built.pruned.length) toast(`Trimmed to fit ${built.capMin} min: ${built.pruned.join(', ')}`);
   save();
   nav('session');
 }
@@ -1565,8 +1610,9 @@ function vSession() {
     const schemeTxt = schemeWork.length
       ? `${schemeWork.length} sets x ${schemeWork[0].targetReps} reps` : '';
     const top = topWorkWeight(e);
-    return `<div class="lift-card">
-      <h3>${esc(e.name)}</h3>
+    return `<div class="lift-card ${e.optional ? 'optional' : ''}">
+      <h3>${esc(e.name)}${e.optional ? ' <span class="opt-tag">optional</span>' : ''}</h3>
+      ${e.optional ? '<p class="faint" style="margin:-4px 0 6px">Over your time limit. Do it if you have time, otherwise skip it.</p>' : ''}
       ${lastSetInfo(e.exId)}
       <div class="head-actions">
         <button onclick="openExDetail('${e.exId}')">ⓘ</button>
@@ -1901,15 +1947,14 @@ function finishSession() {
 // ------------------------------------------------------------
 function openPreview(di) {
   const built = resolveDayEntries(di, P().pointer.block, P().pointer.week);
-  const blocks = built.items.map(x => x.rs);
   const timeNote = built.capMin
-    ? `<p class="faint" style="margin-bottom:10px">Projected ${built.estMin} min, cap ${built.capMin} min.${built.pruned.length ? ' Trimmed to fit: ' + esc(built.pruned.join(', ')) + '.' : ''}</p>`
+    ? `<p class="faint" style="margin-bottom:10px">Core about ${built.coreMin} min, within your ${built.capMin} min limit.${built.optItems.length ? ' Optional, if you have time: ' + esc(built.optionalNames.join(', ')) + ' (about ' + (built.fullMin - built.coreMin) + ' min more).' : ''}</p>`
     : '';
   showModal(anim => {
     $modal.innerHTML = modalShell(anim, 'Preview', timeNote +
-      blocks.map(rs => {
-        const work = rs.sets.filter(s => !s.ramp);
-        return `<div class="lift-card"><h3 style="font-size:1.2rem">${esc(rs.name)}</h3>
+      built.items.map(x => {
+        const rs = x.rs, work = rs.sets.filter(s => !s.ramp);
+        return `<div class="lift-card ${rs.optional ? 'optional' : ''}"><h3 style="font-size:1.2rem">${esc(rs.name)}${rs.optional ? ' <span class="opt-tag">optional</span>' : ''}</h3>
           <div class="scheme">${work.length} sets x ${work[0]?.reps ?? ''} reps</div>
           ${rs.sets.map((s, i) => `<div class="set-row"><span class="num">${i + 1}</span>
             <span class="target">${s.weight != null ? fmtW(rs.exId, s.weight) + ' × ' : ''}${s.amrap ? 'AMRAP' : s.reps}${s.rpe ? ' @ ' + s.rpe + ' RPE' : ''}</span>

@@ -1,5 +1,29 @@
 # IRONWAVE — Changelog
 
+## [Core / Optional time tiers + onboarding clarity] (2026-06-19)
+
+### Core vs Optional (replaces silent trimming)
+- A time-capped day no longer silently drops accessories when you Start. Instead
+  every exercise is classified: Core (main lifts, secondaries, and the highest
+  priority accessories that fit your limit) is always shown and never cut;
+  Optional (the lower-priority tail that runs over) is shown and trainable, just
+  flagged amber with "optional, over your time limit, do it if you have time."
+- Mains and secondaries are always Core. Specialized muscles (slider >= 4) are
+  kept in Core hardest, but if the mains alone already fill the limit even they
+  fall to Optional, so the app never claims a session fits when it cannot. A
+  dedicated banner explains the "even your core is over the limit" case.
+- The workout overview, preview, and live session all mark optional work; the
+  banner states the core minutes vs your limit and the optional minutes on top.
+- Carryover (one block): an accessory offered as optional at least twice in a
+  block and never trained once is dropped from the routine, so you stop being
+  shown work you keep skipping. Anything you do at least once is kept.
+- Replaces the old rest-compression + prune mitigation. No time cap means
+  everything is Core, so default and uncapped users are unaffected.
+
+### Onboarding clarity
+- The focus-step time estimate is now a legible card and compares to the limit
+  the athlete set ("about 55 min, over your 45 min limit").
+
 ## [Dynamic engine: onboarding tracks, time, muscle focus] (2026-06-19) — in progress
 
 Implements docs/dynamic-routine-engine-design.md. Shipped incrementally; each
