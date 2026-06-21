@@ -702,3 +702,49 @@ soccer (forward) every Friday loads the lower body hard, so the builder should k
 **Interaction with this branch:** the time-cap and muscle-focus systems are independent of
 scheduling and ship first; sport scheduling layers on later by constraining which day each
 session lands on, without changing how a session's volume or time is computed.
+
+---
+
+## 11. Pending / future work (next branch)
+
+Captured from the build and edge-case testing on `Onboarding-improvements`. None
+block the current feature set; they are enhancements and polish.
+
+### Larger items
+- **Sport-aware scheduling** (the §10 epic): sport->muscle-fatigue dataset, "pick
+  which weekdays" instead of a day count, calendar placement to avoid stacking
+  fatigue around game day, and named/dated days instead of "Day 1".
+- **Full cross-muscle zero-sum weekly budget.** FOCUS currently adds exercises up
+  to each muscle's landmark budget (refill) and de-emphasizes by set count; a
+  strict global conservation (total weekly sets held constant, redistributed
+  proportionally) is not enforced. The per-muscle landmark clamp bounds it for now.
+- **Carryover graduation.** The block-end carryover drops an optional accessory
+  that is never trained; the inverse (an optional consistently completed gets
+  promoted into core / its volume nudged up) is not implemented.
+
+### Polish / smaller
+- **Extra-main-dose spacing.** A muscle at 6 gets a second main exposure half a
+  week out, but on a 6-day where a second exposure already exists it can land
+  adjacent (days 3 and 4). Tighten the spacing search.
+- **Leftover select on an emphasized muscle.** An emphasized muscle that also has
+  an empty template select slot (e.g. an emphasized-legs day's "Select calf")
+  shows the select prompt alongside its auto-filled work. Fill or hide it.
+- **Per-day time caps** (open question 8.5): one cap for all days vs a longer cap
+  for naturally-longer days (leg day).
+- **Budget-aware swap/select.** The Add button shows remaining time and per-add
+  cost; the per-candidate cost is not yet shown inside the swap/select list.
+- **Check-in references removed muscles.** `checkinGroupsForDay` reads slots
+  structurally, so a muscle set to 0 can still surface a check-in slider.
+- **Onboarding asks for a deadlift 1RM on the bodybuilding track** even though the
+  deadlift is dropped there; could skip it.
+- **Onboarding time estimate is bodybuilding-only.** Powerbuilding/powerlifting
+  athletes who set a cap get no onboarding estimate (they have no slider step);
+  a per-track estimate on the time step could be added.
+
+### Tuning (open questions, safe to revisit anytime)
+- Landmark evolution step/cadence (8.7), experience seed factors (8.8), and the
+  classic-vs-RP-App landmark dataset (8.2).
+
+### Process
+- Real-browser QA pass (the engine is harness-verified; UI verified via
+  screenshots) and opening the PR for review.
