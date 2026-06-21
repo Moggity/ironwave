@@ -348,6 +348,9 @@ function weekIdx() { return P().pointer.week; }
 function programDone() { return P().pointer.block >= P().blocks.length; }
 function daysOut() { return Math.max(0, Math.ceil((P().testDate - Date.now()) / 864e5)); }
 function globalWeekNum() { return P().pointer.block * P().weeksPerBlock + P().pointer.week + 1; }
+// Day theme label (e.g. "Upper A", "Push") shown as a subtitle. Empty for the
+// plain "Day N" templates so we never render "Day 1 · Day 1".
+function dayTheme(d) { return (d && d.name && !/^Day \d+$/.test(d.name)) ? d.name : ''; }
 
 // Resolve slot to a prescription { exId, name, sets, slotRef, isMain, isSelect }
 // All prescriptions route through the block's declared scheme — see
@@ -1035,7 +1038,7 @@ function openWeekPreview(bi, wi) {
   const p = P();
   const b = p.blocks[bi];
   showModal(anim => {
-    const days = p.days.map(d => {
+    const days = p.days.map((d, di) => {
       const rows = d.slots.map(slot => {
         const rs = resolveSlot(slot, bi, wi);
         if (rs.isRemoved) return ''; // dropped by muscle focus (slider 0)
@@ -1060,7 +1063,7 @@ function openWeekPreview(bi, wi) {
           <span>${esc(rs.name)}${am ? ' <b style="color:var(--red)">AMRAP</b>' : ''}</span>
           ${right}</div>`;
       }).join('');
-      return `<div class="card"><b>${esc(d.name)}</b>${rows}</div>`;
+      return `<div class="card"><b>Day ${di + 1}</b>${dayTheme(d) ? ` <span class="faint">${esc(dayTheme(d))}</span>` : ''}${rows}</div>`;
     }).join('');
     $modal.innerHTML = modalShell(anim, `${esc(b.label)} · Week ${bi * p.weeksPerBlock + wi + 1}`,
       `<p class="subtle" style="margin-bottom:10px">${weekLabelFor(b, wi)} · projected with current working maxes</p>${days}`);
@@ -1122,7 +1125,7 @@ function vDashboard() {
       const cls = st ? 'done' : '';
       const mark = st === 'skipped' ? '⤼' : st ? '✓' : '○';
       return `<button class="day-row ${cls}" onclick="openDay(${i})">
-        <span class="mark">${mark}</span> ${esc(d.name)} <span class="chev">›</span></button>`;
+        <span class="mark">${mark}</span> <span>Day ${i + 1}${dayTheme(d) ? ` <span class="faint">${esc(dayTheme(d))}</span>` : ''}</span> <span class="chev">›</span></button>`;
     }).join('');
     const allDone = p.days.every((d, i) => p.completedDays[dayKey(p.pointer.block, w, i)]);
     weekSection = `
@@ -1384,7 +1387,7 @@ function vWorkout() {
           <button class="day-nav" onclick="nextDay()">›</button>
         </div>
       </div>
-      <div class="subtle">${weekLabelFor(block, w)}${doneState ? ' · ' + (doneState === 'skipped' ? 'Skipped' : 'Completed ✓') : ''}</div>
+      <div class="subtle">${dayTheme(day) ? esc(dayTheme(day)) + ' · ' : ''}${weekLabelFor(block, w)}${doneState ? ' · ' + (doneState === 'skipped' ? 'Skipped' : 'Completed ✓') : ''}</div>
     </div>
     ${timeBannerHTML(di)}
     <button class="btn-ghost" style="margin:4px 2px" onclick="openTimeByWeek(${di})">See time by week ›</button>
