@@ -552,6 +552,49 @@ function timeBannerHTML(di) {
   }
   return `<div class="card mt8"><span class="faint">This day is about ${built.coreMin} min, within your ${tc.timeCapMin} min limit.</span></div>`;
 }
+// Rough marginal cost of adding one accessory to this day, in minutes. Uses the
+// day's own accessories as the sample, or a nominal 4x12 accessory if none.
+function accessoryCostMin(di, bi, wi) {
+  const accs = resolveDayEntries(di, bi, wi).items
+    .filter(x => !x.rs.isMain && !x.rs.isSecondary).map(x => x.rs);
+  const sec = accs.length
+    ? (estimateSessionSec(accs, false) - TIME_MODEL.sessionOverheadSec) / accs.length
+    : 4 * (12 * TIME_MODEL.execSecPerRep.accessory + TIME_MODEL.restSec.accessory);
+  return Math.max(1, Math.round(sec / 60));
+}
+// Budget line shown near Add Exercise for a capped athlete: room left and the
+// rough cost of adding one more exercise.
+function timeBudgetHTML(di) {
+  const p = P();
+  const tc = p && p.trainingConfig;
+  if (!tc || tc.timeMode !== 'custom' || !tc.timeCapMin) return '';
+  const built = resolveDayEntries(di, p.pointer.block, p.pointer.week);
+  const room = tc.timeCapMin - built.coreMin;
+  const cost = accessoryCostMin(di, p.pointer.block, p.pointer.week);
+  if (room <= 1) {
+    return `<p class="faint" style="margin:8px 2px 0">You are at your ${tc.timeCapMin} min limit. Anything you add is about +${cost} min and will be marked optional.</p>`;
+  }
+  return `<p class="faint" style="margin:8px 2px 0">About ${room} min before your ${tc.timeCapMin} min limit. Each added exercise is roughly +${cost} min.</p>`;
+}
+// Modal: how this day's time changes across the block (the tail grows toward
+// the peak week). Informative; available with or without a time cap.
+function openTimeByWeek(di) {
+  const p = P(), bi = p.pointer.block;
+  const cap = (p.trainingConfig && p.trainingConfig.timeMode === 'custom') ? p.trainingConfig.timeCapMin : null;
+  const rows = [];
+  for (let wk = 0; wk < p.weeksPerBlock; wk++) {
+    const b = resolveDayEntries(di, bi, wk);
+    const over = cap && b.coreMin > cap;
+    const cur = wk === p.pointer.week;
+    rows.push(`<div class="row" style="padding:9px 0;border-bottom:1px solid var(--line)${cur ? ';font-weight:700' : ''}">
+      <span>${weekLabelFor(blockOf(bi), wk)}${cur ? ' ·' : ''}</span>
+      <span>${b.coreMin} min${b.optItems.length ? ` <span style="color:var(--amber)">+${b.fullMin - b.coreMin} opt</span>` : ''}${over ? ' <span style="color:var(--red)">over</span>' : ''}</span></div>`);
+  }
+  showModal(anim => {
+    $modal.innerHTML = modalShell(anim, 'Time by week',
+      `<p class="subtle" style="margin-bottom:8px">How Day ${di + 1} changes across this block${cap ? `, against your ${cap} min limit` : ''}. Volume climbs toward the peak week, then the deload drops it.</p>${rows.join('')}`);
+  });
+}
 
 // ------------------------------------------------------------
 // READINESS
@@ -1341,6 +1384,7 @@ function vWorkout() {
       <div class="subtle">${weekLabelFor(block, w)}${doneState ? ' · ' + (doneState === 'skipped' ? 'Skipped' : 'Completed ✓') : ''}</div>
     </div>
     ${timeBannerHTML(di)}
+    <button class="btn-ghost" style="margin:4px 2px" onclick="openTimeByWeek(${di})">See time by week ›</button>
     ${locked ? `
     <div class="card accent mt16"><b>Day complete ✓</b>
       <p class="subtle mt8">You logged this day. Open the summary to review your sets, or use the arrows to move to another day.</p>
@@ -1358,6 +1402,7 @@ function vWorkout() {
     </div>`}
     <div class="section-title">Overview <span class="faint">hold ⠿ to reorder</span></div>
     <div id="ex-list">${cards}</div>
+    ${timeBudgetHTML(di)}
     <button class="btn btn-outline" style="border-radius:24px" onclick="openAddExercise(${di})">＋ Add Exercise</button>
   </div>${tabbar()}`;
 }

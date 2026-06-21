@@ -24,6 +24,14 @@
 - The focus-step time estimate is now a legible card and compares to the limit
   the athlete set ("about 55 min, over your 45 min limit").
 
+### Time polish
+- Budget-aware Add: a capped athlete sees how much room is left before their
+  limit and the rough cost of one more exercise ("about 4 min before your 45 min
+  limit. Each added exercise is roughly +6 min").
+- "See time by week" shows how a day's length changes across the block (core and
+  optional minutes per week), so the athlete can see the tail grow toward the
+  peak week and drop at the deload.
+
 ## [Dynamic engine: onboarding tracks, time, muscle focus] (2026-06-19) — in progress
 
 Implements docs/dynamic-routine-engine-design.md. Shipped incrementally; each
