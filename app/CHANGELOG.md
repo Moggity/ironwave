@@ -1,5 +1,18 @@
 # IRONWAVE — Changelog
 
+## [Persistence round-trip test] (2026-06-22)
+
+`persistence.test.js` starts the real `server.js` as a child process against a
+throwaway data file and exercises `GET`/`POST /api/state` over real HTTP: the
+file is created on boot, `GET` returns the default state, and a POSTed state
+round-trips through `GET` and to disk. Uses the built-in `http` module (no
+jsdom, no fetch warning) and works on Node 18 and 20.
+
+- `server.js` gains an `IRONWAVE_DB` env override for the data-file path
+  (defaults to the original `app/database.json`, so existing setups are
+  unchanged). This lets the test point at a temp file instead of clobbering a
+  developer's real `database.json`, and lets deployments choose a data path.
+
 ## [Boot / render smoke tests] (2026-06-22)
 
 `render-smoke.test.js` loads the three scripts into a real jsdom document and

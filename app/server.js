@@ -5,7 +5,10 @@ const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DB_PATH = path.join(__dirname, 'database.json');
+// Data file path. Overridable via IRONWAVE_DB so deployments (and tests) can
+// point at a path other than the app directory; defaults to the original
+// location so existing setups are unchanged.
+const DB_PATH = process.env.IRONWAVE_DB || path.join(__dirname, 'database.json');
 
 // Middleware
 app.use(cors());
