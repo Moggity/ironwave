@@ -56,7 +56,12 @@ obvious.
 
 ## Before opening a pull request
 
-1. `npm start` and click through onboarding, a workout, and a week preview.
-2. If you touched the engine, confirm the per-week RPE/set ramp still matches
+1. Run `npm test` (from `app/`) and make sure it is green. CI runs the same
+   suite on every PR on Node 18 and 20, and `main` is branch-protected on those
+   checks, so a red test blocks merge. If you changed engine output on purpose,
+   regenerate the golden master (`UPDATE_GOLDEN=1 node --test
+   test/golden-master.test.js`) and review the diff. See `test/README.md`.
+2. `npm start` and click through onboarding, a workout, and a week preview.
+3. If you touched the engine, confirm the per-week RPE/set ramp still matches
    intent for both a calibrated and an uncalibrated lift.
-3. Update `CHANGELOG.md` with a short entry.
+4. Update `CHANGELOG.md` with a short entry.
