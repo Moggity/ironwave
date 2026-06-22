@@ -1,5 +1,25 @@
 # IRONWAVE — Changelog
 
+## [Focus / generator behavior tests] (2026-06-22)
+
+`focus-generator.test.js` covers the bodybuilding focus + split machinery
+through the same harness (no jsdom):
+
+- **Focus reallocation:** slider 0 removes a muscle's accessory, 1-2 shed sets
+  (FOCUS_FACTOR 0.5 / 0.75), 3+ leave the per-session count unchanged (emphasis
+  is frequency, not session inflation), and it is a no-op on a calibration ramp
+  and off the bodybuilding track.
+- **Split generator:** region day counts are proportional to slider points
+  (balanced 4-day = 2 upper / 2 lower; the upper-heavy CHANGELOG example =
+  3 / 1), every day has >= 3 slots, a removed muscle never leads or fills a
+  slot, leadership rotates, and an all-removed focus yields no days.
+- **Core / optional tiers:** no cap keeps everything core; a tight cap pushes
+  accessories optional while mains and secondaries stay core, with an exact
+  partition.
+- **Carryover:** an accessory offered optional twice and never trained is
+  dropped at block end; anything trained at least once (or offered only once) is
+  kept.
+
 ## [Engine unit tests: math, scheme isolation, migration] (2026-06-22)
 
 Builds on the golden master with focused pure-engine tests (no jsdom), all

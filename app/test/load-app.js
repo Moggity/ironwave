@@ -41,9 +41,12 @@ function elStub() {
 const EXPORTS = `return {
   defaultState, makeProgram, resolveSlot, migrateState, resolveDayEntries,
   exById, exName, loadingFor,
+  focusForAccessory, bbLiftRemoval, generateBodybuildingDays, carryoverOptionalDrops,
   Engine, PROGRAM_TEMPLATES, DAY_TEMPLATES, WAVES,
   ACC_SCHEMES, SECONDARY_SCHEMES, JBB_HYP, DELOAD_SETS,
   VOLUME_LANDMARKS, EXPERIENCE_FACTOR, DEFAULT_PLATES,
+  DEFAULT_ACC, SPLIT_FREQ, FOCUS_FACTOR, MOVEMENT_SLIDER,
+  UPPER_MUSCLES, LOWER_MUSCLES, FOCUS_KEYS,
   get S() { return S; }, set S(v) { S = v; },
   get V() { return V; }, set V(v) { V = v; },
 };`;
