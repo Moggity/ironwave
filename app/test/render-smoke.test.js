@@ -9,12 +9,19 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { loadDom } = require('./load-dom');
+
+// jsdom (a dev-only dependency) dropped Node 18 support: its ESM-only deps throw
+// ERR_REQUIRE_ESM on Node < 20. The app's runtime still targets Node >= 18 and
+// the engine suites cover it; only this DOM smoke layer needs Node >= 20. So the
+// jsdom require is deferred and the suite is skipped below the floor, keeping the
+// Node-18 CI leg green.
+const NODE_MAJOR = Number(process.versions.node.split('.')[0]);
 
 const DEFAULT_FOCUS = { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 };
 
 // A fresh app instance per test, so state never leaks between cases.
 function fresh() {
+  const { loadDom } = require('./load-dom'); // lazy: only pulled in on Node >= 20
   const ctx = loadDom();
   ctx.baseV = {
     view: 'dashboard', tab: 'dashboard', dayIdx: null,
@@ -48,6 +55,9 @@ function renderView(ctx, view, extraV) {
 // Views reachable by just navigating with a program loaded.
 const NAV_VIEWS = ['dashboard', 'workout', 'history', 'more', 'exercises', 'program', 'settings'];
 
+if (NODE_MAJOR < 20) {
+  test('boot/render smoke (skipped: jsdom requires Node >= 20)', { skip: true }, () => {});
+} else {
 for (const track of ['powerbuilding', 'bodybuilding']) {
   test(`${track}: every navigation view renders`, () => {
     const ctx = fresh();
@@ -93,3 +103,4 @@ test('onboarding renders for a brand-new user (no program)', () => {
   const html = ctx.document.getElementById('app').innerHTML;
   assert.ok(html && html.length > 0, 'onboarding rendered empty');
 });
+}

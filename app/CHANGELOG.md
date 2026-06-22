@@ -15,6 +15,9 @@ asserting each render produces markup and never throws.
   first-run onboarding.
 - Adds `jsdom` as the first devDependency. The pure-engine suites still need no
   DOM; only this smoke layer pulls it in. Whole suite runs in ~2s.
+- jsdom dropped Node 18 support, so this smoke test self-skips on Node < 20 (the
+  jsdom require is deferred); the app runtime and engine suites still cover
+  Node 18, so the CI matrix and branch protection are unchanged.
 
 ## [Focus / generator behavior tests] (2026-06-22)
 
