@@ -325,7 +325,11 @@ function generateBodybuildingDays(focus, N) {
     // 1. Assign a PRIMARY (the day's focus + anchor) to each day, rotating across
     //    the anchor-capable muscles so leadership spreads (a Chest day, a Shoulder
     //    day, a Back day) rather than the top slider leading every day.
-    const anchorM = rms.filter(m => ANCHOR_RANK[m] >= 2);
+    // A muscle can lead a day if it is anchor-capable (rank >= 2). Glutes is gated
+    // on being trained twice or more a week so a de-emphasized (1x) glute does not
+    // claim a whole day; this gives the lower region a second lead besides Legs.
+    const canLead = m => ANCHOR_RANK[m] >= 2 && (m !== 'glutes' || freq[m] >= 2);
+    const anchorM = rms.filter(canLead);
     const leadPool = (anchorM.length ? anchorM : rms);
     const primaryOf = [], primCount = {};
     for (let i = 0; i < nDays; i++) {
@@ -361,7 +365,9 @@ function generateBodybuildingDays(focus, N) {
       let g = 0;
       while (slots.length < 3 && g++ < 6) { const s = accSlot(d.primary); if (!s) break; slots.push(s); }
       const region = UPPER_MUSCLES.includes(d.primary) ? 'Upper' : 'Lower';
-      return { name: `${region} · ${FOCUS_LABELS[d.primary] || d.primary}`, slots };
+      // `primary` is carried for the same-muscle spacing pass below; render reads
+      // only name + slots, so the extra field is inert everywhere else.
+      return { name: `${region} · ${FOCUS_LABELS[d.primary] || d.primary}`, slots, primary: d.primary };
     });
   }
   const up = buildRegion(UPPER_MUSCLES, upDays);
@@ -378,7 +384,27 @@ function generateBodybuildingDays(focus, N) {
     else if (bi < big.length) out.push(big[bi++]);
     else out.push(small[si++]);
   }
-  return out;
+  return spaceSameMuscle(out);
+}
+// When one muscle leads two days, the region build + interleave can leave them
+// adjacent. This greedy pass pulls a later, differently-themed day up between
+// them so repeated focus days get a recovery gap. Unavoidable cases (a region of
+// a single lead) are left as-is.
+function spaceSameMuscle(days) {
+  for (let i = 1; i < days.length; i++) {
+    const dup = days[i].primary;
+    if (!dup || dup !== days[i - 1].primary) continue;
+    for (let j = i + 1; j < days.length; j++) {
+      const cand = days[j].primary;
+      if (cand === dup || cand === days[i - 1].primary) continue; // would not break it
+      // Do not create a fresh adjacency where the duplicate lands (slot j).
+      const jl = days[j - 1] && days[j - 1].primary, jr = days[j + 1] && days[j + 1].primary;
+      if (dup === jl || dup === jr) continue;
+      [days[i], days[j]] = [days[j], days[i]];
+      break;
+    }
+  }
+  return days;
 }
 function P() { return S.program; }
 function dayKey(b, w, d) { return `${b}-${w}-${d}`; }

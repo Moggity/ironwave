@@ -1,5 +1,25 @@
 # IRONWAVE — Changelog
 
+## [Split-generator tuning: glute-led days + same-muscle spacing] (2026-06-22)
+
+Three related fixes to the bodybuilding frequency-driven split generator
+(`generateBodybuildingDays`). Bodybuilding-only, so default/powerbuilding output
+is byte-identical (golden master unchanged).
+
+- Glutes can now lead a day. Previously Legs was the only lower muscle able to
+  anchor, so a balanced multi-day week put every lower day on Legs. Glutes is now
+  an anchor (rank 2) with a hip-thrust lead (`PRIMARY_ANCHOR.glutes`), gated so it
+  only leads when trained twice or more a week (a de-emphasized 1x glute still
+  fills, it does not claim a day).
+- Balanced lower no longer over-allocates to Legs. With Glutes as a second lower
+  lead, a balanced 6-day spreads its lower days across Legs and Glutes instead of
+  three Legs days. (This takes the "secondary lower anchor" option from the
+  future-work note rather than re-weighting region day counts.)
+- Same-muscle day spacing: a new `spaceSameMuscle` pass runs after the region
+  interleave and pulls a differently-themed day between two days led by the same
+  muscle, so repeated focus days get a recovery gap. Genuinely unavoidable cases
+  (a region with a single possible lead) are left intact.
+
 ## [Remove exercises, budget-aware pickers, equipment-aware setup time] (2026-06-22)
 
 Three changes to the workout overview and the time model.
