@@ -1,17 +1,23 @@
 /* ============================================================
    IRONWAVE — test/load-app.js
-   Loads the three browser scripts (data.js, engine.js, app.js)
-   into a single vm sandbox so tests can call the engine directly,
-   with no build step and no real DOM.
+   Loads the three browser scripts (data.js, engine.js, app.js) so
+   tests can call the engine directly, with no build step and no real
+   DOM.
 
    The app is plain non-module browser JS: every file shares one
-   global scope. We reproduce that by concatenating the sources and
-   running them once in a vm context, so cross-file references
-   (Engine, WAVES, EXERCISES, S, ...) resolve exactly as they do in
-   the browser. A tiny document/fetch stub satisfies the handful of
-   load-time DOM references ($app, $modal); nothing on the
-   resolveSlot path touches the DOM. The trailing boot() call is
-   stripped so no rendering or network runs on load.
+   global scope. We reproduce that by wrapping the concatenated
+   sources in a single function and compiling it in the *current*
+   realm (vm.runInThisContext), so cross-file references (Engine,
+   WAVES, EXERCISES, S, ...) resolve as they do in the browser AND the
+   objects the engine returns are this-realm native — so node:test's
+   deepStrictEqual compares them by structure, not across realms.
+
+   The browser globals the app touches at load time (window, document,
+   fetch) are passed in as function parameters rather than leaked onto
+   the process global. Only the handful of load-time DOM references
+   ($app, $modal) need them; nothing on the resolveSlot path touches
+   the DOM. The trailing boot() call is stripped so no rendering or
+   network runs on load.
    ============================================================ */
 'use strict';
 const fs = require('fs');
@@ -30,27 +36,40 @@ function elStub() {
   };
 }
 
+// The engine surface returned to tests. The S/V getter/setter close over the
+// app's own `let S` / `let V`, so a test installs program state by assigning S.
+const EXPORTS = `return {
+  defaultState, makeProgram, resolveSlot, migrateState, resolveDayEntries,
+  exById, exName, loadingFor,
+  Engine, PROGRAM_TEMPLATES, DAY_TEMPLATES, WAVES,
+  ACC_SCHEMES, SECONDARY_SCHEMES, JBB_HYP, DELOAD_SETS,
+  VOLUME_LANDMARKS, EXPERIENCE_FACTOR, DEFAULT_PLATES,
+  get S() { return S; }, set S(v) { S = v; },
+  get V() { return V; }, set V(v) { V = v; },
+};`;
+
 function loadApp() {
   const appDir = path.join(__dirname, '..');
   const read = f => fs.readFileSync(path.join(appDir, f), 'utf8');
 
   const data = read('data.js');
   const engine = read('engine.js');
-  // Drop the boot() invocation at the end of app.js so loading the script
-  // does not kick off async state loading or a render pass.
+  // Drop the boot() invocation at the end of app.js so loading does not kick
+  // off async state loading or a render pass.
   const app = read('app.js').replace(/\bboot\(\);\s*$/, '');
 
-  // Exposed surface for tests. Defined in the same lexical scope as the app,
-  // so the S getter/setter read and write the app's own `let S` binding.
-  const shim = `
-;globalThis.__APP__ = {
-  defaultState, makeProgram, resolveSlot, migrateState, resolveDayEntries,
-  exById, exName, loadingFor,
-  Engine, PROGRAM_TEMPLATES, DAY_TEMPLATES, WAVES,
-  get S() { return S; }, set S(v) { S = v; },
-  get V() { return V; }, set V(v) { V = v; },
-};`;
+  // Build a wrapper IIFE by string concatenation (not a template literal) so the
+  // backticks inside the app's own template strings can't terminate it early.
+  const wrapper =
+    '(function (window, self, globalThis, document, fetch) {\n' +
+    data + '\n;\n' + engine + '\n;\n' + app + '\n;\n' + EXPORTS + '\n})';
 
+  const factory = vm.runInThisContext(wrapper, { filename: 'ironwave-combined.js' });
+
+  const win = {
+    scrollTo() {},
+    addEventListener() {}, removeEventListener() {},
+  };
   const documentStub = {
     getElementById() { return elStub(); },
     createElement() { return elStub(); },
@@ -58,25 +77,10 @@ function loadApp() {
     querySelector() { return null; }, querySelectorAll() { return []; },
     body: elStub(),
   };
+  // No network in tests: any fetch (loadState/save) rejects cleanly.
+  const noNetwork = () => Promise.reject(new Error('no network in tests'));
 
-  const sandbox = {
-    console,
-    setTimeout, clearTimeout, setInterval, clearInterval,
-    document: documentStub,
-    // No network in tests: any fetch (e.g. loadState/save) rejects cleanly.
-    fetch() { return Promise.reject(new Error('no network in tests')); },
-    JSON, Math, Date, Object, Array, Number, String, Boolean, Set, Map,
-    RegExp, parseInt, parseFloat, isNaN, isFinite,
-  };
-  sandbox.window = sandbox;
-  sandbox.self = sandbox;
-  sandbox.globalThis = sandbox;
-  sandbox.window.scrollTo = () => {};
-
-  vm.createContext(sandbox);
-  const combined = [data, engine, app, shim].join('\n;\n');
-  vm.runInContext(combined, sandbox, { filename: 'ironwave-combined.js' });
-  return sandbox.__APP__;
+  return factory(win, win, win, documentStub, noNetwork);
 }
 
 module.exports = { loadApp };
