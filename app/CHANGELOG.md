@@ -1,5 +1,31 @@
 # IRONWAVE — Changelog
 
+## [Equipment filters, free exercise selection, real coaching cues] (2026-06-22)
+
+Three athlete-facing improvements to exercise selection and the exercise detail
+sheet.
+
+- Equipment filter chips (All, Barbell, Dumbbell, Machine, Cable, Bodyweight,
+  Band) on the Swap / Select and Add Exercise pickers, so an athlete who has a
+  machine but does not know its name can narrow the list by what is in front of
+  them. Chips reflect only the equipment actually present in the pool being
+  browsed. A shared `equipChips()` helper renders the row for every picker.
+- The Swap / Select picker now lets you choose exercises outside the slot's
+  recommended muscle group. A name search spans the whole catalog, and with no
+  search there is a "Browse other muscle groups" toggle that lists everything
+  else (each tagged with its muscle group). Main and secondary slots stay inside
+  their movement, since their variations drive the wave math off the working
+  max. Picker filter/search/toggle state lives in module-scoped `SW` / `ADDF` so
+  only the list body re-renders and the search box keeps focus while typing.
+- Real coaching cues for every catalog exercise. New `EX_CUES` map in `data.js`
+  gives each of the 148 exercises 3 to 6 concise technique bullets; the detail
+  sheet looks up `EX_CUES[id]` first and falls back to the old broad
+  per-movement `CUES` only for exercises with no entry (e.g. custom lifts). No
+  em dashes in the athlete-facing prose.
+
+No engine math changed: prescriptions, the golden master, and scheme isolation
+are untouched. This is catalog data plus picker UI.
+
 ## [Skip deadlift 1RM on the bodybuilding track] (2026-06-22)
 
 Onboarding no longer asks for a Comp Deadlift 1RM when the chosen track is

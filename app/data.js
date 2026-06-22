@@ -216,6 +216,196 @@ const EXERCISES = EXERCISE_LIST.map(e => ({
 }));
 
 // ============================================================
+// COACHING CUES — per exercise (3 to 6 short bullets each).
+// Athlete-facing prose: keep it real and useful, no em dashes.
+// app.js looks up EX_CUES[id] first, then falls back to the broad
+// per-movement CUES map, then a generic default.
+// ============================================================
+const EX_CUES = {
+  // ===== COMPETITION / BIG 4 =====
+  'comp-squat': ['Take a big breath into the belly and brace your whole midsection before you unrack.', 'Set your stance and screw your feet into the floor to spread your knees out.', 'Break at the hips and knees together and sit between your legs to depth.', 'Keep the bar stacked over mid foot and drive your upper back into the bar out of the hole.', 'Stand by pushing the floor away, finishing hips and chest together.'],
+  'comp-bench': ['Pull your shoulder blades down and back and pin them into the bench.', 'Set a moderate arch and plant your feet for leg drive without losing your butt.', 'Grip just outside shoulder width and stack your wrists over your elbows.', 'Lower the bar under control to the same point on your lower chest each rep.', 'Press up and slightly back toward your face, keeping your shoulders packed.'],
+  'comp-deadlift': ['Set the bar over mid foot, about an inch from your shins.', 'Take the slack out of the bar and pull your chest up to set a flat back.', 'Push the floor away rather than yanking the bar off the ground.', 'Keep the bar dragging close to your legs the whole way up.', 'Finish by squeezing the glutes, not by leaning back or hyperextending.'],
+  'military-press': ['Grip just outside the shoulders with the forearms vertical.', 'Brace your abs and squeeze your glutes so you do not lean back.', 'Keep the bar over mid foot and move your head back to clear the chin.', 'Press up and bring your head through once the bar clears your face.', 'Finish with the bar stacked over your ears and shoulders.'],
+
+  // ===== SQUAT VARIATIONS =====
+  'high-bar-squat': ['Rest the bar on the traps, just below the base of the neck.', 'Keep a tall, upright torso and let the knees travel forward.', 'Brace hard and descend to at least parallel with control.', 'Drive straight up through mid foot, keeping the chest tall.'],
+  'low-bar-squat': ['Set the bar across the rear delts on the spine of the shoulder blades.', 'Grip tight and pull your elbows down to build a solid shelf.', 'Push your hips back more and keep your shins closer to vertical.', 'Lead the ascent with the hips while keeping the chest from dropping.'],
+  'front-squat': ['Rack the bar on the front delts with a high elbow position.', 'Keep the elbows up and chest tall the entire rep.', 'Sit straight down with an upright torso.', 'Drive the elbows up hard as you stand to stop the chest caving.'],
+  'pause-squat': ['Descend under control to your target depth.', 'Hold the bottom for a full count with no bouncing or relaxing.', 'Stay braced and keep tension through the pause.', 'Explode up out of the hole without shifting forward.'],
+  'pin-squat': ['Set the pins to your target depth in the rack.', 'Lower under control and settle the bar fully onto the pins.', 'Kill all momentum, then drive up from a dead stop.', 'Stay tight on the pins so the bar does not shift or tip.'],
+  'box-squat': ['Set a box that puts you at or just below parallel.', 'Sit back onto the box, pushing the hips rearward.', 'Pause briefly on the box without rocking or losing tightness.', 'Drive off the box by spreading the knees and pushing the floor away.'],
+  'tempo-squat': ['Lower over a full three count, controlled the whole way.', 'Hit depth, then stand without any pause at the bottom.', 'Keep tension and position identical on every slow rep.', 'Use the slow eccentric to groove technique, not to grind.'],
+  'ssb-squat': ['Let the bar settle on the upper back and brace against the pad.', 'Fight to keep the chest up; the bar wants to tip you forward.', 'Sit between the legs and squat to depth.', 'Drive up keeping the chest from collapsing forward.'],
+  'belt-squat': ['Hang the load from the hips and stand tall with a braced trunk.', 'Let the hips do the work with no spinal loading.', 'Squat to depth with the knees tracking over the toes.', 'Drive up through mid foot without leaning hard on the handles.'],
+  'one-half-squat': ['Squat to full depth, then come up only halfway.', 'Drop back to full depth, then stand all the way up for one rep.', 'Keep constant tension and never relax at the bottom.', 'Stay braced and upright through both portions.'],
+  'dead-squat': ['Start from a dead stop with the bar on the pins at the bottom.', 'Brace fully before initiating, with no stretch reflex to help.', 'Drive up explosively from the dead position.', 'Reset tightness on the pins between each rep.'],
+  'goblet-squat': ['Hold a dumbbell or kettlebell against your chest, elbows tucked.', 'Sit straight down between your knees, keeping the chest tall.', 'Use your elbows to gently push the knees out at the bottom.', 'Drive up through mid foot, staying upright the whole way.'],
+
+  // ===== BENCH VARIATIONS =====
+  'close-grip-bench': ['Grip roughly shoulder width, not super narrow, to spare the wrists.', 'Keep the elbows tucked closer to the body on the descent.', 'Touch lower on the chest, near the bottom of the sternum.', 'Press by driving the triceps to lockout.'],
+  'wide-grip-bench': ['Take a grip wider than your competition setup.', 'Keep the shoulder blades retracted to protect the shoulders.', 'Lower to the chest through a shorter range of motion.', 'Avoid flaring the elbows excessively at the bottom.'],
+  'tng-bench': ['Lower under control and touch the chest without bouncing hard.', 'Keep the touch light and reverse smoothly without losing tightness.', 'Maintain your arch and shoulder position through the turnaround.', 'Do not let the bar sink or crash into the chest.'],
+  'spoto-press': ['Lower the bar to about an inch above the chest.', 'Pause in mid air for a full count, staying tight.', 'Hold position without letting the bar drift or sink.', 'Press from the dead pause straight back up.'],
+  'larsen-press': ['Press with the legs straight and feet flat, no leg drive.', 'Keep the glutes and upper back tight on the bench.', 'Stay balanced; the core does the stabilizing here.', 'Touch and press from a stable, flat torso position.'],
+  'incline-bench': ['Set the bench to about thirty to forty five degrees.', 'Pull the shoulder blades back and down before unracking.', 'Lower the bar to the upper chest, just below the collarbone.', 'Press up and slightly back over the shoulders.'],
+  'decline-bench': ['Lock your legs in and set a stable base on the decline.', 'Retract the shoulder blades to protect the shoulders.', 'Lower the bar to the lower chest under control.', 'Press straight up over the lower-chest line.'],
+  'floor-press': ['Lie on the floor with the knees bent or legs straight.', 'Lower until the triceps lightly touch the floor.', 'Pause briefly on the floor, keeping tension.', 'Press up by driving the triceps, with no leg drive.'],
+  'board-press': ['Set the board on the chest and lower the bar to it.', 'Touch the board under control without bouncing.', 'Pause on the board, then press to lockout.', 'Use it to overload and train the mid to top range.'],
+  'pin-press': ['Set the pins at your sticking-point height.', 'Lower or start the bar dead on the pins.', 'Kill the momentum, then press from a dead stop.', 'Stay tight so the bar does not shift on the pins.'],
+  'tempo-bench': ['Lower over a controlled three count to the chest.', 'Pause one count on the chest with full tension.', 'Press up smoothly without losing position.', 'Use the slow tempo to build control and stability.'],
+  'one-half-bench': ['Lower the bar fully to the chest.', 'Press halfway up, then lower back to the chest.', 'Press all the way to lockout to finish the rep.', 'Keep constant tension through both portions.'],
+  'db-bench': ['Set the dumbbells over the shoulders with the wrists stacked.', 'Pull the shoulder blades back and down into the bench.', 'Lower to chest level with a controlled stretch.', 'Press up and slightly together without clanking the bells.'],
+  'db-incline-bench': ['Set the bench to about thirty degrees.', 'Keep the shoulder blades retracted and down.', 'Lower the dumbbells to the upper chest for a full stretch.', 'Press up over the upper chest, controlling the bells.'],
+
+  // ===== DEADLIFT VARIATIONS =====
+  'conv-deadlift': ['Stance about hip width with the hands just outside the legs.', 'Take the slack out and set the lats and a flat back.', 'Push the floor away and keep the bar against the shins.', 'Lock out with the glutes, finishing tall and braced.'],
+  'sumo-deadlift': ['Take a wide stance with the toes flared and shins near vertical.', 'Grip inside the legs and open the hips by spreading the knees.', 'Drop the hips, set the lats, and pull the slack out.', 'Push the floor apart and keep the bar tight to the body.'],
+  'deficit-deadlift-1': ['Stand on a one inch platform to increase the range.', 'Set the same tight start position despite the lower hips.', 'Push through the floor and control the longer pull.', 'Use it to build speed and strength off the floor.'],
+  'deficit-deadlift-2': ['Stand on a two inch platform for a larger deficit.', 'Expect lower hips and a tougher start, so brace hard.', 'Keep the bar close and drive through the whole foot.', 'Reserve this for off-the-floor weakness and use lighter loads.'],
+  'block-pull': ['Set the bar on blocks just below the knee or as programmed.', 'Set your back and lats before pulling from the raised start.', 'Drive through the floor and finish with the glutes.', 'Use it to overload the lockout and upper range.'],
+  'rack-pull': ['Set the pins just below or at the knee.', 'Brace and pull the slack out against the bar.', 'Push the floor away and lock out hard with the glutes.', 'Keep the bar dragging up the thighs to the finish.'],
+  'pause-deadlift': ['Pull the bar a couple inches off the floor and stop.', 'Hold the pause while staying tight with the lats engaged.', 'Continue the pull without losing back position.', 'Use the pause to fix early positioning and tightness.'],
+  'tempo-deadlift': ['Lower the bar slowly over a controlled count.', 'Keep the bar close and the back flat on the way down.', 'Reset or touch and go as programmed.', 'Use the slow eccentric to reinforce position.'],
+  'snatch-grip-deadlift': ['Take a wide, snatch-width grip on the bar.', 'Set the hips a touch lower with the chest up.', 'Drive through the floor over the longer range.', 'Expect heavy upper-back and grip demand.'],
+  'trap-bar-deadlift': ['Stand centered in the trap bar with a tall chest.', 'Grip the handles and take the slack out.', 'Push the floor away with a more upright torso.', 'Lock out tall, squeezing the glutes.'],
+  'stiff-leg-deadlift': ['Keep the legs nearly straight with a soft knee.', 'Push the hips back to load the hamstrings.', 'Lower the bar along the legs until you feel a strong stretch.', 'Drive the hips forward to stand, not the lower back.'],
+
+  // ===== OVERHEAD PRESS VARIATIONS =====
+  'push-press': ['Set a tall braced position with the bar on the front delts.', 'Dip straight down a few inches with the torso vertical.', 'Drive up explosively with the legs and punch the bar overhead.', 'Lock out with the bar over the ears and finish braced.'],
+  'z-press': ['Sit on the floor with the legs straight out in front.', 'Brace the core and sit tall with no back support.', 'Press the bar straight up over the head.', 'Keep the torso upright; the core controls the balance.'],
+  'seated-db-press': ['Sit tall with back support and dumbbells at shoulder height.', 'Brace the abs and avoid arching off the bench.', 'Press up and slightly in until the bells nearly meet.', 'Lower under control to ear level for a full stretch.'],
+  'db-shoulder-press': ['Stand tall with a braced trunk and tight glutes.', 'Start with the dumbbells at shoulder height, palms forward.', 'Press overhead without leaning back.', 'Lower under control to the shoulders.'],
+  'arnold-press': ['Start with palms facing you and dumbbells in front of the shoulders.', 'Rotate the palms outward as you press overhead.', 'Keep the core braced and avoid leaning back.', 'Reverse the rotation smoothly on the way down.'],
+  'landmine-press': ['Hold the bar end at shoulder height with a staggered stance.', 'Brace the core and press up and forward along the bar arc.', 'Keep the shoulder packed and avoid shrugging.', 'Lower under control back to the shoulder.'],
+  'machine-shoulder-press': ['Set the seat so the handles sit at shoulder height.', 'Keep the back against the pad and the core braced.', 'Press up smoothly without locking out aggressively.', 'Lower under control for a full stretch at the shoulders.'],
+  'pike-pushup': ['Start in a downward dog position with the hips high.', 'Lower the crown of the head toward the floor between the hands.', 'Keep the elbows tracking back at a moderate angle.', 'Press back up to the start, keeping the hips stacked.'],
+  'handstand-pushup': ['Kick up to a handstand against a wall for support.', 'Brace the core and squeeze the glutes to stay rigid.', 'Lower under control until the head nears the floor.', 'Press back to full lockout, keeping the body straight.'],
+
+  // ===== VERTICAL PULL =====
+  'pullup': ['Grip slightly wider than shoulder width, palms away.', 'Start from a full hang with the shoulders set down.', 'Pull the elbows down and drive the chest to the bar.', 'Lower under control to a full stretch each rep.'],
+  'chinup': ['Grip shoulder width with the palms facing you.', 'Set the shoulders down and start from a dead hang.', 'Pull the chest to the bar by driving the elbows down.', 'Lower under control to a full stretch.'],
+  'weighted-pullup': ['Add load with a belt or held dumbbell.', 'Start from a controlled dead hang with the shoulders set.', 'Pull smoothly to the bar without kipping.', 'Lower under control over the full range.'],
+  'neutral-pullup': ['Use parallel handles with the palms facing each other.', 'Start from a dead hang with the shoulders packed.', 'Pull the chest toward the hands, elbows driving down.', 'Lower under control to a full stretch.'],
+  'lat-pulldown': ['Set the thigh pad and grip slightly wider than the shoulders.', 'Start with the lats stretched and the arms fully extended.', 'Pull the bar to the upper chest by driving the elbows down.', 'Control the bar back up to a full stretch, no swinging.'],
+  'close-grip-pulldown': ['Use a close or neutral grip attachment.', 'Start from a full stretch with the arms extended.', 'Pull to the upper chest, leading with the elbows.', 'Control the return to a full overhead stretch.'],
+  'straight-arm-pulldown': ['Stand tall and grip the bar with nearly straight arms.', 'Keep a soft elbow and hinge slightly at the hips.', 'Pull the bar to the thighs using the lats, not the triceps.', 'Control the bar back up to a full stretch overhead.'],
+
+  // ===== HORIZONTAL PULL =====
+  'barbell-row': ['Hinge to a torso angle around forty five degrees.', 'Set a flat back and engage the lats.', 'Row the bar to the lower chest or upper stomach.', 'Control the bar down without standing up or jerking.'],
+  'pendlay-row': ['Set a flat back with the torso roughly parallel to the floor.', 'Start each rep from a dead stop on the floor.', 'Row explosively to the lower chest.', 'Lower under control and reset on the floor each rep.'],
+  'db-row': ['Brace one hand and knee on a bench, back flat.', 'Let the dumbbell hang for a full stretch.', 'Row to the hip by driving the elbow back.', 'Lower under control and avoid twisting the torso.'],
+  'kroc-row': ['Use heavy dumbbell rows for higher reps.', 'Brace on a bench or rack with a flat back.', 'Allow a little body english but keep the spine safe.', 'Get a full stretch and a strong squeeze each rep.'],
+  'chest-supported-row': ['Lie chest down on an incline bench.', 'Let the arms hang for a full stretch.', 'Row by driving the elbows back and squeezing the back.', 'Lower under control with no torso movement.'],
+  'seal-row': ['Lie face down on a flat bench raised off the floor.', 'Let the bar hang at a full stretch.', 'Row the bar to the bench, elbows driving back.', 'Pause and squeeze, then lower under control.'],
+  'tbar-row': ['Straddle the bar with a flat back and braced trunk.', 'Let the weight hang for a full stretch.', 'Row to the chest by pulling the elbows back.', 'Lower under control without rounding the back.'],
+  'cable-row': ['Sit tall with a slight forward lean to start the stretch.', 'Keep the chest up and pull the handle to the stomach.', 'Drive the elbows back and squeeze the shoulder blades.', 'Return under control to a full stretch without slumping.'],
+  'meadows-row': ['Stand perpendicular to a landmine bar with a staggered stance.', 'Grip the bar end and let it hang for a full stretch.', 'Row up and back, driving the elbow high.', 'Lower under control, keeping the back braced.'],
+  'inverted-row': ['Set a bar at hip height and hang underneath it.', 'Keep the body rigid in a straight line, glutes tight.', 'Pull the chest to the bar, driving the elbows back.', 'Lower under control to a full stretch.'],
+
+  // ===== UPPER BACK / TRAPS / REAR DELT =====
+  'bb-shrug': ['Hold the bar with a tall posture and braced core.', 'Shrug the shoulders straight up toward the ears.', 'Pause and squeeze the traps at the top.', 'Lower under control through a full range.'],
+  'db-shrug': ['Hold dumbbells at the sides with a tall posture.', 'Shrug straight up, squeezing the traps at the top.', 'Avoid rolling the shoulders.', 'Lower under control to a full stretch.'],
+  'face-pull': ['Set a rope at upper-chest to face height.', 'Pull the rope toward the face, hands splitting apart.', 'Lead with the elbows high and squeeze the rear delts.', 'Control the return without shrugging the traps.'],
+  'band-pullapart': ['Hold a band at shoulder height with the arms extended.', 'Pull the band apart by squeezing the shoulder blades.', 'Keep the arms straight and lead with the upper back.', 'Return under control, resisting the band.'],
+  'rear-delt-fly': ['Hinge over or sit bent with the dumbbells hanging.', 'Keep a soft elbow and raise the arms out to the sides.', 'Lead with the elbows and squeeze the rear delts.', 'Lower under control, avoiding momentum.'],
+  'reverse-pec-deck': ['Set the seat so the handles are at shoulder height.', 'Keep a soft elbow and the chest against the pad.', 'Open the arms back, squeezing the rear delts.', 'Control the return without letting the weight crash.'],
+
+  // ===== QUADS =====
+  'leg-extensions': ['Set the pad just above the ankles and align the knee with the pivot.', 'Extend the knees fully and squeeze the quads at the top.', 'Pause briefly at full extension.', 'Lower under control through a full range.'],
+  'leg-press': ['Set the feet mid platform about shoulder width.', 'Lower until the knees reach about ninety degrees or your safe depth.', 'Keep the lower back flat against the pad, no rounding.', 'Press through the whole foot without locking out hard.'],
+  'hack-squat-machine': ['Set the shoulders and back against the pads.', 'Place the feet mid platform for balanced quad loading.', 'Lower under control to a deep but safe knee bend.', 'Drive up through the whole foot, keeping the back flat.'],
+  'reverse-hack-squat': ['Face the pad with the shoulders under the supports.', 'Set the feet for an upright, quad-focused position.', 'Lower to depth keeping the chest against the pad.', 'Drive up through mid foot without losing position.'],
+  'bulgarian-split-squat': ['Place the rear foot on a bench and find a stable stride.', 'Keep most of the weight on the front leg.', 'Lower straight down until the front thigh is parallel.', 'Drive up through the front foot, staying tall.'],
+  'split-squat-glute': ['Take a longer stride to bias the glute.', 'Keep a slight forward torso lean over the front leg.', 'Lower straight down with the weight on the front heel.', 'Drive up through the front heel, squeezing the glute.'],
+  'ffe-split-squat': ['Elevate the front foot on a small plate or wedge.', 'Keep the torso fairly upright over the front leg.', 'Lower into a deep stretch on the front quad.', 'Drive up through the front foot under control.'],
+  'walking-lunge': ['Step forward into a stride and lower the back knee toward the floor.', 'Keep the front shin fairly vertical and the torso tall.', 'Drive through the front foot to step into the next rep.', 'Control each step and do not let the knee cave in.'],
+  'reverse-lunge': ['Step backward into a stride under control.', 'Lower the back knee toward the floor, torso tall.', 'Keep the weight on the front foot.', 'Drive through the front heel to return to standing.'],
+  'barbell-stepup': ['Set a box near knee height with the bar on the back.', 'Plant the whole front foot on the box.', 'Drive through the front heel to stand fully on top.', 'Lower under control without pushing off the bottom leg.'],
+  'db-stepup': ['Hold dumbbells at the sides and set a knee-height box.', 'Plant the whole front foot on the box.', 'Drive through the front heel to stand tall on top.', 'Lower under control, minimizing push from the trailing leg.'],
+  'pistol-squat': ['Stand on one leg with the other extended in front.', 'Sit back and down under control, keeping the heel down.', 'Reach the arms forward for balance.', 'Drive up through the whole foot without losing balance.'],
+  'sissy-squat': ['Hold a support and rise onto the balls of the feet.', 'Lean back and bend the knees, driving them forward.', 'Lower until you feel a deep quad stretch.', 'Pull yourself back up using the quads.'],
+  'wall-sit': ['Slide down a wall until the thighs are parallel.', 'Keep the knees over the ankles and the shins vertical.', 'Press the whole back into the wall and brace.', 'Hold for time, breathing steadily.'],
+
+  // ===== HAMSTRINGS / POSTERIOR =====
+  'romanian-deadlift': ['Start standing tall with the bar at the hips.', 'Push the hips back with a soft knee bend.', 'Lower the bar along the legs until you feel a hamstring stretch.', 'Drive the hips forward to stand, keeping the bar close.'],
+  'db-rdl': ['Hold the dumbbells in front of the thighs.', 'Push the hips back with soft knees.', 'Lower the bells along the legs to a strong stretch.', 'Drive the hips forward to stand tall.'],
+  'single-leg-rdl': ['Balance on one leg with a soft knee.', 'Hinge at the hip, extending the free leg behind.', 'Lower under control to a hamstring stretch, hips square.', 'Return by driving the hip forward, staying balanced.'],
+  'good-mornings': ['Set the bar on the back as in a squat.', 'Soften the knees and push the hips back.', 'Hinge forward with a flat back until you feel the hamstrings.', 'Drive the hips forward to return to standing.'],
+  'hamstring-curls': ['Set the pad just above the heels.', 'Curl the heels toward the glutes, squeezing the hamstrings.', 'Pause briefly at peak contraction.', 'Lower under control through a full range.'],
+  'seated-leg-curl': ['Set the pad on the lower calves with the thighs locked down.', 'Curl the heels under by driving with the hamstrings.', 'Squeeze hard at the bottom of the curl.', 'Return under control to a full stretch.'],
+  'ghr': ['Lock the feet and set the knees on the pad.', 'Keep the body straight from knee to head.', 'Lower under control by extending at the knees.', 'Pull yourself back up using the hamstrings.'],
+  'nordic-curl': ['Anchor the ankles and kneel tall with a braced trunk.', 'Lower the body forward as slowly as you can.', 'Keep the hips extended and the body straight.', 'Catch and push back up, or use the hands to assist.'],
+  'pull-throughs': ['Face away from a low cable with the rope between the legs.', 'Hinge at the hips, letting the rope travel back.', 'Drive the hips forward to stand and squeeze the glutes.', 'Keep the arms relaxed; the hips do the work.'],
+  'back-extension': ['Set the pad at the hip crease so you can hinge freely.', 'Lower by bending at the hips with a flat back.', 'Raise until the body is in a straight line.', 'Squeeze the glutes at the top without overextending.'],
+  'reverse-hyper': ['Lie face down with the hips at the edge of the pad.', 'Let the legs hang and swing down under control.', 'Raise the legs to about hip height using the glutes and hamstrings.', 'Avoid throwing the legs or overextending the spine.'],
+  'sl-reverse-hyper': ['Set up as for the reverse hyper but use one leg.', 'Raise the single leg to hip height with control.', 'Squeeze the glute at the top.', 'Keep the hips square and avoid twisting.'],
+
+  // ===== GLUTES =====
+  'bb-hip-thrust': ['Set the upper back on a bench and the bar over the hips.', 'Tuck the chin and keep the ribs down.', 'Drive through the heels and squeeze the glutes to lockout.', 'Reach a flat-table position, then lower under control.'],
+  'sl-hip-thrust': ['Set the upper back on a bench and extend one leg.', 'Drive through the planted heel.', 'Squeeze the glute to full hip extension.', 'Keep the hips level and lower under control.'],
+  'glute-bridge': ['Lie on the floor with the knees bent and feet flat.', 'Drive through the heels to lift the hips.', 'Squeeze the glutes hard at the top.', 'Lower under control without arching the lower back.'],
+  'frog-pumps': ['Lie on your back with the soles of the feet together, knees out.', 'Drive through the outer edges of the feet to lift the hips.', 'Squeeze the glutes hard at the top.', 'Lower under control and repeat for high reps.'],
+  'cable-kickback': ['Attach a cuff to the ankle facing the low cable.', 'Brace the trunk and keep a slight hinge.', 'Kick the leg back by squeezing the glute.', 'Return under control without arching the lower back.'],
+  'curtsy-lunge': ['Step one leg back and across behind the other.', 'Lower under control, keeping the front knee tracking.', 'Feel the stretch in the glute of the front leg.', 'Drive through the front heel to return.'],
+
+  // ===== CALVES =====
+  'standing-calf-raise': ['Stand with the balls of the feet on the platform.', 'Let the heels drop for a full stretch at the bottom.', 'Rise onto the toes as high as possible.', 'Pause and squeeze at the top, then lower under control.'],
+  'seated-calf-raise': ['Set the pad on the lower thighs with the balls of the feet on the platform.', 'Drop the heels for a full stretch.', 'Raise onto the toes and squeeze the calves.', 'Lower under control through a full range.'],
+  'sl-calf-raise': ['Balance on one foot with the ball on a step.', 'Drop the heel for a full stretch.', 'Rise onto the toes as high as possible.', 'Squeeze at the top and lower under control.'],
+  'leg-press-calf-raise': ['Place the balls of the feet on the bottom of the platform.', 'Keep a soft knee and push through the toes.', 'Press the platform up by extending the ankles.', 'Lower under control to a deep stretch.'],
+  'donkey-calf-raise': ['Bend at the hips with the balls of the feet on a platform.', 'Let the heels drop for a deep stretch.', 'Drive up onto the toes and squeeze.', 'Lower under control through a full range.'],
+
+  // ===== CHEST ACCESSORY =====
+  'dips': ['Start at the top with the arms locked and shoulders down.', 'Lean the torso forward slightly for the chest.', 'Lower until the upper arms reach about parallel.', 'Press back to lockout, squeezing the chest and triceps.'],
+  'weighted-dips': ['Add load with a belt and start locked out, shoulders set.', 'Lower under control to a comfortable shoulder depth.', 'Keep a slight forward lean for the chest.', 'Press to lockout without flaring the shoulders.'],
+  'pushup': ['Set the hands about shoulder width with a rigid body.', 'Brace the abs and squeeze the glutes to stay in a straight line.', 'Lower the chest to just above the floor.', 'Press up while keeping the elbows at a moderate angle.'],
+  'deficit-pushup': ['Elevate the hands on plates or handles for more range.', 'Keep the body rigid in a straight line.', 'Lower deep until the chest passes the hands.', 'Press back up under control.'],
+  'machine-chest-press': ['Set the seat so the handles align with the mid chest.', 'Keep the shoulder blades back and down.', 'Press the handles forward without locking out hard.', 'Return under control to a full stretch.'],
+  'cable-fly': ['Set the cables and take a staggered stance with a soft elbow.', 'Bring the hands together in an arc in front of the chest.', 'Squeeze the chest at the midpoint.', 'Open the arms under control to a stretch, keeping the elbow angle fixed.'],
+  'db-fly': ['Lie on a flat bench with the dumbbells over the chest, soft elbows.', 'Open the arms out in a wide arc to a chest stretch.', 'Keep the elbow angle fixed throughout.', 'Bring the bells back together, squeezing the chest.'],
+  'pec-deck': ['Set the seat so the handles are at chest height.', 'Keep the back on the pad and a soft elbow.', 'Bring the pads together, squeezing the chest.', 'Return under control to a stretch.'],
+
+  // ===== SHOULDER ACCESSORY =====
+  'lateral-raise': ['Hold dumbbells at the sides with a slight elbow bend.', 'Raise the arms out to the sides to about shoulder height.', 'Lead with the elbows, not the hands.', 'Lower under control without swinging.'],
+  'cable-lateral-raise': ['Stand side-on to a low cable and grip the handle.', 'Raise the arm out to the side to shoulder height.', 'Lead with the elbow and keep the cable path smooth.', 'Lower under control against the cable.'],
+  'front-raise': ['Hold the weight in front of the thighs.', 'Raise to shoulder height with a soft elbow.', 'Avoid swinging or leaning back.', 'Lower under control.'],
+  'upright-row': ['Grip the bar about shoulder width.', 'Pull the bar up the body, leading with the elbows.', 'Raise to about chest height, keeping the bar close.', 'Lower under control, and avoid pulling too high if the shoulders pinch.'],
+
+  // ===== TRICEPS =====
+  'triceps-pushdown': ['Set a bar or rope at the top of a cable.', 'Keep the elbows pinned to the sides.', 'Extend the arms fully and squeeze the triceps.', 'Return under control without letting the elbows drift.'],
+  'overhead-triceps-ext': ['Set a rope or bar and face away with the arms overhead.', 'Keep the elbows in and pointed forward.', 'Extend the arms fully overhead, squeezing the triceps.', 'Lower under control to a deep stretch.'],
+  'skullcrusher': ['Lie on a bench with the bar over the forehead, elbows in.', 'Lower the bar toward the forehead or behind the head.', 'Keep the upper arms still and elbows pointing up.', 'Extend to lockout, squeezing the triceps.'],
+  'jm-press': ['Set up like a close-grip bench with the elbows tucked.', 'Lower the bar toward the upper neck, bending mostly at the elbow.', 'Keep the forearms tight to the biceps at the bottom.', 'Press up by extending the triceps powerfully.'],
+  'db-triceps-ext': ['Hold a dumbbell overhead or lie back with the elbows in.', 'Keep the upper arms still and elbows pointed up.', 'Lower to a deep triceps stretch.', 'Extend to lockout, squeezing the triceps.'],
+  'close-grip-pushup': ['Set the hands close, near shoulder width or narrower.', 'Keep the elbows tucked close to the body.', 'Lower the chest to the hands with a rigid body.', 'Press up by driving the triceps to lockout.'],
+  'bench-dips': ['Set the hands on a bench behind you, legs out front.', 'Lower by bending the elbows straight back.', 'Keep the hips close to the bench.', 'Press back to lockout through the triceps.'],
+
+  // ===== BICEPS =====
+  'bb-curl': ['Stand tall with the bar at shoulder width.', 'Keep the elbows pinned at the sides.', 'Curl the bar up by contracting the biceps.', 'Lower under control to a full stretch, no swinging.'],
+  'ez-curl': ['Grip the angled bar where the wrists feel comfortable.', 'Keep the elbows at the sides and the torso still.', 'Curl up, squeezing the biceps at the top.', 'Lower under control to a full stretch.'],
+  'db-curl': ['Hold dumbbells at the sides, palms forward or neutral to start.', 'Keep the elbows pinned and curl up, supinating the wrist.', 'Squeeze the biceps at the top.', 'Lower under control to a full stretch.'],
+  'hammer-curl': ['Hold dumbbells with a neutral grip, palms facing in.', 'Keep the elbows at the sides.', 'Curl up without rotating the wrists.', 'Lower under control, hitting the brachialis and forearm.'],
+  'incline-db-curl': ['Sit back on an incline bench with the arms hanging.', 'Keep the elbows back to maximize the stretch.', 'Curl up, squeezing the biceps at the top.', 'Lower under control to a full stretch.'],
+  'preacher-curl': ['Set the arms on the pad with the armpits over the top.', 'Keep the upper arms flat on the pad.', 'Curl up, squeezing the biceps at the top.', 'Lower under control without fully relaxing at the bottom.'],
+  'cable-curl': ['Stand facing a low cable with a bar or handle.', 'Keep the elbows pinned at the sides.', 'Curl up against constant cable tension.', 'Lower under control to a full stretch.'],
+
+  // ===== ABS / CORE =====
+  'ab-wheel': ['Start on the knees gripping the wheel under the shoulders.', 'Brace the abs and tuck the pelvis to flatten the back.', 'Roll out under control without letting the hips sag.', 'Pull back with the abs, keeping the spine neutral.'],
+  'hanging-leg-raise': ['Hang from a bar with the shoulders active.', 'Brace the core and avoid swinging.', 'Raise the legs by curling the pelvis up.', 'Lower under control without rocking.'],
+  'decline-situp': ['Lock the legs in on a decline bench.', 'Brace the abs and curl up, leading with the chest.', 'Avoid yanking with the neck or arms.', 'Lower under control, keeping tension on the abs.'],
+  'cable-crunch': ['Kneel facing the cable with the rope by the head.', 'Crunch the rib cage toward the pelvis by flexing the spine.', 'Keep the hips fixed; only the spine moves.', 'Return under control, resisting the cable.'],
+  'plank': ['Set the forearms under the shoulders, body in a straight line.', 'Brace the abs and squeeze the glutes.', 'Keep the hips level, neither sagging nor piking.', 'Breathe steadily and hold for time.'],
+  'side-plank': ['Stack the body on one forearm, feet stacked or staggered.', 'Lift the hips so the body forms a straight line.', 'Brace the obliques and keep the hips up.', 'Hold for time, then switch sides.'],
+  'pallof-press': ['Stand side-on to a cable at chest height.', 'Brace the core against the cable pull.', 'Press the hands straight out and resist the rotation.', 'Return under control without letting the torso twist.'],
+  'db-side-bend': ['Hold a dumbbell at one side, standing tall.', 'Bend laterally toward the weight under control.', 'Return by contracting the opposite obliques.', 'Avoid leaning forward or back; stay in one plane.'],
+  'dead-bug': ['Lie on the back with the arms up and knees bent at ninety.', 'Press the lower back into the floor and brace.', 'Lower the opposite arm and leg without arching.', 'Return under control and alternate sides.'],
+  'l-sit': ['Support the body on the hands or parallettes.', 'Brace the core and lift the legs to horizontal.', 'Keep the legs straight and the toes pointed.', 'Hold for time, keeping the shoulders down.'],
+  'farmer-carry': ['Pick up the load with a flat back and tall posture.', 'Brace the core and keep the shoulders back.', 'Walk with controlled steps, staying tall.', 'Keep the weights from swinging.'],
+  'suitcase-carry': ['Hold one weight at one side, standing tall.', 'Brace hard to resist leaning toward the weight.', 'Walk with level shoulders and hips.', 'Keep the trunk upright and controlled.'],
+};
+
+// ============================================================
 // JUGGERNAUT METHOD 2.0 — WAVE TABLES (percentages of Working Max)
 // Working Max = 90% of a recent true 1RM.
 // Week map inside each 5-week block:

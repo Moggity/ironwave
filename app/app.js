@@ -136,6 +136,16 @@ function pushRecord(id, rec) { (S.records[id] = S.records[id] || []).push(rec); 
 // Dumbbell entries that use a single implement at a time.
 const SINGLE_DB = new Set(['goblet-squat', 'db-row', 'kroc-row', 'single-leg-rdl', 'db-side-bend', 'suitcase-carry']);
 const EQUIP_MODE = { bb: 'barbell', db: 'dumbbell', mc: 'machine', cb: 'cable', bw: 'bodyweight', bd: 'band' };
+// Athlete-facing equipment labels and a stable display order for the
+// equipment filter chips on the swap / select / add-exercise pickers.
+const EQUIP_LABEL = { bb: 'Barbell', db: 'Dumbbell', mc: 'Machine', cb: 'Cable', bw: 'Bodyweight', bd: 'Band', kb: 'Kettlebell' };
+const EQUIP_ORDER = ['bb', 'db', 'mc', 'cb', 'bw', 'bd', 'kb'];
+// One filter-chip row shared by every exercise picker. `fnName` is the
+// global handler invoked with the chosen equipment id (or 'all').
+function equipChips(equips, current, fnName) {
+  const chip = (val, label) => `<button class="fchip ${current === val ? 'on' : ''}" onclick="${fnName}('${val}')">${label}</button>`;
+  return `<div class="filter-chips">${chip('all', 'All')}${equips.map(eq => chip(eq, EQUIP_LABEL[eq] || eq)).join('')}</div>`;
+}
 
 // Default loading derived from the exercise's equipment tag.
 function defaultLoadingFor(exId) {
@@ -2038,26 +2048,74 @@ function openPreview(di) {
 // ------------------------------------------------------------
 // SWAP / SELECT / ADD EXERCISE
 // ------------------------------------------------------------
+// Swap / select picker state. Lives at module scope so the equipment
+// filter, search box and "browse other groups" toggle survive re-renders
+// of just the list body (the search input stays focused while you type).
+let SW = null;
 function openSwap(di, si) {
   const slot = P().days[di].slots[si];
   const cat = slot.cat || exById(slot.ex || slot.def || slot.lift)?.movement;
   const current = slot.ex || slot.def || slot.lift;
-  showModal(anim => {
-    const used = new Set(Object.keys(S.records));
-    const candidates = allExercises()
-      .filter(e => e.movement === cat && e.id !== current)
-      .sort((a, b) => (used.has(b.id) - used.has(a.id)) || a.name.localeCompare(b.name));
-    const note = (slot.type === 'main' || slot.type === 'secondary')
-      ? `<p class="faint" style="margin-bottom:8px">Variations run the same wave percentages off the ${esc(exName(slot.baseLift || slot.lift))} working max. AMRAPs on a variation won't move that max.</p>` : '';
-    $modal.innerHTML = modalShell(anim, slot.type === 'select' ? 'Select Exercise' : 'Swap Exercise',
-      `${note}<div class="section-title" style="margin-top:4px">Recommended</div>` +
-      candidates.map(e => `<div class="ex-card">
-          <span class="name">${esc(e.name)}</span>
-          <span class="actions">
-            <button class="icon-btn" onclick="openExDetail('${e.id}')"><span class="ic">ⓘ</span>Info</button>
-            <button class="icon-btn" onclick="doSwap(${di},${si},'${e.id}')"><span class="ic">☐</span>Select</button>
-          </span></div>`).join(''));
-  });
+  // Main/secondary slots stay inside their movement: their variations run the
+  // same wave math off the working max, so cross-group picks make no sense there.
+  const isMain = slot.type === 'main' || slot.type === 'secondary';
+  SW = { di, si, cat, current, isMain, equip: 'all', q: '', showOther: false };
+  showModal(renderSwap);
+}
+function renderSwap(anim) {
+  const slot = P().days[SW.di].slots[SW.si];
+  const note = SW.isMain
+    ? `<p class="faint" style="margin-bottom:8px">Variations run the same wave percentages off the ${esc(exName(slot.baseLift || slot.lift))} working max. AMRAPs on a variation won't move that max.</p>` : '';
+  $modal.innerHTML = modalShell(anim, slot.type === 'select' ? 'Select Exercise' : 'Swap Exercise',
+    `${note}
+     <input class="search-input" placeholder="Search any exercise…" value="${esc(SW.q)}" oninput="SW.q=this.value;refreshSwapBody()">
+     <div id="swap-body">${swapBodyHTML()}</div>`);
+}
+function swapBodyHTML() {
+  const used = new Set(Object.keys(S.records));
+  const ql = SW.q.trim().toLowerCase();
+  const matchText = e => !ql || e.name.toLowerCase().includes(ql);
+  const matchEquip = e => SW.equip === 'all' || e.equipment === SW.equip;
+  const all = allExercises().filter(e => e.id !== SW.current);
+  const sortFn = (a, b) => (used.has(b.id) - used.has(a.id)) || a.name.localeCompare(b.name);
+
+  // Chips reflect the pool the athlete can actually browse: just the
+  // recommended movement for a main slot, every exercise otherwise.
+  const pool = SW.isMain ? all.filter(e => e.movement === SW.cat) : all;
+  const equips = [...new Set(pool.map(e => e.equipment))].sort((a, b) => EQUIP_ORDER.indexOf(a) - EQUIP_ORDER.indexOf(b));
+  const chips = equipChips(equips, SW.equip, 'setSwapEquip');
+
+  const recommended = all.filter(e => e.movement === SW.cat && matchEquip(e) && matchText(e)).sort(sortFn);
+  const recHTML = recommended.length
+    ? recommended.map(e => swapCardHTML(e, false)).join('')
+    : `<p class="faint mt8">No matches in this group${SW.equip === 'all' ? '' : ' for ' + EQUIP_LABEL[SW.equip].toLowerCase()}.</p>`;
+
+  // Out-of-group browsing lets an athlete fine tune freely: a machine they
+  // like, or a muscle they want to bias, regardless of the slot's category.
+  let otherSection = '';
+  if (!SW.isMain) {
+    const others = all.filter(e => e.movement !== SW.cat && matchEquip(e) && matchText(e))
+      .sort((a, b) => (MOVEMENTS[a.movement]?.label || '').localeCompare(MOVEMENTS[b.movement]?.label || '') || sortFn(a, b));
+    if (ql) {
+      // A name search spans everything, since the athlete may not know which
+      // muscle group the machine they are looking for lives under.
+      otherSection = others.length ? `<div class="section-title" style="margin-top:14px">Other muscle groups</div>${others.map(e => swapCardHTML(e, true)).join('')}` : '';
+    } else {
+      otherSection = `<button class="browse-toggle" onclick="SW.showOther=!SW.showOther;refreshSwapBody()" style="margin-top:12px">${SW.showOther ? 'Hide' : 'Browse'} other muscle groups ${SW.showOther ? '▴' : '▾'}</button>`;
+      if (SW.showOther) otherSection += `<div class="section-title" style="margin-top:12px">Other muscle groups</div>${others.map(e => swapCardHTML(e, true)).join('')}`;
+    }
+  }
+  return `${chips}<div class="section-title" style="margin-top:4px">Recommended</div>${recHTML}${otherSection}`;
+}
+function refreshSwapBody() { const el = byId('swap-body'); if (el) el.innerHTML = swapBodyHTML(); }
+function setSwapEquip(v) { SW.equip = v; refreshSwapBody(); }
+function swapCardHTML(e, showGroup) {
+  return `<div class="ex-card">
+      <span class="name">${esc(e.name)}${showGroup ? `<span class="sub">${MOVEMENTS[e.movement]?.label || ''}</span>` : ''}</span>
+      <span class="actions">
+        <button class="icon-btn" onclick="openExDetail('${e.id}')"><span class="ic">ⓘ</span>Info</button>
+        <button class="icon-btn" onclick="doSwap(${SW.di},${SW.si},'${e.id}')"><span class="ic">☐</span>Select</button>
+      </span></div>`;
 }
 function doSwap(di, si, exId) {
   const slot = P().days[di].slots[si];
@@ -2066,24 +2124,31 @@ function doSwap(di, si, exId) {
   save(); closeAllModals(); render();
   toast(exName(exId) + ' set for ' + P().days[di].name);
 }
+let ADDF = { equip: 'all', q: '' };
 function openAddExercise(di) {
   V.addTarget = di;
+  ADDF = { equip: 'all', q: '' };
   showModal(anim => {
     $modal.innerHTML = modalShell(anim, 'Add Exercise', `
-        <input class="search-input" placeholder="Search…" oninput="filterAdd(this.value)">
-        <div id="add-list">${addListHTML('')}</div>`);
+        <input class="search-input" placeholder="Search…" oninput="ADDF.q=this.value;refreshAddBody()">
+        <div id="add-body">${addBodyHTML()}</div>`);
   });
 }
-function addListHTML(q) {
-  const ql = q.toLowerCase();
-  return allExercises()
-    .filter(e => !ql || e.name.toLowerCase().includes(ql))
-    .slice(0, 40)
-    .map(e => `<button class="lib-item" onclick="doAddExercise('${e.id}')">
-      <span>${esc(e.name)}<span class="sub">${MOVEMENTS[e.movement]?.label || ''}</span></span><span>＋</span>
-    </button>`).join('');
+function addBodyHTML() {
+  const ql = ADDF.q.trim().toLowerCase();
+  const matchText = e => !ql || e.name.toLowerCase().includes(ql);
+  const matchEquip = e => ADDF.equip === 'all' || e.equipment === ADDF.equip;
+  const equips = [...new Set(allExercises().map(e => e.equipment))].sort((a, b) => EQUIP_ORDER.indexOf(a) - EQUIP_ORDER.indexOf(b));
+  const list = allExercises().filter(e => matchEquip(e) && matchText(e)).slice(0, 60);
+  const items = list.length
+    ? list.map(e => `<button class="lib-item" onclick="doAddExercise('${e.id}')">
+      <span>${esc(e.name)}<span class="sub">${MOVEMENTS[e.movement]?.label || ''} · ${EQUIP_LABEL[e.equipment] || ''}</span></span><span>＋</span>
+    </button>`).join('')
+    : '<p class="faint mt8">No matches.</p>';
+  return `${equipChips(equips, ADDF.equip, 'setAddEquip')}${items}`;
 }
-function filterAdd(q) { document.getElementById('add-list').innerHTML = addListHTML(q); }
+function refreshAddBody() { const el = byId('add-body'); if (el) el.innerHTML = addBodyHTML(); }
+function setAddEquip(v) { ADDF.equip = v; refreshAddBody(); }
 function doAddExercise(exId) {
   const ex = exById(exId);
   P().days[V.addTarget].slots.push({ type: 'acc', cat: ex.movement, ex: exId, added: true });
@@ -2284,6 +2349,9 @@ function saveCustomEx() {
 // EXERCISE DETAIL MODAL (Info / History / Maxes / Settings)
 // ------------------------------------------------------------
 let XD = { id: null, tab: 'info' };
+// Broad per-movement fallback cues. The primary source is the per-exercise
+// EX_CUES map (data.js); these only fire for an exercise with no entry there
+// (e.g. a user-created custom lift), and CUES.default is the last resort.
 const CUES = {
   squat: ['Big air into your belt, brace 360°.', 'Knees out, spread the floor.', 'Hit depth every rep, every rep identical.'],
   bench: ['Pin the shoulder blades down and back.', 'Leg drive into the floor, butt on the bench.', 'Touch the same spot every rep.'],
@@ -2303,9 +2371,9 @@ function renderExDetail(anim) {
   const tabBtn = t => `<button class="${XD.tab === t ? 'on' : ''}" onclick="XD.tab='${t}';rerenderTop()">${t[0].toUpperCase() + t.slice(1)}</button>`;
   let body = '';
   if (XD.tab === 'info') {
-    const cues = CUES[e.movement] || CUES.default;
+    const cues = EX_CUES[e.id] || CUES[e.movement] || CUES.default;
     body = `<div class="placeholder-media">🏋</div>
-      <p class="subtle">${MOVEMENTS[e.movement]?.label || ''} · ${{bb:'Barbell',db:'Dumbbell',mc:'Machine',cb:'Cable',bw:'Bodyweight',bd:'Band'}[e.equipment] || ''}${e.isMain ? ' · Main lift' : ''}</p>
+      <p class="subtle">${MOVEMENTS[e.movement]?.label || ''} · ${EQUIP_LABEL[e.equipment] || ''}${e.isMain ? ' · Main lift' : ''}</p>
       <div class="section-title" style="font-size:1.1rem">Coaching cues</div>
       ${cues.map(c => `<div class="check-row">▸ ${c}</div>`).join('')}`;
   } else if (XD.tab === 'history') {
