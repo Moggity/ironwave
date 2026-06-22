@@ -38,8 +38,10 @@ them into focused branches rather than one large one (see the retrospective).
 
 - **Per-day time caps** (one global cap vs a longer cap for a naturally longer
   day such as legs).
-- **Budget-aware swap/select list:** the Add button shows remaining time and
-  per-add cost; the per-candidate cost is not yet shown inside the swap list.
+- ~~**Budget-aware swap/select list:** the Add button shows remaining time and
+  per-add cost; the per-candidate cost is not yet shown inside the swap list.~~
+  DONE: the swap and add pickers now show each candidate's approximate time cost
+  (`candidateCostMin`) for a capped athlete, plus a remaining-room header.
 - **Check-in references removed muscles:** `checkinGroupsForDay` reads slots
   structurally, so a muscle set to 0 could still surface a check-in slider.
 - **Onboarding time estimate is bodybuilding-only** (it lives on the slider
@@ -121,6 +123,16 @@ real DOM.
 - Optionally add a **local pre-commit hook** that runs `node --check` + `npm
   test`, but CI on the PR is the real gate.
 
+
+## Resolved (2026-06-22, remove exercises + budget-aware pickers)
+
+- **Remove exercises from a day.** The workout overview now supports swipe-left
+  to reveal a Remove action on any accessory or added exercise (mains and
+  secondaries stay swap-only since they anchor the working max). Removal is
+  undoable via a toast action. Fixes the report of an added exercise that could
+  not be taken back off the day.
+- **Budget-aware swap/select list** (see Polish above): per-candidate time cost
+  in the swap and add pickers for time-capped athletes.
 
 ## Resolved (2026-06-22, test + CI foundation)
 

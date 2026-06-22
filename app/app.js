@@ -196,6 +196,23 @@ function toast(msg, warn) {
   root.appendChild(t);
   setTimeout(() => t.remove(), 3200);
 }
+// Toast with a single tappable action (e.g. Undo). Stays up a little longer so
+// the action is reachable.
+function toastAction(msg, label, fn) {
+  const root = document.getElementById('toast-root');
+  const t = document.createElement('div');
+  t.className = 'toast has-action';
+  const span = document.createElement('span');
+  span.textContent = msg;
+  const btn = document.createElement('button');
+  btn.className = 'toast-action';
+  btn.textContent = label;
+  btn.onclick = () => { t.remove(); fn(); };
+  t.appendChild(span);
+  t.appendChild(btn);
+  root.appendChild(t);
+  setTimeout(() => t.remove(), 6000);
+}
 
 function nav(view, extra) {
   V.view = view;
@@ -604,6 +621,30 @@ function timeBudgetHTML(di) {
     return `<p class="faint" style="margin:8px 2px 0">You are at your ${tc.timeCapMin} min limit. Anything you add is about +${cost} min and will be marked optional.</p>`;
   }
   return `<p class="faint" style="margin:8px 2px 0">About ${room} min before your ${tc.timeCapMin} min limit. Each added exercise is roughly +${cost} min.</p>`;
+}
+// The athlete's time cap in minutes, or null when they train without one. Used to
+// decide whether the swap/add pickers should show per-candidate time costs.
+function timeCapMin() {
+  const tc = P() && P().trainingConfig;
+  return (tc && tc.timeMode === 'custom' && tc.timeCapMin) ? tc.timeCapMin : null;
+}
+// Rough marginal cost, in minutes, of running one specific exercise as an
+// accessory in the current week. Mirrors resolveSlot's accessory path so the
+// number matches what the athlete would actually be prescribed. Returns null if
+// focus would drop it (slider 0). Powers the per-candidate cost in the pickers.
+function candidateCostMin(exId) {
+  const p = P();
+  if (!p) return null;
+  const block = blockOf(p.pointer.block);
+  const sch = Engine.schemeFor(block);
+  const r = loadingFor(exId).totalInc;
+  let sets = sch.accessory(block, p.pointer.week, recordsFor(exId), r);
+  const focus = focusForAccessory(exId, sets);
+  if (focus.removed) return null;
+  if (focus.delta) sets = applySetDelta(sets, focus.delta);
+  const rs = { exId, sets, cat: (exById(exId) || {}).movement };
+  const sec = estimateSessionSec([rs], false) - TIME_MODEL.sessionOverheadSec;
+  return Math.max(1, Math.round(sec / 60));
 }
 // Modal: how this day's time changes across the block (the tail grows toward
 // the peak week). Informative; available with or without a time cap.
@@ -1395,13 +1436,21 @@ function vWorkout() {
       </div>`;
     }
     const opt = optSi.has(si);
-    return `<div class="ex-card ${opt ? 'optional' : ''}" data-si="${si}">
+    // Main and secondary lifts anchor the program (and the working max), so they
+    // are swap-only. Accessories and anything the athlete added can be removed by
+    // swiping the card left to reveal a Remove action.
+    const card = `<div class="ex-card ${opt ? 'optional' : ''}" data-si="${si}">
       ${grip}
       <span class="name">${esc(rs.name)}${opt ? ' <span class="opt-tag">optional</span>' : ''}</span>
       <span class="actions">
         <button class="icon-btn" onclick="openExDetail('${rs.exId}')"><span class="ic">ⓘ</span>Info</button>
         <button class="icon-btn" onclick="openSwap(${di},${si})"><span class="ic">⇄</span>Swap</button>
       </span>
+    </div>`;
+    if (rs.isMain || rs.isSecondary) return card;
+    return `<div class="ex-swipe" data-si="${si}" onpointerdown="exSwipeDown(event,${di},${si})">
+      <button class="ex-remove" onclick="removeSlot(${di},${si})" aria-label="Remove ${esc(rs.name)}"><span class="ic">🗑</span>Remove</button>
+      ${card}
     </div>`;
   }).join('');
 
@@ -1449,7 +1498,9 @@ function nextDay() { V.dayIdx = Math.min(P().days.length - 1, currentDayIdx() + 
 let DRAG = null;
 function gripDown(ev, di, si) {
   ev.preventDefault();
-  const card = ev.target.closest('.ex-card');
+  // Removable rows are wrapped in .ex-swipe; that wrapper is the direct child of
+  // the list, so reorder must move it (not the inner .ex-card).
+  const card = ev.target.closest('.ex-swipe') || ev.target.closest('.ex-card');
   const list = byId('ex-list');
   if (!card || !list) return;
   DRAG = { di, card, list, moved: false };
@@ -1491,6 +1542,78 @@ function commitReorder(di, order) {
   logReadiness(computeReadiness());
   save(); render();
   toast('Order updated. Small readiness hit for the shuffle', true);
+}
+
+// --- swipe-left-to-remove (accessories + added exercises) ---
+// Drag the card left past a threshold to reveal the Remove action behind it.
+// Vertical drags fall through to native scroll (and to the grip's reorder),
+// so this never fights page scrolling or the reorder gesture.
+const SWIPE_REVEAL = 92; // px; must match .ex-swipe.open .ex-card transform
+let SWP = null;
+function exSwipeDown(ev, di, si) {
+  // Let the grip (reorder) and the row's own buttons keep their own gestures.
+  if (ev.target.closest('.grip') || ev.target.closest('.icon-btn') || ev.target.closest('.ex-remove')) return;
+  const wrap = ev.currentTarget;
+  const card = wrap.querySelector('.ex-card');
+  if (!card) return;
+  // A tap on a row while another is open just closes the open one.
+  closeOpenSwipes(wrap);
+  SWP = { di, si, wrap, card, x0: ev.clientX, y0: ev.clientY,
+          open: wrap.classList.contains('open'), decided: false };
+  document.addEventListener('pointermove', exSwipeMove, { passive: false });
+  document.addEventListener('pointerup', exSwipeUp, { once: true });
+  document.addEventListener('pointercancel', exSwipeUp, { once: true });
+}
+function exSwipeMove(ev) {
+  if (!SWP) return;
+  const dx = ev.clientX - SWP.x0, dy = ev.clientY - SWP.y0;
+  if (!SWP.decided) {
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    if (Math.abs(dy) >= Math.abs(dx)) { endSwipe(); return; } // vertical -> let it scroll / reorder
+    SWP.decided = true;
+    SWP.wrap.classList.add('swiping');
+  }
+  ev.preventDefault();
+  let t = (SWP.open ? -SWIPE_REVEAL : 0) + dx;
+  t = Math.max(-SWIPE_REVEAL - 16, Math.min(0, t)); // only opens leftward, slight overscroll
+  SWP.card.style.transform = `translateX(${t}px)`;
+}
+function exSwipeUp(ev) {
+  if (!SWP) return;
+  const { wrap, card, open, decided } = SWP;
+  const dx = ev.clientX - SWP.x0;
+  wrap.classList.remove('swiping');
+  card.style.transform = '';
+  const nowOpen = decided ? (open ? dx < SWIPE_REVEAL / 2 : dx < -SWIPE_REVEAL / 2) : false;
+  wrap.classList.toggle('open', nowOpen);
+  endSwipe();
+}
+function endSwipe() {
+  document.removeEventListener('pointermove', exSwipeMove);
+  SWP = null;
+}
+function closeOpenSwipes(except) {
+  document.querySelectorAll('.ex-swipe.open').forEach(w => { if (w !== except) w.classList.remove('open'); });
+}
+let LAST_REMOVED = null;
+function removeSlot(di, si) {
+  const p = P();
+  const slot = p.days[di].slots[si];
+  if (!slot) return;
+  const name = resolveSlot(slot, p.pointer.block, p.pointer.week).name || 'Exercise';
+  LAST_REMOVED = { di, si, slot };
+  p.days[di].slots.splice(si, 1);
+  save(); render();
+  toastAction(name + ' removed', 'Undo', undoRemove);
+}
+function undoRemove() {
+  if (!LAST_REMOVED) return;
+  const { di, si, slot } = LAST_REMOVED;
+  const slots = P().days[di].slots;
+  slots.splice(Math.min(si, slots.length), 0, slot);
+  LAST_REMOVED = null;
+  save(); render();
+  toast('Removal undone');
 }
 
 function skipWorkout(di) {
@@ -2065,7 +2188,8 @@ function openSwap(di, si) {
 function renderSwap(anim) {
   const slot = P().days[SW.di].slots[SW.si];
   const note = SW.isMain
-    ? `<p class="faint" style="margin-bottom:8px">Variations run the same wave percentages off the ${esc(exName(slot.baseLift || slot.lift))} working max. AMRAPs on a variation won't move that max.</p>` : '';
+    ? `<p class="faint" style="margin-bottom:8px">Variations run the same wave percentages off the ${esc(exName(slot.baseLift || slot.lift))} working max. AMRAPs on a variation won't move that max.</p>`
+    : (timeCapMin() ? timeBudgetHTML(SW.di) : '');
   $modal.innerHTML = modalShell(anim, slot.type === 'select' ? 'Select Exercise' : 'Swap Exercise',
     `${note}
      <input class="search-input" placeholder="Search any exercise…" value="${esc(SW.q)}" oninput="SW.q=this.value;refreshSwapBody()">
@@ -2110,8 +2234,13 @@ function swapBodyHTML() {
 function refreshSwapBody() { const el = byId('swap-body'); if (el) el.innerHTML = swapBodyHTML(); }
 function setSwapEquip(v) { SW.equip = v; refreshSwapBody(); }
 function swapCardHTML(e, showGroup) {
+  // Per-candidate time cost: only meaningful for a capped athlete, and only on
+  // accessory slots (main/secondary variations all run the same wave math, so
+  // their cost is identical and would just be noise).
+  const cost = (!SW.isMain && timeCapMin()) ? candidateCostMin(e.id) : null;
+  const costTag = cost ? ` <span class="cost-tag">+${cost} min</span>` : '';
   return `<div class="ex-card">
-      <span class="name">${esc(e.name)}${showGroup ? `<span class="sub">${MOVEMENTS[e.movement]?.label || ''}</span>` : ''}</span>
+      <span class="name">${esc(e.name)}${costTag}${showGroup ? `<span class="sub">${MOVEMENTS[e.movement]?.label || ''}</span>` : ''}</span>
       <span class="actions">
         <button class="icon-btn" onclick="openExDetail('${e.id}')"><span class="ic">ⓘ</span>Info</button>
         <button class="icon-btn" onclick="doSwap(${SW.di},${SW.si},'${e.id}')"><span class="ic">☐</span>Select</button>
@@ -2130,6 +2259,7 @@ function openAddExercise(di) {
   ADDF = { equip: 'all', q: '' };
   showModal(anim => {
     $modal.innerHTML = modalShell(anim, 'Add Exercise', `
+        ${timeCapMin() ? timeBudgetHTML(di) : ''}
         <input class="search-input" placeholder="Search…" oninput="ADDF.q=this.value;refreshAddBody()">
         <div id="add-body">${addBodyHTML()}</div>`);
   });
@@ -2140,10 +2270,15 @@ function addBodyHTML() {
   const matchEquip = e => ADDF.equip === 'all' || e.equipment === ADDF.equip;
   const equips = [...new Set(allExercises().map(e => e.equipment))].sort((a, b) => EQUIP_ORDER.indexOf(a) - EQUIP_ORDER.indexOf(b));
   const list = allExercises().filter(e => matchEquip(e) && matchText(e)).slice(0, 60);
+  const capped = timeCapMin();
   const items = list.length
-    ? list.map(e => `<button class="lib-item" onclick="doAddExercise('${e.id}')">
-      <span>${esc(e.name)}<span class="sub">${MOVEMENTS[e.movement]?.label || ''} · ${EQUIP_LABEL[e.equipment] || ''}</span></span><span>＋</span>
-    </button>`).join('')
+    ? list.map(e => {
+      const cost = capped ? candidateCostMin(e.id) : null;
+      const costTxt = cost ? ` · ~${cost} min` : '';
+      return `<button class="lib-item" onclick="doAddExercise('${e.id}')">
+      <span>${esc(e.name)}<span class="sub">${MOVEMENTS[e.movement]?.label || ''} · ${EQUIP_LABEL[e.equipment] || ''}${costTxt}</span></span><span>＋</span>
+    </button>`;
+    }).join('')
     : '<p class="faint mt8">No matches.</p>';
   return `${equipChips(equips, ADDF.equip, 'setAddEquip')}${items}`;
 }
