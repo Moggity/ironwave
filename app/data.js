@@ -922,7 +922,14 @@ const TIME_MODEL = {
   restSec:       { main: 210, secondary: 180, accessory: 120 },  // real rest on hard sets
   restSecTight:  { main: 150, secondary: 135, accessory: 90 },   // after rest compression
   warmupSecPerSet: 90,   // a warmup ramp set with its short rest
-  sessionOverheadSec: 360,  // arrive, change, plate-load, station-hop, water
+  sessionOverheadSec: 180,  // arrive, change, water: the genuinely once-per-session cost
+  // Per-exercise setup/transition: walk to the station, load/grab the implement,
+  // adjust the machine, take a feeler. This is what makes adding an exercise cost
+  // real time, and it varies by equipment: a barbell means plate-loading and a
+  // warmup ramp, a machine is a pin and a seat adjustment, bodyweight is nothing.
+  // Keyed by exercise.equipment; setupSecDefault covers anything unmapped.
+  setupSec: { bb: 120, db: 70, kb: 70, cb: 40, mc: 20, bd: 20, bw: 10 },
+  setupSecDefault: 40,
 };
 
 // Bodybuilding muscle-focus slider (0..6) -> accessory set-count multiplier vs

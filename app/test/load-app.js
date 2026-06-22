@@ -40,9 +40,10 @@ function elStub() {
 // app's own `let S` / `let V`, so a test installs program state by assigning S.
 const EXPORTS = `return {
   defaultState, makeProgram, resolveSlot, migrateState, resolveDayEntries,
+  estimateSessionSec, candidateCostMin, accessoryCostMin,
   exById, exName, loadingFor,
   focusForAccessory, bbLiftRemoval, generateBodybuildingDays, carryoverOptionalDrops,
-  Engine, PROGRAM_TEMPLATES, DAY_TEMPLATES, WAVES,
+  Engine, PROGRAM_TEMPLATES, DAY_TEMPLATES, WAVES, TIME_MODEL,
   ACC_SCHEMES, SECONDARY_SCHEMES, JBB_HYP, DELOAD_SETS,
   VOLUME_LANDMARKS, EXPERIENCE_FACTOR, DEFAULT_PLATES,
   DEFAULT_ACC, SPLIT_FREQ, FOCUS_FACTOR, MOVEMENT_SLIDER,

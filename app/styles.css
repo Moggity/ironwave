@@ -136,6 +136,25 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .ex-card .name .sub { display: block; margin-top: 2px; color: var(--text-faint); font-size: .78rem; font-weight: 400; }
 .ex-card .actions { display: flex; gap: 16px; }
 
+/* swipe-left-to-remove: card slides to reveal a Remove action behind it */
+.ex-swipe { position: relative; overflow: hidden; border-radius: var(--radius); margin-bottom: 10px; }
+.ex-swipe .ex-card { margin-bottom: 0; position: relative; z-index: 1; touch-action: pan-y;
+  transition: transform .2s ease; will-change: transform; }
+.ex-swipe.swiping .ex-card { transition: none; }
+.ex-swipe.open .ex-card { transform: translateX(-92px); }
+.ex-remove {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 92px; z-index: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  background: var(--red); color: #fff; border: none; font-size: .72rem; font-weight: 700;
+}
+.ex-remove .ic { font-size: 1.05rem; }
+/* per-candidate time cost shown in the swap picker */
+.cost-tag {
+  display: inline-block; padding: 1px 7px; border-radius: 8px;
+  background: var(--card-2); color: var(--text-dim);
+  font-size: .68rem; font-weight: 700; vertical-align: middle;
+}
+
 /* ---------- exercise picker filters ---------- */
 .filter-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .fchip {
@@ -336,6 +355,11 @@ input[type=range] { width: 100%; accent-color: var(--blue); height: 30px; }
   max-width: 86%; text-align: center; animation: slideup .2s ease;
 }
 .toast.warn { border-color: var(--amber); }
+.toast.has-action { display: flex; align-items: center; gap: 14px; text-align: left; }
+.toast-action {
+  flex: none; background: none; border: none; color: var(--blue);
+  font-weight: 700; font-size: .92rem; padding: 2px 4px;
+}
 
 /* misc */
 .divider { height: 1px; background: var(--line); margin: 14px 0; }

@@ -1,5 +1,27 @@
 # IRONWAVE — Changelog
 
+## [Remove exercises, budget-aware pickers, equipment-aware setup time] (2026-06-22)
+
+Three changes to the workout overview and the time model.
+
+- Remove exercises: the overview now supports swipe-left to reveal a Remove
+  action on any accessory or added exercise (mains and secondaries stay
+  swap-only, since they anchor the working max). Removal is undoable from a toast
+  action. Fixes athletes being unable to take a mistakenly added exercise back
+  off a day.
+- Budget-aware pickers: the Swap / Select and Add Exercise pickers now show each
+  candidate's approximate time cost for a time-capped athlete, plus a
+  remaining-room header, so adds and swaps can be weighed against the cap.
+- Equipment-aware setup time: the session-time estimator used to bundle all
+  setup (plate-loading, station hops) into one flat per-session constant, so the
+  marginal cost of adding an exercise omitted real setup entirely. Setup is now a
+  per-exercise, equipment-keyed cost (`TIME_MODEL.setupSec`): a barbell pays
+  ~2 min for loading and a warmup, a machine almost nothing, bodyweight nearly
+  zero. The once-per-session overhead drops to 3 min (arrive, change, water).
+  Net effect: full-session estimates are about the same for typical days, barbell
+  days read a little longer, and the per-add/candidate costs are realistic and
+  differentiate by equipment.
+
 ## [Equipment filters, free exercise selection, real coaching cues] (2026-06-22)
 
 Three athlete-facing improvements to exercise selection and the exercise detail
