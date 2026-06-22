@@ -92,22 +92,26 @@ real DOM.
    output) and assert it never changes.~~ DONE (`test/golden-master.test.js`,
    uncalibrated + calibrated, 475 slots each, vs committed `golden-master.json`).
    The automated version of the "default users stay byte-identical" contract.
-2. **Engine unit tests** (pure, deterministic, cheap): `Engine.e1rm`,
+2. ~~**Engine unit tests** (pure, deterministic, cheap): `Engine.e1rm`,
    `weightFor`, `amrapAdjust` (including the +10-rep cap and the below-standard
    hold), `plateMath`, `warmupSets`, `readinessScore`, `seedLandmarks`, and the
    per-week ramps of `prescribeMain` / `jbb-hyp` for both a calibrated and an
-   uncalibrated lift.
-3. **Scheme isolation:** assert `jm2-wave` and `jbb-hyp` never blend, and that
-   `schemeFor` routes only by `block.scheme`.
-4. **Migration tests:** a legacy `database.json` (pre-tracks, pre-landmarks)
-   loads via `migrateState` and is backfilled, and `migrateState` is idempotent.
-5. **Focus / generator behavior:** slider 0 removes, 1-2 de-emphasize, the split
+   uncalibrated lift.~~ DONE (`test/engine.test.js`).
+3. ~~**Scheme isolation:** assert `jm2-wave` and `jbb-hyp` never blend, and that
+   `schemeFor` routes only by `block.scheme`.~~ DONE (`test/scheme-isolation.test.js`).
+4. ~~**Migration tests:** a legacy `database.json` (pre-tracks, pre-landmarks)
+   loads via `migrateState` and is backfilled, and `migrateState` is idempotent.~~
+   DONE (`test/migration.test.js`).
+5. ~~**Focus / generator behavior:** slider 0 removes, 1-2 de-emphasize, the split
    generator's region allocation and frequency, core/optional tiers, and the
-   carryover drop/keep. (These already exist as harnesses; commit them.)
-6. **Boot / render smoke:** load the three scripts in jsdom and render every view
-   for a default and a bodybuilding program without throwing.
-7. **Persistence round-trip:** start `server.js`, `POST` then `GET /api/state`,
-   assert it round-trips and that `database.json` is created.
+   carryover drop/keep.~~ DONE (`test/focus-generator.test.js`).
+6. ~~**Boot / render smoke:** load the three scripts in jsdom and render every view
+   for a default and a bodybuilding program without throwing.~~ DONE
+   (`test/render-smoke.test.js`, self-skips on Node < 20).
+7. ~~**Persistence round-trip:** start `server.js`, `POST` then `GET /api/state`,
+   assert it round-trips and that `database.json` is created.~~ DONE
+   (`test/persistence.test.js`). A separate `test/time-estimate.test.js` also
+   covers the session time model beyond the original list.
 
 ### Project-specific lint checks (great CI fit)
 - ~~**Line endings / indentation:** a check that `.bat` files stay CRLF and
