@@ -25,14 +25,13 @@ them into focused branches rather than one large one (see the retrospective).
 
 ## Split-generator tuning
 
-- **Balanced multi-day over-allocates lower.** On a balanced 6-day the point
-  ratio rounds to 3 upper / 3 lower, and since Legs is the only lower muscle that
-  can anchor a day, you get 3 leg-led days. Options: weight region days by muscle
-  count as well as points, or add a secondary lower anchor.
-- **Lower region themes only around Legs.** Glutes and calves never lead a day
-  (no compound lead). Consider a glute-led day (hip thrust) when glutes is high.
-- **Same-muscle day spacing.** When a muscle leads two days, they can land close
-  together; add a spacing pass so repeated focus days are separated for recovery.
+- ~~**Balanced multi-day over-allocates lower.**~~ ~~**Lower region themes only
+  around Legs.**~~ ~~**Same-muscle day spacing.**~~ DONE (2026-06-22, see Resolved
+  below): Glutes is now a second lower anchor (gated on >=2x/week), which both
+  broadens lower themes and stops a balanced week collapsing onto Legs, and a
+  `spaceSameMuscle` pass separates repeated-lead days. The "weight region days by
+  muscle count" alternative was not taken; the secondary-anchor route covered the
+  same symptom. Calves still never lead (no compound lead) by design.
 
 ## Polish / smaller
 
@@ -139,6 +138,28 @@ real DOM.
 - Optionally add a **local pre-commit hook** that runs `node --check` + `npm
   test`, but CI on the PR is the real gate.
 
+
+## Resolved (2026-06-22, split-generator tuning)
+
+The three **Split-generator tuning** items, landed together on
+`feat/split-generator-tuning` (they share `generateBodybuildingDays` and the
+anchor tables, so one branch was cleaner than three).
+
+- **Glute-led days / lower themes beyond Legs.** `ANCHOR_RANK.glutes` is now 2
+  and `PRIMARY_ANCHOR.glutes` leads with a hip thrust. A new `canLead` gate in
+  `generateBodybuildingDays` only lets Glutes anchor when it is trained twice or
+  more a week, so a de-emphasized (1x) glute fills days but never claims one.
+- **Balanced multi-day over-allocation.** Giving the lower region a second
+  possible lead (Glutes) means a balanced 6-day spreads its lower days across
+  Legs and Glutes instead of three Legs-led days. Chosen over the muscle-count
+  region re-weighting alternative, which is left unimplemented as it would also
+  shift day *counts* and is not needed to fix the symptom.
+- **Same-muscle day spacing.** A `spaceSameMuscle` post-pass (run after the
+  region interleave) swaps a later differently-themed day between two days led by
+  the same muscle. Unavoidable single-lead regions are left intact.
+- Tests: `focus-generator.test.js` gains glute-lead, 1x-glute-does-not-lead,
+  no-adjacent-theme, and direct `spaceSameMuscle` cases. The golden master is
+  untouched (all changes are bodybuilding-only; the default is Powerbuilding).
 
 ## Resolved (2026-06-22, polish bundle)
 

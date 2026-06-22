@@ -960,14 +960,19 @@ const MUSCLE_MAIN = { chest: 'comp-bench', legs: 'comp-squat', shoulders: 'milit
 const SPLIT_FREQ = { 0: 0, 1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 3 };
 const UPPER_MUSCLES = ['chest', 'back', 'shoulders', 'arms'];
 const LOWER_MUSCLES = ['legs', 'glutes', 'calves'];
-// A day is themed/anchored by its highest-ranked muscle. Muscles with a compound
-// lead anchor a day; arms/glutes/calves only fill when nothing bigger is present.
-const ANCHOR_RANK = { chest: 3, back: 3, legs: 3, shoulders: 2, arms: 1, glutes: 1, calves: 0 };
+// A day is themed/anchored by its highest-ranked muscle. Rank >= 2 can lead a
+// day; arms/calves (rank < 2) only fill when nothing bigger is present. Glutes is
+// rank 2 so it can lead a hip-thrust day, but only when trained twice or more a
+// week (see canLead in generateBodybuildingDays) so a de-emphasized glute does not
+// claim a whole day. This gives the lower region a second anchor besides Legs.
+const ANCHOR_RANK = { chest: 3, back: 3, legs: 3, shoulders: 2, glutes: 2, arms: 1, calves: 0 };
 // Lead movement for a day whose primary focus is this muscle. `main` = a working-
-// max barbell anchor (correct wave/AMRAP weights); `acc` = a big lead accessory.
+// max barbell anchor (correct wave/AMRAP weights); `acc` = a big lead accessory
+// (used when the muscle has no barbell working-max compound, e.g. glutes).
 const PRIMARY_ANCHOR = {
   chest:     { main: 'comp-bench' },
   shoulders: { main: 'military-press' },
   legs:      { main: 'comp-squat' },
   back:      { acc: 'lat-pulldown' },
+  glutes:    { acc: 'bb-hip-thrust' },
 };

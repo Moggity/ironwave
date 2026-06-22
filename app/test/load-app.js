@@ -42,7 +42,7 @@ const EXPORTS = `return {
   defaultState, makeProgram, resolveSlot, migrateState, resolveDayEntries,
   estimateSessionSec, candidateCostMin, accessoryCostMin,
   exById, exName, loadingFor,
-  focusForAccessory, bbLiftRemoval, generateBodybuildingDays, carryoverOptionalDrops,
+  focusForAccessory, bbLiftRemoval, generateBodybuildingDays, spaceSameMuscle, carryoverOptionalDrops,
   checkinGroupsForDay, estimateMedianSessionMin,
   Engine, PROGRAM_TEMPLATES, DAY_TEMPLATES, WAVES, TIME_MODEL,
   ACC_SCHEMES, SECONDARY_SCHEMES, JBB_HYP, DELOAD_SETS,

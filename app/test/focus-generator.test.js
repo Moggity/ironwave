@@ -116,6 +116,54 @@ test('generator: leadership rotates across anchor muscles', () => {
   assert.ok(primaries.size >= 2, 'days should not all share one theme');
 });
 
+test('generator: glutes leads a lower day when trained twice or more', () => {
+  app.S = app.defaultState();
+  // Balanced 6-day: lower has 3 days and Legs is no longer the only lead, so
+  // Glutes anchors a hip-thrust day instead of all three going to Legs.
+  const days = app.generateBodybuildingDays({ ...DEFAULT_FOCUS }, 6);
+  const lower = days.filter(d => d.name.startsWith('Lower'));
+  const legLed = lower.filter(d => d.primary === 'legs').length;
+  assert.ok(lower.some(d => d.primary === 'glutes'), 'expected a glute-led lower day');
+  assert.ok(legLed <= 2, `balanced lower should not be all Legs days (got ${legLed})`);
+  // The glute day leads with a glute exercise (hip thrust when free, else the
+  // next glute accessory, matching the existing back-anchor fall-through).
+  const gluteDay = lower.find(d => d.primary === 'glutes');
+  const leadKey = app.MOVEMENT_SLIDER[(app.exById((gluteDay.slots[0] || {}).def) || {}).movement];
+  assert.strictEqual(leadKey, 'glutes', 'glute day should lead with a glute exercise');
+});
+
+test('generator: a once-a-week glute never claims a day', () => {
+  app.S = app.defaultState();
+  // Glutes at slider 1 trains 1x/week (de-emphasized); it should fill, not lead.
+  const days = app.generateBodybuildingDays(
+    { ...DEFAULT_FOCUS, glutes: 1, legs: 5 }, 5);
+  assert.ok(!days.some(d => d.primary === 'glutes'),
+    'a 1x glute should not lead a day');
+});
+
+test('spaceSameMuscle: separates adjacent same-theme days', () => {
+  const themed = ps => ps.map(p => ({ primary: p }));
+  const out = app.spaceSameMuscle(themed(['legs', 'legs', 'chest', 'back']));
+  for (let i = 1; i < out.length; i++) {
+    assert.notStrictEqual(out[i].primary, out[i - 1].primary,
+      `days ${i - 1}/${i} still share a theme`);
+  }
+  // An unavoidable case (one lead only) is left intact, not dropped.
+  const stuck = app.spaceSameMuscle(themed(['legs', 'legs']));
+  assert.deepStrictEqual(stuck.map(d => d.primary), ['legs', 'legs']);
+});
+
+test('generator: no two adjacent days share a theme on a balanced week', () => {
+  app.S = app.defaultState();
+  for (const n of [4, 5, 6]) {
+    const days = app.generateBodybuildingDays({ ...DEFAULT_FOCUS }, n);
+    for (let i = 1; i < days.length; i++) {
+      assert.notStrictEqual(days[i].primary, days[i - 1].primary,
+        `${n}-day: days ${i - 1}/${i} share theme ${days[i].primary}`);
+    }
+  }
+});
+
 test('generator: everything removed yields no days (empty-week guard)', () => {
   app.S = app.defaultState();
   const none = app.generateBodybuildingDays(
