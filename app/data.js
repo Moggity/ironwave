@@ -276,6 +276,37 @@ const PROGRAM_TEMPLATES = {
     ],
     weeksPerBlock: 5,
   },
+  // Pure-appearance track: all hypertrophy blocks (jbb-hyp). Triggers the
+  // muscle-focus slider system. Reuses the same day templates; only the block
+  // periodization differs. mesoIdx clamps at 3 rows, so blocks 4-5 reuse the top.
+  bodybuilding: {
+    id: 'bodybuilding',
+    label: 'Bodybuilding',
+    methodology: 'Bodybuilding (ascending volume)',
+    blocks: [
+      { type: 'hypertrophy', wave: '10s', label: 'Hypertrophy 1', scheme: 'jbb-hyp' },
+      { type: 'hypertrophy', wave: '8s',  label: 'Hypertrophy 2', scheme: 'jbb-hyp' },
+      { type: 'hypertrophy', wave: '8s',  label: 'Hypertrophy 3', scheme: 'jbb-hyp' },
+      { type: 'hypertrophy', wave: '10s', label: 'Hypertrophy 4', scheme: 'jbb-hyp' },
+      { type: 'hypertrophy', wave: '8s',  label: 'Hypertrophy 5', scheme: 'jbb-hyp' },
+    ],
+    weeksPerBlock: 5,
+  },
+  // Strength track: one hypertrophy base block then four book-wave strength
+  // blocks (jm2-wave). No slider system. Lowest-risk: reuses both schemes.
+  powerlifting: {
+    id: 'powerlifting',
+    label: 'Powerlifting',
+    methodology: 'Juggernaut strength focus',
+    blocks: [
+      { type: 'hypertrophy', wave: '8s', label: 'Hypertrophy Base', scheme: 'jbb-hyp' },
+      { type: 'strength',    wave: '5s', label: 'Strength 1',        scheme: 'jm2-wave' },
+      { type: 'strength',    wave: '5s', label: 'Strength 2',        scheme: 'jm2-wave' },
+      { type: 'strength',    wave: '3s', label: 'Strength 3',        scheme: 'jm2-wave' },
+      { type: 'strength',    wave: '3s', label: 'Strength 4',        scheme: 'jm2-wave' },
+    ],
+    weeksPerBlock: 5,
+  },
 };
 
 // [Juggernaut + Bodybuilding] ascending-volume hypertrophy config.
@@ -448,6 +479,147 @@ const DAY_TEMPLATES = {
   ],
 };
 
+// ============================================================
+// BODYBUILDING DAY TEMPLATES (hypertrophy splits)
+// Used for the bodybuilding track instead of the strength-oriented
+// DAY_TEMPLATES above. Splits: 3 = full body x3, 4 = upper/lower x2,
+// 5 = push/pull/legs/upper/lower, 6 = push/pull/legs x2. No deadlift.
+// The barbell compounds (bench/squat/press) remain the working-max
+// anchors (the wave/AMRAP math needs the real lift for correct weights);
+// they are swappable. Non-anchor days lead with a big bodybuilding
+// movement (a pulldown or row, a leg press), with barbell as a swap.
+// ============================================================
+const BB_DAY_TEMPLATES = {
+  3: [
+    { name: 'Full Body A', slots: [
+      { type:'main', lift:'comp-bench' },
+      { type:'acc', cat:'vpull', def:'lat-pulldown' },
+      { type:'acc', cat:'quad',  def:'leg-press' },
+      { type:'acc', cat:'ham',   def:'seated-leg-curl' },
+      { type:'select', cat:'shoulder' },
+    ]},
+    { name: 'Full Body B', slots: [
+      { type:'main', lift:'comp-squat' },
+      { type:'acc', cat:'hpull', def:'chest-supported-row' },
+      { type:'acc', cat:'bench', def:'db-incline-bench' },
+      { type:'acc', cat:'calf',  def:'standing-calf-raise' },
+      { type:'select', cat:'bicep' },
+    ]},
+    { name: 'Full Body C', slots: [
+      { type:'main', lift:'military-press' },
+      { type:'acc', cat:'vpull', def:'pullup' },
+      { type:'acc', cat:'ham',   def:'romanian-deadlift' },
+      { type:'acc', cat:'tricep', def:'triceps-pushdown' },
+      { type:'select', cat:'bicep' },
+    ]},
+  ],
+  4: [
+    { name: 'Upper A', slots: [
+      { type:'main', lift:'comp-bench' },
+      { type:'acc', cat:'vpull', def:'lat-pulldown' },
+      { type:'acc', cat:'hpull', def:'chest-supported-row' },
+      { type:'acc', cat:'shoulder', def:'lateral-raise' },
+      { type:'select', cat:'tricep' },
+    ]},
+    { name: 'Lower A', slots: [
+      { type:'main', lift:'comp-squat' },
+      { type:'acc', cat:'ham',  def:'romanian-deadlift' },
+      { type:'acc', cat:'quad', def:'leg-extensions' },
+      { type:'acc', cat:'calf', def:'standing-calf-raise' },
+      { type:'select', cat:'glute' },
+    ]},
+    { name: 'Upper B', slots: [
+      { type:'main', lift:'military-press' },
+      { type:'acc', cat:'vpull', def:'pullup' },
+      { type:'acc', cat:'bench', def:'db-incline-bench' },
+      { type:'acc', cat:'upperback', def:'face-pull' },
+      { type:'select', cat:'bicep' },
+    ]},
+    { name: 'Lower B', slots: [
+      { type:'acc', cat:'quad', def:'leg-press' },
+      { type:'acc', cat:'ham',  def:'seated-leg-curl' },
+      { type:'acc', cat:'glute', def:'bb-hip-thrust' },
+      { type:'acc', cat:'calf', def:'seated-calf-raise' },
+      { type:'select', cat:'abs' },
+    ]},
+  ],
+  5: [
+    { name: 'Push', slots: [
+      { type:'main', lift:'comp-bench' },
+      { type:'acc', cat:'bench', def:'db-incline-bench' },
+      { type:'acc', cat:'shoulder', def:'lateral-raise' },
+      { type:'acc', cat:'tricep', def:'triceps-pushdown' },
+      { type:'select', cat:'chest' },
+    ]},
+    { name: 'Pull', slots: [
+      { type:'acc', cat:'vpull', def:'lat-pulldown' },
+      { type:'acc', cat:'hpull', def:'barbell-row' },
+      { type:'acc', cat:'upperback', def:'face-pull' },
+      { type:'acc', cat:'bicep', def:'ez-curl' },
+      { type:'select', cat:'bicep' },
+    ]},
+    { name: 'Legs', slots: [
+      { type:'main', lift:'comp-squat' },
+      { type:'acc', cat:'ham',  def:'romanian-deadlift' },
+      { type:'acc', cat:'quad', def:'leg-extensions' },
+      { type:'acc', cat:'calf', def:'standing-calf-raise' },
+      { type:'select', cat:'glute' },
+    ]},
+    { name: 'Upper', slots: [
+      { type:'main', lift:'military-press' },
+      { type:'acc', cat:'vpull', def:'chinup' },
+      { type:'acc', cat:'hpull', def:'chest-supported-row' },
+      { type:'acc', cat:'bench', def:'machine-chest-press' },
+      { type:'select', cat:'tricep' },
+    ]},
+    { name: 'Lower', slots: [
+      { type:'acc', cat:'quad', def:'leg-press' },
+      { type:'acc', cat:'ham',  def:'seated-leg-curl' },
+      { type:'acc', cat:'glute', def:'bb-hip-thrust' },
+      { type:'acc', cat:'calf', def:'seated-calf-raise' },
+      { type:'select', cat:'abs' },
+    ]},
+  ],
+  6: [
+    { name: 'Push A', slots: [
+      { type:'main', lift:'comp-bench' },
+      { type:'acc', cat:'bench', def:'db-incline-bench' },
+      { type:'acc', cat:'shoulder', def:'lateral-raise' },
+      { type:'acc', cat:'tricep', def:'triceps-pushdown' },
+    ]},
+    { name: 'Pull A', slots: [
+      { type:'acc', cat:'vpull', def:'lat-pulldown' },
+      { type:'acc', cat:'hpull', def:'barbell-row' },
+      { type:'acc', cat:'upperback', def:'face-pull' },
+      { type:'acc', cat:'bicep', def:'ez-curl' },
+    ]},
+    { name: 'Legs A', slots: [
+      { type:'main', lift:'comp-squat' },
+      { type:'acc', cat:'ham',  def:'romanian-deadlift' },
+      { type:'acc', cat:'quad', def:'leg-extensions' },
+      { type:'acc', cat:'calf', def:'standing-calf-raise' },
+    ]},
+    { name: 'Push B', slots: [
+      { type:'main', lift:'military-press' },
+      { type:'acc', cat:'bench', def:'machine-chest-press' },
+      { type:'acc', cat:'shoulder', def:'cable-lateral-raise' },
+      { type:'acc', cat:'tricep', def:'overhead-triceps-ext' },
+    ]},
+    { name: 'Pull B', slots: [
+      { type:'acc', cat:'vpull', def:'pullup' },
+      { type:'acc', cat:'hpull', def:'cable-row' },
+      { type:'acc', cat:'upperback', def:'rear-delt-fly' },
+      { type:'acc', cat:'bicep', def:'hammer-curl' },
+    ]},
+    { name: 'Legs B', slots: [
+      { type:'acc', cat:'quad', def:'leg-press' },
+      { type:'acc', cat:'ham',  def:'seated-leg-curl' },
+      { type:'acc', cat:'glute', def:'bb-hip-thrust' },
+      { type:'acc', cat:'calf', def:'seated-calf-raise' },
+    ]},
+  ],
+};
+
 // Muscle-group check-in questions per main movement on the day
 const CHECKIN_GROUPS = {
   bench:    { key:'bench', label:'Pecs / Shoulders / Triceps' },
@@ -484,4 +656,121 @@ const RPE_DESCRIPTIONS = {
   6:   'Could do 4 more reps',
   5.5: 'Could do 4, maybe 5 more reps',
   5:   'Could do 5+ more reps, felt like a warmup',
+};
+
+/* ============================================================
+   DYNAMIC ROUTINE ADAPTATION ENGINE — config tables
+   See docs/dynamic-routine-engine-design.md. All of this is data,
+   not logic: the engine functions (engine.js) read these. None of
+   it affects a default user (Powerbuilding, unlimited time), so the
+   legacy routine output is byte-identical.
+   ============================================================ */
+
+// The bodybuilding focus sliders aggregate the finer MOVEMENTS categories.
+// Note: a few accessories are tagged by lift PATTERN (bench, press) rather than
+// the muscle they build, so those patterns are mapped into the matching slider
+// (e.g. a DB Incline Bench accessory is controlled by the Chest slider). Main
+// and secondary lifts are never focus-scaled, so the comp-bench main is unaffected.
+const SLIDER_MOVEMENTS = {
+  arms:      ['bicep', 'tricep'],
+  chest:     ['chest', 'bench'],
+  back:      ['vpull', 'hpull', 'upperback'],
+  shoulders: ['shoulder', 'press'],
+  glutes:    ['glute'],
+  legs:      ['quad', 'ham', 'squat'],   // squat pattern -> Legs (so Legs 0 also drops the squat main)
+  calves:    ['calf'],
+};
+// Reverse lookup: movement category -> slider key (lowback/abs/forearm have none).
+const MOVEMENT_SLIDER = (() => {
+  const m = {};
+  for (const k in SLIDER_MOVEMENTS) for (const mv of SLIDER_MOVEMENTS[k]) m[mv] = k;
+  return m;
+})();
+
+// Per-muscle weekly working-set landmarks. SOURCE: Renaissance Periodization's
+// classic published "Training Tips for Hypertrophy" grid (rpstrength.com),
+// EXTERNAL to the 2020 book. Intermediate/advanced baseline; used only as a
+// SEED — each athlete's evolving copy lives in profile.landmarks (see engine.js).
+const VOLUME_LANDMARKS = {
+  chest:     { mv: 8, mev: 10, mrv: 22 },
+  vpull:     { mv: 8, mev: 10, mrv: 25 },   // RP "Back" applied across the back movements
+  hpull:     { mv: 8, mev: 10, mrv: 25 },
+  upperback: { mv: 8, mev: 10, mrv: 25 },
+  quad:      { mv: 6, mev: 8,  mrv: 20 },
+  ham:       { mv: 4, mev: 6,  mrv: 20 },
+  glute:     { mv: 0, mev: 0,  mrv: 16 },   // MEV 0: covered indirectly by squats/deadlifts
+  bicep:     { mv: 4, mev: 8,  mrv: 26 },
+  tricep:    { mv: 4, mev: 6,  mrv: 18 },
+  shoulder:  { mv: 6, mev: 8,  mrv: 26 },   // side delts (main aesthetic head)
+  calf:      { mv: 6, mev: 8,  mrv: 20 },
+  abs:       { mv: 0, mev: 0,  mrv: 25 },   // MEV 0: covered by bracing on compounds
+  lowback:   { mv: 0, mev: 0,  mrv: 12 },   // covered by squats/deadlifts; rarely direct
+};
+
+// Seeds the landmark grid by training experience (the RP grid is intermediate+).
+const EXPERIENCE_FACTOR = { beginner: 0.65, intermediate: 0.85, advanced: 1.0 };
+
+// Movement categories a compound already trains indirectly, with a coverage
+// weight 0..1 (1 = fully covers the muscle for that day). Drives coherent
+// accessory pruning under a time deficit. Grounded in the book (p29-30, p159-160):
+// squats already hit glutes/erectors; presses hit triceps/front delts; rows hit
+// rear delts/forearms (NOT biceps). Keyed by the main/secondary lift's movement.
+const SYNERGIST_COVERAGE = {
+  squat:    { quad: 1.0, glute: 0.7, lowback: 0.5, ham: 0.3 },
+  deadlift: { ham: 0.8, glute: 0.8, lowback: 1.0, upperback: 0.4 },
+  bench:    { chest: 1.0, tricep: 0.7, shoulder: 0.4 },
+  press:    { shoulder: 1.0, tricep: 0.7 },
+  hpull:    { hpull: 1.0, upperback: 1.0, shoulder: 0.3 },  // rear delt, not bicep
+  vpull:    { vpull: 1.0, upperback: 0.6, bicep: 0.5 },
+};
+
+// "Eyeballed" time constants for the session-time estimator (see engine.js).
+// execSecPerRep: brainstorm "1-2 min / 10 reps" = 6-12 s/rep; book "3-9 s/rep"
+// controlled (p65). Mains slower (heavier, unrack/rerack), accessories faster.
+const TIME_MODEL = {
+  execSecPerRep: { main: 12, secondary: 10, accessory: 6 },
+  restSec:       { main: 210, secondary: 180, accessory: 120 },  // real rest on hard sets
+  restSecTight:  { main: 150, secondary: 135, accessory: 90 },   // after rest compression
+  warmupSecPerSet: 90,   // a warmup ramp set with its short rest
+  sessionOverheadSec: 360,  // arrive, change, plate-load, station-hop, water
+};
+
+// Bodybuilding muscle-focus slider (0..6) -> accessory set-count multiplier vs
+// the scheme baseline (slider 3 = 1.0 = unchanged). 0 removes the exercise.
+// Emphasis (4-6) is expressed by ADDING exercises (refill, see app.js), not by
+// inflating set counts, so only de-emphasis (1-2) scales sets here.
+const FOCUS_FACTOR = { 0: 0, 1: 0.5, 2: 0.75, 3: 1, 4: 1, 5: 1, 6: 1 };
+
+// Default accessory pools per focus muscle, used to refill freed/empty slots and
+// to give a select-only emphasized muscle (glutes, calves) real exercises.
+const DEFAULT_ACC = {
+  chest:     ['dips', 'db-incline-bench', 'cable-fly', 'machine-chest-press', 'pec-deck', 'db-fly'],
+  back:      ['lat-pulldown', 'cable-row', 'chest-supported-row', 'barbell-row', 'face-pull', 'db-row'],
+  arms:      ['ez-curl', 'triceps-pushdown', 'db-curl', 'overhead-triceps-ext', 'hammer-curl', 'skullcrusher'],
+  shoulders: ['lateral-raise', 'db-shoulder-press', 'rear-delt-fly', 'cable-lateral-raise', 'front-raise'],
+  glutes:    ['bb-hip-thrust', 'glute-bridge', 'cable-kickback', 'frog-pumps'],
+  legs:      ['leg-extensions', 'hamstring-curls', 'leg-press', 'bulgarian-split-squat', 'walking-lunge', 'seated-leg-curl'],
+  calves:    ['standing-calf-raise', 'seated-calf-raise', 'leg-press-calf-raise'],
+};
+
+// Focus muscles that have a barbell main lift, for the slider-6 "extra main dose".
+const MUSCLE_MAIN = { chest: 'comp-bench', legs: 'comp-squat', shoulders: 'military-press' };
+
+// ---- Frequency-driven split generator (bodybuilding) ----
+// Slider -> weekly training frequency (days the muscle is trained). Per product:
+// focus is frequency. 3 = 2x/week baseline; 4 = 2x but a day's primary focus with
+// more volume; 5-6 = 3x. 0 removes the muscle.
+const SPLIT_FREQ = { 0: 0, 1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 3 };
+const UPPER_MUSCLES = ['chest', 'back', 'shoulders', 'arms'];
+const LOWER_MUSCLES = ['legs', 'glutes', 'calves'];
+// A day is themed/anchored by its highest-ranked muscle. Muscles with a compound
+// lead anchor a day; arms/glutes/calves only fill when nothing bigger is present.
+const ANCHOR_RANK = { chest: 3, back: 3, legs: 3, shoulders: 2, arms: 1, glutes: 1, calves: 0 };
+// Lead movement for a day whose primary focus is this muscle. `main` = a working-
+// max barbell anchor (correct wave/AMRAP weights); `acc` = a big lead accessory.
+const PRIMARY_ANCHOR = {
+  chest:     { main: 'comp-bench' },
+  shoulders: { main: 'military-press' },
+  legs:      { main: 'comp-squat' },
+  back:      { acc: 'lat-pulldown' },
 };

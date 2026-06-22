@@ -22,7 +22,14 @@ function defaultState() {
     v: 1,
     profile: { name: '', bodyweight: null, barWeight: 20, rounding: 2.5,
                dbIncrement: 2.5, machineStep: 5,
-               plates: JSON.parse(JSON.stringify(DEFAULT_PLATES)) },
+               plates: JSON.parse(JSON.stringify(DEFAULT_PLATES)),
+               // Dynamic engine (see docs/dynamic-routine-engine-design.md). All
+               // defaults make a routine identical to the legacy output.
+               training: { track: 'powerbuilding', timeMode: 'unlimited', timeCapMin: null,
+                 muscleFocus: { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 } },
+               experience: 'intermediate',
+               trainingAge: { startedTs: null, blocksCompleted: 0 },
+               landmarks: {} },
     program: null,
     records: {},      // exId -> [{ts, weight, reps, rpe}]
     loadingProfiles: {}, // exId -> { mode, count, barWeight } — per-exercise loading, persists across programs
@@ -63,6 +70,23 @@ function migrateState(s) {
     if (s.program.weeksPerBlock == null) s.program.weeksPerBlock = 5;
     if (!s.program.completedDays) s.program.completedDays = {};
     if (s.program.weekMod === undefined) s.program.weekMod = null;
+  }
+  // Dynamic engine fields (additive, idempotent). A save predating the engine
+  // backfills to the legacy-identical defaults, so its routine is unchanged.
+  const p = s.profile || (s.profile = {});
+  const t = p.training = p.training || {};
+  t.track = t.track || 'powerbuilding';
+  t.timeMode = t.timeMode || 'unlimited';
+  if (t.timeCapMin === undefined) t.timeCapMin = null;
+  t.muscleFocus = Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
+                                t.muscleFocus || {});
+  p.experience = p.experience || 'intermediate';
+  if (!p.trainingAge) p.trainingAge = { startedTs: (s.program && s.program.startDate) || null, blocksCompleted: 0 };
+  if (!p.landmarks || !Object.keys(p.landmarks).length) p.landmarks = Engine.seedLandmarks(p.experience);
+  if (s.program && !s.program.trainingConfig) {
+    // Legacy programs predate tracks: stamp them as the powerbuilding default.
+    s.program.trainingConfig = { track: 'powerbuilding', timeMode: 'unlimited', timeCapMin: null,
+      muscleFocus: Object.assign({}, t.muscleFocus) };
   }
 }
 // save() now serializes overlapping writes (last-write-wins is fine for a
@@ -189,8 +213,10 @@ function stampMesoIdx(blocks) {
   });
 }
 function makeProgram(ob) {
-  const tpl = PROGRAM_TEMPLATES.powerbuilding;
-  const days = JSON.parse(JSON.stringify(DAY_TEMPLATES[ob.daysPerWeek]));
+  // Track selects the block periodization; day layouts are shared. Defaults to
+  // powerbuilding so an onboarding without a track behaves exactly as before.
+  const track = ob.track || 'powerbuilding';
+  const tpl = PROGRAM_TEMPLATES[track] || PROGRAM_TEMPLATES.powerbuilding;
   const blocks = JSON.parse(JSON.stringify(tpl.blocks));
   stampMesoIdx(blocks);
   const totalWeeks = blocks.length * tpl.weeksPerBlock;
@@ -200,6 +226,21 @@ function makeProgram(ob) {
   for (const lift of ['comp-squat','comp-bench','comp-deadlift','military-press']) {
     wm[lift] = ob.maxes[lift] ? Math.round(ob.maxes[lift] * 0.9 / 1.25) * 1.25 : null;
     increments[lift] = Engine.defaultIncrement(lift);
+  }
+  const focus = Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
+                             ob.muscleFocus || {});
+  // Bodybuilding: generate the split from the athlete's muscle focus (frequency
+  // driven, region days proportional to slider points). Falls back to the fixed
+  // hypertrophy templates if generation cannot produce a full week. Other tracks
+  // keep the strength-oriented shared templates untouched.
+  let days;
+  if (track === 'bodybuilding') {
+    days = generateBodybuildingDays(focus, ob.daysPerWeek);
+    if (!days || days.length !== ob.daysPerWeek) {
+      days = JSON.parse(JSON.stringify((BB_DAY_TEMPLATES[ob.daysPerWeek] || DAY_TEMPLATES[ob.daysPerWeek])));
+    }
+  } else {
+    days = JSON.parse(JSON.stringify(DAY_TEMPLATES[ob.daysPerWeek]));
   }
   return {
     template: tpl.id, daysPerWeek: ob.daysPerWeek,
@@ -212,7 +253,105 @@ function makeProgram(ob) {
     days, wm, increments,
     completedDays: {},
     weekMod: null, // Change 2: single-use end-of-week autoregulation modifier for the upcoming week
+    // Snapshot of the config this cycle was built with, so editing profile later
+    // does not silently rewrite an in-flight program.
+    trainingConfig: {
+      track,
+      timeMode: ob.timeMode || 'unlimited',
+      timeCapMin: ob.timeMode === 'custom' ? (ob.timeCapMin || null) : null,
+      muscleFocus: Object.assign({}, focus),
+    },
   };
+}
+// ------------------------------------------------------------
+// BODYBUILDING SPLIT GENERATOR (frequency-driven)
+// Builds the week from the muscle-focus sliders: focus = frequency. Region day
+// counts are proportional to slider points (upper vs lower); each muscle's
+// weekly frequency (SPLIT_FREQ) is spread across its region's days; the highest-
+// ranked muscle on a day becomes its primary focus and gets a compound anchor.
+// Runs once at program creation; sliders are fixed for the cycle.
+// ------------------------------------------------------------
+function generateBodybuildingDays(focus, N) {
+  const freq = {};
+  for (const m of FOCUS_KEYS) if (SPLIT_FREQ[focus[m]]) freq[m] = SPLIT_FREQ[focus[m]];
+  const pts = ms => ms.reduce((s, m) => s + (focus[m] || 0), 0);
+  const upPts = pts(UPPER_MUSCLES), loPts = pts(LOWER_MUSCLES);
+  if (upPts + loPts === 0) return []; // everything removed -> fall back / empty-day guard
+  const upHas = UPPER_MUSCLES.some(m => freq[m]), loHas = LOWER_MUSCLES.some(m => freq[m]);
+  let upDays = Math.round(N * upPts / (upPts + loPts));
+  let loDays = N - upDays;
+  // Do not strand a region that has trained muscles, and do not spend days on an
+  // empty region.
+  if (!upHas) { upDays = 0; loDays = N; }
+  else if (!loHas) { upDays = N; loDays = 0; }
+  else { if (upDays === 0) { upDays = 1; loDays = N - 1; } if (loDays === 0) { loDays = 1; upDays = N - 1; } }
+
+  const used = new Set();
+  const usedMains = new Set();
+  const pick = m => { for (const id of (DEFAULT_ACC[m] || [])) if (!used.has(id)) { used.add(id); return id; } return (DEFAULT_ACC[m] || [])[0] || null; };
+  const accSlot = m => { const id = pick(m); return id ? { type: 'acc', cat: (exById(id) || {}).movement, def: id } : null; };
+
+  function buildRegion(muscles, nDays) {
+    if (nDays <= 0) return [];
+    const rms = muscles.filter(m => freq[m]);
+    if (!rms.length) return [];
+    // 1. Assign a PRIMARY (the day's focus + anchor) to each day, rotating across
+    //    the anchor-capable muscles so leadership spreads (a Chest day, a Shoulder
+    //    day, a Back day) rather than the top slider leading every day.
+    const anchorM = rms.filter(m => ANCHOR_RANK[m] >= 2);
+    const leadPool = (anchorM.length ? anchorM : rms);
+    const primaryOf = [], primCount = {};
+    for (let i = 0; i < nDays; i++) {
+      const cand = leadPool.slice().sort((a, b) =>
+        ((primCount[a] || 0) - (primCount[b] || 0)) || (focus[b] - focus[a]));
+      const m = cand[0];
+      primaryOf.push(m); primCount[m] = (primCount[m] || 0) + 1;
+    }
+    // 2. Spread each muscle's remaining frequency (beyond its primary days) as
+    //    accessories across the least-loaded days, avoiding repeats on a day.
+    const day = primaryOf.map(p => ({ primary: p, acc: [], load: 1 }));
+    for (const m of rms.slice().sort((a, b) => focus[b] - focus[a])) {
+      let r = freq[m] - (primCount[m] || 0);
+      while (r-- > 0) {
+        const avail = day.map((d, i) => i).filter(i => day[i].primary !== m && !day[i].acc.includes(m));
+        const pool = (avail.length ? avail : day.map((d, i) => i)).sort((a, b) => day[a].load - day[b].load);
+        const di = pool[0]; day[di].acc.push(m); day[di].load++;
+      }
+    }
+    // 3. Build slots: primary anchor (a working-max main the first time that lift
+    //    appears, a secondary volume exposure after), then one accessory per other
+    //    muscle, an extra for an emphasized (>=5) primary, padded to >= 3.
+    return day.map(d => {
+      const slots = [];
+      const a = PRIMARY_ANCHOR[d.primary];
+      if (a && a.main) {
+        if (!usedMains.has(a.main)) { usedMains.add(a.main); slots.push({ type: 'main', lift: a.main }); }
+        else slots.push({ type: 'secondary', lift: a.main, baseLift: a.main });
+      } else if (a && a.acc && !used.has(a.acc)) { used.add(a.acc); slots.push({ type: 'acc', cat: (exById(a.acc) || {}).movement, def: a.acc }); }
+      else { const s = accSlot(d.primary); if (s) slots.push(s); }
+      for (const m of d.acc) { const s = accSlot(m); if (s) slots.push(s); }
+      if (focus[d.primary] >= 5) { const s = accSlot(d.primary); if (s) slots.push(s); }
+      let g = 0;
+      while (slots.length < 3 && g++ < 6) { const s = accSlot(d.primary); if (!s) break; slots.push(s); }
+      const region = UPPER_MUSCLES.includes(d.primary) ? 'Upper' : 'Lower';
+      return { name: `${region} · ${FOCUS_LABELS[d.primary] || d.primary}`, slots };
+    });
+  }
+  const up = buildRegion(UPPER_MUSCLES, upDays);
+  const lo = buildRegion(LOWER_MUSCLES, loDays);
+  // Interleave so the smaller region's days are spread out, not clustered.
+  const total = up.length + lo.length;
+  const small = up.length >= lo.length ? lo : up;
+  const big = small === lo ? up : lo;
+  const pos = new Set();
+  for (let j = 0; j < small.length; j++) pos.add(Math.min(total - 1, Math.round((j + 1) * total / (small.length + 1)) - 1));
+  const out = []; let bi = 0, si = 0;
+  for (let i = 0; i < total; i++) {
+    if (pos.has(i) && si < small.length) out.push(small[si++]);
+    else if (bi < big.length) out.push(big[bi++]);
+    else out.push(small[si++]);
+  }
+  return out;
 }
 function P() { return S.program; }
 function dayKey(b, w, d) { return `${b}-${w}-${d}`; }
@@ -222,6 +361,9 @@ function weekIdx() { return P().pointer.week; }
 function programDone() { return P().pointer.block >= P().blocks.length; }
 function daysOut() { return Math.max(0, Math.ceil((P().testDate - Date.now()) / 864e5)); }
 function globalWeekNum() { return P().pointer.block * P().weeksPerBlock + P().pointer.week + 1; }
+// Day theme label (e.g. "Upper A", "Push") shown as a subtitle. Empty for the
+// plain "Day N" templates so we never render "Day 1 · Day 1".
+function dayTheme(d) { return (d && d.name && !/^Day \d+$/.test(d.name)) ? d.name : ''; }
 
 // Resolve slot to a prescription { exId, name, sets, slotRef, isMain, isSelect }
 // All prescriptions route through the block's declared scheme — see
@@ -250,6 +392,40 @@ function applySetDelta(sets, delta) {
   }
   return sets;
 }
+// FOCUS (Step 4): bodybuilding muscle-focus sliders reshape ACCESSORY volume.
+// A no-op for every other track and for any slider left at 3, so default and
+// powerbuilding/powerlifting routines are byte-identical. Mains and secondaries
+// are never touched (they carry the wave math and working-max progression).
+// Returns { removed } or { delta } of plain working sets to apply via applySetDelta.
+function focusForAccessory(exId, sets) {
+  const tc = P() && P().trainingConfig;
+  if (!tc || tc.track !== 'bodybuilding' || !tc.muscleFocus) return { delta: 0 };
+  const e = exById(exId);
+  const key = e && MOVEMENT_SLIDER[e.movement];
+  if (!key) return { delta: 0 };
+  const v = tc.muscleFocus[key];
+  if (v == null || v === 3) return { delta: 0 };
+  if (v === 0) return { removed: true };
+  const plain = sets.filter(s => !s.amrap && !s.ramp && !s.calib).length;
+  if (!plain) return { delta: 0 }; // a calibration ramp: nothing to scale yet
+  const lm = (S.profile.landmarks && S.profile.landmarks[e.movement]) || VOLUME_LANDMARKS[e.movement];
+  const perSessionCap = lm ? Math.max(1, Math.round(lm.mrv / 2)) : 8; // ~2 sessions/wk/muscle
+  const target = Math.max(1, Math.min(Math.round(plain * FOCUS_FACTOR[v]), perSessionCap));
+  return { delta: target - plain };
+}
+// Bodybuilding (hypertrophy) removal of a big lift: the deadlift has no place in
+// a hypertrophy routine, and a muscle slider set to 0 (e.g. an injury the athlete
+// is working around) drops that muscle's main/secondary lift too. Returns a short
+// reason string, or null to keep the lift. Other tracks always keep their lifts.
+function bbLiftRemoval(exId) {
+  const tc = P() && P().trainingConfig;
+  if (!tc || tc.track !== 'bodybuilding') return null;
+  const mv = (exById(exId) || {}).movement;
+  if (mv === 'deadlift') return 'not used in hypertrophy';
+  const key = mv && MOVEMENT_SLIDER[mv];
+  if (key && tc.muscleFocus && tc.muscleFocus[key] === 0) return 'removed by focus';
+  return null;
+}
 function resolveSlot(slot, blockIdx, wIdx) {
   const block = blockOf(blockIdx);
   const sch = Engine.schemeFor(block);
@@ -260,6 +436,8 @@ function resolveSlot(slot, blockIdx, wIdx) {
   if (slot.type === 'main') {
     const wmKey = slot.lift;                  // wave math always keys off the base lift's WM
     const exId = slot.ex || slot.lift;        // …but the performed exercise can be swapped
+    const rm = bbLiftRemoval(exId);
+    if (rm) return { exId, name: exName(exId), sets: [], isMain: true, wmKey, isRemoved: true, removedReason: rm };
     const r = loadingFor(exId).totalInc;      // Change 1: round the total to this implement's increment
     let sets = sch.main(block, wIdx, P().wm[wmKey], r, modPct);
     if (mod) sets = applySetDelta(sets, mod.mainSetDelta || 0);
@@ -268,16 +446,173 @@ function resolveSlot(slot, blockIdx, wIdx) {
   if (slot.type === 'secondary') {
     const wmKey = slot.baseLift || slot.lift;
     const exId = slot.ex || slot.lift;
+    const rm = bbLiftRemoval(exId);
+    if (rm) return { exId, name: exName(exId), sets: [], isSecondary: true, wmKey, isRemoved: true, removedReason: rm };
     const r = loadingFor(exId).totalInc;
     const sets = sch.secondary(block, wIdx, P().wm[wmKey], r, (slot.pctMod || 1) * modPct);
     return { exId, name: exName(exId), sets, isSecondary: true, wmKey };
   }
   const exId = slot.ex || slot.def || null; // select slots may be unfilled
-  if (!exId) return { exId: null, name: null, isSelect: true, cat: slot.cat, sets: [] };
+  if (!exId) {
+    // A select slot for a muscle the athlete removed (slider 0) should not nag
+    // them to pick an exercise for it. Mark it removed instead of select.
+    const tc = P() && P().trainingConfig;
+    if (tc && tc.track === 'bodybuilding' && tc.muscleFocus && slot.cat) {
+      const key = MOVEMENT_SLIDER[slot.cat];
+      if (key && tc.muscleFocus[key] === 0) {
+        return { exId: null, name: (MOVEMENTS[slot.cat] || {}).label || slot.cat, isRemoved: true, cat: slot.cat, sets: [] };
+      }
+    }
+    return { exId: null, name: null, isSelect: true, cat: slot.cat, sets: [] };
+  }
   const r = loadingFor(exId).totalInc;
   let sets = sch.accessory(block, wIdx, recordsFor(exId), r);
   if (mod) sets = applySetDelta(sets, mod.accSetDelta || 0);
+  const focus = focusForAccessory(exId, sets);
+  if (focus.removed) return { exId, name: exName(exId), sets: [], cat: slot.cat, isRemoved: true };
+  if (focus.delta) sets = applySetDelta(sets, focus.delta);
   return { exId, name: exName(exId), sets, cat: slot.cat };
+}
+
+// ------------------------------------------------------------
+// SESSION TIME ESTIMATE + MITIGATION (Steps 6-7)
+// Predicts session length and, for a custom time cap, fits the session to it
+// by compressing rest then pruning coherent accessories. A no-op when the
+// athlete has no time cap, so default users are unaffected.
+// ------------------------------------------------------------
+function estimateSessionSec(resolved, tight) {
+  const TM = TIME_MODEL;
+  const rest = tight ? TM.restSecTight : TM.restSec;
+  let t = TM.sessionOverheadSec;
+  for (const rs of resolved) {
+    const kind = rs.isMain ? 'main' : rs.isSecondary ? 'secondary' : 'accessory';
+    for (const st of rs.sets) {
+      t += (st.reps || 0) * TM.execSecPerRep[kind];   // execution
+      t += rest[kind];                                 // rest after each set
+    }
+    if (kind === 'main' && loadingFor(rs.exId).showPlates) {
+      const work = rs.sets.filter(s => s.weight);
+      const top = work.length ? Math.max(...work.map(s => s.weight)) : 0;
+      if (top) {
+        const bar = loadingFor(rs.exId).barWeight || S.profile.barWeight;
+        t += Engine.warmupSets(top, bar, S.profile.rounding).length * TM.warmupSecPerSet;
+      }
+    }
+  }
+  return t;
+}
+// Keep priority for the core/optional split. LOWER = kept in core first.
+// Specialized muscles (slider >= 4) score negative so they are kept hardest, but
+// they are not immune: if the mains alone already fill the cap, even specialized
+// accessories fall to the optional tail (shown, not deleted) so the model never
+// claims a session fits when it cannot.
+function prunePriority(rs, mainMovs, tc) {
+  const mov = (exById(rs.exId) || {}).movement;
+  let cov = 0;
+  for (const mm of mainMovs) { const c = (SYNERGIST_COVERAGE[mm] || {})[mov]; if (c > cov) cov = c; }
+  let deprior = 0;
+  if (tc && tc.track === 'bodybuilding' && tc.muscleFocus) {
+    const key = MOVEMENT_SLIDER[mov];
+    const v = key != null ? tc.muscleFocus[key] : null;
+    if (v != null) {
+      if (v >= 4) return -(v - 3);          // specialized: kept first (more emphasis = harder)
+      deprior = (3 - v) / 3;
+    }
+  }
+  return cov + deprior;
+}
+// Build a day's training entries with FOCUS applied (via resolveSlot), then
+// split into CORE and OPTIONAL for a time-capped athlete. Core = mains,
+// secondaries, and the highest-priority accessories that fit the cap; it is
+// never trimmed. Optional = the lower-priority tail that runs over the limit;
+// it is shown and trainable, just flagged. No cap -> everything is core.
+// Returns { items:[{si,rs}], coreItems, optItems, coreMin, fullMin, capMin, optionalNames }.
+function resolveDayEntries(di, bi, wi) {
+  const p = P();
+  const items = p.days[di].slots
+    .map((slot, si) => ({ si, rs: resolveSlot(slot, bi, wi) }))
+    .filter(x => !x.rs.isSelect && !x.rs.isRemoved && x.rs.sets.length);
+  const tc = p.trainingConfig;
+  const capMin = (tc && tc.timeMode === 'custom' && tc.timeCapMin) ? tc.timeCapMin : null;
+  if (capMin) {
+    const mains = items.filter(x => x.rs.isMain).map(x => (exById(x.rs.exId) || {}).movement);
+    const core = items.filter(x => x.rs.isMain || x.rs.isSecondary); // always core
+    const accs = items.filter(x => !x.rs.isMain && !x.rs.isSecondary)
+      .map(x => ({ x, score: prunePriority(x.rs, mains, tc) }))
+      .sort((a, b) => a.score - b.score); // keep highest-priority (lowest score) first
+    let full = false;
+    for (const a of accs) {
+      if (!full && estimateSessionSec(core.concat([a.x]).map(t => t.rs), false) <= capMin * 60) {
+        core.push(a.x);
+      } else { a.x.rs.optional = true; full = true; }
+    }
+  }
+  const coreItems = items.filter(x => !x.rs.optional);
+  const optItems = items.filter(x => x.rs.optional);
+  return {
+    items, coreItems, optItems, capMin,
+    coreMin: Math.round(estimateSessionSec(coreItems.map(x => x.rs), false) / 60),
+    fullMin: Math.round(estimateSessionSec(items.map(x => x.rs), false) / 60),
+    optionalNames: optItems.map(x => x.rs.name),
+  };
+}
+// Heads-up banner in the workout view for athletes with a time cap.
+function timeBannerHTML(di) {
+  const p = P();
+  const tc = p && p.trainingConfig;
+  if (!tc || tc.timeMode !== 'custom' || !tc.timeCapMin) return '';
+  const built = resolveDayEntries(di, p.pointer.block, p.pointer.week);
+  if (built.coreMin > tc.timeCapMin) {
+    // Even the unavoidable core (mains + top priorities) runs over the limit.
+    return `<div class="banner-warn mt8">Your core work is about ${built.coreMin} min, over your ${tc.timeCapMin} min limit. Main lifts come first and are never cut, so to fit you would need to raise your time limit or ease a muscle focus.${built.optItems.length ? ' Optional extras: ' + esc(built.optionalNames.join(', ')) + '.' : ''}</div>`;
+  }
+  if (built.optItems.length) {
+    return `<div class="banner-warn mt8">Core fits your ${tc.timeCapMin} min limit (about ${built.coreMin} min). Optional, if you have time: ${esc(built.optionalNames.join(', '))} (about ${built.fullMin - built.coreMin} min more). Skip it and you stay on time. Keep skipping it all block and it gets dropped next block.</div>`;
+  }
+  return `<div class="card mt8"><span class="faint">This day is about ${built.coreMin} min, within your ${tc.timeCapMin} min limit.</span></div>`;
+}
+// Rough marginal cost of adding one accessory to this day, in minutes. Uses the
+// day's own accessories as the sample, or a nominal 4x12 accessory if none.
+function accessoryCostMin(di, bi, wi) {
+  const accs = resolveDayEntries(di, bi, wi).items
+    .filter(x => !x.rs.isMain && !x.rs.isSecondary).map(x => x.rs);
+  const sec = accs.length
+    ? (estimateSessionSec(accs, false) - TIME_MODEL.sessionOverheadSec) / accs.length
+    : 4 * (12 * TIME_MODEL.execSecPerRep.accessory + TIME_MODEL.restSec.accessory);
+  return Math.max(1, Math.round(sec / 60));
+}
+// Budget line shown near Add Exercise for a capped athlete: room left and the
+// rough cost of adding one more exercise.
+function timeBudgetHTML(di) {
+  const p = P();
+  const tc = p && p.trainingConfig;
+  if (!tc || tc.timeMode !== 'custom' || !tc.timeCapMin) return '';
+  const built = resolveDayEntries(di, p.pointer.block, p.pointer.week);
+  const room = tc.timeCapMin - built.coreMin;
+  const cost = accessoryCostMin(di, p.pointer.block, p.pointer.week);
+  if (room <= 1) {
+    return `<p class="faint" style="margin:8px 2px 0">You are at your ${tc.timeCapMin} min limit. Anything you add is about +${cost} min and will be marked optional.</p>`;
+  }
+  return `<p class="faint" style="margin:8px 2px 0">About ${room} min before your ${tc.timeCapMin} min limit. Each added exercise is roughly +${cost} min.</p>`;
+}
+// Modal: how this day's time changes across the block (the tail grows toward
+// the peak week). Informative; available with or without a time cap.
+function openTimeByWeek(di) {
+  const p = P(), bi = p.pointer.block;
+  const cap = (p.trainingConfig && p.trainingConfig.timeMode === 'custom') ? p.trainingConfig.timeCapMin : null;
+  const rows = [];
+  for (let wk = 0; wk < p.weeksPerBlock; wk++) {
+    const b = resolveDayEntries(di, bi, wk);
+    const over = cap && b.coreMin > cap;
+    const cur = wk === p.pointer.week;
+    rows.push(`<div class="row" style="padding:9px 0;border-bottom:1px solid var(--line)${cur ? ';font-weight:700' : ''}">
+      <span>${weekLabelFor(blockOf(bi), wk)}${cur ? ' ·' : ''}</span>
+      <span>${b.coreMin} min${b.optItems.length ? ` <span style="color:var(--amber)">+${b.fullMin - b.coreMin} opt</span>` : ''}${over ? ' <span style="color:var(--red)">over</span>' : ''}</span></div>`);
+  }
+  showModal(anim => {
+    $modal.innerHTML = modalShell(anim, 'Time by week',
+      `<p class="subtle" style="margin-bottom:8px">How Day ${di + 1} changes across this block${cap ? `, against your ${cap} min limit` : ''}. Volume climbs toward the peak week, then the deload drops it.</p>${rows.join('')}`);
+  });
 }
 
 // ------------------------------------------------------------
@@ -440,8 +775,82 @@ function topbar(title) {
 // ------------------------------------------------------------
 // VIEW: ONBOARDING
 // ------------------------------------------------------------
+// Step indices. The muscle-focus step (5) is shown only for the bodybuilding
+// track; obNext skips it otherwise, so other tracks keep the legacy-length flow.
+const OB_TRACKS = [
+  ['powerbuilding', 'Powerbuilding', 'Balanced size and strength. The original IRONWAVE mix: 3 hypertrophy blocks, 2 strength blocks.'],
+  ['powerlifting',  'Powerlifting',  'Get as strong as possible. A hypertrophy base, then four book-wave strength blocks.'],
+  ['bodybuilding',  'Bodybuilding',  'Size and appearance. All hypertrophy, with per-muscle focus sliders you set next.'],
+];
+const OB_EXP = [
+  ['beginner', 'Beginner', 'Under a year of serious training. Starts your volume lower.'],
+  ['intermediate', 'Intermediate', '1 to 3 years. The standard starting point.'],
+  ['advanced', 'Advanced', '3+ years. Starts your volume near the top of the range.'],
+];
+const FOCUS_KEYS = ['arms', 'chest', 'back', 'shoulders', 'glutes', 'legs', 'calves'];
+const FOCUS_LABELS = { arms: 'Arms', chest: 'Chest', back: 'Back', shoulders: 'Shoulders',
+                       glutes: 'Glutes', legs: 'Legs', calves: 'Calves' };
+
+function obDefaults() {
+  return { name: '', bodyweight: '', daysPerWeek: 4, track: 'powerbuilding',
+           experience: 'intermediate', timeMode: 'unlimited', timeCapMin: '',
+           muscleFocus: { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
+           maxes: {} };
+}
+// Warning copy for any slider at the extremes (0 = removed, 6 = maxed).
+function obFocusWarning(focus) {
+  const removed = FOCUS_KEYS.filter(k => focus[k] === 0).map(k => FOCUS_LABELS[k]);
+  const maxed = FOCUS_KEYS.filter(k => focus[k] === 6).map(k => FOCUS_LABELS[k]);
+  if (!removed.length && !maxed.length) return '';
+  const parts = [];
+  if (removed.length) parts.push(`Removing ${removed.join(', ')} means no direct work there. Over a block you lose size and strength there, and big imbalances can stress your joints. Fine for an injury or a deliberate choice.`);
+  if (maxed.length) parts.push(`Maxing ${maxed.join(', ')} is a large jump in volume, which raises injury and overuse risk. Ease into it.`);
+  parts.push('Run a focus like this for about one block, 2 months at most, then rebalance.');
+  return `<div class="banner-warn mt8">${parts.join(' ')}</div>`;
+}
+// Informative only: median training-day length for the current focus. Builds a
+// throwaway bodybuilding program from the onboarding answers and times each day
+// (rest + execution + warmup + overhead). Computed with calibration-level loads
+// since maxes come on the next step; touches nothing persistent.
+function estimateFocusMedianMin(ob) {
+  if (typeof estimateSessionSec !== 'function') return null;
+  const savedProg = S.program, savedLm = S.profile.landmarks;
+  try {
+    if (!savedLm || !Object.keys(savedLm).length) S.profile.landmarks = Engine.seedLandmarks(ob.experience || 'intermediate');
+    const tmp = makeProgram(Object.assign({}, ob, { track: 'bodybuilding', maxes: ob.maxes || {} }));
+    // Give mains a nominal working max so the estimate reflects a real working
+    // session (weighted sets + warmup), not the week-1 calibration ramp.
+    for (const l of ['comp-squat', 'comp-bench', 'comp-deadlift', 'military-press']) {
+      if (!tmp.wm[l]) tmp.wm[l] = 100;
+    }
+    S.program = tmp;
+    const wk = 1; // a representative build week
+    const mins = tmp.days.map((d, di) => {
+      const entries = d.slots.map(sl => resolveSlot(sl, 0, wk)).filter(rs => !rs.isSelect && !rs.isRemoved && rs.sets.length);
+      return entries.length ? Math.round(estimateSessionSec(entries, false) / 60) : 0;
+    }).filter(m => m > 0).sort((a, b) => a - b);
+    if (!mins.length) return null;
+    return mins[Math.floor((mins.length - 1) / 2)];
+  } catch (e) {
+    return null;
+  } finally {
+    S.program = savedProg; S.profile.landmarks = savedLm;
+  }
+}
+function focusTimeLine(ob) {
+  const m = estimateFocusMedianMin(ob);
+  if (!m) return '';
+  const cap = (ob.timeMode === 'custom' && ob.timeCapMin) ? parseInt(ob.timeCapMin) : null;
+  if (cap) {
+    return m > cap
+      ? `Estimated median session about ${m} min, over your ${cap} min limit. Longer days will be trimmed to fit.`
+      : `Estimated median session about ${m} min, within your ${cap} min limit.`;
+  }
+  return `Estimated median session about ${m} min (rest and execution included).`;
+}
+
 function vOnboarding() {
-  if (!V.ob) V.ob = { name: '', bodyweight: '', daysPerWeek: 4, maxes: {}, knowsMaxes: true };
+  if (!V.ob) V.ob = obDefaults();
   const ob = V.ob;
   const step = V.obStep;
   let body = '';
@@ -449,8 +858,8 @@ function vOnboarding() {
   if (step === 0) {
     body = `
       <div class="ob-title">Welcome to<br>IRON<span style="color:var(--blue)">WAVE</span></div>
-      <p class="subtle">Auto-regulating powerbuilding built on the Juggernaut Method 2.0 wave system.
-      3 hypertrophy blocks, 2 strength blocks, then you test.</p>
+      <p class="subtle">Auto-regulating training built on the Juggernaut Method 2.0 wave system.
+      A few quick questions and we build your program.</p>
       <div class="field"><label>Your name</label>
         <input id="ob-name" value="${esc(ob.name)}" placeholder="Lifter name"></div>
       <div class="field"><label>Bodyweight (kg)</label>
@@ -464,11 +873,50 @@ function vOnboarding() {
         ${[3,4,5,6].map(n => `<button class="${ob.daysPerWeek===n?'on':''}" onclick="obDays(${n})">${n}</button>`).join('')}
       </div>
       <p class="faint mt16">${{3:'Full-body emphasis. Squat / Bench / Deadlift+Press days.',
-        4:'Classic split: Bench · Squat · Press · Deadlift.',
+        4:'Classic split: Bench, Squat, Press, Deadlift.',
         5:'Classic split plus a volume bench/pump day.',
         6:'Classic split plus a secondary bench day and a secondary deadlift/squat volume day.'}[ob.daysPerWeek]}</p>
       <button class="btn btn-green mt24" onclick="obNext(1)">Continue</button>`;
   } else if (step === 2) {
+    body = `
+      <div class="ob-title">Primary goal</div>
+      <p class="subtle">This sets how your blocks are periodized. You can start a fresh program later if your goal changes.</p>
+      ${OB_TRACKS.map(([id, label, desc]) => `
+        <button class="pick-card ${ob.track===id?'on':''}" onclick="obTrack('${id}')">
+          <b>${label}</b><span class="faint">${desc}</span></button>`).join('')}
+      <button class="btn btn-green mt16" onclick="obNext(2)">Continue</button>`;
+  } else if (step === 3) {
+    body = `
+      <div class="ob-title">Experience</div>
+      <p class="subtle">How long have you trained seriously? This only seeds your starting volume. It adjusts to your logged performance from there.</p>
+      ${OB_EXP.map(([id, label, desc]) => `
+        <button class="pick-card ${ob.experience===id?'on':''}" onclick="obExp('${id}')">
+          <b>${label}</b><span class="faint">${desc}</span></button>`).join('')}
+      <button class="btn btn-green mt16" onclick="obNext(3)">Continue</button>`;
+  } else if (step === 4) {
+    body = `
+      <div class="ob-title">Time per session</div>
+      <p class="subtle">If you set a cap, the app keeps each session inside it as volume climbs, by trimming rest and pruning accessories your main lift already covers. Your main lifts and weights are never cut.</p>
+      <div class="seg mt16">
+        <button class="${ob.timeMode==='unlimited'?'on':''}" onclick="obTimeMode('unlimited')">As much as necessary</button>
+        <button class="${ob.timeMode==='custom'?'on':''}" onclick="obTimeMode('custom')">Enter time</button>
+      </div>
+      ${ob.timeMode==='custom' ? `<div class="field mt16"><label>Minutes per session</label>
+        <input id="ob-time" type="number" inputmode="numeric" value="${esc(ob.timeCapMin)}" placeholder="60"></div>` : ''}
+      <button class="btn btn-green mt24" onclick="obNext(4)">Continue</button>`;
+  } else if (step === 5) {
+    body = `
+      <div class="ob-title">Muscle focus</div>
+      <p class="subtle">Pull what you want to grow toward 6, and what you care less about toward 0. 3 is balanced. 0 removes that muscle's direct work.</p>
+      ${FOCUS_KEYS.map(k => `
+        <div class="focus-row">
+          <div class="row"><span>${FOCUS_LABELS[k]}</span><b id="mf-val-${k}">${ob.muscleFocus[k]}</b></div>
+          <input type="range" min="0" max="6" step="1" value="${ob.muscleFocus[k]}" oninput="obSlider('${k}', this.value)">
+        </div>`).join('')}
+      <div id="mf-warn">${obFocusWarning(ob.muscleFocus)}</div>
+      <div id="mf-time" class="focus-time">${focusTimeLine(ob)}</div>
+      <button class="btn btn-green mt16" onclick="obNext(5)">Continue</button>`;
+  } else if (step === 6) {
     const lifts = [['comp-squat','Comp Squat'],['comp-bench','Comp Bench'],['comp-deadlift','Comp Deadlift'],['military-press','Military Press']];
     body = `
       <div class="ob-title">Your maxes</div>
@@ -477,11 +925,21 @@ function vOnboarding() {
         <div class="field"><label>${label} · 1RM (kg)</label>
           <input id="ob-max-${id}" type="number" inputmode="decimal"
             value="${ob.maxes[id] ?? ''}" placeholder="Calibrate in week 1"></div>`).join('')}
-      <button class="btn btn-green mt16" onclick="obNext(2)">Create my program</button>`;
+      <button class="btn btn-green mt16" onclick="obNext(6)">Create my program</button>`;
   }
   return `${topbar()}<div class="view">${body}</div>`;
 }
 function obDays(n) { V.ob.daysPerWeek = n; render(); }
+function obTrack(id) { V.ob.track = id; render(); }
+function obExp(id) { V.ob.experience = id; render(); }
+function obTimeMode(mode) { V.ob.timeMode = mode; render(); }
+// Update slider value + warning live, without a full re-render (keeps the drag smooth).
+function obSlider(k, v) {
+  V.ob.muscleFocus[k] = parseInt(v);
+  const el = byId('mf-val-' + k); if (el) el.textContent = v;
+  const wn = byId('mf-warn'); if (wn) wn.innerHTML = obFocusWarning(V.ob.muscleFocus);
+  const tl = byId('mf-time'); if (tl) tl.textContent = focusTimeLine(V.ob);
+}
 function obNext(step) {
   const ob = V.ob;
   if (step === 0) {
@@ -491,6 +949,19 @@ function obNext(step) {
   } else if (step === 1) {
     V.obStep = 2;
   } else if (step === 2) {
+    V.obStep = 3;
+  } else if (step === 3) {
+    V.obStep = 4;
+  } else if (step === 4) {
+    if (ob.timeMode === 'custom') {
+      const el = document.getElementById('ob-time');
+      ob.timeCapMin = el ? (parseInt(el.value) || '') : '';
+    }
+    // Skip the muscle-focus step unless this is the bodybuilding track.
+    V.obStep = ob.track === 'bodybuilding' ? 5 : 6;
+  } else if (step === 5) {
+    V.obStep = 6;
+  } else if (step === 6) {
     try {
       for (const id of ['comp-squat','comp-bench','comp-deadlift','military-press']) {
         const el = document.getElementById('ob-max-' + id);
@@ -499,6 +970,17 @@ function obNext(step) {
       }
       S.profile.name = ob.name;
       S.profile.bodyweight = ob.bodyweight;
+      S.profile.experience = ob.experience;
+      S.profile.training = {
+        track: ob.track,
+        timeMode: ob.timeMode,
+        timeCapMin: ob.timeMode === 'custom' ? (parseInt(ob.timeCapMin) || null) : null,
+        muscleFocus: Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 }, ob.muscleFocus),
+      };
+      S.profile.trainingAge = { startedTs: Date.now(), blocksCompleted: 0 };
+      if (!S.profile.landmarks || !Object.keys(S.profile.landmarks).length) {
+        S.profile.landmarks = Engine.seedLandmarks(ob.experience);
+      }
       S.program = makeProgram(ob);
       logReadiness(computeReadiness());
       save().then(() => {
@@ -569,9 +1051,10 @@ function openWeekPreview(bi, wi) {
   const p = P();
   const b = p.blocks[bi];
   showModal(anim => {
-    const days = p.days.map(d => {
+    const days = p.days.map((d, di) => {
       const rows = d.slots.map(slot => {
         const rs = resolveSlot(slot, bi, wi);
+        if (rs.isRemoved) return ''; // dropped by muscle focus (slider 0)
         if (rs.isSelect) return `<div class="row" style="padding:6px 0">
           <span class="subtle">Select ${MOVEMENTS[rs.cat].label}</span><span class="faint">—</span></div>`;
         const work = rs.sets.filter(s => !s.ramp);
@@ -593,7 +1076,7 @@ function openWeekPreview(bi, wi) {
           <span>${esc(rs.name)}${am ? ' <b style="color:var(--red)">AMRAP</b>' : ''}</span>
           ${right}</div>`;
       }).join('');
-      return `<div class="card"><b>${esc(d.name)}</b>${rows}</div>`;
+      return `<div class="card"><b>Day ${di + 1}</b>${dayTheme(d) ? ` <span class="faint">${esc(dayTheme(d))}</span>` : ''}${rows}</div>`;
     }).join('');
     $modal.innerHTML = modalShell(anim, `${esc(b.label)} · Week ${bi * p.weeksPerBlock + wi + 1}`,
       `<p class="subtle" style="margin-bottom:10px">${weekLabelFor(b, wi)} · projected with current working maxes</p>${days}`);
@@ -655,7 +1138,7 @@ function vDashboard() {
       const cls = st ? 'done' : '';
       const mark = st === 'skipped' ? '⤼' : st ? '✓' : '○';
       return `<button class="day-row ${cls}" onclick="openDay(${i})">
-        <span class="mark">${mark}</span> ${esc(d.name)} <span class="chev">›</span></button>`;
+        <span class="mark">${mark}</span> <span>Day ${i + 1}${dayTheme(d) ? ` <span class="faint">${esc(dayTheme(d))}</span>` : ''}</span> <span class="chev">›</span></button>`;
     }).join('');
     const allDone = p.days.every((d, i) => p.completedDays[dayKey(p.pointer.block, w, i)]);
     weekSection = `
@@ -715,8 +1198,15 @@ function doCompleteWeek() {
 }
 function advanceWeek() {
   const p = P();
+  const finishedBlock = p.pointer.block;
   p.pointer.week++;
   if (p.pointer.week >= p.weeksPerBlock) {
+    // Block just completed: evolve the athlete's volume landmarks from how the
+    // block actually went (Step 5). This grows MV/MEV/MRV as the lifter ages up.
+    recalibrateLandmarks(finishedBlock);
+    // Carryover: drop optional accessories the athlete never trained all block.
+    const dropped = carryoverOptionalDrops(finishedBlock);
+    if (dropped.length) toast(`Dropped from your routine: ${dropped.join(', ')} (you skipped it all block)`);
     p.pointer.week = 0;
     p.pointer.block++;
     if (p.pointer.block < p.blocks.length) {
@@ -734,6 +1224,77 @@ function advanceWeek() {
   }
   V.dayIdx = null;
   save(); render();
+}
+// ------------------------------------------------------------
+// LANDMARK EVOLUTION (Step 5)
+// Once per completed accumulation block, nudge the athlete's per-muscle volume
+// landmarks from the same signals RP uses: did logged effort stay on target
+// (tolerated, room to grow) or run hot (overreached)? Reuses readiness trend.
+// Changes are capped at +/-1 set per muscle per block and clamped, because the
+// book pins injury risk on rapid volume jumps. Only feeds the bodybuilding
+// FOCUS endpoints, so other tracks see no routine change from this.
+// ------------------------------------------------------------
+function bumpTrainingAge() {
+  if (!S.profile.trainingAge) S.profile.trainingAge = { startedTs: Date.now(), blocksCompleted: 0 };
+  S.profile.trainingAge.blocksCompleted++;
+}
+function recalibrateLandmarks(blockIdx) {
+  const lm = S.profile.landmarks;
+  if (!lm) { bumpTrainingAge(); return; }
+  const sessions = S.sessions.filter(s => !s.skipped && s.b === blockIdx && s.entries && s.entries.length);
+  if (!sessions.length) { bumpTrainingAge(); return; }
+  const down = readinessTrendingDown();
+  // Mean (actual - target) RPE per movement over real working sets logged this block.
+  const agg = {};
+  for (const s of sessions) for (const e of s.entries) {
+    const mv = (exById(e.exId) || {}).movement;
+    if (!mv || !lm[mv]) continue;
+    for (const st of e.sets) {
+      if (st.done && st.rpe && st.targetRpe && !st.amrap && !st.calib && !st.ramp) {
+        (agg[mv] = agg[mv] || { sum: 0, n: 0 });
+        agg[mv].sum += st.rpe - st.targetRpe; agg[mv].n++;
+      }
+    }
+  }
+  for (const mv in agg) {
+    if (agg[mv].n < 3) continue;                       // not enough signal to move a landmark
+    const delta = agg[mv].sum / agg[mv].n;             // <0 easier than target, >0 harder
+    const L = lm[mv];
+    const seed = VOLUME_LANDMARKS[mv] || L;
+    const ceil = Math.round(seed.mrv * 1.4);           // do not let it run away
+    if (delta <= 0.5 && !down) {                        // tolerated: room to grow
+      L.mrv = Math.min(ceil, L.mrv + 1);
+      if (L.mrv - L.mev > 12) L.mev = L.mev + 1;        // let the productive window follow up slowly
+    } else if (delta >= 1.0 || down) {                  // overreached: back off
+      L.mrv = Math.max(L.mev + 1, L.mrv - 1);
+    }
+  }
+  bumpTrainingAge();
+}
+// Carryover (one block): an accessory that was offered as optional (over the
+// time limit) at least twice in the block and was never trained once is dropped
+// from the routine, so a time-capped athlete stops being shown work they keep
+// skipping. Anything they did at least once is kept. Mains/secondaries never drop.
+function carryoverOptionalDrops(blockIdx) {
+  const sessions = S.sessions.filter(s => !s.skipped && s.b === blockIdx && s.entries);
+  if (!sessions.length) return [];
+  const stat = {};
+  for (const s of sessions) for (const e of s.entries) {
+    if (e.isMain || e.isSecondary || !e.exId) continue;
+    const st = stat[e.exId] = stat[e.exId] || { opt: 0, done: 0 };
+    if (e.optional) st.opt++;
+    if (e.sets && e.sets.some(x => x.done)) st.done++;
+  }
+  const drop = Object.keys(stat).filter(id => stat[id].opt >= 2 && stat[id].done === 0);
+  if (!drop.length) return [];
+  for (const d of P().days) {
+    d.slots = d.slots.filter(sl => {
+      if (sl.type === 'main' || sl.type === 'secondary') return true;
+      const id = sl.ex || sl.def;
+      return !(id && drop.includes(id));
+    });
+  }
+  return drop.map(exName);
 }
 // --- end-of-week feel slider (Change 2) ---
 let WF = 3;
@@ -794,19 +1355,32 @@ function vWorkout() {
   const k = dayKey(p.pointer.block, w, di);
   const doneState = p.completedDays[k];
   const locked = doneState && doneState !== 'skipped'; // Change 3
+  // Empty-day safety net: only reachable if the athlete zeroed essentially every
+  // muscle (refill cannot find anything to train). Guide them instead of starting
+  // an empty session.
+  const dayBuilt = resolveDayEntries(di, p.pointer.block, w);
+  const emptyDay = !locked && dayBuilt.items.length === 0;
+  const optSi = new Set(dayBuilt.optItems.map(x => x.si));
 
   const cards = day.slots.map((slot, si) => {
     const rs = resolveSlot(slot, p.pointer.block, w);
     const grip = `<span class="grip" onpointerdown="gripDown(event,${di},${si})">⠿</span>`;
+    if (rs.isRemoved) {
+      // Dropped by muscle focus (slider 0). Shown muted so it is not a mystery.
+      return `<div class="ex-card" data-si="${si}" style="opacity:.5">
+        ${grip}<span class="name">${esc(rs.name)}</span>
+        <span class="faint" style="font-size:.78rem">${esc(rs.removedReason || 'removed by focus')}</span></div>`;
+    }
     if (rs.isSelect) {
       return `<div class="ex-card" data-si="${si}">
         ${grip}
         <button class="name select" onclick="openSwap(${di},${si})">Select ${MOVEMENTS[rs.cat].label} Exercise ⚙</button>
       </div>`;
     }
-    return `<div class="ex-card" data-si="${si}">
+    const opt = optSi.has(si);
+    return `<div class="ex-card ${opt ? 'optional' : ''}" data-si="${si}">
       ${grip}
-      <span class="name">${esc(rs.name)}</span>
+      <span class="name">${esc(rs.name)}${opt ? ' <span class="opt-tag">optional</span>' : ''}</span>
       <span class="actions">
         <button class="icon-btn" onclick="openExDetail('${rs.exId}')"><span class="ic">ⓘ</span>Info</button>
         <button class="icon-btn" onclick="openSwap(${di},${si})"><span class="ic">⇄</span>Swap</button>
@@ -826,13 +1400,19 @@ function vWorkout() {
           <button class="day-nav" onclick="nextDay()">›</button>
         </div>
       </div>
-      <div class="subtle">${weekLabelFor(block, w)}${doneState ? ' · ' + (doneState === 'skipped' ? 'Skipped' : 'Completed ✓') : ''}</div>
+      <div class="subtle">${dayTheme(day) ? esc(dayTheme(day)) + ' · ' : ''}${weekLabelFor(block, w)}${doneState ? ' · ' + (doneState === 'skipped' ? 'Skipped' : 'Completed ✓') : ''}</div>
     </div>
+    ${timeBannerHTML(di)}
+    <button class="btn-ghost" style="margin:4px 2px" onclick="openTimeByWeek(${di})">See time by week ›</button>
     ${locked ? `
     <div class="card accent mt16"><b>Day complete ✓</b>
       <p class="subtle mt8">You logged this day. Open the summary to review your sets, or use the arrows to move to another day.</p>
       <button class="btn btn-blue mt8" onclick="openSummaryFor('${doneState}')">View summary</button>
       <button class="btn btn-outline mt8" onclick="redoDay(${di})">Redo day</button>
+    </div>` : emptyDay ? `
+    <div class="card accent mt16"><b>No exercises for this day</b>
+      <p class="subtle mt8">Your muscle focus removed everything scheduled here. Add an exercise below, or start a new program and keep at least one muscle group above 0.</p>
+      <button class="btn btn-outline mt8" onclick="openAddExercise(${di})">＋ Add an exercise</button>
     </div>` : `
     <button class="btn btn-green mt16" onclick="startCheckin(${di})">Start Training →</button>
     <div class="btn-row">
@@ -841,6 +1421,7 @@ function vWorkout() {
     </div>`}
     <div class="section-title">Overview <span class="faint">hold ⠿ to reorder</span></div>
     <div id="ex-list">${cards}</div>
+    ${timeBudgetHTML(di)}
     <button class="btn btn-outline" style="border-radius:24px" onclick="openAddExercise(${di})">＋ Add Exercise</button>
   </div>${tabbar()}`;
 }
@@ -1024,19 +1605,21 @@ function beginSession() {
 
   const p = P();
   const di = cd.di, b = p.pointer.block, w = p.pointer.week;
-  const entries = p.days[di].slots
-    .map((slot, si) => ({ slot, si, rs: resolveSlot(slot, b, w) }))
-    .filter(x => !x.rs.isSelect)
-    .map(x => ({
-      si: x.si, exId: x.rs.exId, name: x.rs.name,
-      isMain: !!x.rs.isMain, isSecondary: !!x.rs.isSecondary, wmKey: x.rs.wmKey || null,
-      notes: '', notesOpen: false,
-      sets: x.rs.sets.map(t => ({
-        targetWeight: t.weight ?? null, targetReps: t.reps, targetRpe: t.rpe ?? null,
-        amrap: !!t.amrap, ramp: !!t.ramp, calib: !!t.calib, note: t.note || null,
-        weight: null, reps: null, rpe: null, done: false,
-      })),
-    }));
+  // resolveDayEntries applies muscle focus and classifies each exercise as core
+  // or optional for a time-capped athlete. All are logged; optional ones are
+  // flagged so the session shows them and the block-end carryover can learn.
+  const built = resolveDayEntries(di, b, w);
+  const entries = built.items.map(x => ({
+    si: x.si, exId: x.rs.exId, name: x.rs.name,
+    isMain: !!x.rs.isMain, isSecondary: !!x.rs.isSecondary, wmKey: x.rs.wmKey || null,
+    optional: !!x.rs.optional,
+    notes: '', notesOpen: false,
+    sets: x.rs.sets.map(t => ({
+      targetWeight: t.weight ?? null, targetReps: t.reps, targetRpe: t.rpe ?? null,
+      amrap: !!t.amrap, ramp: !!t.ramp, calib: !!t.calib, note: t.note || null,
+      weight: null, reps: null, rpe: null, done: false,
+    })),
+  }));
   V.draft = { id: 's' + Date.now(), ts: Date.now(), b, w, d: di, entries,
               sleepHours: cd.sleepHours, mindset: cd.mindset, sliders: { ...cd.sliders } };
   save();
@@ -1091,8 +1674,9 @@ function vSession() {
     const schemeTxt = schemeWork.length
       ? `${schemeWork.length} sets x ${schemeWork[0].targetReps} reps` : '';
     const top = topWorkWeight(e);
-    return `<div class="lift-card">
-      <h3>${esc(e.name)}</h3>
+    return `<div class="lift-card ${e.optional ? 'optional' : ''}">
+      <h3>${esc(e.name)}${e.optional ? ' <span class="opt-tag">optional</span>' : ''}</h3>
+      ${e.optional ? '<p class="faint" style="margin:-4px 0 6px">Over your time limit. Do it if you have time, otherwise skip it.</p>' : ''}
       ${lastSetInfo(e.exId)}
       <div class="head-actions">
         <button onclick="openExDetail('${e.exId}')">ⓘ</button>
@@ -1426,15 +2010,15 @@ function finishSession() {
 // PREVIEW MODAL
 // ------------------------------------------------------------
 function openPreview(di) {
-  const p = P();
-  const blocks = p.days[di].slots
-    .map(slot => resolveSlot(slot, p.pointer.block, p.pointer.week))
-    .filter(rs => !rs.isSelect);
+  const built = resolveDayEntries(di, P().pointer.block, P().pointer.week);
+  const timeNote = built.capMin
+    ? `<p class="faint" style="margin-bottom:10px">Core about ${built.coreMin} min, within your ${built.capMin} min limit.${built.optItems.length ? ' Optional, if you have time: ' + esc(built.optionalNames.join(', ')) + ' (about ' + (built.fullMin - built.coreMin) + ' min more).' : ''}</p>`
+    : '';
   showModal(anim => {
-    $modal.innerHTML = modalShell(anim, 'Preview',
-      blocks.map(rs => {
-        const work = rs.sets.filter(s => !s.ramp);
-        return `<div class="lift-card"><h3 style="font-size:1.2rem">${esc(rs.name)}</h3>
+    $modal.innerHTML = modalShell(anim, 'Preview', timeNote +
+      built.items.map(x => {
+        const rs = x.rs, work = rs.sets.filter(s => !s.ramp);
+        return `<div class="lift-card ${rs.optional ? 'optional' : ''}"><h3 style="font-size:1.2rem">${esc(rs.name)}${rs.optional ? ' <span class="opt-tag">optional</span>' : ''}</h3>
           <div class="scheme">${work.length} sets x ${work[0]?.reps ?? ''} reps</div>
           ${rs.sets.map((s, i) => `<div class="set-row"><span class="num">${i + 1}</span>
             <span class="target">${s.weight != null ? fmtW(rs.exId, s.weight) + ' × ' : ''}${s.amrap ? 'AMRAP' : s.reps}${s.rpe ? ' @ ' + s.rpe + ' RPE' : ''}</span>
@@ -1862,8 +2446,16 @@ function doNewProgram() {
   for (const l of ['comp-squat', 'comp-bench', 'comp-deadlift', 'military-press']) {
     if (P()?.wm?.[l]) keepMaxes[l] = P().wm[l] / 0.9; // back to ~1RM for re-seed
   }
+  // Carry the athlete's track and focus into the new cycle (landmarks/trainingAge
+  // persist on profile and keep evolving; we do not reseed them here).
+  const tr = S.profile.training || {};
   V.ob = { name: S.profile.name, bodyweight: S.profile.bodyweight,
-           daysPerWeek: P()?.daysPerWeek || 4, maxes: keepMaxes };
+           daysPerWeek: P()?.daysPerWeek || 4, maxes: keepMaxes,
+           track: tr.track || 'powerbuilding',
+           experience: S.profile.experience || 'intermediate',
+           timeMode: tr.timeMode || 'unlimited',
+           timeCapMin: tr.timeCapMin || '',
+           muscleFocus: Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 }, tr.muscleFocus || {}) };
   S.program = makeProgram(V.ob);
   save(); toast('New cycle created. Working maxes carried over');
   V.tab = 'dashboard'; nav('dashboard');

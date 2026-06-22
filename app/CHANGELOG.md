@@ -1,5 +1,190 @@
 # IRONWAVE — Changelog
 
+## [Frequency-driven bodybuilding split] (2026-06-19)
+
+The bodybuilding split was a fixed template (upper/lower etc.) chosen by day
+count; the sliders only adjusted volume within it, so the split shape ignored
+the focus distribution (an upper-heavy lifter still got 2 upper / 2 lower).
+
+- The bodybuilding week is now generated from the sliders. Focus = frequency:
+  3 = 2x/week, 4 = 2x as a day's primary focus, 5-6 = 3x, 0 = removed.
+- Region day counts are proportional to slider points: arms/chest/back/shoulders
+  vs glutes/legs/calves. Example: arms3 chest3 back3 shoulders4 glutes1 legs2
+  calves1 on 4 days now yields 3 upper + 1 lower (was 2/2), with a Shoulders day,
+  a Chest day, a Back day, and a Legs day.
+- Leadership rotates: each anchor-capable muscle (chest/back/legs/shoulders)
+  leads a day in turn, so you get distinct themed days instead of one muscle
+  leading every session. The day shows its theme ("Upper - Shoulders").
+- One working-max main per lift drives the AMRAP/progression; extra weekly
+  exposures of that lift are secondary volume (no second working-max move).
+- Day titles are "Day N" with the theme as a subtitle (dashboard, preview,
+  workout). Other tracks keep the strength templates and are byte-identical.
+
+## [Dedicated bodybuilding day templates] (2026-06-19)
+
+The bodybuilding track previously reused the strength-oriented shared day
+templates (built around the four competition barbell lifts), so dropping the
+deadlift for hypertrophy left an orphaned day led by Good Mornings, and the
+exercise selection leaked a powerlifting philosophy.
+
+- Bodybuilding now has its own hypertrophy splits: 3 = full body x3, 4 =
+  upper/lower x2, 5 = push/pull/legs/upper/lower, 6 = push/pull/legs x2. No
+  deadlift, no Good-Mornings-as-lead.
+- Exercise selection leans bodybuilding: pull days lead with a pulldown/row,
+  hamstrings are RDLs and leg curls (not Good Mornings), and machine/cable/
+  isolation work fills the accessories.
+- The barbell compounds (bench/squat/press) stay as the working-max anchors so
+  the wave/AMRAP weights remain correct, and they are swappable. Non-anchor days
+  (pull, second lower) lead with a bodybuilding movement, barbell available as a swap.
+- Muscle focus, removal, refill, the extra-main-dose, time tiers, and the
+  carryover all work unchanged on the new templates. Powerlifting and
+  powerbuilding keep the strength templates, so they are byte-identical.
+
+## [Core / Optional time tiers + onboarding clarity] (2026-06-19)
+
+### Core vs Optional (replaces silent trimming)
+- A time-capped day no longer silently drops accessories when you Start. Instead
+  every exercise is classified: Core (main lifts, secondaries, and the highest
+  priority accessories that fit your limit) is always shown and never cut;
+  Optional (the lower-priority tail that runs over) is shown and trainable, just
+  flagged amber with "optional, over your time limit, do it if you have time."
+- Mains and secondaries are always Core. Specialized muscles (slider >= 4) are
+  kept in Core hardest, but if the mains alone already fill the limit even they
+  fall to Optional, so the app never claims a session fits when it cannot. A
+  dedicated banner explains the "even your core is over the limit" case.
+- The workout overview, preview, and live session all mark optional work; the
+  banner states the core minutes vs your limit and the optional minutes on top.
+- Carryover (one block): an accessory offered as optional at least twice in a
+  block and never trained once is dropped from the routine, so you stop being
+  shown work you keep skipping. Anything you do at least once is kept.
+- Replaces the old rest-compression + prune mitigation. No time cap means
+  everything is Core, so default and uncapped users are unaffected.
+
+### Onboarding clarity
+- The focus-step time estimate is now a legible card and compares to the limit
+  the athlete set ("about 55 min, over your 45 min limit").
+
+### Time polish
+- Budget-aware Add: a capped athlete sees how much room is left before their
+  limit and the rough cost of one more exercise ("about 4 min before your 45 min
+  limit. Each added exercise is roughly +6 min").
+- "See time by week" shows how a day's length changes across the block (core and
+  optional minutes per week), so the athlete can see the tail grow toward the
+  peak week and drop at the deload.
+
+## [Dynamic engine: onboarding tracks, time, muscle focus] (2026-06-19) — in progress
+
+Implements docs/dynamic-routine-engine-design.md. Shipped incrementally; each
+commit keeps a default user (Powerbuilding, unlimited time) byte-identical.
+
+### Foundation (this commit)
+- New training tracks: Powerbuilding (existing), Powerlifting (hypertrophy base
+  + four book-wave strength blocks), Bodybuilding (all hypertrophy, drives the
+  muscle-focus sliders). Tracks only change block periodization; day layouts and
+  the jm2-wave / jbb-hyp schemes are untouched.
+- Onboarding gains goal (track), experience, time-per-session (unlimited or a
+  minute cap), and, for Bodybuilding, seven 0-6 muscle-focus sliders (Arms,
+  Chest, Back, Shoulders, Glutes, Legs, Calves; 3 = balanced). Sliders at 0
+  (remove) or 6 (max) show a warning. Non-bodybuilding tracks skip the slider step.
+- Per-athlete volume landmarks (MV/MEV/MRV) stored in profile.landmarks, seeded
+  from the RP classic grid scaled by experience. Engine.seedLandmarks added.
+- State, migration (backfills all new fields and seeds landmarks on old saves),
+  and makeProgram (selects template by track, snapshots trainingConfig) updated.
+  State version unchanged; old database.json and backups load unchanged.
+- Verified: legacy resolveSlot output unchanged (calibrated and uncalibrated
+  lifts), migration idempotent, and the full bodybuilding onboarding flow, all
+  via a headless JSDOM harness.
+
+### Muscle-focus reallocation (FOCUS)
+- On the bodybuilding track, the focus sliders now reshape accessory volume:
+  emphasized muscles gain sets (toward their MRV), de-emphasized lose sets, and
+  a slider at 0 removes that muscle's accessories (shown muted in the workout
+  overview, dropped from sessions and previews). Bounded by the athlete's
+  per-session landmark cap. Main lifts and secondaries are never touched, so the
+  wave math and working-max progression are unaffected.
+- Strict no-op for the powerbuilding/powerlifting tracks and for any slider left
+  at 3. Verified by harness: emphasize/de-emphasize/remove, mains untouched,
+  calibration ramps unscaled, and byte-identical output off the bodybuilding track.
+
+### Session time cap (estimate + mitigation)
+- Per-session time estimate (execution + rest + warmup + overhead), scaling with
+  the week's set counts so the late-meso volume creep is predicted, not a surprise.
+- For a custom time cap, the session is fit to it: first rest is compressed, then
+  coherent accessories are pruned (an accessory the day's main already trains, via
+  SYNERGIST_COVERAGE, lowest training-priority first). Main lifts, secondaries,
+  and specialized muscles (slider >= 4) are never pruned. The workout view shows a
+  projection banner, the preview shows what was trimmed, and the live session is
+  built from the fitted plan.
+- A no-op for unlimited time, so default users are unaffected. Verified by harness:
+  estimate magnitude, fit-without-prune, tight-cap pruning with mains kept, and
+  coherent prune order (squat-covered leg extension before hamstring curl).
+
+### Evolving volume landmarks
+- Once per completed block, each muscle's landmarks adjust from how the block
+  actually went: logged effort that stayed on target (room to grow) nudges MRV up,
+  effort that ran hot or a falling readiness trend nudges it down. Capped at +/-1
+  set per muscle per block and clamped, so volume drifts rather than jumps. Needs
+  at least a few logged sets for a muscle before it moves. Training age increments.
+- Landmarks only feed the bodybuilding focus endpoints, so this changes no routine
+  off that track. Verified by harness: tolerated up, overreached down, weak signal
+  held, rate-limited across blocks, empty block holds.
+
+This completes the dynamic engine. Default users (Powerbuilding, unlimited time,
+balanced sliders) remain byte-identical throughout; every new behavior is gated.
+
+### Focus fine-tunes (from edge-case testing)
+- Pressing accessories are tagged by lift pattern (bench, press) rather than the
+  muscle they build, so the Chest and Shoulders sliders previously ignored them.
+  Mapped bench -> Chest and press -> Shoulders so those sliders now control
+  pressing accessory volume. Main and secondary lifts stay unaffected.
+- A select ("Select X Exercise") slot for a muscle set to 0 no longer nags the
+  athlete to fill it; it is shown removed instead. Found by simulating a
+  Chest-6 / everything-else-0 athlete across a full mesocycle.
+- Bodybuilding track now drops the deadlift entirely (the heavy deadlift main and
+  its variations have no place in a hypertrophy routine; RDLs and good-mornings,
+  which build hamstrings, are kept). A muscle slider at 0 now also removes that
+  muscle's main and secondary lifts, not just its accessories: Chest 0 means no
+  Comp Bench, Legs 0 means no Comp Squat, Shoulders 0 means no Military Press.
+  This honors an injured athlete who cannot perform the lift. Mains are still
+  never volume-scaled, and other tracks keep every lift (deadlift included).
+
+### Full refill: focus-aware day rebuild (bodybuilding)
+- The bodybuilding day layout is now rebuilt at program creation around the
+  athlete's muscle focus, instead of editing a fixed template in place:
+  - Emphasis (slider 4-6) now adds real exercises (more movements for that
+    muscle, up to its landmark budget) rather than inflating one exercise's set
+    count. This avoids overshooting MRV and matches how specialization works.
+  - Select-only muscles (glutes, calves) that are emphasized now get real
+    default exercises, so the slider is no longer a no-op for them.
+  - Freed slots (from removals) and any emptied day are refilled with the
+    athlete's top-priority muscles, so no chosen training day is left empty.
+  - A muscle at 6 on a 5 or 6 day split gets an extra main dose: a second,
+    spaced exposure of its main lift (chest -> bench, legs -> squat, shoulders
+    -> press) as a secondary volume session, so it never adds a second
+    working-max-moving AMRAP.
+- If an athlete zeroes essentially every muscle, the only remaining empty day
+  shows guidance to add an exercise or rebalance, instead of an empty session.
+- Other tracks are untouched (rebuild is bodybuilding-only); default routines
+  stay byte-identical. Verified by harness against the two reported degenerate
+  configs (lower-only and upper-only), the extra-dose spacing, and all-zero.
+
+### Informative session-time estimate on the focus step
+- The muscle-focus step now shows a live "estimated median training session"
+  in minutes, updating as sliders move, so the athlete sees how their focus
+  affects session length before committing. It builds a throwaway program from
+  the in-progress answers and medians the per-day time (rest + execution +
+  warmup + overhead from TIME_MODEL), using a nominal working max so the number
+  reflects a real working session rather than the week-1 calibration ramp.
+- Purely informative: it touches no persistent state and needs no new inputs
+  (uses the chosen days, sliders, and experience already collected). Verified by
+  harness: shown and live-updating, plausible values across configs, and the
+  program/landmarks left untouched.
+- Recalibrated TIME_MODEL to match real training (the first pass ran generous):
+  rest 3:30 main / 3:00 secondary / 2:00 accessory, warmup 90s per ramp set,
+  session overhead 6 min; compressed (time-cap) rest scaled up to match. A
+  balanced bodybuilding week-4 peak day now estimates ~73 min (squat day),
+  ~56 min typical, versus ~54/40 before. This also feeds the time-cap mitigation.
+
 ## [In-app confirm dialogs] (2026-06-19)
 - Replaced every native `window.confirm()` with an in-app confirm dialog so
   the app, not the browser, draws and triggers these prompts. They now match
