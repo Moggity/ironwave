@@ -1,5 +1,21 @@
 # IRONWAVE — Changelog
 
+## [Golden-master test for the default routine] (2026-06-22)
+
+The engine has only ever been verified by throwaway JSDOM harnesses. This adds
+the first automated test, promoting the "default users stay byte-identical"
+contract into a real check.
+
+- `app/test/` with Node's built-in `node:test` runner, wired to `npm test`. No
+  build step and no new dependencies: `test/load-app.js` loads the three browser
+  scripts into a `vm` sandbox (tiny `document`/`fetch` stub, `boot()` stripped)
+  so the engine can be called directly with no real DOM.
+- `golden-master.test.js` snapshots every block/week/day/slot's `resolveSlot`
+  output for the default Powerbuilding program, both uncalibrated and calibrated,
+  and asserts it never changes. Expected output is committed in
+  `golden-master.json`; regenerate intentional changes with
+  `UPDATE_GOLDEN=1 node --test test/golden-master.test.js`.
+
 ## [Frequency-driven bodybuilding split] (2026-06-19)
 
 The bodybuilding split was a fixed template (upper/lower etc.) chosen by day
