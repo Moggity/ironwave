@@ -42,11 +42,16 @@ them into focused branches rather than one large one (see the retrospective).
   per-add cost; the per-candidate cost is not yet shown inside the swap list.~~
   DONE: the swap and add pickers now show each candidate's approximate time cost
   (`candidateCostMin`) for a capped athlete, plus a remaining-room header.
-- **Check-in references removed muscles:** `checkinGroupsForDay` reads slots
-  structurally, so a muscle set to 0 could still surface a check-in slider.
-- **Onboarding time estimate is bodybuilding-only** (it lives on the slider
+- ~~**Check-in references removed muscles:** `checkinGroupsForDay` reads slots
+  structurally, so a muscle set to 0 could still surface a check-in slider.~~
+  DONE: `checkinGroupsForDay` now resolves each slot and skips the removed ones,
+  so a muscle set to 0 surfaces no readiness slider (same source of truth as the
+  workout view).
+- ~~**Onboarding time estimate is bodybuilding-only** (it lives on the slider
   step); powerbuilding/powerlifting athletes with a time cap get no onboarding
-  estimate. Could add one on the time step for all tracks.
+  estimate. Could add one on the time step for all tracks.~~ DONE: the estimate
+  (`estimateMedianSessionMin`, track-aware) now also shows on the time step for
+  every track, updating live as the cap is typed.
 
 ## Tuning (safe to revisit anytime)
 
@@ -130,6 +135,20 @@ real DOM.
 - Optionally add a **local pre-commit hook** that runs `node --check` + `npm
   test`, but CI on the PR is the real gate.
 
+
+## Resolved (2026-06-22, polish bundle)
+
+- **Check-in references removed muscles.** `checkinGroupsForDay` now resolves
+  each slot via `resolveSlot` and skips any `isRemoved` one, so a muscle set to 0
+  (or a track-removed lift) no longer surfaces a readiness slider. The check-in
+  now matches exactly what the workout view renders.
+- **Onboarding session estimate on every track.** `estimateFocusMedianMin` is now
+  `estimateMedianSessionMin` (track-aware, no longer hard-coded to bodybuilding)
+  and a `focusTimeLine` estimate renders on the time step for all tracks, updating
+  live as the cap is typed (`obTimeInput`). Powerbuilding/powerlifting athletes
+  with a time cap now get the same ballpark bodybuilding always had.
+- Per-day time caps deferred to its own branch (it is a model + UI feature, not
+  polish).
 
 ## Resolved (2026-06-22, formatting lint check)
 
