@@ -1,5 +1,28 @@
 # IRONWAVE — Changelog
 
+## [Engine unit tests: math, scheme isolation, migration] (2026-06-22)
+
+Builds on the golden master with focused pure-engine tests (no jsdom), all
+through the existing `test/load-app.js` harness.
+
+- **`engine.test.js`** covers the deterministic math: `e1rm` / `weightFor`
+  round-trip, `roundLoad`, `amrapAdjust` (the +10-rep cap and the
+  below-standard hold), `plateMath`, `warmupSets`, `readinessScore` (composite
+  and 0..30 clamp), `seedLandmarks` (experience scaling with the MEV-0 and
+  mv<=mev<mrv invariants), and the per-week ramps of `prescribeMain` and the
+  `jbb-hyp` scheme for both a calibrated and an uncalibrated lift.
+- **`scheme-isolation.test.js`** asserts `schemeFor` routes only on
+  `block.scheme` (type is a default only when scheme is absent, scheme wins over
+  type, unknown falls back to `jm2-wave`) and that `jm2-wave` and `jbb-hyp` stay
+  independent paths that never blend.
+- **`migration.test.js`** loads a legacy (pre-tracks, pre-landmarks,
+  pre-scheme-split) save through `migrateState`, asserts the powerbuilding
+  backfill, partial-migration safety, and that `migrateState` is idempotent.
+- **Harness fix:** `load-app.js` now compiles the app in the current realm
+  (an IIFE via `runInThisContext`, browser globals passed as parameters) so the
+  objects the engine returns are this-realm native and `deepStrictEqual` can
+  compare them by structure. No global pollution.
+
 ## [Golden-master test for the default routine] (2026-06-22)
 
 The engine has only ever been verified by throwaway JSDOM harnesses. This adds
