@@ -787,6 +787,13 @@ const OB_EXP = [
   ['intermediate', 'Intermediate', '1 to 3 years. The standard starting point.'],
   ['advanced', 'Advanced', '3+ years. Starts your volume near the top of the range.'],
 ];
+// The main lifts whose 1RM onboarding collects. The bodybuilding generator
+// never programs the deadlift (see removeBigLift, "not used in hypertrophy"),
+// so obMainLifts drops it from that track and we never ask for its 1RM.
+const OB_MAIN_LIFTS = [['comp-squat','Comp Squat'],['comp-bench','Comp Bench'],['comp-deadlift','Comp Deadlift'],['military-press','Military Press']];
+function obMainLifts(track) {
+  return track === 'bodybuilding' ? OB_MAIN_LIFTS.filter(([id]) => id !== 'comp-deadlift') : OB_MAIN_LIFTS;
+}
 const FOCUS_KEYS = ['arms', 'chest', 'back', 'shoulders', 'glutes', 'legs', 'calves'];
 const FOCUS_LABELS = { arms: 'Arms', chest: 'Chest', back: 'Back', shoulders: 'Shoulders',
                        glutes: 'Glutes', legs: 'Legs', calves: 'Calves' };
@@ -917,7 +924,7 @@ function vOnboarding() {
       <div id="mf-time" class="focus-time">${focusTimeLine(ob)}</div>
       <button class="btn btn-green mt16" onclick="obNext(5)">Continue</button>`;
   } else if (step === 6) {
-    const lifts = [['comp-squat','Comp Squat'],['comp-bench','Comp Bench'],['comp-deadlift','Comp Deadlift'],['military-press','Military Press']];
+    const lifts = obMainLifts(ob.track);
     body = `
       <div class="ob-title">Your maxes</div>
       <p class="subtle">Enter a recent, real 1RM for each main lift. The working max is set to 90% of it, and being conservative here is how you progress for months. Leave blank to calibrate in week 1 with ramping RPE sets.</p>
@@ -963,7 +970,7 @@ function obNext(step) {
     V.obStep = 6;
   } else if (step === 6) {
     try {
-      for (const id of ['comp-squat','comp-bench','comp-deadlift','military-press']) {
+      for (const [id] of obMainLifts(ob.track)) {
         const el = document.getElementById('ob-max-' + id);
         const v = el ? parseFloat(el.value) : NaN;
         if (v > 0) ob.maxes[id] = v;

@@ -42,8 +42,6 @@ them into focused branches rather than one large one (see the retrospective).
   per-add cost; the per-candidate cost is not yet shown inside the swap list.
 - **Check-in references removed muscles:** `checkinGroupsForDay` reads slots
   structurally, so a muscle set to 0 could still surface a check-in slider.
-- **Onboarding still asks for a deadlift 1RM on the bodybuilding track**, even
-  though the bodybuilding generator never uses the deadlift; could skip it.
 - **Onboarding time estimate is bodybuilding-only** (it lives on the slider
   step); powerbuilding/powerlifting athletes with a time cap get no onboarding
   estimate. Could add one on the time step for all tracks.
@@ -105,11 +103,6 @@ real DOM.
    assert it round-trips and that `database.json` is created.
 
 ### Project-specific lint checks (great CI fit)
-- **No em dashes in athlete-facing strings.** This is a hard style rule in
-  `CONTRIBUTING.md` and is currently enforced only by reviewer memory. A tiny
-  script that greps the user-visible string literals for `—` (em dash) and
-  fails CI would enforce it for free. (Code comments are exempt, so scope it to
-  template strings / labels, not `//` lines.)
 - **Line endings / indentation:** a check that `.bat` files stay CRLF and
   everything else is LF + two-space indent, matching `.gitattributes` /
   `.editorconfig`.
@@ -138,8 +131,13 @@ real DOM.
 
 Next up from the testing list: items 2 to 7 (engine unit tests, scheme
 isolation, migration, focus/generator behavior, boot/render smoke, persistence
-round-trip) and the project-specific lint checks (em-dash guard, line endings,
-ESLint).
+round-trip) and the project-specific lint checks (line endings, ESLint).
+
+## Resolved (2026-06-22, onboarding polish)
+
+- **Deadlift 1RM no longer asked on the bodybuilding track.** The maxes step
+  now skips `comp-deadlift` for bodybuilding, since that generator never
+  programs the deadlift. Other tracks are unchanged.
 
 ## Resolved on the Onboarding-improvements branch (no longer pending)
 
