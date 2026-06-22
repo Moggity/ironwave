@@ -1,5 +1,24 @@
 # IRONWAVE — Changelog
 
+## [Boot / render smoke tests] (2026-06-22)
+
+`render-smoke.test.js` loads the three scripts into a real jsdom document and
+renders every view for a default (Powerbuilding) and a Bodybuilding program,
+asserting each render produces markup and never throws.
+
+- New `test/load-dom.js` harness: runs the app in a jsdom window (real
+  #app / #modal-root / #toast-root), `boot()` stripped, network stubbed, so the
+  view layer renders without auto-booting.
+- Covers all eleven views: the seven navigation views (dashboard, workout,
+  history, more, exercises, program, settings), a live session and check-in
+  driven through the real flow (startCheckin -> beginSession), the summary, and
+  first-run onboarding.
+- Adds `jsdom` as the first devDependency. The pure-engine suites still need no
+  DOM; only this smoke layer pulls it in. Whole suite runs in ~2s.
+- jsdom dropped Node 18 support, so this smoke test self-skips on Node < 20 (the
+  jsdom require is deferred); the app runtime and engine suites still cover
+  Node 18, so the CI matrix and branch protection are unchanged.
+
 ## [Focus / generator behavior tests] (2026-06-22)
 
 `focus-generator.test.js` covers the bodybuilding focus + split machinery
