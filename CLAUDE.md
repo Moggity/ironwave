@@ -29,6 +29,13 @@ cd app
 npm test            # run the whole suite locally before you push
 ```
 
+**Run `npm install` in `app/` first in a fresh checkout.** `jsdom` is a
+devDependency (the only one), and a clean container does not have it until you
+install. Without it, `render-smoke.test.js` fails with `Cannot find module
+'jsdom'` and `persistence.test.js` can fail too — these are setup failures, not
+regressions in your change. If you see those two go red, run `npm install` and
+re-run before debugging anything.
+
 What the suite covers (keep it passing; extend it when you add behavior):
 
 - **`golden-master.test.js`** — snapshots every `resolveSlot` output for the
