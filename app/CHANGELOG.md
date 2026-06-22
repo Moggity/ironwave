@@ -1,5 +1,13 @@
 # IRONWAVE — Changelog
 
+## [Skip deadlift 1RM on the bodybuilding track] (2026-06-22)
+
+Onboarding no longer asks for a Comp Deadlift 1RM when the chosen track is
+Bodybuilding. That generator never programs the deadlift, so the field only
+added noise. The maxes step and its save loop both drive off a shared
+`obMainLifts(track)` list. Powerbuilding and powerlifting are unchanged and
+still collect all four main lifts.
+
 ## [Persistence round-trip test] (2026-06-22)
 
 `persistence.test.js` starts the real `server.js` as a child process against a
