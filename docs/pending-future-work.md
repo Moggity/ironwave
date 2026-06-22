@@ -66,23 +66,27 @@ The whole engine has only ever been verified by **throwaway** JSDOM harnesses
 written ad hoc during development. The highest-leverage infrastructure work is to
 make that automatic. Recommended, roughly in priority order.
 
-### Set up CI (one small `chore/` branch)
-- A **GitHub Actions** workflow (`.github/workflows/ci.yml`) that runs on every
-  push and pull request. Keep it fast (well under a minute) so it is not friction.
-- It needs no build step: IRONWAVE is plain Node + vanilla JS. The runner just
-  does `cd app && npm ci` (or `npm install`) and runs the checks below.
-- Turn on **branch protection** for `main` so a red check blocks merge. That is
-  what makes CI worth having: you cannot accidentally merge a regression.
+### Set up CI (one small `chore/` branch) — DONE
+- ~~A **GitHub Actions** workflow (`.github/workflows/ci.yml`) that runs on every
+  push and pull request.~~ Shipped: runs in `app/` on Node 18 + 20, `npm ci` ->
+  `node --check` on every source/test file -> `npm test --if-present`. Runs in
+  ~15 to 18s. The `--if-present` guard kept it green before the test suite landed
+  and made the two PRs order-independent.
+- **Branch protection** for `main` is configured via a ruleset requiring the
+  `check (18)` and `check (20)` statuses, so a red check blocks merge.
 
 ### Automated tests worth writing (promote the harnesses into a real suite)
-Use Node's built-in test runner (`node:test`) plus `jsdom` so there is still no
-build step. Commit them under `app/test/` and wire an `npm test` script.
+Use Node's built-in test runner (`node:test`), committed under `app/test/` and
+wired to `npm test`. `test/load-app.js` already loads the three browser scripts
+into a `vm` sandbox (no `jsdom`, no build step), so items 2 to 5 can call the
+engine directly through it; only the boot/render smoke test (item 6) needs a
+real DOM.
 
-1. **C1 golden-master (highest value).** Snapshot the resolved routine for the
+1. ~~**C1 golden-master (highest value).** Snapshot the resolved routine for the
    default Powerbuilding program (every block/week/day/slot's `resolveSlot`
-   output) and assert it never changes. This is the automated version of the
-   "default users stay byte-identical" contract that every change in this branch
-   was hand-checked against.
+   output) and assert it never changes.~~ DONE (`test/golden-master.test.js`,
+   uncalibrated + calibrated, 475 slots each, vs committed `golden-master.json`).
+   The automated version of the "default users stay byte-identical" contract.
 2. **Engine unit tests** (pure, deterministic, cheap): `Engine.e1rm`,
    `weightFor`, `amrapAdjust` (including the +10-rep cap and the below-standard
    hold), `plateMath`, `warmupSets`, `readinessScore`, `seedLandmarks`, and the
@@ -125,7 +129,19 @@ build step. Commit them under `app/test/` and wire an `npm test` script.
   test`, but CI on the PR is the real gate.
 
 
-## Resolved on this branch (no longer pending)
+## Resolved (2026-06-22, test + CI foundation)
+
+- **CI** (`.github/workflows/ci.yml`): npm ci + `node --check` + `npm test` on
+  Node 18/20 for every push and PR, with branch protection on `main`.
+- **C1 golden-master** (`app/test/golden-master.test.js`) plus the `vm` harness
+  loader (`app/test/load-app.js`) and the `npm test` script.
+
+Next up from the testing list: items 2 to 7 (engine unit tests, scheme
+isolation, migration, focus/generator behavior, boot/render smoke, persistence
+round-trip) and the project-specific lint checks (em-dash guard, line endings,
+ESLint).
+
+## Resolved on the Onboarding-improvements branch (no longer pending)
 
 - Strength-philosophy leak in bodybuilding (Good-Mornings lead, deadlift day) ->
   dedicated templates + frequency generator.
