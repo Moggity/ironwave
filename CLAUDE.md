@@ -16,6 +16,77 @@ for style and branching; this file focuses on what is easy to get wrong.
 - Hard style rule: **no em dashes in athlete-facing strings** (notes, toasts,
   labels). Code comments are exempt. See `CONTRIBUTING.md`.
 
+## Onboarding: how the app fits together
+
+Read this once before your first change; it is the map the file names do not give
+you.
+
+### The three scripts (one shared global scope)
+
+- **`data.js`** — pure data, no logic. Movement taxonomy (`MOVEMENTS`,
+  `EXERCISES`/`EXERCISE_LIST`), the Juggernaut wave tables (`WAVES`,
+  `DELOAD_SETS`), program/day templates (`PROGRAM_TEMPLATES`, `DAY_TEMPLATES`,
+  `BB_DAY_TEMPLATES`), the bodybuilding tuning tables (`JBB_HYP`,
+  `VOLUME_LANDMARKS`, `EXPERIENCE_FACTOR`, `TIME_MODEL`), and the split-generator
+  tables (`SPLIT_FREQ`, `ANCHOR_RANK`, `PRIMARY_ANCHOR`, `DEFAULT_ACC`,
+  `FOCUS_FACTOR`). If you are adding a lift, a template, or a constant, it goes
+  here.
+- **`engine.js`** — pure, stateless math (the `Engine` object) plus the
+  **scheme registry** (`Engine.schemes`, `registerScheme`, `schemeFor`). Nothing
+  here reads `S`/`V`; everything takes its inputs as arguments and returns set
+  objects. This is the heavily-tested half. See `golden-master`/`engine` tests.
+- **`app.js`** — everything stateful: migration, the routine generators, slot
+  resolution, all rendering, and all event handlers. This is the lightly-tested
+  half (smoke only).
+
+### State: two globals, `S` and `V`
+
+- **`S`** is the persisted athlete state (`S.program`, `S.profile`,
+  `S.trainingConfig`, logs). It round-trips to `database.json` through
+  `server.js` (`GET`/`POST /api/state`). `P()` is shorthand for `S.program`.
+- **`V`** is ephemeral view state (current day index, onboarding draft `V.ob`,
+  modal drafts). It is *not* persisted; losing it just resets the UI.
+- Mutate `S`/`V`, then call **`render()`** — there is one render entry point and
+  views are pure functions of state. Modals stack via `showModal`/`MSTACK`.
+
+### The routine tree (how a workout is produced)
+
+```
+S.program
+  .blocks[]          each block declares { scheme, type, wave, mesoIdx }
+    .weeks (0..4)    week type via Engine.weekType: intro→deload
+      .days[]        from a template OR generateBodybuildingDays()
+        .slots[]     { type: main | secondary | acc | select }
+```
+
+`resolveSlot(slot, blockIdx, wIdx)` (app.js) is the choke point: it looks up the
+block's scheme with `Engine.schemeFor(block)` and calls that scheme's
+`main`/`secondary`/`accessory`. **Schemes never mix** (`jm2-wave` for strength,
+`jbb-hyp` for hypertrophy) — this is enforced by `scheme-isolation.test.js`.
+For bodybuilding, `focusForAccessory` / `bbLiftRemoval` reshape or drop slots
+from the muscle-focus sliders *after* the scheme prescribes; they are a no-op for
+every other track, which is why default/powerbuilding output stays byte-identical
+(the golden-master contract).
+
+### The bodybuilding split generator
+
+`generateBodybuildingDays(focus, N)` in `app.js` builds a week from the seven
+focus sliders: it splits N days into upper/lower by slider points, assigns each
+day a **primary** (anchor) muscle rotating across anchor-capable muscles, spreads
+remaining frequency as accessories, then interleaves the regions. The
+split-generator tuning items in `docs/pending-future-work.md` all live in this
+one function plus the `ANCHOR_RANK`/`PRIMARY_ANCHOR` tables.
+
+### Adding a feature, in order
+
+1. New data/table → `data.js`. New math → `engine.js` (add to a scheme, or the
+   `Engine` object). New stateful behavior/UI → `app.js`.
+2. If you add a top-level engine/generator function, **export it through the
+   harness shim** (`test/load-app.js`) or tests cannot see it.
+3. Keep non-default tracks no-ops on the default path, or regenerate the golden
+   master and review the diff.
+4. Extend the matching test file; run `npm test`; update `CHANGELOG.md`.
+
 ## Testing — this runs on EVERY pull request
 
 There is an automated test suite under `app/test/` (Node's built-in
