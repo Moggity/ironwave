@@ -18,10 +18,202 @@ them into focused branches rather than one large one (see the retrospective).
 - **Full cross-muscle zero-sum weekly volume budget.** The split generator now
   handles frequency, and de-emphasis scales sets, but total weekly sets are not
   strictly conserved/redistributed across muscles. Bounded today by per-muscle
-  landmark clamps.
+  landmark clamps. (Now folded into **Epic 4 / Cluster D** below as the
+  specialization-with-maintenance mechanism.)
 - **Carryover graduation.** The block-end carryover drops an optional accessory
   never trained; the inverse (an optional consistently completed gets promoted
-  into core / nudged up) is not built.
+  into core / nudged up) is not built. (Pairs with **Epic 4 / Cluster D** under
+  one volume-management roof.)
+
+## Hardcore hypertrophy roadmap (epics, clusters, dependencies)
+
+From a domain review: what a professional hypertrophy athlete (think a Mike
+Israetel type) would find lacking, training methods only. The app already has a
+legitimate RP-flavored core (ascending-volume `jbb-hyp`, per-muscle MV/MEV/MRV
+landmarks that evolve via `recalibrateLandmarks`, readiness + soreness check-ins,
+a coarse end-of-week autoregulator). These epics deepen that core rather than
+start from scratch.
+
+**Owner sequencing decision:** scale slowly in the order **Epic 2 -> Epic 3 ->
+Epic 4**, with Cluster A (logging) underpinning everything, the nutrition/phase
+layer (Cluster F) growing alongside Epic 4, and **Epic 1 as the gated capstone**.
+
+### Guiding constraint: inspired, not cloned (IP / differentiation)
+
+We do NOT want a 1:1 clone of the RP Hypertrophy app or the Juggernaut app. At
+some point we deliberately make things simpler or different. The legal posture
+and the product moat are the same move.
+
+- **No trademarked names** in UI, code, or marketing (Renaissance Periodization,
+  "RP", Juggernaut Method, or those app names). Internal scheme ids are already
+  neutral (`jbb-hyp`, `jm2-wave`); keep that.
+- **Training science is not protectable.** Volume landmarks, RIR, SFR, and
+  feedback autoregulation are ideas/facts; implementing them is safe. The risk
+  lives in copying a *specific company's expression*: their exact datasets/tables
+  verbatim, their feedback wording/UI, their precise numeric mappings.
+- **Migrate off the seeded RP grid.** `VOLUME_LANDMARKS` currently ships the RP
+  published grid as an external seed (noted in `data.js`). Move toward our own
+  blended/derived values so we are not redistributing their table; keep any
+  citation as "reference, not reproduction."
+- **Differentiate by simplifying:** fewer feedback signals, our own scales and
+  copy, our own exercise ratings, our own UI. "Simpler and different" is both the
+  legal cover and the differentiation.
+
+### Cluster A - Logging & data foundation (enabler, do first, low IP risk)
+
+- **What:** per-set logging of actual reps + RIR (not just RPE), an optional
+  pump/burn quick-tap, a `technique` field on set objects, and per-exercise
+  progression views (e1RM and volume-load trend, both already computable).
+- **Why:** nothing autoregulates without honest per-set data; charts are
+  table-stakes for a serious lifter.
+- **Enables:** Epic 1 (feedback signals), Epic 2 (technique-tagged sets), Epic 4
+  (volume accounting), and the rep-range / double-progression feature.
+- **Dependencies:** none upstream. Touches the set-object schema, so new fields
+  must be optional and inert when absent to keep the default/powerbuilding path
+  byte-identical (golden master).
+- **IP:** none; generic logging.
+
+### Cluster B - Epic 2: advanced intensity techniques (priority 1)
+
+- **What:** myo-reps, drop sets, rest-pause, lengthened partials, supersets/giant
+  sets as first-class, prescribable set modifiers, with set/volume/time-model
+  accounting and logging.
+- **Why:** the tools a hardcore lifter uses to push past fatigue-limited volume,
+  especially late in a meso.
+- **Scale slowly:** ship ONE technique end-to-end first (a drop set is simplest:
+  a working set carrying child mini-sets), prove prescription + logging + time
+  accounting, then add myo-reps, rest-pause, partials, supersets.
+- **Dependencies:** Cluster A's `technique` field + logging; `estimateSessionSec`
+  must learn each technique's time cost; how a drop set counts toward weekly sets
+  feeds Epic 4.
+- **IP:** low. Public methods with generic names; do not copy any one company's
+  UI or exact parameter defaults.
+- **Tests:** bodybuilding-only, default path inert. New engine math (technique set
+  construction) gets unit tests; golden master should stay unchanged.
+
+### Cluster C - Epic 3: head/region exercise model + SFR (priority 2)
+
+- **What:** extend the taxonomy from movement-pattern to muscle heads/regions
+  (triceps long vs lateral, upper vs lower chest, all three delts), add a
+  per-exercise SFR rating and a stretch-emphasis tag, and cross-meso exercise
+  rotation in the generator.
+- **Why:** pros program by heads and by stimulus quality, and rotate exercises to
+  manage staleness/fatigue.
+- **Dependencies:** mostly a data lift in `data.js` (`EXERCISES`/`MOVEMENTS`); the
+  generator and swap picker consume the new metadata. Sharpens Epic 4's per-muscle
+  counting and the split generator's selection. Independent of Epic 2.
+- **IP:** medium-careful. Author our OWN SFR ratings and head taxonomy (facts and
+  opinions, fine to write); do not lift a specific company's exercise database or
+  numeric SFR tables verbatim.
+- **Tests:** new data + selection logic -> `focus-generator` tests; bodybuilding-
+  only-safe for the golden master.
+
+### Cluster D - Epic 4: volume & fatigue dashboard + autoregulated deload (priority 3)
+
+- **What:** surface weekly sets per muscle vs MV/MEV/MRV, a fatigue trend, and
+  MRV-hit / overreach detection that triggers an autoregulated deload (timing +
+  depth) and resensitization back to MEV. Adds a specialization / maintenance(MV)
+  phase on top.
+- **Why:** the visible control panel a serious lifter expects; deload-by-fatigue
+  beats the fixed week-5 halving.
+- **Dependencies:** Cluster A logging + (ideally) Cluster C granularity for
+  accurate counts. Reuses `seedLandmarks`/`recalibrateLandmarks` and readiness.
+  The specialization phase depends on the zero-sum budget (below) so non-priority
+  muscles drop to MV.
+- **Cross-link:** **absorbs the existing "Full cross-muscle zero-sum weekly volume
+  budget"** item, and pairs with **"Carryover graduation"** (promotion) under one
+  volume-management roof.
+- **IP:** low-medium. Volume-vs-landmark views are generic; just do not reproduce
+  a specific product's landmark numbers or dashboard layout (use our migrated
+  values).
+
+### Cluster E - Epic 1: per-muscle feedback autoregulation (gated capstone)
+
+- **What:** after a muscle is trained, capture a small set of recovery/stimulus
+  signals (our own minimal taxonomy, e.g. pump + soreness-cleared + reps-vs-last)
+  and add/hold/cut that muscle's sets next session, ramping each muscle from MEV
+  toward MRV. Replaces the fixed `JBB_HYP` set tables and the whole-body
+  `computeWeekMod` with true per-muscle autoreg, finally using the check-in
+  soreness for *volume*, not just readiness.
+- **Why:** the defining feature of a serious hypertrophy app.
+- **Can it be lawsuit-risk-free? Yes.** Autoregulating volume from athlete
+  feedback is general training science, not protectable. The risk lives entirely
+  in cloning a specific company's named system: their exact signal set, wording,
+  0-3 scales, and the precise feedback->set mapping. Build our OWN simpler model
+  (fewer signals, our scale, our copy, our mapping) and it is both differentiated
+  and safe. So Epic 1 is gated on design discipline, not on the idea, and could in
+  principle move earlier if that differentiated model is designed first.
+- **Dependencies:** Cluster A (feedback capture) and Cluster D (volume accounting +
+  landmarks) should land first; that is also why it sits last in the sequence.
+- **Tests:** large. Hypertrophy set counts become dynamic, so engine unit tests
+  with *seeded* feedback (keep deterministic). Bodybuilding-only; default golden
+  master unaffected.
+
+### Cluster F - Training phase & energy-balance layer (nutrition, intertwined)
+
+Cuts and minicuts are part of hypertrophy training, so this is a training-coupled
+layer, NOT a macro tracker. Keep it light and differentiated.
+
+- **What:**
+  - A **phase tag** per block/meso: lean-gain (surplus), maintenance, cut,
+    minicut.
+  - **Recovery modulation:** in a deficit, recovery capacity drops, so the phase
+    scales volume progression more conservatively and shortens the deload/minicut
+    interval. This modulates Epic 1's autoreg and Epic 4's deload trigger.
+  - **Minicut auto-suggestion:** when Epic 4 detects accumulated fatigue / MRV
+    saturation, suggest a short (about 2-4 week) minicut aligned with a deload /
+    resensitization.
+  - A **light bodyweight + optional measurement trend** to inform phase
+    transitions (trend only). **No calorie/macro database in v1** - this is where
+    we stay simpler than a full nutrition app and avoid scope creep.
+- **Why:** training volume and energy balance are inseparable; a minicut timed to
+  a fatigue peak is standard practice.
+- **Dependencies:** Epic 4 (fatigue/MRV detection) for the minicut trigger and the
+  autoregulated deload; modulates Epic 1. Can begin early as a passive phase tag +
+  bodyweight trend, then deepen.
+- **IP:** the phase concepts (minicut, maintenance, resensitization) are public;
+  safe. Avoid copying any company's specific calculators or copy.
+- **Boundary:** explicitly NOT a calorie/macro tracker in the near term. Full
+  nutrition, if ever wanted, is its own epic with its own legal review.
+
+### Dependency map (quick reference)
+
+```
+Cluster A (logging) -- underpins --> B, D, E, and rep-range/double-progression
+Epic 2  (B) -- needs A --> feeds D's volume accounting
+Epic 3  (C) -- data lift --> sharpens D + the generator; independent of B
+Epic 4  (D) -- needs A (and C for accuracy) --> absorbs zero-sum budget;
+                pairs with carryover graduation; gates F's minicut trigger
+Epic 1  (E) -- needs A + D --> gated on the differentiated-feedback design; capstone
+Phase   (F) -- needs D --> modulates E and the deload; starts light
+```
+
+### Supporting features and polishes
+
+- **Double progression + explicit rep ranges + per-meso rep-range variation**
+  (foundation: Cluster A). [feature]
+- **Autoregulated deload** timing/depth (part of Epic 4). [feature]
+- **Frequency autoregulation** from how fast soreness clears (needs Epic 1
+  feedback). [feature]
+- **Prescribed rest periods** per set type, surfaced to the athlete
+  (independent). [polish]
+- **Show a target rep range** instead of a single number. [polish]
+- **Per-muscle weekly set counter** on the workout view (early slice of
+  Epic 4). [polish]
+- **Tempo as a prescribable field** on any exercise, not only the named
+  `tempo-*` variants. [polish]
+- **Stretch-focused badge** in the picker; **over-MRV warning** when sliders push
+  a muscle past its landmark (needs Epic 3 tags / landmarks). [polish]
+
+### Roadmap notes
+
+- Every cluster stays **bodybuilding-track-only** so the default/powerbuilding
+  golden master holds; new set-object fields must be optional and inert when
+  absent.
+- Keep the **"inspired, not cloned"** constraint visible in each PR: our own data,
+  our own copy, our own UI, simpler where possible.
+- Branch discipline (see the retrospective): one cluster, ideally one
+  technique/feature, per branch.
 
 ## Split-generator tuning
 
