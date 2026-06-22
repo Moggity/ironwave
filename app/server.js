@@ -39,7 +39,7 @@ function initDatabase() {
       orderPenalty: 0,
       lastOrderTs: null
     };
-    
+
     fs.writeFileSync(DB_PATH, JSON.stringify(defaultState, null, 2));
     console.log('Created default database.json');
   }

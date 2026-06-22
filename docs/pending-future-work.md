@@ -105,12 +105,19 @@ real DOM.
    assert it round-trips and that `database.json` is created.
 
 ### Project-specific lint checks (great CI fit)
-- **Line endings / indentation:** a check that `.bat` files stay CRLF and
+- ~~**Line endings / indentation:** a check that `.bat` files stay CRLF and
   everything else is LF + two-space indent, matching `.gitattributes` /
-  `.editorconfig`.
+  `.editorconfig`.~~ DONE (`app/test/lint.test.js`): a dependency-free `node:test`
+  that scans every tracked text file (binaries skipped by a NUL-byte heuristic)
+  for `.bat`-CRLF / LF-only line endings, space-only indentation, no trailing
+  whitespace, and a final newline. Runs under `npm test`, so it gates CI with no
+  workflow change.
 - A lightweight **ESLint** pass (no framework, just `no-undef`, `no-unused-vars`,
   basic correctness) catches the class of bug that only shows up at runtime in a
-  no-build vanilla-JS project.
+  no-build vanilla-JS project. Deferred to its own branch: the three scripts share
+  one global scope (`engine.js` references `data.js` symbols), so a faithful
+  `no-undef` needs ESLint configured for that shared-global browser environment
+  plus a real dependency tree, which is at odds with the one-devDependency ethos.
 
 ### Practices
 - **Fast and deterministic.** No network in tests; stub `fetch` as the harnesses
@@ -123,6 +130,18 @@ real DOM.
 - Optionally add a **local pre-commit hook** that runs `node --check` + `npm
   test`, but CI on the PR is the real gate.
 
+
+## Resolved (2026-06-22, formatting lint check)
+
+- **Line-endings / indentation lint** (`app/test/lint.test.js`): a dependency-free
+  `node:test` enforcing the `.gitattributes` / `.editorconfig` contract across
+  every tracked text file (`.bat` CRLF, everything else LF-only, space-only
+  indentation, no trailing whitespace, final newline). Binaries are skipped by a
+  NUL-byte heuristic and the file set comes from `git ls-files`, so it stays
+  build-free and runs under `npm test`. Fixed two pre-existing violations in
+  `app/server.js` (a trailing-whitespace line and a missing final newline). The
+  ESLint half of the lint item is deferred to its own branch (shared-global scope
+  + dependency-tree tradeoff).
 
 ## Resolved (2026-06-22, remove exercises + budget-aware pickers)
 
@@ -146,9 +165,10 @@ real DOM.
 - **C1 golden-master** (`app/test/golden-master.test.js`) plus the `vm` harness
   loader (`app/test/load-app.js`) and the `npm test` script.
 
-Next up from the testing list: items 2 to 7 (engine unit tests, scheme
-isolation, migration, focus/generator behavior, boot/render smoke, persistence
-round-trip) and the project-specific lint checks (line endings, ESLint).
+Next up from the testing list: the remaining project-specific lint check (the
+ESLint pass). Items 2 to 7 (engine unit tests, scheme isolation, migration,
+focus/generator behavior, boot/render smoke, persistence round-trip) and the
+line-endings/indentation lint check have all shipped (see `app/test/`).
 
 ## Resolved (2026-06-22, onboarding polish)
 
