@@ -872,12 +872,16 @@ function obFocusWarning(focus) {
 // throwaway bodybuilding program from the onboarding answers and times each day
 // (rest + execution + warmup + overhead). Computed with calibration-level loads
 // since maxes come on the next step; touches nothing persistent.
-function estimateFocusMedianMin(ob) {
+// Median session length (min) for the program ob would build, on the athlete's
+// own track. Used to give an onboarding ballpark; restores S afterward so it has
+// no side effects. Track-aware so powerbuilding/powerlifting get an estimate too,
+// not just bodybuilding.
+function estimateMedianSessionMin(ob) {
   if (typeof estimateSessionSec !== 'function') return null;
   const savedProg = S.program, savedLm = S.profile.landmarks;
   try {
     if (!savedLm || !Object.keys(savedLm).length) S.profile.landmarks = Engine.seedLandmarks(ob.experience || 'intermediate');
-    const tmp = makeProgram(Object.assign({}, ob, { track: 'bodybuilding', maxes: ob.maxes || {} }));
+    const tmp = makeProgram(Object.assign({}, ob, { maxes: ob.maxes || {} }));
     // Give mains a nominal working max so the estimate reflects a real working
     // session (weighted sets + warmup), not the week-1 calibration ramp.
     for (const l of ['comp-squat', 'comp-bench', 'comp-deadlift', 'military-press']) {
@@ -898,7 +902,7 @@ function estimateFocusMedianMin(ob) {
   }
 }
 function focusTimeLine(ob) {
-  const m = estimateFocusMedianMin(ob);
+  const m = estimateMedianSessionMin(ob);
   if (!m) return '';
   const cap = (ob.timeMode === 'custom' && ob.timeCapMin) ? parseInt(ob.timeCapMin) : null;
   if (cap) {
@@ -962,7 +966,8 @@ function vOnboarding() {
         <button class="${ob.timeMode==='custom'?'on':''}" onclick="obTimeMode('custom')">Enter time</button>
       </div>
       ${ob.timeMode==='custom' ? `<div class="field mt16"><label>Minutes per session</label>
-        <input id="ob-time" type="number" inputmode="numeric" value="${esc(ob.timeCapMin)}" placeholder="60"></div>` : ''}
+        <input id="ob-time" type="number" inputmode="numeric" value="${esc(ob.timeCapMin)}" placeholder="60" oninput="obTimeInput(this.value)"></div>` : ''}
+      <div id="ob-time-est" class="focus-time">${focusTimeLine(ob)}</div>
       <button class="btn btn-green mt24" onclick="obNext(4)">Continue</button>`;
   } else if (step === 5) {
     body = `
@@ -993,6 +998,12 @@ function obDays(n) { V.ob.daysPerWeek = n; render(); }
 function obTrack(id) { V.ob.track = id; render(); }
 function obExp(id) { V.ob.experience = id; render(); }
 function obTimeMode(mode) { V.ob.timeMode = mode; render(); }
+// Live-update the time estimate as the cap is typed, without a full re-render
+// (which would blur the number input mid-entry). Mirrors obSlider's pattern.
+function obTimeInput(v) {
+  V.ob.timeCapMin = v === '' ? '' : (parseInt(v) || '');
+  const el = byId('ob-time-est'); if (el) el.textContent = focusTimeLine(V.ob);
+}
 // Update slider value + warning live, without a full re-render (keeps the drag smooth).
 function obSlider(k, v) {
   V.ob.muscleFocus[k] = parseInt(v);
@@ -1645,7 +1656,12 @@ function doSkipWorkout(di) {
 // ------------------------------------------------------------
 function checkinGroupsForDay(day) {
   const groups = new Map();
+  const bi = P().pointer.block, wi = P().pointer.week;
   for (const slot of day.slots) {
+    // Skip slots a focus slider (set to 0) or a track rule has removed: a muscle
+    // with no scheduled work needs no readiness slider. resolveSlot is the same
+    // source of truth the workout view uses, so the check-in matches what renders.
+    if (resolveSlot(slot, bi, wi).isRemoved) continue;
     const mv = slot.type === 'main' || slot.type === 'secondary'
       ? exById(slot.lift)?.movement : slot.cat;
     if (['bench','chest','tricep'].includes(mv)) groups.set('bench', CHECKIN_GROUPS.bench);
