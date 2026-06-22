@@ -513,6 +513,8 @@ function estimateSessionSec(resolved, tight) {
   let t = TM.sessionOverheadSec;
   for (const rs of resolved) {
     const kind = rs.isMain ? 'main' : rs.isSecondary ? 'secondary' : 'accessory';
+    const equip = (exById(rs.exId) || {}).equipment;
+    t += TM.setupSec[equip] != null ? TM.setupSec[equip] : TM.setupSecDefault; // per-exercise setup
     for (const st of rs.sets) {
       t += (st.reps || 0) * TM.execSecPerRep[kind];   // execution
       t += rest[kind];                                 // rest after each set
@@ -605,7 +607,7 @@ function accessoryCostMin(di, bi, wi) {
     .filter(x => !x.rs.isMain && !x.rs.isSecondary).map(x => x.rs);
   const sec = accs.length
     ? (estimateSessionSec(accs, false) - TIME_MODEL.sessionOverheadSec) / accs.length
-    : 4 * (12 * TIME_MODEL.execSecPerRep.accessory + TIME_MODEL.restSec.accessory);
+    : 4 * (12 * TIME_MODEL.execSecPerRep.accessory + TIME_MODEL.restSec.accessory) + TIME_MODEL.setupSecDefault;
   return Math.max(1, Math.round(sec / 60));
 }
 // Budget line shown near Add Exercise for a capped athlete: room left and the

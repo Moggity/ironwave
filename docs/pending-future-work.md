@@ -133,6 +133,11 @@ real DOM.
   not be taken back off the day.
 - **Budget-aware swap/select list** (see Polish above): per-candidate time cost
   in the swap and add pickers for time-capped athletes.
+- **Equipment-aware setup time.** `TIME_MODEL` gained a per-exercise, equipment
+  keyed setup cost (`setupSec`: bb 120 / db,kb 70 / cb 40 / mc,bd 20 / bw 10 s)
+  applied in `estimateSessionSec`, with the once-per-session overhead dropped to
+  180 s. Marginal add costs now include real setup and differentiate barbell from
+  machine; full-session estimates stay close for typical days.
 
 ## Resolved (2026-06-22, test + CI foundation)
 

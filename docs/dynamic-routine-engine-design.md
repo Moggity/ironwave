@@ -179,7 +179,8 @@ Per the brainstorm, with book cross-checks:
 | `t_exec` | execution seconds **per rep** | 12 main / 6 accessory | brainstorm "1-2 min / 10 reps" = 6-12 s/rep; book "3-9 s/rep" (p65) overlaps at 6-9 |
 | `rest_e` | rest seconds after each set | 120 main/secondary, 90 accessory | brainstorm 2 min main; book 30 s-4 min, longer for compounds (p69, p121) |
 | `W_e` | warmup time for `e` (mains only) | sum of `Engine.warmupSets` × ~45 s | existing warmup generator |
-| `O` | fixed per-session overhead (setup, transitions) | 180 s | eyeballed |
+| `U_e` | per-exercise setup/transition for `e` | by equipment: bb 120 / db,kb 70 / cb 40 / mc,bd 20 / bw 10 s | eyeballed, equipment-aware |
+| `O` | fixed per-session overhead (arrive, change, water) | 180 s | eyeballed |
 
 `t_exec` is intentionally per-rep so that high-rep hypertrophy sets cost more than low-rep
 strength sets, matching the book's tempo guidance (3-9 s/rep controlled, p65, p120). The
@@ -189,18 +190,23 @@ brainstorm's "1-2 minutes per 10 reps" is the same thing expressed per-10-reps a
 ### 2.2 Per-exercise time
 
 ```
-time(e, w) = S_e(w) · ( R_e · t_exec_e  +  rest_e )  +  W_e
+time(e, w) = U_e  +  S_e(w) · ( R_e · t_exec_e  +  rest_e )  +  W_e
 ```
 
+- `U_e` = per-exercise setup/transition: walk to the station, load/grab the implement, adjust
+  the machine, take a feeler set. Keyed by `exercise.equipment` so a barbell (plate-loading +
+  warmup) costs real time while a machine is a pin and a seat. This is what makes *adding* an
+  exercise cost time, and what differentiates a barbell add from a machine add in the pickers.
 - `S_e(w) · R_e · t_exec_e` = total execution time (scales with reps and the week's set count).
 - `S_e(w) · rest_e` = total rest time (one rest charged per set; the final set's "rest" is the
   transition to the next exercise, which is a reasonable simplification).
-- `W_e` = warmup, applied only to main/secondary barbell lifts (accessories warm up trivially).
+- `W_e` = warmup, applied only to main/secondary barbell lifts (accessory warmup is folded into
+  `U_e`).
 
 ### 2.3 Per-session time
 
 ```
-T(day, w) = O  +  Σ_{e in day}  time(e, w)
+T(day, w) = O  +  Σ_{e in day}  time(e, w)        (each time(e,w) now carries its own U_e)
 ```
 
 This is the quantity to predict and compare against the cap. Note `T` is a **function of the
