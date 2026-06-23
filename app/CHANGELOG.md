@@ -20,9 +20,23 @@ opt-in, so the default/powerbuilding routine and the golden master are unchanged
   drop its execution plus a short transition (`TIME_MODEL.dropTransitionSec`, 15s)
   instead of a full rest, since a drop set is one hard set then immediate strips.
 - Volume: `Engine.tonnage` now adds each logged drop's weight x reps.
-- Tests: `test/cluster-b.test.js` (construction, time cost, tonnage, and that the
-  technique only fires for an opted-in bodybuilding accessory). Golden master
-  unchanged; full suite green.
+
+Comprehension + discoverability pass (so the new features read clearly and the
+engaging ones are surfaced, not buried):
+
+- Drop sets are now offered right in the workout: a "Finish with a drop set" chip
+  on each bodybuilding accessory card toggles the technique live on the last
+  working set and remembers it for next time. The Settings-tab toggle stays as the
+  persistent preference.
+- One-time RIR note on the session view explaining the switch from RPE (dismissed
+  for good once read, stored in `S.flags`), plus a permanent one-line RIR hint in
+  the performance modal.
+- Copy swept to RIR where it still said RPE (onboarding maxes step, the
+  "Waiting for calibration" explainer) and the history session-rating chip
+  relabeled from "RPE n" to "rated n/10" (it was the 1-10 session score, not RPE).
+- Tests: `test/cluster-b.test.js` (construction, time cost, tonnage, opt-in
+  routing, the surfacing helpers, and the additive flags/techniques maps). Golden
+  master unchanged; full suite green.
 
 ## [Cluster A: logging & data foundation] (2026-06-23)
 

@@ -135,3 +135,48 @@ test('applyTechnique is inert off the bodybuilding track even if tagged', () => 
   const rs = app.resolveSlot(app.S.program.days[0].slots[0], 0, 1);
   assert.ok(!rs.sets.some(s => s.technique === 'drop'), 'powerbuilding never gets a drop set');
 });
+
+// ---------------------------------------------------------------------------
+// In-session surfacing helpers + one-time flag state
+// ---------------------------------------------------------------------------
+test('defaultState and migrateState carry the additive techniques / flags maps', () => {
+  const s = app.defaultState();
+  assert.deepStrictEqual(s.techniques, {});
+  assert.deepStrictEqual(s.flags, {});
+  const legacy = {};                 // a pre-Cluster-A/B save has neither
+  app.migrateState(legacy);
+  assert.deepStrictEqual(legacy.techniques, {});
+  assert.deepStrictEqual(legacy.flags, {});
+  legacy.techniques['cable-fly'] = 'drop';
+  app.migrateState(legacy);          // idempotent: does not wipe existing
+  assert.strictEqual(legacy.techniques['cable-fly'], 'drop');
+});
+
+test('lastWorkingSetIdx finds the last weighted working set, skipping ramp/calib/amrap', () => {
+  assert.strictEqual(app.lastWorkingSetIdx([
+    { ramp: true, targetWeight: 40 },
+    { targetWeight: 60, targetReps: 8 },
+    { targetWeight: 60, targetReps: 8 },
+    { amrap: true, targetWeight: 80 },
+  ]), 2);
+  assert.strictEqual(app.lastWorkingSetIdx([{ calib: true, targetReps: 12 }]), -1, 'no weighted set');
+  assert.strictEqual(app.lastWorkingSetIdx([{ done: true, weight: 50, targetWeight: null }]), 0, 'logged weight counts');
+});
+
+test('entryHasDrop / canDropEntry gate the chip to a bodybuilding accessory', () => {
+  app.S = app.defaultState();
+  app.S.program = app.makeProgram({
+    daysPerWeek: 4, track: 'bodybuilding', timeMode: 'unlimited',
+    muscleFocus: { ...DEFAULT_FOCUS }, maxes: {},
+  });
+  const acc = { isMain: false, isSecondary: false, exId: 'cable-fly', sets: [{ targetWeight: 40, targetReps: 12 }] };
+  const main = { isMain: true, isSecondary: false, exId: 'comp-bench', sets: [{ targetWeight: 80, targetReps: 5 }] };
+  assert.strictEqual(app.canDropEntry(acc), true);
+  assert.strictEqual(app.canDropEntry(main), false, 'mains anchor the working max, no drop');
+  assert.strictEqual(app.entryHasDrop(acc), false);
+  acc.sets[0].technique = 'drop';
+  assert.strictEqual(app.entryHasDrop(acc), true);
+
+  app.S.program.trainingConfig.track = 'powerbuilding';
+  assert.strictEqual(app.canDropEntry(acc), false, 'off the bodybuilding track the chip never shows');
+});
