@@ -24,22 +24,19 @@ them into focused branches rather than one large one (see the retrospective).
   never trained; the inverse (an optional consistently completed gets promoted
   into core / nudged up) is not built. (Pairs with **Epic 4 / Cluster D** under
   one volume-management roof.)
-- **Calibration redesign (RIR-first, reduced-fatigue ramp).** From athlete
-  feedback: prescribe the calibration ramp in RIR rather than RPE (RIR reads
-  easier for novices) and lower its fatigue cost with a descending rep scheme
-  (e.g. 12/10/8 at RIR 4/3/2) instead of today's flat-ish 14/12/12 at RPE 5/7/8.
-  Beginners' meso 1 should also read in RIR. **High-impact / golden-master-
-  affecting and NOT bodybuilding-only:** calibration is prescribed on the shared
-  `prescribeMain` path (`engine.js:76-80`) plus the `jbb-hyp`/accessory ramp
-  (`engine.js:147-149`), and the *uncalibrated* Powerbuilding golden master IS the
-  calibration ramp, so this deliberately regenerates the snapshot and changes
-  every track. RPE and RIR are interconvertible in the math (`rir = 10 - rpe`), so
-  the RIR switch is presentation; the rep scheme and the light-set intensity
-  (RPE 5 -> RIR 4 / RPE 6) are the real prescription change. Its own branch after
-  Cluster A, with owner sign-off on the exact rep/RIR targets and experience
-  gating, plus new prescription unit tests and a reviewed golden-master regen.
-  Cluster A should land RIR as the primary logged scale first so this builds on
-  existing RIR plumbing.
+- ~~**Calibration redesign (RIR-first, reduced-fatigue ramp).**~~ DONE
+  (2026-06-23): `Engine.calibrationRamp(baseReps, experience)` is one shared ramp
+  with descending reps `R, R-2, R-4` floored at 3 and effort in RIR 4/3/2
+  (beginners stop at RIR 3). The inflated accessory lead-in (14/12/12 at RIR
+  5/3/2) is gone, now 12/10/8 at RIR 4/3/2; a 10s main goes 10/10/10 -> 10/8/6.
+  `experience` is threaded through the scheme entry points and `resolveSlot`
+  (default intermediate = RIR 4/3/2). Golden master regenerated and reviewed:
+  calibration-only, zero weight changes, calibrated snapshot untouched. Owner
+  signed off on the rep/RIR targets and the beginner cap. Rationale: e1RM
+  estimation degrades past ~10 reps, so a moderate top set near failure is both
+  lower-fatigue and a cleaner read (JM 2.0 itself runs off a training max + AMRAP
+  auto-correction rather than an RIR feeler ramp; ours is the bridge for athletes
+  without a known max).
 
 ## Hardcore hypertrophy roadmap (epics, clusters, dependencies)
 

@@ -193,6 +193,25 @@ test('prescribeMain ramp: jm2 accumulation vs intro, calibrated and not', () => 
   assert.ok(calib.every(s => s.calib === true && s.weight === undefined));
 });
 
+test('calibrationRamp: descending reps floored at 3, RIR 4/3/2, beginner cap', () => {
+  // RIR-led (rir = 10 - rpe): 4 / 3 / 2 by default, reps descend R, R-2, R-4.
+  const acc = Engine.calibrationRamp(12, 'intermediate');
+  assert.deepStrictEqual(acc.map(s => s.reps), [12, 10, 8]);
+  assert.deepStrictEqual(acc.map(s => s.rpe), [6, 7, 8]); // RIR 4 / 3 / 2
+  assert.ok(acc.every(s => s.calib === true && s.weight === undefined));
+
+  // Reps never drop below 3, so a strength wave does not calibrate on a single.
+  assert.deepStrictEqual(Engine.calibrationRamp(5, 'intermediate').map(s => s.reps), [5, 3, 3]);
+
+  // Beginners stop at RIR 3 (top-set RPE 7), never close to failure on a guess.
+  const beg = Engine.calibrationRamp(12, 'beginner');
+  assert.deepStrictEqual(beg.map(s => s.rpe), [6, 7, 7]); // RIR 4 / 3 / 3
+
+  // Routed by every prescribe* path: main/secondary/accessory all use it.
+  assert.deepStrictEqual(Engine.prescribeAccessory('hypertrophy', 1, [], 2.5, 'intermediate').map(s => s.reps), [12, 10, 8]);
+  assert.deepStrictEqual(Engine.prescribeSecondary('hypertrophy', 1, null, 2.5, 1, 'intermediate').map(s => s.reps), [5, 3, 3]);
+});
+
 test('jbb-hyp main ramp: sets climb, week 4 AMRAP, deload, uncalibrated', () => {
   const jbb = Engine.schemes['jbb-hyp'];
   const block = { wave: '10s', type: 'hypertrophy', scheme: 'jbb-hyp', mesoIdx: 0 };

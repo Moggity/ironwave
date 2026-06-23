@@ -1,5 +1,31 @@
 # IRONWAVE — Changelog
 
+## [Calibration redesign: RIR-first, reduced-fatigue ramp] (2026-06-23)
+
+Reworks the calibration ramp (the weightless feeler sets prescribed when there is
+no working max / e1RM yet) to read in RIR and cost less fatigue. NOT
+bodybuilding-only: calibration is on the shared `prescribeMain` / secondary /
+accessory paths, and the uncalibrated Powerbuilding snapshot IS the calibration
+ramp, so this deliberately regenerates the golden master. Only the weightless
+calibration sets change; every prescribed-weight set is byte-identical (the diff
+carries zero weight changes), and the calibrated snapshot is untouched.
+
+- `Engine.calibrationRamp(baseReps, experience)`: one shared ramp. Reps DESCEND
+  `R, R-2, R-4` floored at 3 (a moderate top set estimates e1RM better than a
+  high-rep one and the conversion degrades past ~10 reps; the floor avoids a
+  near-max single on a cold lift). Effort reads in RIR 4 / 3 / 2 (RPE stays the
+  stored value, rir = 10 - rpe). Beginners stop at RIR 3, never close to failure
+  on a guessed weight.
+- Removes the inflated lead-in: the accessory ramp was 14/12/12 at RIR 5/3/2 and
+  is now 12/10/8 at RIR 4/3/2; a 10s main goes 10/10/10 -> 10/8/6; a 5s main
+  5/5/5 -> 5/3/3.
+- `experience` is threaded through the scheme `main/secondary/accessory` entry
+  points and `resolveSlot` reads `S.profile.experience`; default (intermediate)
+  is RIR 4/3/2, so existing programs and the golden master use that.
+- Tests: `calibrationRamp` cases in `engine.test.js` (descending reps, floor,
+  RIR targets, beginner cap, routing through all three prescribe paths); golden
+  master regenerated and reviewed (calibration-only, no weight changes).
+
 ## [Cluster C/D: per-head volume breakdown] (2026-06-23)
 
 Bridges Cluster C heads into the Cluster D volume dashboard: each muscle row now
