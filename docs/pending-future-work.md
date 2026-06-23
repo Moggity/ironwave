@@ -264,14 +264,15 @@ Phase   (F) -- needs D --> modulates E and the deload; starts light
   feedback). [feature]
 - **Prescribed rest periods / in-app timer**, surfaced to the athlete. Two
   slices with different dependencies:
-  - *Generic rest timer (independent, shippable now).* A per-set countdown on the
+  - ~~*Generic rest timer (independent, shippable now).* A per-set countdown on the
     workout view, seeded from the `TIME_MODEL.restSec` / `restSecTight` values that
-    already exist in `data.js` (today they only feed `estimateSessionSec`; nothing
-    surfaces them to the athlete). No dependency on Cluster A or Epic 2: it is UI
-    over data that exists, read-only on the engine. Any new optional set-object
-    field (e.g. a per-set rest override) must stay inert when absent so the
-    default/powerbuilding golden master holds; timer copy is athlete-facing, so no
-    em dashes.
+    already exist in `data.js`.~~ DONE (2026-06-23): `Engine.restSecFor(kind, tight,
+    TM)` reads the prescribed rest the time estimate already uses; a sticky rest bar
+    on the session view starts a countdown when a real working set is logged
+    (`donePerf`, warmups excluded), with -15s / +30s / Skip and a done state. No new
+    persisted/set-object field (ephemeral `V.restTimer` only), so the
+    default/powerbuilding golden master is untouched. Unblocks the technique-aware
+    timer below.
   - *Technique-aware timer (gated on Epic 2 / Cluster B).* Myo-reps, rest-pause,
     and drop sets carry an intrinsic intra-set rest that is part of the
     prescription, not generic recovery, so it cannot be timed until Cluster B

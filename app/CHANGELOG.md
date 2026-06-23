@@ -1,5 +1,25 @@
 # IRONWAVE — Changelog
 
+## [Generic rest timer] (2026-06-23)
+
+The independent (non-technique) slice of the "prescribed rest periods / in-app
+timer" item: surfaces the rest the engine already prescribes so the athlete sees
+a live countdown between working sets, instead of it only feeding the time
+estimate. Read-only on the engine and golden-master-safe; no persisted field.
+
+- `Engine.restSecFor(kind, tight, TM)`: pure helper returning the prescribed rest
+  (seconds) for a set kind from `TIME_MODEL.restSec` / `restSecTight` (the
+  compressed table for a time-capped athlete), with an accessory fallback so an
+  unknown kind never yields NaN. Same source `estimateSessionSec` reads.
+- A sticky rest bar on the active session view: logging a real working set
+  (`donePerf`, ramp/warmup sets excluded) starts a countdown for that lift's kind.
+  Athlete controls -15s / +30s / Skip; it flips to "Rest done" and vibrates (when
+  supported) at zero. Ephemeral `V.restTimer` state only, cleared when a session
+  starts or finishes, so nothing persists and the default routine is unchanged.
+- Unblocks the technique-aware timer (Cluster B) for myo-reps / rest-pause.
+- Tests: `restSecFor` unit test (per-kind, tight table, fallback). Golden master
+  unchanged; suite green.
+
 ## [Cluster E auto-application + Cluster F: training phase] (2026-06-23)
 
 Turns the per-muscle autoregulation from advice into action, and adds the

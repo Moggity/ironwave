@@ -268,6 +268,16 @@ const Engine = {
     return t;
   },
 
+  // Prescribed rest (seconds) for one set of a given kind. The same source the
+  // session-time estimate reads (TM.restSec / restSecTight), surfaced so the
+  // in-app rest timer counts down the real prescription rather than a guess.
+  // `tight` picks the compressed table a time-capped athlete trains on. Pure;
+  // unknown kinds fall back to accessory so a caller never gets NaN.
+  restSecFor(kind, tight, TM) {
+    const table = tight ? TM.restSecTight : TM.restSec;
+    return table[kind] != null ? table[kind] : table.accessory;
+  },
+
   // ---------- RIR <-> RPE (presentation only) ----------
   // RIR (reps in reserve) reads easier for novices; the engine keeps RPE as the
   // stored/canonical intensity and these convert for display and logging input.

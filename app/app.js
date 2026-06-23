@@ -2094,6 +2094,7 @@ function beginSession() {
   }));
   V.draft = { id: 's' + Date.now(), ts: Date.now(), b, w, d: di, entries,
               sleepHours: cd.sleepHours, mindset: cd.mindset, sliders: { ...cd.sliders } };
+  clearRestTimer();
   save();
   nav('session');
 }
@@ -2226,6 +2227,7 @@ function vSession() {
       <span style="font-weight:700">Week ${dr.b * P().weeksPerBlock + dr.w + 1}, Day ${dr.d + 1}</span></div>
       <span></span></header>
     <div class="view">
+      ${restTimerHTML()}
       ${shortSleep ? `<div class="banner-warn">Short sleep last night (${dr.sleepHours}h). Sets flagged ⚠ carry extra fatigue risk. Skipping them today is smart, not soft.</div>` : ''}
       ${rirIntroHTML()}
       ${dr.mindset ? `<div class="card accent"><span class="faint">Today's focus</span><div style="font-weight:600">${esc(dr.mindset)}</div></div>` : ''}
@@ -2246,6 +2248,79 @@ function abandonSession() {
     message: 'Your logged sets stay saved in the draft, so you can pick this session back up.',
     confirmLabel: 'Leave session',
   }, () => nav('workout'));
+}
+
+// ------------------------------------------------------------
+// IN-APP REST TIMER (Polish)
+// A per-set countdown surfaced on the active session view, seeded from the
+// prescribed rest that already lives in TIME_MODEL (Engine.restSecFor). It is
+// ephemeral V state only: no persisted field, no set-object change, read-only on
+// the engine, so the default/powerbuilding golden master is untouched. Copy is
+// athlete-facing, so no em dashes.
+// ------------------------------------------------------------
+let REST_TICK = null;
+function sessionTight() {
+  // A time-capped athlete trains on the compressed rest table, so the timer
+  // counts down what they actually rest, matching estimateSessionSec's input.
+  const tc = P() && P().trainingConfig;
+  return !!(tc && tc.timeMode === 'custom' && tc.timeCapMin);
+}
+function startRestTimer(kind, exId) {
+  const dur = Engine.restSecFor(kind, sessionTight(), TIME_MODEL);
+  V.restTimer = { endTs: Date.now() + dur * 1000, durSec: dur, exId, rung: false };
+  stopRestTick();
+  REST_TICK = setInterval(restTick, 250);
+}
+function restRemainingSec() {
+  return V.restTimer ? Math.max(0, Math.round((V.restTimer.endTs - Date.now()) / 1000)) : 0;
+}
+function fmtClock(sec) {
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+function restTick() {
+  const bar = byId('rest-timer');
+  if (!V.restTimer || !bar) { stopRestTick(); return; } // bar gone (navigated away)
+  const left = restRemainingSec();
+  const disp = byId('rest-timer-time'); if (disp) disp.textContent = left > 0 ? fmtClock(left) : 'Rest done';
+  const fill = byId('rest-timer-fill'); if (fill) fill.style.width = `${100 * (1 - left / V.restTimer.durSec)}%`;
+  const skip = byId('rest-timer-skip'); if (skip && left <= 0) skip.textContent = 'Done';
+  if (left <= 0) {
+    if (!V.restTimer.rung) {
+      V.restTimer.rung = true;
+      bar.classList.add('done');
+      if (navigator.vibrate) { try { navigator.vibrate(200); } catch (_) {} }
+    }
+    stopRestTick();
+  }
+}
+function stopRestTick() { if (REST_TICK) { clearInterval(REST_TICK); REST_TICK = null; } }
+function addRest(sec) {
+  if (!V.restTimer) return;
+  V.restTimer.endTs = Math.max(Date.now(), V.restTimer.endTs + sec * 1000);
+  V.restTimer.durSec = Math.max(1, V.restTimer.durSec + sec);
+  V.restTimer.rung = false;
+  const b = byId('rest-timer'); if (b) b.classList.remove('done');
+  const skip = byId('rest-timer-skip'); if (skip) skip.textContent = 'Skip';
+  stopRestTick(); REST_TICK = setInterval(restTick, 250); restTick();
+}
+function dismissRestTimer() { stopRestTick(); V.restTimer = null; render(); }
+function clearRestTimer() { stopRestTick(); if (V) V.restTimer = null; }
+function restTimerHTML() {
+  if (!V.restTimer) return '';
+  const left = restRemainingSec();
+  const done = left <= 0;
+  const pct = 100 * (1 - Math.min(1, left / V.restTimer.durSec));
+  return `<div class="rest-timer ${done ? 'done' : ''}" id="rest-timer">
+    <div class="rest-timer-fill" id="rest-timer-fill" style="width:${pct}%"></div>
+    <div class="rest-timer-body">
+      <span class="rest-timer-label">Rest</span>
+      <span class="rest-timer-time" id="rest-timer-time">${done ? 'Rest done' : fmtClock(left)}</span>
+      <button class="rest-timer-btn" onclick="addRest(-15)">-15s</button>
+      <button class="rest-timer-btn" onclick="addRest(30)">+30s</button>
+      <button class="rest-timer-btn primary" id="rest-timer-skip" onclick="dismissRestTimer()">${done ? 'Done' : 'Skip'}</button>
+    </div>
+  </div>`;
 }
 
 // ------------------------------------------------------------
@@ -2442,6 +2517,12 @@ function donePerf() {
       toast(`${e.name} calibrated. Weights will be prescribed from your next session`);
     }
   }
+  // Start the rest countdown for a real working set (ramp/warmup sets have their
+  // own short rest and the warmup modal, so they do not arm the timer).
+  if (!st.ramp) {
+    const kind = e.isMain ? 'main' : e.isSecondary ? 'secondary' : 'accessory';
+    startRestTimer(kind, e.exId);
+  }
   save();
   closePerf(); render();
 }
@@ -2567,6 +2648,7 @@ function finishSession() {
   logReadiness(dr.readiness);
   V.summaryId = dr.id;
   V.draft = null; V.dayIdx = null;
+  clearRestTimer();
   save();
   closeAllModals();
   toast(`Session saved, ${dr.tonnage.toLocaleString()} kg total tonnage`);
