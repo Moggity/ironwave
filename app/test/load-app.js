@@ -50,6 +50,7 @@ const EXPORTS = `return {
   applyTechnique, lastWorkingSetIdx, entryHasDrop, canDropEntry,
   EXERCISES, SFR_LABELS, HEAD_LABELS, EX_META,
   weeklyVolumeByMuscle, SYNERGIST_COVERAGE,
+  muscleSignal, checkinGroupForMovement,
   VOLUME_LANDMARKS, EXPERIENCE_FACTOR, DEFAULT_PLATES,
   DEFAULT_ACC, SPLIT_FREQ, FOCUS_FACTOR, MOVEMENT_SLIDER,
   UPPER_MUSCLES, LOWER_MUSCLES, FOCUS_KEYS,

@@ -468,3 +468,33 @@ Engine.volumeStatus = function (sets, lm) {
   else { key = 'over'; label = 'Over MRV'; }
   return { key, label, pct: mrv > 0 ? Math.min(100, Math.round(sets / mrv * 100)) : 0, mv, mev, mrv };
 };
+
+// [Cluster E] Per-muscle volume autoregulation (our OWN simple model, not a clone
+// of any product's signal set/scale/mapping). Given a small feedback signal and
+// the muscle's current weekly sets vs its landmarks, recommend whether to add,
+// hold, or cut sets next time, ramping MEV -> MRV and backing off when recovery
+// or performance says so. Pure and deterministic (callers pass the signal), so it
+// unit-tests with seeded feedback. This slice RECOMMENDS only; wiring the delta
+// into prescribed set counts is the next slice.
+//   sig.recovery     1..5 (1 wrecked / still sore, 5 fully fresh); default 3
+//   sig.performance  -1 reps down, 0 held, +1 up vs last; default 0
+//   sig.pump         1..3 or null (advisory only for now)
+Engine.autoregVolume = function (sig, sets, lm) {
+  if (!lm) return { action: 'hold', delta: 0, nextSets: sets, reason: 'No landmark yet' };
+  const s = sig || {};
+  const rec = s.recovery == null ? 3 : s.recovery;
+  const perf = s.performance == null ? 0 : s.performance;
+  let delta, why;
+  if (perf < 0 || rec <= 2) { delta = -1; why = perf < 0 ? 'Reps are dropping, back off' : 'Still under-recovered, back off'; }
+  else if (sets < lm.mev) { delta = Math.min(2, lm.mev - sets); why = 'Below MEV, ramp the volume in'; }
+  else if (sets >= lm.mrv) { delta = 0; why = 'At your MRV, hold here'; }
+  else if (rec >= 4 && perf >= 0) { delta = 1; why = 'Recovered well, add a set'; }
+  else { delta = 0; why = 'On track, hold and let it adapt'; }
+  const nextSets = Math.max(lm.mv, Math.min(lm.mrv, sets + delta));
+  const applied = nextSets - sets;
+  const action = applied > 0 ? 'add' : applied < 0 ? 'cut' : 'hold';
+  // If clamping turned an intended move into a hold, say why plainly.
+  const reason = applied === 0 && delta !== 0
+    ? (delta > 0 ? 'At your MRV, hold here' : 'Already at maintenance, hold here') : why;
+  return { action, delta: applied, nextSets, reason };
+};

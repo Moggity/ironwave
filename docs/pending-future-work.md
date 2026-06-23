@@ -182,6 +182,13 @@ and the product moat are the same move.
   `computeWeekMod` with true per-muscle autoreg, finally using the check-in
   soreness for *volume*, not just readiness.
 - **Why:** the defining feature of a serious hypertrophy app.
+- **Feedback model + recommendation shipped (2026-06-23):** `Engine.autoregVolume`
+  decides add/hold/cut per muscle from our own signal (recovery 1..5, performance,
+  pump) vs MV/MEV/MRV; `muscleSignal` derives it from check-ins + logged sets. The
+  Weekly volume screen surfaces the per-muscle recommendation. RECOMMENDS only so
+  far (no prescription change, golden master safe). **Next slice (own branch):**
+  feed the delta into prescribed bodybuilding set counts, replacing the fixed
+  `JBB_HYP` tables and whole-body `computeWeekMod`, inert without feedback.
 - **Can it be lawsuit-risk-free? Yes.** Autoregulating volume from athlete
   feedback is general training science, not protectable. The risk lives entirely
   in cloning a specific company's named system: their exact signal set, wording,
