@@ -86,6 +86,14 @@ and the product moat are the same move.
 - **Dependencies:** Cluster A's `technique` field + logging; `estimateSessionSec`
   must learn each technique's time cost; how a drop set counts toward weekly sets
   feeds Epic 4.
+- **In-app timer (technique-aware slice):** a technique whose rest interval is
+  *intrinsic* (myo-reps mini-rest, rest-pause pause, drop-set transition) is not
+  done until its timing cue is surfaced to the athlete. Treat the timer as part of
+  "end-to-end" for any such technique rather than a separate item; it consumes the
+  same `technique` set structure this cluster introduces and builds on the generic
+  rest timer shipped under Polish (the "Prescribed rest periods / in-app timer"
+  item). A technique-aware timer cannot precede this cluster because the set
+  structure it counts down does not exist until then.
 - **IP:** low. Public methods with generic names; do not copy any one company's
   UI or exact parameter defaults.
 - **Tests:** bodybuilding-only, default path inert. New engine math (technique set
@@ -195,8 +203,21 @@ Phase   (F) -- needs D --> modulates E and the deload; starts light
 - **Autoregulated deload** timing/depth (part of Epic 4). [feature]
 - **Frequency autoregulation** from how fast soreness clears (needs Epic 1
   feedback). [feature]
-- **Prescribed rest periods** per set type, surfaced to the athlete
-  (independent). [polish]
+- **Prescribed rest periods / in-app timer**, surfaced to the athlete. Two
+  slices with different dependencies:
+  - *Generic rest timer (independent, shippable now).* A per-set countdown on the
+    workout view, seeded from the `TIME_MODEL.restSec` / `restSecTight` values that
+    already exist in `data.js` (today they only feed `estimateSessionSec`; nothing
+    surfaces them to the athlete). No dependency on Cluster A or Epic 2: it is UI
+    over data that exists, read-only on the engine. Any new optional set-object
+    field (e.g. a per-set rest override) must stay inert when absent so the
+    default/powerbuilding golden master holds; timer copy is athlete-facing, so no
+    em dashes.
+  - *Technique-aware timer (gated on Epic 2 / Cluster B).* Myo-reps, rest-pause,
+    and drop sets carry an intrinsic intra-set rest that is part of the
+    prescription, not generic recovery, so it cannot be timed until Cluster B
+    builds the `technique` set structure. Scoped there as an acceptance criterion
+    per technique, not scheduled ahead of it. [polish -> feature]
 - **Show a target rep range** instead of a single number. [polish]
 - **Per-muscle weekly set counter** on the workout view (early slice of
   Epic 4). [polish]
