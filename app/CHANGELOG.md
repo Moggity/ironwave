@@ -1,5 +1,34 @@
 # IRONWAVE — Changelog
 
+## [Cluster E auto-application + Cluster F: training phase] (2026-06-23)
+
+Turns the per-muscle autoregulation from advice into action, and adds the
+training-phase / energy-balance layer. Bodybuilding-only and inert without
+feedback, so the default/powerbuilding routine and the golden master are
+unchanged (a cross-cluster integration test asserts this directly).
+
+Cluster E (auto-application):
+- `P().volAdj` (per-muscle accumulated set offset) now feeds prescribed
+  bodybuilding accessory volume via `autoregForAccessory` in `resolveSlot`,
+  bounded by the same per-session landmark cap focus uses.
+- `updateAutoreg()` runs on each week advance: for every trained muscle it reads
+  the week's feedback (`muscleSignal`) and nudges `volAdj` by the autoregulator's
+  add / hold / cut, clamped to a small range so it converges instead of running
+  away. The volume dashboard tally reflects the added sets (the D <-> E loop).
+
+Cluster F (training phase & energy balance, no nutrition tracker):
+- A training `phase` per athlete (lean-gain / maintenance / cut / minicut) on a
+  new Phase & Bodyweight screen (More hub + a dashboard chip), with `PHASE_LABELS`
+  / `PHASE_BLURB` / `PHASE_DEFICIT`.
+- `Engine.autoregVolume` gains a `phase` argument: in a deficit recovery is lower,
+  so it never adds volume (retain, not grow) and backs off one notch sooner.
+- `Engine.fatigueSaturated` flags when enough muscles sit at/near MRV; the volume
+  dashboard then suggests a minicut (when not already in a deficit).
+- A light bodyweight trend (`S.bodyweight`, a sparkline). Trend only, no calories.
+- Tests: `test/cluster-ef.test.js` and `test/cluster-integration.test.js` (A..F
+  together: default path inert, the autoreg loop converges, drop set + autoreg
+  coexist, the cut phase suppresses adds). Golden master unchanged; suite green.
+
 ## [Cluster E: per-muscle volume autoregulation, first slice] (2026-06-23)
 
 First slice of Epic 1 (the gated capstone): the per-muscle feedback model, our own

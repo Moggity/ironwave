@@ -185,10 +185,15 @@ and the product moat are the same move.
 - **Feedback model + recommendation shipped (2026-06-23):** `Engine.autoregVolume`
   decides add/hold/cut per muscle from our own signal (recovery 1..5, performance,
   pump) vs MV/MEV/MRV; `muscleSignal` derives it from check-ins + logged sets. The
-  Weekly volume screen surfaces the per-muscle recommendation. RECOMMENDS only so
-  far (no prescription change, golden master safe). **Next slice (own branch):**
-  feed the delta into prescribed bodybuilding set counts, replacing the fixed
-  `JBB_HYP` tables and whole-body `computeWeekMod`, inert without feedback.
+  Weekly volume screen surfaces the per-muscle recommendation.
+- **Auto-application shipped (2026-06-23):** `P().volAdj` (per-muscle offset,
+  updated each week by `updateAutoreg` from `muscleSignal`) now feeds prescribed
+  bodybuilding accessory volume via `autoregForAccessory` in `resolveSlot`,
+  bounded by the per-session landmark cap and clamped so the loop converges.
+  Bodybuilding-only and inert without feedback (golden master safe). **Still open:**
+  this layers on top of `weekMod`/`computeWeekMod` rather than replacing them, and
+  does not yet rewrite the fixed `JBB_HYP` main-set tables; full replacement +
+  per-head distribution remain future work.
 - **Can it be lawsuit-risk-free? Yes.** Autoregulating volume from athlete
   feedback is general training science, not protectable. The risk lives entirely
   in cloning a specific company's named system: their exact signal set, wording,
@@ -206,6 +211,15 @@ and the product moat are the same move.
 
 Cuts and minicuts are part of hypertrophy training, so this is a training-coupled
 layer, NOT a macro tracker. Keep it light and differentiated.
+
+- **First slice shipped (2026-06-23):** a `profile.phase` (lean-gain /
+  maintenance / cut / minicut) on a Phase & Bodyweight screen; `Engine.autoregVolume`
+  takes the phase so a deficit holds volume rather than adding and backs off
+  sooner; `Engine.fatigueSaturated` drives a minicut suggestion on the volume
+  dashboard; and a light `S.bodyweight` trend (sparkline, no calories/macros).
+  **Still open:** phase per block/meso (currently one current phase), shortening
+  the deload/minicut interval (needs Epic 4's deload slice), and a measurement
+  trend beyond bodyweight.
 
 - **What:**
   - A **phase tag** per block/meso: lean-gain (surplus), maintenance, cut,
