@@ -87,3 +87,30 @@ test('weeklyVolumeByMuscle counts working sets but not warmup ramps', () => {
   const expected = rs.sets.filter(s => !s.ramp).length;
   assert.strictEqual(vol.bicep, expected);
 });
+
+// ---------------------------------------------------------------------------
+// weeklyVolumeByHead (Cluster C/D per-head split)
+// ---------------------------------------------------------------------------
+test('weeklyVolumeByHead nests head-tagged sets under the muscle, consistent with the muscle tally', () => {
+  const prog = bbProgram();
+  // Two chest accessories with distinct heads on one day.
+  prog.days = [{ name: 'Chest', slots: [
+    { type: 'acc', cat: 'chest', def: 'dips', ex: 'dips' },           // chest-lower
+    { type: 'acc', cat: 'chest', def: 'cable-fly', ex: 'cable-fly' }, // no head
+  ] }];
+  app.S.records['dips'] = [{ ts: Date.now(), weight: 40, reps: 10, rpe: 8 }];
+  app.S.records['cable-fly'] = [{ ts: Date.now(), weight: 20, reps: 12, rpe: 8 }];
+  const heads = app.weeklyVolumeByHead();
+  const dipSets = app.resolveSlot(prog.days[0].slots[0], 0, 0).sets.filter(s => !s.ramp).length;
+  assert.ok(heads.chest, 'chest has a head breakdown');
+  assert.strictEqual(heads.chest['chest-lower'], dipSets, 'lower-chest count matches the dips working sets');
+  assert.ok(!('null' in heads.chest) && heads.chest[null] === undefined, 'a headless exercise adds no head bucket');
+});
+
+test('weeklyVolumeByHead ignores headed compounds (movement is not a landmark key)', () => {
+  const prog = bbProgram();
+  prog.days = [{ name: 'Push', slots: [{ type: 'main', lift: 'comp-bench' }] }]; // head chest-lower, movement bench
+  prog.wm['comp-bench'] = 100;
+  const heads = app.weeklyVolumeByHead();
+  assert.deepStrictEqual(heads, {}, 'a compound bench does not produce a head split');
+});
