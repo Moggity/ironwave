@@ -51,7 +51,7 @@ const EXPORTS = `return {
   applyTechnique, buildTechnique, lastWorkingSetIdx, entryHasDrop, entryTech, canDropEntry,
   FINISHER_TECHS, SAME_WEIGHT_TECHS,
   EXERCISES, SFR_LABELS, HEAD_LABELS, EX_META,
-  weeklyVolumeByMuscle, SYNERGIST_COVERAGE,
+  weeklyVolumeByMuscle, weeklyVolumeByHead, SYNERGIST_COVERAGE,
   muscleSignal, checkinGroupForMovement,
   autoregForAccessory, updateAutoreg, currentPhase,
   PHASE_LABELS, PHASE_DEFICIT,

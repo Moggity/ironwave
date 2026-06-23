@@ -308,6 +308,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .vol-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; }
 .vol-mark { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); opacity: .5; }
 .vol-scale { display: flex; justify-content: space-between; font-size: .7rem; margin-top: 3px; }
+.vol-heads { font-size: .74rem; margin-top: 4px; }
 .vol-legend { display: flex; gap: 16px; font-size: .75rem; margin: 8px 0 12px; }
 .vol-legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
 .vol-status.k-none, .vol-scale { color: var(--text-dim); }

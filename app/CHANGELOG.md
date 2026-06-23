@@ -1,5 +1,22 @@
 # IRONWAVE — Changelog
 
+## [Cluster C/D: per-head volume breakdown] (2026-06-23)
+
+Bridges Cluster C heads into the Cluster D volume dashboard: each muscle row now
+shows a per-head split of its direct work, so an athlete can spot a region they
+are under- or over-training (e.g. all upper chest, no mid/lower). Read-only and
+golden-master-safe; surfaced on the bodybuilding track.
+
+- `weeklyVolumeByHead()`: nests head-tagged working sets under each muscle, using
+  the same set count the exercise contributes to `weeklyVolumeByMuscle` (so the
+  head numbers stay consistent with the muscle bar). Direct accessories only;
+  headed compounds (attributed fractionally by coverage) are not split.
+- The Weekly volume screen renders a "Regions: <head> n · ..." line under a
+  muscle when it has head-tagged work.
+- Tests: `weeklyVolumeByHead` cases in `test/cluster-d.test.js` (consistency with
+  the muscle tally, headless exercises add no bucket, compounds are not split).
+  Golden master unchanged; suite green.
+
 ## [Cluster C: head-aware swap ordering] (2026-06-23)
 
 Extends the swap picker's SFR ordering so it also fills muscle-head gaps. On an

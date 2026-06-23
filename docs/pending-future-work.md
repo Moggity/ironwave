@@ -152,9 +152,12 @@ and the product moat are the same move.
   candidates by SFR (higher stimulus first). Bodybuilding-only, golden-master-safe.
   **Head-aware swap ordering shipped (2026-06-23):** `dayHeadsCovered` plus a
   fills-a-gap sort tier and an "Adds <head>" hint surface a candidate that covers
-  a region the day is missing. **Still open (own branch):** cross-meso rotation
-  for athlete-picked (select) slots, and per-head volume accounting feeding Epic 4
-  (the Cluster D dashboard breaking weekly sets down by head where heads exist).
+  a region the day is missing. **Per-head volume shipped (2026-06-23):**
+  `weeklyVolumeByHead` plus a "Regions" line on the Weekly volume screen split a
+  muscle's direct work by head. **Still open (own branch):** cross-meso rotation
+  for athlete-picked (select) slots, and per-head MEV/MRV landmarks (today the
+  head split is informational against the whole-muscle landmark, not per-head
+  targets).
 - **Dependencies:** mostly a data lift in `data.js` (`EXERCISES`/`MOVEMENTS`); the
   generator and swap picker consume the new metadata. Sharpens Epic 4's per-muscle
   counting and the split generator's selection. Independent of Epic 2.

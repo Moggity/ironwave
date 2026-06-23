@@ -1436,6 +1436,29 @@ function weeklyVolumeByMuscle() {
   for (const mv in tally) tally[mv] = Math.round(tally[mv] * 2) / 2; // nearest half set
   return tally;
 }
+// [Cluster C/D] Per-head working-set split, nested under each muscle. Counts only
+// direct head-tagged accessories (movement is a landmark key), using the same
+// set count those exercises contribute to weeklyVolumeByMuscle, so the head
+// numbers stay consistent with the muscle bar. Headed compounds (attributed
+// fractionally by coverage) are not split. Read-only; bodybuilding-surfaced.
+function weeklyVolumeByHead() {
+  const p = P();
+  if (!p) return {};
+  const bi = p.pointer.block, wi = p.pointer.week;
+  const tally = {}; // { movement: { head: sets } }
+  for (let di = 0; di < p.days.length; di++) {
+    for (const x of resolveDayEntries(di, bi, wi).items) {
+      const ex = exById(x.rs.exId);
+      if (!ex || !ex.head || !VOLUME_LANDMARKS[ex.movement]) continue;
+      const sets = x.rs.sets.filter(s => !s.ramp).length;
+      if (!sets) continue;
+      (tally[ex.movement] || (tally[ex.movement] = {}));
+      tally[ex.movement][ex.head] = (tally[ex.movement][ex.head] || 0) + sets;
+    }
+  }
+  for (const mv in tally) for (const h in tally[mv]) tally[mv][h] = Math.round(tally[mv][h] * 2) / 2;
+  return tally;
+}
 const VOL_ORDER = ['chest', 'shoulder', 'tricep', 'bicep', 'upperback', 'vpull', 'hpull',
                    'quad', 'ham', 'glute', 'calf', 'abs', 'lowback'];
 // [Cluster E] Map a movement to its broad check-in group (same grouping the
@@ -1479,6 +1502,7 @@ function volumeDashboardHTML() {
   const tally = weeklyVolumeByMuscle();
   const tc = P() && P().trainingConfig;
   const autoreg = tc && tc.track === 'bodybuilding'; // hypertrophy-focused guidance
+  const headTally = autoreg ? weeklyVolumeByHead() : {};
   const phase = currentPhase();
   const statuses = [];
   const rows = VOL_ORDER.filter(mv => lm[mv] || VOLUME_LANDMARKS[mv]).map(mv => {
@@ -1496,12 +1520,23 @@ function volumeDashboardHTML() {
         rec = `<div class="vol-rec k-rec-${r.action}">${arrow} ${esc(r.reason)}</div>`;
       }
     }
+    // [Cluster C/D] Per-head split, where this muscle has head-tagged work, so an
+    // athlete can spot a region they are under- or over-training (e.g. all upper
+    // chest, no mid/lower).
+    let heads = '';
+    const hd = headTally[mv];
+    if (hd) {
+      const parts = Object.keys(hd).sort((a, b) => hd[b] - hd[a])
+        .map(h => `${HEAD_LABELS[h] || h} ${kg(hd[h])}`);
+      if (parts.length) heads = `<div class="vol-heads faint">Regions: ${parts.join(' · ')}</div>`;
+    }
     return `<div class="vol-row">
       <div class="vol-head"><span>${MOVEMENTS[mv]?.label || mv}</span>
         <span class="vol-status k-${st.key}">${st.label} · ${kg(sets)} sets</span></div>
       <div class="vol-track"><div class="vol-fill k-${st.key}" style="width:${st.pct}%"></div>
         <div class="vol-mark" style="left:${mevPct}%"></div></div>
       <div class="vol-scale faint"><span>MEV ${L.mev}</span><span>MRV ${L.mrv}</span></div>
+      ${heads}
       ${rec}
     </div>`;
   }).join('');
