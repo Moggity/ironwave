@@ -1,5 +1,29 @@
 # IRONWAVE — Changelog
 
+## [Cluster E: per-muscle volume autoregulation, first slice] (2026-06-23)
+
+First slice of Epic 1 (the gated capstone): the per-muscle feedback model, our own
+simple taxonomy (not a clone of any product's signals/scale/mapping). This slice
+RECOMMENDS only, so there is no prescription change and the golden master is
+untouched; wiring the recommendation into actual set counts is the next slice.
+
+- `Engine.autoregVolume(sig, sets, lm)` decides add / hold / cut for a muscle from
+  a small seeded signal (recovery 1..5, performance -1/0/+1, pump advisory) vs its
+  MV/MEV/MRV: ramp in below MEV, add when recovered and performing in the window,
+  back off when under-recovered or reps drop, hold at the MRV ceiling. Pure and
+  clamped to [MV, MRV].
+- `muscleSignal(mv)` derives that signal from data already captured: recovery from
+  the latest check-in slider for the muscle's group, performance from reps vs
+  target, pump from logged sets. Null until a muscle has a logged session.
+- The Weekly volume screen now shows a per-muscle add / hold / cut note with the
+  reason (bodybuilding track), reading those check-ins and last sessions.
+- Deferred to the next slice: feeding the recommendation into prescribed set
+  counts (replacing the fixed JBB_HYP tables and whole-body computeWeekMod), still
+  bodybuilding-only and inert without feedback.
+- Tests: `test/cluster-e.test.js` (the add/hold/cut decision across cases, clamps,
+  neutral defaults, and the signal derivation). Golden master unchanged; suite
+  green.
+
 ## [Cluster D: per-muscle weekly volume dashboard, first slice] (2026-06-23)
 
 First slice of Epic 4: the visible control panel. Surfaces weekly working sets

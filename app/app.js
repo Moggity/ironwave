@@ -1366,20 +1366,68 @@ function weeklyVolumeByMuscle() {
 }
 const VOL_ORDER = ['chest', 'shoulder', 'tricep', 'bicep', 'upperback', 'vpull', 'hpull',
                    'quad', 'ham', 'glute', 'calf', 'abs', 'lowback'];
+// [Cluster E] Map a movement to its broad check-in group (same grouping the
+// readiness check-in uses), so a muscle's recovery read comes from the slider
+// the athlete already answered.
+function checkinGroupForMovement(mv) {
+  if (['bench', 'chest', 'tricep'].includes(mv)) return 'bench';
+  if (['press', 'shoulder'].includes(mv)) return 'press';
+  if (['squat', 'quad', 'calf'].includes(mv)) return 'squat';
+  if (['deadlift', 'ham', 'glute'].includes(mv)) return 'deadlift';
+  if (['vpull', 'hpull', 'upperback', 'bicep'].includes(mv)) return 'upperpull';
+  if (['lowback'].includes(mv)) return 'lowback';
+  return null;
+}
+// [Cluster E] Derive a per-muscle feedback signal from data already captured:
+// recovery from the latest check-in slider for the muscle's group (1..5), and
+// pump + performance (reps vs target) from the muscle's most recent logged
+// session. Returns null when there is no logged session for the muscle yet.
+function muscleSignal(mv) {
+  const sess = [...(S.sessions || [])].reverse()
+    .find(s => !s.skipped && (s.entries || []).some(e => (exById(e.exId) || {}).movement === mv));
+  if (!sess) return null;
+  let repDiff = 0, repN = 0, pumpSum = 0, pumpN = 0;
+  for (const e of sess.entries) {
+    if ((exById(e.exId) || {}).movement !== mv) continue;
+    for (const st of e.sets) {
+      if (!st.done || st.ramp || st.calib) continue;
+      if (st.reps != null && st.targetReps != null) { repDiff += st.reps - st.targetReps; repN++; }
+      if (st.pump != null) { pumpSum += st.pump; pumpN++; }
+    }
+  }
+  const avgDiff = repN ? repDiff / repN : 0;
+  const performance = avgDiff >= 1 ? 1 : avgDiff <= -1 ? -1 : 0;
+  const grp = checkinGroupForMovement(mv);
+  const last = (S.checkins || []).length ? S.checkins[S.checkins.length - 1] : null;
+  const recovery = (last && grp && last.sliders && last.sliders[grp] != null) ? last.sliders[grp] : null;
+  return { recovery, performance, pump: pumpN ? Math.round(pumpSum / pumpN) : null };
+}
 function volumeDashboardHTML() {
   const lm = (S.profile && S.profile.landmarks) || {};
   const tally = weeklyVolumeByMuscle();
+  const tc = P() && P().trainingConfig;
+  const autoreg = tc && tc.track === 'bodybuilding'; // hypertrophy-focused guidance
   const rows = VOL_ORDER.filter(mv => lm[mv] || VOLUME_LANDMARKS[mv]).map(mv => {
     const L = lm[mv] || VOLUME_LANDMARKS[mv];
     const sets = tally[mv] || 0;
     const st = Engine.volumeStatus(sets, L);
     const mevPct = L.mrv > 0 ? Math.min(100, Math.round(L.mev / L.mrv * 100)) : 0;
+    let rec = '';
+    if (autoreg && sets > 0) {
+      const sig = muscleSignal(mv);
+      if (sig) {
+        const r = Engine.autoregVolume(sig, sets, L);
+        const arrow = r.action === 'add' ? '▲' : r.action === 'cut' ? '▼' : '＝';
+        rec = `<div class="vol-rec k-rec-${r.action}">${arrow} ${esc(r.reason)}</div>`;
+      }
+    }
     return `<div class="vol-row">
       <div class="vol-head"><span>${MOVEMENTS[mv]?.label || mv}</span>
         <span class="vol-status k-${st.key}">${st.label} · ${kg(sets)} sets</span></div>
       <div class="vol-track"><div class="vol-fill k-${st.key}" style="width:${st.pct}%"></div>
         <div class="vol-mark" style="left:${mevPct}%"></div></div>
       <div class="vol-scale faint"><span>MEV ${L.mev}</span><span>MRV ${L.mrv}</span></div>
+      ${rec}
     </div>`;
   }).join('');
   return `<p class="subtle">Estimated direct working sets per muscle this week, against your own volume landmarks. The big compounds count toward the muscles they train.</p>
@@ -1388,7 +1436,8 @@ function volumeDashboardHTML() {
       <span><i class="dot k-productive"></i>Productive</span>
       <span><i class="dot k-over"></i>Over MRV</span></div>
     ${rows}
-    <p class="faint mt16">MEV is the least that grows you, MRV the most you can recover from. A block should climb from MEV toward MRV, then deload.</p>`;
+    ${autoreg ? '<p class="faint mt16">The ▲ ▼ ＝ notes read your recovery check-ins and last sessions to suggest adding, holding, or cutting a muscle\'s sets. Guidance for now; you stay in control of the dial.</p>'
+      : '<p class="faint mt16">MEV is the least that grows you, MRV the most you can recover from. A block should climb from MEV toward MRV, then deload.</p>'}`;
 }
 function openVolumeDashboard() {
   if (!P()) { toast('Start a program first', true); return; }

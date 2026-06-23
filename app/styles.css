@@ -283,6 +283,10 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .vol-status.k-maint { color: #4b8df8; } .vol-fill.k-maint, .dot.k-maint { background: #4b8df8; }
 .vol-status.k-productive { color: #36c98a; } .vol-fill.k-productive, .dot.k-productive { background: #36c98a; }
 .vol-status.k-over { color: #e2557b; } .vol-fill.k-over, .dot.k-over { background: #e2557b; }
+.vol-rec { font-size: .78rem; font-weight: 600; margin-top: 5px; }
+.vol-rec.k-rec-add { color: #36c98a; }
+.vol-rec.k-rec-cut { color: #e2557b; }
+.vol-rec.k-rec-hold { color: var(--text-dim); }
 .drop-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 6px 0; }
 .drop-row .drop-w { min-width: 84px; text-align: right; font-weight: 600; color: var(--text-dim); }
 .stepper .pm.sm { width: 40px; height: 40px; font-size: 1.4rem; }
