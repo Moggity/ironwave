@@ -1,5 +1,27 @@
 # IRONWAVE — Changelog
 
+## [Cluster C: head/region + SFR exercise model, data slice] (2026-06-23)
+
+First slice of Epic 3: the exercise data lift plus surfacing, so the picker and
+exercise detail show muscle region, stimulus-to-fatigue, and loaded-stretch. Our
+own ratings and taxonomy (no product's table reproduced). Fully additive and
+golden-master-safe: nothing in the prescription engine reads these fields.
+
+- Data: `EX_META` (authored, curated) merges into every `EXERCISES` entry as
+  `sfr` (1..3 stimulus-to-fatigue), `stretch` (loaded-stretch flag), and `head`
+  (finer muscle region, only where heads genuinely differ: delts front/side/rear,
+  chest upper/lower, triceps long/lateral, lats vs upper back, hamstring hip vs
+  knee, biceps long/short). Untagged exercises take a neutral default.
+- New `SFR_LABELS` / `HEAD_LABELS`.
+- UI: compact region / Stretch / SFR badges in the swap, add, and library
+  pickers (`exTagsHTML`), and a Stimulus card in the exercise detail Info tab
+  (`exMetaCardHTML`) explaining SFR and the stretch emphasis.
+- Deferred to the next slice (its own branch): the generator consuming this
+  metadata for head-aware selection and cross-meso exercise rotation.
+- Tests: `test/cluster-c.test.js` (field shape + defaults, authored values, head
+  label integrity, and that resolveSlot output never carries the metadata).
+  Golden master unchanged; full suite green.
+
 ## [Cluster B: intensity techniques, drop set] (2026-06-23)
 
 First slice of Epic 2: one technique end-to-end, the drop set, proving the whole

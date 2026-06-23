@@ -129,6 +129,14 @@ and the product moat are the same move.
   rotation in the generator.
 - **Why:** pros program by heads and by stimulus quality, and rotate exercises to
   manage staleness/fatigue.
+- **Data slice shipped (2026-06-23):** `EX_META` adds per-exercise `sfr` (1..3
+  stimulus-to-fatigue), `stretch` (loaded-stretch flag), and `head` (muscle region
+  where heads differ), merged into `EXERCISES` with neutral defaults, plus
+  `SFR_LABELS` / `HEAD_LABELS`. Surfaced as badges in the swap/add/library pickers
+  (`exTagsHTML`) and a Stimulus card in the exercise detail (`exMetaCardHTML`).
+  Additive and golden-master-safe (no prescription code reads it). **Next slice
+  (own branch):** the generator and swap picker consuming `head`/`sfr` for
+  head-aware selection and cross-meso exercise rotation.
 - **Dependencies:** mostly a data lift in `data.js` (`EXERCISES`/`MOVEMENTS`); the
   generator and swap picker consume the new metadata. Sharpens Epic 4's per-muscle
   counting and the split generator's selection. Independent of Epic 2.

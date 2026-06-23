@@ -131,6 +131,26 @@ const pumpBadge = p => (p ? ` <small class="faint">🔥 ${esc(PUMP_LABELS[p] || 
 const techniqueBadge = t => (t && t !== 'straight' ? ` <small class="faint">${esc(TECHNIQUE_LABELS[t] || t)}</small>` : '');
 // [Cluster B] "70kg×8, 56kg×8" rendering of a drop set's mini-sets.
 const dropDetail = (exId, drops) => (drops || []).map(d => `${fmtW(exId, d.weight)}×${d.reps}`).join(', ');
+// [Cluster C] Compact picker badges: muscle region (head), a loaded-stretch flag,
+// and a non-default SFR so the high-value and high-cost picks stand out at a glance.
+function exTagsHTML(e) {
+  if (!e) return '';
+  let out = '';
+  if (e.head && HEAD_LABELS[e.head]) out += `<span class="ex-tag head">${HEAD_LABELS[e.head]}</span>`;
+  if (e.stretch) out += `<span class="ex-tag stretch">Stretch</span>`;
+  if (e.sfr && e.sfr !== 2) out += `<span class="ex-tag sfr s${e.sfr}">SFR ${SFR_LABELS[e.sfr]}</span>`;
+  return out ? `<span class="ex-tags">${out}</span>` : '';
+}
+// [Cluster C] Fuller stimulus block for the exercise detail Info tab.
+function exMetaCardHTML(e) {
+  if (!e) return '';
+  const rows = [`<div class="row"><span class="subtle">Stimulus to fatigue</span><b>${SFR_LABELS[e.sfr] || 'Moderate'}</b></div>`];
+  if (e.head && HEAD_LABELS[e.head]) rows.push(`<div class="row"><span class="subtle">Region bias</span><b>${HEAD_LABELS[e.head]}</b></div>`);
+  if (e.stretch) rows.push(`<div class="row"><span class="subtle">Emphasis</span><b>Loaded stretch</b></div>`);
+  return `<div class="section-title" style="font-size:1.1rem">Stimulus</div>
+    <div class="card">${rows.join('<div class="divider"></div>')}</div>
+    <p class="faint">SFR is our own read of growth stimulus per unit of fatigue. Higher means more reward for less systemic cost, handy when you are adding volume late in a block. A loaded stretch tends to grow muscle well for the fatigue it costs.</p>`;
+}
 
 function allExercises() { return EXERCISES.concat(S.customEx); }
 function exById(id) { return allExercises().find(e => e.id === id); }
@@ -2434,7 +2454,7 @@ function swapCardHTML(e, showGroup) {
   const cost = (!SW.isMain && timeCapMin()) ? candidateCostMin(e.id) : null;
   const costTag = cost ? ` <span class="cost-tag">+${cost} min</span>` : '';
   return `<div class="ex-card">
-      <span class="name">${esc(e.name)}${costTag}${showGroup ? `<span class="sub">${MOVEMENTS[e.movement]?.label || ''}</span>` : ''}</span>
+      <span class="name">${esc(e.name)}${costTag}${showGroup ? `<span class="sub">${MOVEMENTS[e.movement]?.label || ''}</span>` : ''}${exTagsHTML(e)}</span>
       <span class="actions">
         <button class="icon-btn" onclick="openExDetail('${e.id}')"><span class="ic">ⓘ</span>Info</button>
         <button class="icon-btn" onclick="doSwap(${SW.di},${SW.si},'${e.id}')"><span class="ic">☐</span>Select</button>
@@ -2470,7 +2490,7 @@ function addBodyHTML() {
       const cost = capped ? candidateCostMin(e.id) : null;
       const costTxt = cost ? ` · ~${cost} min` : '';
       return `<button class="lib-item" onclick="doAddExercise('${e.id}')">
-      <span>${esc(e.name)}<span class="sub">${MOVEMENTS[e.movement]?.label || ''} · ${EQUIP_LABEL[e.equipment] || ''}${costTxt}</span></span><span>＋</span>
+      <span>${esc(e.name)}<span class="sub">${MOVEMENTS[e.movement]?.label || ''} · ${EQUIP_LABEL[e.equipment] || ''}${costTxt}</span>${exTagsHTML(e)}</span><span>＋</span>
     </button>`;
     }).join('')
     : '<p class="faint mt8">No matches.</p>';
@@ -2642,7 +2662,7 @@ function libItemHTML(e) {
   const best = Engine.bestE1RM(recordsFor(e.id));
   return `<button class="lib-item" onclick="openExDetail('${e.id}')">
     <span>${esc(e.name)}${e.isMain ? ' <span style="color:var(--blue)">★</span>' : ''}
-      <span class="sub">${MOVEMENTS[e.movement]?.label || ''} · ${eq}${best ? ' · e1RM ' + kg(Engine.roundLoad(best, 0.5)) + 'kg' : ''}</span></span>
+      <span class="sub">${MOVEMENTS[e.movement]?.label || ''} · ${eq}${best ? ' · e1RM ' + kg(Engine.roundLoad(best, 0.5)) + 'kg' : ''}</span>${exTagsHTML(e)}</span>
     <span>›</span></button>`;
 }
 
@@ -2704,6 +2724,7 @@ function renderExDetail(anim) {
     const cues = EX_CUES[e.id] || CUES[e.movement] || CUES.default;
     body = `<div class="placeholder-media">🏋</div>
       <p class="subtle">${MOVEMENTS[e.movement]?.label || ''} · ${EQUIP_LABEL[e.equipment] || ''}${e.isMain ? ' · Main lift' : ''}</p>
+      ${exMetaCardHTML(e)}
       <div class="section-title" style="font-size:1.1rem">Coaching cues</div>
       ${cues.map(c => `<div class="check-row">▸ ${c}</div>`).join('')}`;
   } else if (XD.tab === 'history') {
