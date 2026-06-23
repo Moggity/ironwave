@@ -1,5 +1,29 @@
 # IRONWAVE — Changelog
 
+## [Cluster B: intensity techniques, drop set] (2026-06-23)
+
+First slice of Epic 2: one technique end-to-end, the drop set, proving the whole
+loop (prescription, logging, time accounting, volume). Bodybuilding-only and
+opt-in, so the default/powerbuilding routine and the golden master are unchanged.
+
+- Prescription: new `Engine.buildDropSet` turns a working set into a top set plus
+  N lighter mini-sets (defaults: 2 strips at 20%). A weightless (calibration /
+  RIR-only) set is returned untouched, and the constructor never mutates its input.
+- Opt-in: the exercise detail Settings tab gains a "Finish with a drop set" toggle
+  for bodybuilding accessories, stored in `S.techniques` (exId -> 'drop'). A new
+  `applyTechnique` converts the accessory's last real working set; every other
+  track and untagged exercise stays byte-identical.
+- Logging: the performance modal shows a Drops section (prescribed strip weights,
+  reps logged per drop). Logged drops ride on the set and the record, and surface
+  in the session view, summary, and history.
+- Time accounting: `Engine.setTimeSec` (used by `estimateSessionSec`) charges each
+  drop its execution plus a short transition (`TIME_MODEL.dropTransitionSec`, 15s)
+  instead of a full rest, since a drop set is one hard set then immediate strips.
+- Volume: `Engine.tonnage` now adds each logged drop's weight x reps.
+- Tests: `test/cluster-b.test.js` (construction, time cost, tonnage, and that the
+  technique only fires for an opted-in bodybuilding accessory). Golden master
+  unchanged; full suite green.
+
 ## [Cluster A: logging & data foundation] (2026-06-23)
 
 The first hypertrophy-roadmap enabler. All additive and golden-master-safe: no
