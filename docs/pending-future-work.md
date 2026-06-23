@@ -144,9 +144,15 @@ and the product moat are the same move.
   where heads differ), merged into `EXERCISES` with neutral defaults, plus
   `SFR_LABELS` / `HEAD_LABELS`. Surfaced as badges in the swap/add/library pickers
   (`exTagsHTML`) and a Stimulus card in the exercise detail (`exMetaCardHTML`).
-  Additive and golden-master-safe (no prescription code reads it). **Next slice
-  (own branch):** the generator and swap picker consuming `head`/`sfr` for
-  head-aware selection and cross-meso exercise rotation.
+  Additive and golden-master-safe (no prescription code reads it). **Selection
+  slice shipped (2026-06-23):** `pickAccessory` (shared head-aware selection)
+  makes `generateBodybuildingDays` spread a muscle across its heads; a cross-meso
+  rotation in the block-advance rebuild rotates each generator-default accessory
+  to a fresh head-diverse pick per meso; and the swap picker orders accessory
+  candidates by SFR (higher stimulus first). Bodybuilding-only, golden-master-safe.
+  **Still open (own branch):** cross-meso rotation for athlete-picked (select)
+  slots, head-aware ordering inside the swap picker (not just SFR), and per-head
+  volume accounting feeding Epic 4.
 - **Dependencies:** mostly a data lift in `data.js` (`EXERCISES`/`MOVEMENTS`); the
   generator and swap picker consume the new metadata. Sharpens Epic 4's per-muscle
   counting and the split generator's selection. Independent of Epic 2.
