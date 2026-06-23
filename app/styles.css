@@ -287,6 +287,15 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .vol-rec.k-rec-add { color: #36c98a; }
 .vol-rec.k-rec-cut { color: #e2557b; }
 .vol-rec.k-rec-hold { color: var(--text-dim); }
+.vol-phase { margin: 4px 0 10px; }
+.link-btn { background: none; border: none; color: var(--blue); font-weight: 600; cursor: pointer; padding: 0 4px; }
+.phase-chip { display: block; width: 100%; text-align: center; padding: 11px; border-radius: 10px;
+  background: transparent; border: 1.5px solid var(--line); color: var(--text); font-weight: 600; cursor: pointer; }
+.phase-opts { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.phase-opt { display: flex; flex-direction: column; gap: 3px; text-align: left; padding: 11px 13px; border-radius: 10px;
+  background: transparent; border: 1.5px solid var(--line); color: var(--text); cursor: pointer; }
+.phase-opt.on { border-color: var(--blue); background: rgba(75,141,248,0.08); }
+.phase-opt .faint { font-size: .78rem; font-weight: 400; }
 .drop-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 6px 0; }
 .drop-row .drop-w { min-width: 84px; text-align: right; font-weight: 600; color: var(--text-dim); }
 .stepper .pm.sm { width: 40px; height: 40px; font-size: 1.4rem; }

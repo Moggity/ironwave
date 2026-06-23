@@ -233,6 +233,24 @@ const HEAD_LABELS = {
   'bi-long': 'Long head', 'bi-short': 'Short head',
 };
 const EX_META_DEFAULT = { sfr: 2, stretch: false, head: null };
+
+// [Cluster F] Training-phase / energy-balance taxonomy. Public concepts, our own
+// copy. A deficit (cut/minicut) tells the autoregulator recovery is lower. No
+// calorie/macro database: this is a training-coupled phase tag, not a nutrition
+// tracker. Athlete-facing labels, no em dashes.
+const PHASE_LABELS = {
+  'lean-gain':  'Lean gain',
+  'maintenance': 'Maintenance',
+  'cut':        'Cut',
+  'minicut':    'Minicut',
+};
+const PHASE_BLURB = {
+  'lean-gain':  'Slight surplus, build muscle. The autoregulator can add volume freely.',
+  'maintenance': 'Around maintenance, hold weight and recover.',
+  'cut':        'Deficit to lose fat. Recovery drops, so volume holds rather than climbs.',
+  'minicut':    'Short sharp deficit (about 2 to 4 weeks) to shed fatigue, then back to growing.',
+};
+const PHASE_DEFICIT = { cut: true, minicut: true };
 const EX_META = {
   // Big compounds: huge stimulus, high systemic fatigue -> lower SFR.
   'comp-squat': { sfr: 1 }, 'comp-bench': { sfr: 1, head: 'chest-lower' },

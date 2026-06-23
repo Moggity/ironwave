@@ -77,6 +77,33 @@ remaining frequency as accessories, then interleaves the regions. The
 split-generator tuning items in `docs/pending-future-work.md` all live in this
 one function plus the `ANCHOR_RANK`/`PRIMARY_ANCHOR` tables.
 
+### Hypertrophy clusters (A-F): the one invariant
+
+The hypertrophy roadmap (`docs/pending-future-work.md`) ships as clusters A-F.
+Each is **bodybuilding-track-only and inert by absence**, which is exactly what
+keeps the default Powerbuilding golden master byte-identical. The pattern, repeat
+it for any new cluster work:
+
+- **New set-object / record fields are optional** and only written when used
+  (`technique`, `drops`, `pump`; RIR is display-only, RPE stays stored). A plain
+  straight set logs the same shape as before.
+- **New state is additive and migrated**: `S.techniques` (B drop-set opt-in),
+  `S.flags` (one-time UI), `S.bodyweight` + `profile.phase` (F), `program.volAdj`
+  (E per-muscle offset). All default empty/neutral and backfill in `migrateState`.
+- **Prescription changes are gated on `track === 'bodybuilding'` AND inert when
+  their data map is empty.** `applyTechnique` (B) and `autoregForAccessory` (E)
+  both no-op for other tracks and for a fresh program, so `resolveSlot` output is
+  unchanged on the default path. Order in the accessory branch: scheme -> weekMod
+  -> focus -> autoreg (E) -> technique (B).
+- **The autoreg loop (E) must converge**: `updateAutoreg` (run on each week
+  advance) nudges `volAdj` by `Engine.autoregVolume`'s add/hold/cut, clamped to a
+  small range; the per-session landmark cap bounds the applied delta. `phase` (F)
+  feeds `autoregVolume` so a deficit holds volume. Pure engine helpers
+  (`volumeStatus`, `autoregVolume`, `fatigueSaturated`, `e1rmTrend`, `buildDropSet`)
+  carry the math and are unit-tested with seeded inputs.
+- When clusters interact, cover it in `test/cluster-integration.test.js` (A..F on
+  a simulated routine) and keep the golden master green.
+
 ### Adding a feature, in order
 
 1. New data/table → `data.js`. New math → `engine.js` (add to a scheme, or the

@@ -479,22 +479,42 @@ Engine.volumeStatus = function (sets, lm) {
 //   sig.recovery     1..5 (1 wrecked / still sore, 5 fully fresh); default 3
 //   sig.performance  -1 reps down, 0 held, +1 up vs last; default 0
 //   sig.pump         1..3 or null (advisory only for now)
-Engine.autoregVolume = function (sig, sets, lm) {
+// `phase` (Cluster F) modulates recovery: in an energy deficit (cut / minicut)
+// recovery capacity drops, so we never add volume (retain, do not grow) and back
+// off one notch sooner. Omitted -> surplus/maintenance behavior (unchanged).
+Engine.autoregVolume = function (sig, sets, lm, phase) {
   if (!lm) return { action: 'hold', delta: 0, nextSets: sets, reason: 'No landmark yet' };
   const s = sig || {};
   const rec = s.recovery == null ? 3 : s.recovery;
   const perf = s.performance == null ? 0 : s.performance;
+  const deficit = phase === 'cut' || phase === 'minicut';
+  const addRec = deficit ? 5 : 4;     // harder to justify adding when under-fed
+  const cutRec = deficit ? 3 : 2;     // back off sooner
   let delta, why;
-  if (perf < 0 || rec <= 2) { delta = -1; why = perf < 0 ? 'Reps are dropping, back off' : 'Still under-recovered, back off'; }
+  if (perf < 0 || rec <= cutRec) { delta = -1; why = perf < 0 ? 'Reps are dropping, back off' : 'Still under-recovered, back off'; }
+  else if (deficit) { delta = 0; why = 'In a deficit, hold volume and keep what you have'; }
   else if (sets < lm.mev) { delta = Math.min(2, lm.mev - sets); why = 'Below MEV, ramp the volume in'; }
   else if (sets >= lm.mrv) { delta = 0; why = 'At your MRV, hold here'; }
-  else if (rec >= 4 && perf >= 0) { delta = 1; why = 'Recovered well, add a set'; }
+  else if (rec >= addRec && perf >= 0) { delta = 1; why = 'Recovered well, add a set'; }
   else { delta = 0; why = 'On track, hold and let it adapt'; }
-  const nextSets = Math.max(lm.mv, Math.min(lm.mrv, sets + delta));
+  // Clamp direction-safely: an add caps at MRV, a cut floors at MV but never
+  // turns into an increase when the muscle is already below maintenance.
+  const nextSets = delta >= 0
+    ? Math.min(lm.mrv, sets + delta)
+    : Math.min(sets, Math.max(lm.mv, sets + delta));
   const applied = nextSets - sets;
   const action = applied > 0 ? 'add' : applied < 0 ? 'cut' : 'hold';
   // If clamping turned an intended move into a hold, say why plainly.
   const reason = applied === 0 && delta !== 0
     ? (delta > 0 ? 'At your MRV, hold here' : 'Already at maintenance, hold here') : why;
   return { action, delta: applied, nextSets, reason };
+};
+
+// [Cluster F] Fatigue saturation: how many muscles sit at or near MRV (over the
+// top, or within ~10% of it). When that reaches the threshold a minicut (a short
+// deficit to shed fatigue) is worth suggesting. Pure; caller passes volumeStatus
+// objects ({ key, pct }).
+Engine.fatigueSaturated = function (statuses, threshold = 3) {
+  const over = (statuses || []).filter(s => s && (s.key === 'over' || s.pct >= 90)).length;
+  return { over, saturated: over >= threshold, threshold };
 };

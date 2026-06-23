@@ -29,8 +29,10 @@ function defaultState() {
                  muscleFocus: { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 } },
                experience: 'intermediate',
                trainingAge: { startedTs: null, blocksCompleted: 0 },
+               phase: 'lean-gain', // [Cluster F] current training phase
                landmarks: {} },
     program: null,
+    bodyweight: [],   // [Cluster F] [{ts, kg}] light trend, no macro tracking
     records: {},      // exId -> [{ts, weight, reps, rpe, pump?, technique?}] (last 3 optional, Cluster A)
     loadingProfiles: {}, // exId -> { mode, count, barWeight } — per-exercise loading, persists across programs
     techniques: {},   // exId -> intensity technique id (e.g. 'drop'), Cluster B; empty = none
@@ -87,6 +89,9 @@ function migrateState(s) {
   if (!p.landmarks || !Object.keys(p.landmarks).length) p.landmarks = Engine.seedLandmarks(p.experience);
   if (!s.techniques) s.techniques = {}; // Cluster B opt-in map, additive and inert when empty
   if (!s.flags) s.flags = {};           // one-time UI flags, additive
+  if (!p.phase) p.phase = 'lean-gain';  // [Cluster F] training phase
+  if (!Array.isArray(s.bodyweight)) s.bodyweight = []; // [Cluster F] bodyweight trend
+  if (s.program && !s.program.volAdj) s.program.volAdj = {}; // [Cluster E] per-muscle autoreg
   if (s.program && !s.program.trainingConfig) {
     // Legacy programs predate tracks: stamp them as the powerbuilding default.
     s.program.trainingConfig = { track: 'powerbuilding', timeMode: 'unlimited', timeCapMin: null,
@@ -311,6 +316,7 @@ function makeProgram(ob) {
     days, wm, increments,
     completedDays: {},
     weekMod: null, // Change 2: single-use end-of-week autoregulation modifier for the upcoming week
+    volAdj: {},    // [Cluster E] per-muscle accumulated set adjustment from feedback
     // Snapshot of the config this cycle was built with, so editing profile later
     // does not silently rewrite an in-flight program.
     trainingConfig: {
@@ -555,8 +561,28 @@ function resolveSlot(slot, blockIdx, wIdx) {
   const focus = focusForAccessory(exId, sets);
   if (focus.removed) return { exId, name: exName(exId), sets: [], cat: slot.cat, isRemoved: true };
   if (focus.delta) sets = applySetDelta(sets, focus.delta);
+  const adj = autoregForAccessory(exId, sets);
+  if (adj) sets = applySetDelta(sets, adj);
   sets = applyTechnique(exId, sets, r);
   return { exId, name: exName(exId), sets, cat: slot.cat };
+}
+// [Cluster E] Per-muscle autoregulation applied to prescribed accessory volume.
+// Reads the accumulated, feedback-driven offset on P().volAdj (updated weekly),
+// bounded by the same per-session landmark cap focus uses. Bodybuilding-only and
+// inert when there is no offset, so other tracks and a fresh program (no logged
+// feedback) stay byte-identical to the pre-autoreg routine (golden master safe).
+function autoregForAccessory(exId, sets) {
+  const tc = P() && P().trainingConfig;
+  if (!tc || tc.track !== 'bodybuilding') return 0;
+  const e = exById(exId);
+  const offset = e && P().volAdj && P().volAdj[e.movement];
+  if (!offset) return 0;
+  const plain = sets.filter(s => !s.amrap && !s.ramp && !s.calib).length;
+  if (!plain) return 0;
+  const lm = (S.profile.landmarks && S.profile.landmarks[e.movement]) || VOLUME_LANDMARKS[e.movement];
+  const cap = lm ? Math.max(1, Math.round(lm.mrv / 2)) : 8;   // ~2 sessions/wk/muscle
+  const target = Math.max(1, Math.min(plain + offset, cap));
+  return target - plain;
 }
 // [Cluster B] Turn an accessory's last real working set into its opted-in
 // intensity technique (today: drop set). Bodybuilding-only and only when the
@@ -1335,6 +1361,7 @@ function vDashboard() {
     ${timelineHTML()}
     ${weekSection}
     ${done ? '' : `<button class="btn btn-outline mt16" onclick="openVolumeDashboard()">📊 Weekly volume per muscle</button>`}
+    ${done ? '' : `<button class="phase-chip mt8" onclick="openPhase()">🍽 Phase: ${PHASE_LABELS[currentPhase()] || currentPhase()}</button>`}
   </div>${tabbar()}`;
 }
 // [Cluster D] Estimated direct working sets per muscle for the current week,
@@ -1407,16 +1434,19 @@ function volumeDashboardHTML() {
   const tally = weeklyVolumeByMuscle();
   const tc = P() && P().trainingConfig;
   const autoreg = tc && tc.track === 'bodybuilding'; // hypertrophy-focused guidance
+  const phase = currentPhase();
+  const statuses = [];
   const rows = VOL_ORDER.filter(mv => lm[mv] || VOLUME_LANDMARKS[mv]).map(mv => {
     const L = lm[mv] || VOLUME_LANDMARKS[mv];
     const sets = tally[mv] || 0;
     const st = Engine.volumeStatus(sets, L);
+    if (sets > 0) statuses.push(st);
     const mevPct = L.mrv > 0 ? Math.min(100, Math.round(L.mev / L.mrv * 100)) : 0;
     let rec = '';
     if (autoreg && sets > 0) {
       const sig = muscleSignal(mv);
       if (sig) {
-        const r = Engine.autoregVolume(sig, sets, L);
+        const r = Engine.autoregVolume(sig, sets, L, phase);
         const arrow = r.action === 'add' ? '▲' : r.action === 'cut' ? '▼' : '＝';
         rec = `<div class="vol-rec k-rec-${r.action}">${arrow} ${esc(r.reason)}</div>`;
       }
@@ -1430,18 +1460,94 @@ function volumeDashboardHTML() {
       ${rec}
     </div>`;
   }).join('');
+  // [Cluster F] Minicut suggestion when fatigue saturates and we are not already cutting.
+  let minicut = '';
+  if (autoreg) {
+    const sat = Engine.fatigueSaturated(statuses);
+    if (sat.saturated && !PHASE_DEFICIT[phase]) {
+      minicut = `<div class="card accent" style="border-left:3px solid var(--amber)">
+        <div style="font-weight:700">Fatigue is piling up</div>
+        <p class="faint mt8">${sat.over} muscles are at or near MRV. A short minicut (about 2 to 4 weeks in a deficit) would shed fatigue and resensitize you to volume.</p>
+        <button class="btn btn-outline mt8" onclick="openPhase()">Plan a minicut ›</button></div>`;
+    }
+  }
   return `<p class="subtle">Estimated direct working sets per muscle this week, against your own volume landmarks. The big compounds count toward the muscles they train.</p>
+    ${autoreg ? `<div class="vol-phase faint">Phase: <b>${PHASE_LABELS[phase] || phase}</b>${PHASE_DEFICIT[phase] ? ' · recovery is lower, volume holds' : ''} <button class="link-btn" onclick="openPhase()">change ›</button></div>` : ''}
+    ${minicut}
     <div class="vol-legend faint">
       <span><i class="dot k-maint"></i>Maintenance</span>
       <span><i class="dot k-productive"></i>Productive</span>
       <span><i class="dot k-over"></i>Over MRV</span></div>
     ${rows}
-    ${autoreg ? '<p class="faint mt16">The ▲ ▼ ＝ notes read your recovery check-ins and last sessions to suggest adding, holding, or cutting a muscle\'s sets. Guidance for now; you stay in control of the dial.</p>'
+    ${autoreg ? '<p class="faint mt16">The ▲ ▼ ＝ notes read your recovery check-ins and last sessions to suggest adding, holding, or cutting a muscle\'s sets, and they feed next week\'s volume automatically.</p>'
       : '<p class="faint mt16">MEV is the least that grows you, MRV the most you can recover from. A block should climb from MEV toward MRV, then deload.</p>'}`;
 }
 function openVolumeDashboard() {
   if (!P()) { toast('Start a program first', true); return; }
   showModal(anim => { $modal.innerHTML = modalShell(anim, 'Weekly volume', volumeDashboardHTML()); });
+}
+// [Cluster F] Current training phase, with a safe default.
+function currentPhase() { return (S.profile && S.profile.phase) || 'lean-gain'; }
+// [Cluster F] Phase & bodyweight screen: pick a training phase (it tunes the
+// autoregulator's recovery read) and log a light bodyweight trend. No calories or
+// macros: this is a training-coupled phase tag, not a nutrition tracker.
+function bodyweightTrendHTML() {
+  const bw = (S.bodyweight || []).filter(x => x.kg > 0).slice(-30);
+  if (bw.length < 2) return '<p class="faint">Log your bodyweight a few times to see the trend.</p>';
+  const pts = bw.map(x => ({ ts: x.ts, value: x.kg }));
+  return trendChartHTML(pts, '#67a3ff', v => kg(v) + ' kg');
+}
+function phaseScreenHTML() {
+  const cur = currentPhase();
+  const last = (S.bodyweight || []).length ? S.bodyweight[S.bodyweight.length - 1].kg : (S.profile.bodyweight || '');
+  const phases = ['lean-gain', 'maintenance', 'cut', 'minicut'].map(ph =>
+    `<button class="phase-opt ${cur === ph ? 'on' : ''}" onclick="setPhase('${ph}')">
+      <b>${PHASE_LABELS[ph]}</b><span class="faint">${esc(PHASE_BLURB[ph])}</span></button>`).join('');
+  return `<div class="section-title" style="font-size:1.1rem">Training phase</div>
+    <div class="phase-opts">${phases}</div>
+    <div class="section-title" style="font-size:1.1rem">Bodyweight trend</div>
+    <div class="field"><label>Log today's bodyweight (kg)</label>
+      <input id="bw-input" type="number" inputmode="decimal" step="0.1" value="${last || ''}" placeholder="e.g. 82.5"></div>
+    <button class="btn btn-blue mt8" onclick="logBodyweight()">Log bodyweight</button>
+    <div class="mt16">${bodyweightTrendHTML()}</div>
+    <p class="faint mt16">Trend only, to inform when to switch phases. No calorie or macro tracking.</p>`;
+}
+function openPhase() {
+  showModal(anim => { $modal.innerHTML = modalShell(anim, 'Phase & bodyweight', phaseScreenHTML()); });
+}
+function setPhase(ph) {
+  if (!PHASE_LABELS[ph]) return;
+  S.profile.phase = ph;
+  save(); toast('Phase set to ' + PHASE_LABELS[ph]); rerenderTop();
+}
+function logBodyweight() {
+  const v = parseFloat(byId('bw-input') && byId('bw-input').value);
+  if (!(v > 0)) { toast('Enter a bodyweight', true); return; }
+  S.bodyweight = S.bodyweight || [];
+  S.bodyweight.push({ ts: Date.now(), kg: v });
+  S.profile.bodyweight = v;
+  save(); toast('Bodyweight logged'); rerenderTop();
+}
+// [Cluster E] Update the per-muscle autoreg offset from the week just trained.
+// Runs each week advance for a bodybuilding athlete; phase (Cluster F) tunes how
+// readily volume climbs. A muscle with no logged session is left untouched, and a
+// non-bodybuilding program never enters here, so the default routine is unchanged.
+function updateAutoreg() {
+  const p = P();
+  if (!p || !p.trainingConfig || p.trainingConfig.track !== 'bodybuilding') return;
+  p.volAdj = p.volAdj || {};
+  const tally = weeklyVolumeByMuscle();
+  const lm = S.profile.landmarks || {};
+  const phase = currentPhase();
+  for (const mv of VOL_ORDER) {
+    const L = lm[mv] || VOLUME_LANDMARKS[mv];
+    if (!L) continue;
+    const sig = muscleSignal(mv);
+    if (!sig) continue;
+    const r = Engine.autoregVolume(sig, tally[mv] || 0, L, phase);
+    const step = r.action === 'add' ? 1 : r.action === 'cut' ? -1 : 0;
+    if (step) p.volAdj[mv] = Math.max(-2, Math.min(2, (p.volAdj[mv] || 0) + step));
+  }
 }
 function openDay(i) {
   const p = P();
@@ -1476,6 +1582,7 @@ function doCompleteWeek() {
 function advanceWeek() {
   const p = P();
   const finishedBlock = p.pointer.block;
+  updateAutoreg(); // [Cluster E] fold the week's feedback into per-muscle volume
   p.pointer.week++;
   if (p.pointer.week >= p.weeksPerBlock) {
     // Block just completed: evolve the athlete's volume landmarks from how the
@@ -2957,6 +3064,7 @@ function vMore() {
     <p class="faint" style="margin-bottom:14px">IRONWAVE · Juggernaut Method 2.0 engine</p>
     ${link('My Program', '📈', "nav('program')")}
     ${link('Weekly Volume', '📊', 'openVolumeDashboard()')}
+    ${link('Phase & Bodyweight', '🍽', 'openPhase()')}
     ${link('Exercises', '🏋', "nav('exercises')")}
     ${link('Settings & Data', '⚙', "nav('settings')")}
   </div>${tabbar()}`;
