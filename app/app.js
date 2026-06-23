@@ -1334,7 +1334,65 @@ function vDashboard() {
     <div class="subtle">${fmtDateLong(p.testDate)}</div>
     ${timelineHTML()}
     ${weekSection}
+    ${done ? '' : `<button class="btn btn-outline mt16" onclick="openVolumeDashboard()">📊 Weekly volume per muscle</button>`}
   </div>${tabbar()}`;
+}
+// [Cluster D] Estimated direct working sets per muscle for the current week,
+// keyed by movement like the landmark grid. Read-only: resolves each day (focus
+// and techniques applied) and tallies non-warmup sets. Landmark-keyed movements
+// (chest, quad, ...) count directly; the big compounds (squat/bench/deadlift/
+// press) attribute to the muscles they train via SYNERGIST_COVERAGE.
+function weeklyVolumeByMuscle() {
+  const p = P();
+  if (!p) return {};
+  const bi = p.pointer.block, wi = p.pointer.week;
+  const tally = {};
+  const add = (mv, n) => { if (VOLUME_LANDMARKS[mv]) tally[mv] = (tally[mv] || 0) + n; };
+  for (let di = 0; di < p.days.length; di++) {
+    for (const x of resolveDayEntries(di, bi, wi).items) {
+      const ex = exById(x.rs.exId);
+      if (!ex) continue;
+      const sets = x.rs.sets.filter(s => !s.ramp).length; // warmups are not working sets
+      if (!sets) continue;
+      if (VOLUME_LANDMARKS[ex.movement]) add(ex.movement, sets);
+      else {
+        const cov = SYNERGIST_COVERAGE[ex.movement];
+        if (cov) for (const mv in cov) add(mv, sets * cov[mv]);
+      }
+    }
+  }
+  for (const mv in tally) tally[mv] = Math.round(tally[mv] * 2) / 2; // nearest half set
+  return tally;
+}
+const VOL_ORDER = ['chest', 'shoulder', 'tricep', 'bicep', 'upperback', 'vpull', 'hpull',
+                   'quad', 'ham', 'glute', 'calf', 'abs', 'lowback'];
+function volumeDashboardHTML() {
+  const lm = (S.profile && S.profile.landmarks) || {};
+  const tally = weeklyVolumeByMuscle();
+  const rows = VOL_ORDER.filter(mv => lm[mv] || VOLUME_LANDMARKS[mv]).map(mv => {
+    const L = lm[mv] || VOLUME_LANDMARKS[mv];
+    const sets = tally[mv] || 0;
+    const st = Engine.volumeStatus(sets, L);
+    const mevPct = L.mrv > 0 ? Math.min(100, Math.round(L.mev / L.mrv * 100)) : 0;
+    return `<div class="vol-row">
+      <div class="vol-head"><span>${MOVEMENTS[mv]?.label || mv}</span>
+        <span class="vol-status k-${st.key}">${st.label} · ${kg(sets)} sets</span></div>
+      <div class="vol-track"><div class="vol-fill k-${st.key}" style="width:${st.pct}%"></div>
+        <div class="vol-mark" style="left:${mevPct}%"></div></div>
+      <div class="vol-scale faint"><span>MEV ${L.mev}</span><span>MRV ${L.mrv}</span></div>
+    </div>`;
+  }).join('');
+  return `<p class="subtle">Estimated direct working sets per muscle this week, against your own volume landmarks. The big compounds count toward the muscles they train.</p>
+    <div class="vol-legend faint">
+      <span><i class="dot k-maint"></i>Maintenance</span>
+      <span><i class="dot k-productive"></i>Productive</span>
+      <span><i class="dot k-over"></i>Over MRV</span></div>
+    ${rows}
+    <p class="faint mt16">MEV is the least that grows you, MRV the most you can recover from. A block should climb from MEV toward MRV, then deload.</p>`;
+}
+function openVolumeDashboard() {
+  if (!P()) { toast('Start a program first', true); return; }
+  showModal(anim => { $modal.innerHTML = modalShell(anim, 'Weekly volume', volumeDashboardHTML()); });
 }
 function openDay(i) {
   const p = P();
@@ -2849,6 +2907,7 @@ function vMore() {
     <div class="section-title">${esc(S.profile.name || 'Lifter')}</div>
     <p class="faint" style="margin-bottom:14px">IRONWAVE · Juggernaut Method 2.0 engine</p>
     ${link('My Program', '📈', "nav('program')")}
+    ${link('Weekly Volume', '📊', 'openVolumeDashboard()')}
     ${link('Exercises', '🏋', "nav('exercises')")}
     ${link('Settings & Data', '⚙', "nav('settings')")}
   </div>${tabbar()}`;
