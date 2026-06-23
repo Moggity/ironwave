@@ -256,6 +256,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .stepper .val { font-size: 3rem; font-weight: 800; display: flex; align-items: baseline; justify-content: center; gap: 4px; line-height: 1; }
 .stepper .val small { font-size: 1.1rem; font-weight: 600; color: var(--text-dim); }
 .stepper .pm { font-size: 2rem; color: var(--text-dim); width: 64px; height: 64px; }
+.pump-row { display: flex; gap: 8px; }
+.pump-row .btn { flex: 1; }
 .stepper input {
   background: none; border: none; color: var(--text); font-size: 3rem; font-weight: 800;
   width: 140px; text-align: center; font-family: inherit; padding: 0; line-height: 1;

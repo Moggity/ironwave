@@ -1,5 +1,28 @@
 # IRONWAVE — Changelog
 
+## [Cluster A: logging & data foundation] (2026-06-23)
+
+The first hypertrophy-roadmap enabler. All additive and golden-master-safe: no
+prescription math changed, new record/set fields are optional and only written
+when used, so the default/powerbuilding routine and the persisted shape of a
+plain straight set are byte-identical.
+
+- RIR-first logging. The performance modal now logs reps-in-reserve instead of
+  RPE, and every intensity readout (targets, logged sets, history, maxes) shows
+  RIR. RPE stays the stored/canonical value (rir = 10 - rpe), so e1rm and all
+  prescription math are untouched. New Engine.rpeToRir / rirToRpe.
+- Optional pump quick-tap on each logged set (Light / Solid / Skin splitting),
+  carried onto the record. Leaveable blank; nothing depends on it yet (it feeds
+  Epic 1 feedback later).
+- technique field on set objects and records, plus a TECHNIQUE_LABELS table
+  (straight / drop / myo / rest-pause / partials / superset). Schema groundwork
+  for Epic 2; only straight is used today, others render a badge when present.
+- Per-exercise progression trends: a new Trend tab in the exercise detail shows
+  estimated-1RM and volume-load sparklines. New pure Engine.e1rmTrend /
+  volumeLoadTrend (one point per day, windowed, deterministic).
+- Tests: test/cluster-a.test.js covers RIR conversion, the two trend series, and
+  that the optional fields are inert. Golden master unchanged.
+
 ## [Split-generator tuning: glute-led days + same-muscle spacing] (2026-06-22)
 
 Three related fixes to the bodybuilding frequency-driven split generator
