@@ -1,5 +1,31 @@
 # IRONWAVE — Changelog
 
+## [Cluster B: myo-reps, second intensity technique] (2026-06-23)
+
+The next Epic 2 technique after the drop set, end-to-end. Myo-reps keep the same
+weight: one activation set near failure, then short mini-sets with an intrinsic
+mini-rest. Reuses the drop set's child mini-set plumbing (the `drops` field plus
+the `technique` tag), so logging, tonnage, and time accounting were already in
+place; the `technique` tag is what distinguishes the two. Bodybuilding-only and
+opt-in, so the default/powerbuilding routine and golden master are unchanged.
+
+- `Engine.buildMyoReps(set, opts)`: keeps the activation set, then `MYO_DEFAULTS`
+  mini-sets at the SAME weight (no strip), each a few reps. Pure; a weightless or
+  zero-mini set is returned unchanged and the input is never mutated.
+- `Engine.setTimeSec` is now technique-aware: a myo mini-set charges the longer
+  myo mini-rest (`TIME_MODEL.myoRestSec`) per child instead of the drop strip
+  transition, with one full rest after the whole cluster.
+- In-session surfacing: the technique row now offers a drop chip AND a myo chip,
+  mutually exclusive per exercise (`toggleTechInSession`, `entryTech`,
+  `clearEntryTechnique`). The perf modal logs myo mini-sets like drops, with the
+  mini-sets riding the activation weight as it is adjusted.
+- Technique-aware timer (the slice myo-reps needed): the intrinsic myo mini-rest
+  is cued inside the perf modal with a short countdown on the same prescribed
+  value, buzzing at zero where supported. Builds on the generic rest timer.
+- Tests: `test/cluster-b-myo.test.js` (construction, the myo-vs-drop time cost,
+  tonnage, applyTechnique routing + off-track inertness, `entryTech`). Golden
+  master unchanged; suite green.
+
 ## [Generic rest timer] (2026-06-23)
 
 The independent (non-technique) slice of the "prescribed rest periods / in-app

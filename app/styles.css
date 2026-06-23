@@ -290,6 +290,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   border-radius: 999px; font-weight: 700; font-size: .85rem; cursor: pointer;
   background: transparent; border: 1.5px solid var(--amber); color: var(--amber); }
 .tech-chip.on { background: var(--amber); border-color: var(--amber); color: #1a1205; }
+.tech-chip + .tech-chip { margin-left: 8px; }
 .rir-intro { border-left: 3px solid var(--blue); }
 .ex-tags { display: inline-flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
 .ex-tag { font-size: .68rem; font-weight: 700; letter-spacing: .02em; padding: 2px 7px; border-radius: 999px;

@@ -256,14 +256,31 @@ const Engine = {
     return Object.assign({}, set, { technique: 'drop', drops });
   },
 
+  // Myo-reps: keep the activation (working) set, then `minis` short mini-sets at
+  // the SAME weight (no strip), each `miniReps` reps to roughly failure. Shares
+  // the `drops` child-set field so logging / tonnage / time accounting treat it
+  // the same; the `technique` tag is what distinguishes it from a drop set. Needs
+  // a real weight, so a weightless (calibration / RIR-only) set is unchanged.
+  buildMyoReps(set, opts = {}) {
+    const o = (typeof MYO_DEFAULTS !== 'undefined') ? MYO_DEFAULTS : { minis: 3, miniReps: 5 };
+    const n = opts.minis ?? o.minis;
+    const reps = opts.miniReps ?? o.miniReps;
+    if (!set || !(set.weight > 0) || n < 1) return set;
+    const drops = [];
+    for (let i = 0; i < n; i++) drops.push({ weight: set.weight, reps: Math.max(1, reps) });
+    return Object.assign({}, set, { technique: 'myo', drops });
+  },
+
   // Time cost of one prescribed set, technique-aware (Cluster B). A plain set is
-  // exec(reps) + one rest; a drop set adds each mini-set's exec plus a short
-  // transition per drop, but still only one full rest at the end. `restSec` is
-  // the already-resolved rest for this set kind (normal or compressed).
+  // exec(reps) + one rest; a set carrying child mini-sets (drop or myo) adds each
+  // mini-set's exec plus its intrinsic transition, but still only one full rest
+  // at the end. A myo mini-rest (a few breaths) is longer than a drop's strip
+  // transition. `restSec` is the already-resolved rest for this kind.
   setTimeSec(st, TM, kind, restSec) {
     let t = (st.reps || 0) * TM.execSecPerRep[kind] + restSec;
     if (Array.isArray(st.drops)) {
-      for (const d of st.drops) t += (d.reps || 0) * TM.execSecPerRep[kind] + TM.dropTransitionSec;
+      const transition = st.technique === 'myo' ? TM.myoRestSec : TM.dropTransitionSec;
+      for (const d of st.drops) t += (d.reps || 0) * TM.execSecPerRep[kind] + transition;
     }
     return t;
   },

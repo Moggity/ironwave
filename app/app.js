@@ -134,8 +134,10 @@ const kg = w => (w % 1 === 0 ? w : w.toFixed(1));
 const fmtRir = rpe => (rpe == null ? '–' : `${kg(Engine.rpeToRir(rpe))} RIR`);
 const pumpBadge = p => (p ? ` <small class="faint">🔥 ${esc(PUMP_LABELS[p] || 'pump')}</small>` : '');
 const techniqueBadge = t => (t && t !== 'straight' ? ` <small class="faint">${esc(TECHNIQUE_LABELS[t] || t)}</small>` : '');
-// [Cluster B] "70kg×8, 56kg×8" rendering of a drop set's mini-sets.
+// [Cluster B] "70kg×8, 56kg×8" rendering of a set's child mini-sets (drop or myo).
 const dropDetail = (exId, drops) => (drops || []).map(d => `${fmtW(exId, d.weight)}×${d.reps}`).join(', ');
+// Label for the logged child mini-sets, by technique.
+const childWord = tech => (tech === 'myo' ? 'myo' : 'drops');
 // [Cluster C] Compact picker badges: muscle region (head), a loaded-stretch flag,
 // and a non-default SFR so the high-value and high-cost picks stand out at a glance.
 function exTagsHTML(e) {
@@ -593,11 +595,11 @@ function applyTechnique(exId, sets, rounding) {
   const tc = P() && P().trainingConfig;
   if (!tc || tc.track !== 'bodybuilding') return sets;
   const tech = (S.techniques || {})[exId];
-  if (tech !== 'drop') return sets;
+  if (tech !== 'drop' && tech !== 'myo') return sets;
   for (let i = sets.length - 1; i >= 0; i--) {
     const s = sets[i];
     if (s.amrap || s.ramp || s.calib || !(s.weight > 0)) continue;
-    const built = Engine.buildDropSet(s, { rounding });
+    const built = tech === 'myo' ? Engine.buildMyoReps(s) : Engine.buildDropSet(s, { rounding });
     if (built !== s) sets = sets.slice(0, i).concat([built], sets.slice(i + 1));
     break;
   }
@@ -2149,7 +2151,13 @@ function lastWorkingSetIdx(sets) {
   }
   return -1;
 }
-function entryHasDrop(e) { return e.sets.some(s => s.technique === 'drop'); }
+// The finishing technique currently on an entry's sets ('drop' | 'myo'), or null.
+// Drop and myo are mutually exclusive on one exercise.
+function entryTech(e) {
+  const s = e.sets.find(s => s.technique === 'drop' || s.technique === 'myo');
+  return s ? s.technique : null;
+}
+function entryHasDrop(e) { return entryTech(e) === 'drop'; } // kept for existing tests
 function canDropEntry(e) {
   const tc = P() && P().trainingConfig;
   if (!tc || tc.track !== 'bodybuilding') return false;
@@ -2158,25 +2166,41 @@ function canDropEntry(e) {
 }
 function techChipHTML(e, ei) {
   if (!canDropEntry(e)) return '';
-  const on = entryHasDrop(e);
-  return `<button class="tech-chip ${on ? 'on' : ''}" onclick="toggleDropInSession(${ei})">${on ? '🔥 Drop set on, tap to remove' : '🔥 Finish with a drop set'}</button>`;
+  const cur = entryTech(e);
+  const chip = (tech, icon, onLabel, offLabel) =>
+    `<button class="tech-chip ${cur === tech ? 'on' : ''}" onclick="toggleTechInSession(${ei},'${tech}')">${icon} ${cur === tech ? onLabel : offLabel}</button>`;
+  return chip('drop', '🔥', 'Drop set on, tap to remove', 'Finish with a drop set') +
+         chip('myo', '🔁', 'Myo-reps on, tap to remove', 'Finish with myo-reps');
 }
-function toggleDropInSession(ei) {
+function clearEntryTechnique(e) {
+  e.sets.forEach(s => {
+    if (s.technique === 'drop' || s.technique === 'myo') {
+      s.technique = null; s.dropTargets = null;
+      if (!s.done) s.drops = null; // keep already-logged mini-sets
+    }
+  });
+}
+function toggleTechInSession(ei, tech) {
   const e = V.draft.entries[ei];
-  if (entryHasDrop(e)) {
-    e.sets.forEach(s => { if (s.technique === 'drop') { s.technique = null; s.dropTargets = null; if (!s.done) s.drops = null; } });
+  const cur = entryTech(e);
+  clearEntryTechnique(e); // drop and myo never coexist on one exercise
+  if (cur === tech) {
     if (S.techniques) delete S.techniques[e.exId];
-    toast('Drop set removed');
+    toast(TECHNIQUE_LABELS[tech] + ' removed');
   } else {
     const i = lastWorkingSetIdx(e.sets);
     if (i < 0) { toast('Set a working weight first', true); return; }
     const s = e.sets[i];
     const baseW = s.done ? s.weight : s.targetWeight;
-    const built = Engine.buildDropSet({ weight: baseW, reps: s.targetReps || s.reps || 8 },
-      { rounding: loadingFor(e.exId).totalInc });
-    s.technique = 'drop'; s.dropTargets = built.drops;
-    S.techniques = S.techniques || {}; S.techniques[e.exId] = 'drop';
-    toast('Drop set added. Hit your last set, then strip and go');
+    const seed = { weight: baseW, reps: s.targetReps || s.reps || 8 };
+    const built = tech === 'myo'
+      ? Engine.buildMyoReps(seed)
+      : Engine.buildDropSet(seed, { rounding: loadingFor(e.exId).totalInc });
+    s.technique = tech; s.dropTargets = built.drops;
+    S.techniques = S.techniques || {}; S.techniques[e.exId] = tech;
+    toast(tech === 'myo'
+      ? 'Myo-reps added. Hit the activation set, then short mini-rests and mini-sets'
+      : 'Drop set added. Hit your last set, then strip and go');
   }
   save(); render();
 }
@@ -2194,7 +2218,7 @@ function vSession() {
       const fatigueFlag = shortSleep && !st.ramp && si2 >= e.sets.length - 1 && !e.isMain
         ? `<div class="flag">⚠ optional today, short sleep</div>` : '';
       const loggedDrops = (st.done && st.drops && st.drops.length)
-        ? `<small class="faint">drops ${dropDetail(e.exId, st.drops)}</small>` : '';
+        ? `<small class="faint">${childWord(st.technique)} ${dropDetail(e.exId, st.drops)}</small>` : '';
       return `<div class="set-row ${st.done ? 'done' : ''} ${st.amrap ? 'amrap' : ''}">
           <span class="num">${si2 + 1}</span>
           <span class="target">${setTargetLabel(st, e.exId)}${st.note ? `<small>${esc(st.note)}</small>` : ''}${loggedDrops}</span>
@@ -2331,11 +2355,12 @@ function openPerf(ei, si) {
   const st = V.draft.entries[ei].sets[si];
   const e = V.draft.entries[ei];
   let w = st.done ? st.weight : (st.targetWeight ?? lastWeightFor(e.exId) ?? 0);
-  const dropSrc = (st.done && st.drops) ? st.drops : st.dropTargets; // logged drops, else prescribed
+  const dropSrc = (st.done && st.drops) ? st.drops : st.dropTargets; // logged minis, else prescribed
+  const hasKids = (st.technique === 'drop' || st.technique === 'myo') && dropSrc;
   PM = { ei, si, weight: w, reps: st.done ? st.reps : st.targetReps,
          rpe: st.done ? st.rpe : (st.targetRpe ?? 8),
-         pump: st.done ? (st.pump ?? null) : null,
-         drops: st.technique === 'drop' && dropSrc ? dropSrc.map(d => ({ weight: d.weight, reps: d.reps })) : null };
+         pump: st.done ? (st.pump ?? null) : null, tech: st.technique || null,
+         drops: hasKids ? dropSrc.map(d => ({ weight: d.weight, reps: d.reps })) : null };
   showModal(renderPerfModal);
 }
 function lastWeightFor(exId) {
@@ -2409,13 +2434,16 @@ function renderPerfModal(anim) {
           </div>
         </div>
         ${pm.drops ? `<div class="stepper" style="border-bottom:none">
-          <div class="lbl">Drops <small class="faint">strip and go, log reps</small></div>
+          <div class="lbl">${pm.tech === 'myo'
+            ? 'Mini-sets <small class="faint">same weight, short mini-rests, log reps</small>'
+            : 'Drops <small class="faint">strip and go, log reps</small>'}</div>
           ${pm.drops.map((d, i) => `<div class="drop-row">
-            <span class="drop-w">${fmtW(exId, d.weight)}</span>
+            <span class="drop-w" id="pm-dropw-${i}">${fmtW(exId, d.weight)}</span>
             <button class="pm sm" onclick="pmDropReps(${i},-1)">−</button>
             <span class="val sm" id="pm-drop-${i}">${d.reps}</span>
             <button class="pm sm" onclick="pmDropReps(${i},1)">＋</button>
           </div>`).join('')}
+          ${pm.tech === 'myo' ? `<button class="btn btn-outline mt8" id="pm-myorest" onclick="startMyoRest()">Mini-rest ${fmtClock(TIME_MODEL.myoRestSec)}</button>` : ''}
         </div>` : ''}
         <div class="btn-row">
           <button class="btn btn-outline" onclick="clearPerf()">CLEAR</button>
@@ -2437,6 +2465,13 @@ function perfUpdateWeight(dir) {
   const { viz, note } = plateVizHTML(PM.weight, exId);
   const pv = byId('pm-plateviz'); if (pv) pv.innerHTML = viz;
   const pn = byId('pm-platenote'); if (pn) pn.innerHTML = note;
+  // Myo mini-sets ride the activation weight, so they follow it as it changes.
+  if (PM.tech === 'myo' && PM.drops) {
+    PM.drops.forEach((d, i) => {
+      d.weight = PM.weight;
+      const el = byId(`pm-dropw-${i}`); if (el) el.textContent = fmtW(exId, d.weight);
+    });
+  }
 }
 function pmW(dir) {
   const exId = V.draft.entries[PM.ei].exId;
@@ -2470,7 +2505,25 @@ function pmDropReps(i, d) {
   PM.drops[i].reps = Math.max(0, PM.drops[i].reps + d);
   const el = byId(`pm-drop-${i}`); if (el) { el.textContent = PM.drops[i].reps; nudge(el, d); }
 }
-function closePerf() { PM = null; closeModal(); }
+// Technique-aware timer (Cluster B): a myo mini-rest is intrinsic to the set, so
+// it is cued inside the perf modal (the modal covers the session rest bar). A
+// short countdown on the same prescribed value (TIME_MODEL.myoRestSec); buzzes at
+// zero where supported. Athlete-facing copy, no em dashes.
+let MYO_TICK = null;
+function startMyoRest() {
+  stopMyoRest();
+  const end = Date.now() + TIME_MODEL.myoRestSec * 1000;
+  const tick = () => {
+    const el = byId('pm-myorest');
+    if (!el) { stopMyoRest(); return; }
+    const left = Math.max(0, Math.round((end - Date.now()) / 1000));
+    el.textContent = left > 0 ? `Mini-rest ${fmtClock(left)}` : 'Go, next mini-set';
+    if (left <= 0) { stopMyoRest(); if (navigator.vibrate) { try { navigator.vibrate(150); } catch (_) {} } }
+  };
+  MYO_TICK = setInterval(tick, 250); tick();
+}
+function stopMyoRest() { if (MYO_TICK) { clearInterval(MYO_TICK); MYO_TICK = null; } }
+function closePerf() { stopMyoRest(); PM = null; closeModal(); }
 function clearPerf() {
   const st = V.draft.entries[PM.ei].sets[PM.si];
   st.done = false; st.weight = st.reps = st.rpe = null; st.pump = null; st.drops = null;
@@ -2839,7 +2892,7 @@ function sessionSetRowsHTML(e, withTarget) {
         ? ` <small>target ${fmtW(e.exId, x.targetWeight)} × ${x.targetReps}${x.targetRpe ? ' · ' + fmtRir(x.targetRpe) : ''}</small>`
         : (x.targetReps ? ` <small>target ${x.targetReps} reps${x.targetRpe ? ' · ' + fmtRir(x.targetRpe) : ''}</small>` : '');
     }
-    const drops = (x.drops && x.drops.length) ? ` <small class="faint">drops ${dropDetail(e.exId, x.drops)}</small>` : '';
+    const drops = (x.drops && x.drops.length) ? ` <small class="faint">${childWord(x.technique)} ${dropDetail(e.exId, x.drops)}</small>` : '';
     return `<div class="set-row"><span class="num">${i + 1}</span>
       <span class="target">${actual}${x.amrap ? ' <small>AMRAP</small>' : ''}${techniqueBadge(x.technique)}${drops}${pumpBadge(x.pump)}${tgt}</span></div>`;
   }).join('');

@@ -103,8 +103,14 @@ and the product moat are the same move.
   shipped (2026-06-23):** `Engine.buildDropSet` + an opt-in `S.techniques` map
   applied via `applyTechnique` on a bodybuilding accessory's last working set,
   logged in the perf modal, timed via `Engine.setTimeSec` /
-  `TIME_MODEL.dropTransitionSec`, and counted in `Engine.tonnage`. Next: myo-reps
-  (its mini-rest is the first technique that needs the timer slice below).
+  `TIME_MODEL.dropTransitionSec`, and counted in `Engine.tonnage`. **Myo-reps
+  shipped (2026-06-23):** `Engine.buildMyoReps` reuses the same child-set
+  plumbing at a fixed activation weight; `setTimeSec` is now technique-aware
+  (`TIME_MODEL.myoRestSec` per mini-set); a second in-session chip
+  (`toggleTechInSession` / `entryTech`, drop and myo mutually exclusive); and the
+  intrinsic myo mini-rest is cued in the perf modal (the technique-aware timer
+  slice, built on the generic rest timer). Next: rest-pause, then partials /
+  supersets.
 - **Dependencies:** Cluster A's `technique` field + logging; `estimateSessionSec`
   must learn each technique's time cost; how a drop set counts toward weekly sets
   feeds Epic 4.
@@ -277,7 +283,10 @@ Phase   (F) -- needs D --> modulates E and the deload; starts light
     and drop sets carry an intrinsic intra-set rest that is part of the
     prescription, not generic recovery, so it cannot be timed until Cluster B
     builds the `technique` set structure. Scoped there as an acceptance criterion
-    per technique, not scheduled ahead of it. [polish -> feature]
+    per technique, not scheduled ahead of it. **Myo-reps slice shipped
+    (2026-06-23):** the myo mini-rest is cued by a short countdown in the perf
+    modal (`startMyoRest`, `TIME_MODEL.myoRestSec`). Rest-pause adds its own pause
+    cue when that technique lands. [polish -> feature]
 - **Show a target rep range** instead of a single number. [polish]
 - **Per-muscle weekly set counter** on the workout view (early slice of
   Epic 4). [polish]
