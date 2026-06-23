@@ -109,8 +109,12 @@ and the product moat are the same move.
   (`TIME_MODEL.myoRestSec` per mini-set); a second in-session chip
   (`toggleTechInSession` / `entryTech`, drop and myo mutually exclusive); and the
   intrinsic myo mini-rest is cued in the perf modal (the technique-aware timer
-  slice, built on the generic rest timer). Next: rest-pause, then partials /
-  supersets.
+  slice, built on the generic rest timer). **Rest-pause shipped (2026-06-23):**
+  `Engine.buildRestPause` (same-weight bursts), `Engine.techTransitionSec` as the
+  one source for each technique's intrinsic intra-set rest, and a consolidated
+  "Add a finisher" chip row (drop / myo / rest-pause, mutually exclusive) with a
+  technique-aware perf modal + pause cue. Next: partials, then supersets / giant
+  sets.
 - **Dependencies:** Cluster A's `technique` field + logging; `estimateSessionSec`
   must learn each technique's time cost; how a drop set counts toward weekly sets
   feeds Epic 4.

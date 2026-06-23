@@ -286,11 +286,13 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .stepper .pm { font-size: 2rem; color: var(--text-dim); width: 64px; height: 64px; }
 .pump-row { display: flex; gap: 8px; }
 .pump-row .btn { flex: 1; }
-.tech-chip { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 12px; padding: 8px 15px;
-  border-radius: 999px; font-weight: 700; font-size: .85rem; cursor: pointer;
+.tech-row { margin: 2px 0 12px; }
+.tech-row-label { display: block; font-weight: 700; font-size: .85rem; margin-bottom: 6px; color: var(--text-dim); }
+.tech-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.tech-chip { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px;
+  border-radius: 999px; font-weight: 700; font-size: .82rem; cursor: pointer;
   background: transparent; border: 1.5px solid var(--amber); color: var(--amber); }
 .tech-chip.on { background: var(--amber); border-color: var(--amber); color: #1a1205; }
-.tech-chip + .tech-chip { margin-left: 8px; }
 .rir-intro { border-left: 3px solid var(--blue); }
 .ex-tags { display: inline-flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
 .ex-tag { font-size: .68rem; font-weight: 700; letter-spacing: .02em; padding: 2px 7px; border-radius: 999px;

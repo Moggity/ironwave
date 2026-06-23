@@ -1,5 +1,27 @@
 # IRONWAVE — Changelog
 
+## [Cluster B: rest-pause + finisher UI consolidation] (2026-06-23)
+
+The third Epic 2 technique, plus a UI tidy now that there are three finishers.
+Like myo-reps, rest-pause keeps the working weight (a set to failure, then short
+bursts after an intrinsic pause), so it rides the shared child mini-set plumbing;
+only the construction params and the pause length differ. Bodybuilding-only and
+opt-in, so the default/powerbuilding routine and golden master are unchanged.
+
+- `Engine.buildRestPause(set, opts)`: working set + `RESTPAUSE_DEFAULTS` bursts
+  at the same weight. Pure; weightless / zero-burst sets unchanged, no mutation.
+- `Engine.techTransitionSec(tech, TM)`: single source of truth for a technique's
+  intrinsic intra-set rest (drop strip / myo mini-rest / rest-pause pause), used
+  by both `setTimeSec` and the in-modal cue. A rest-pause burst now charges
+  `TIME_MODEL.restPauseSec`.
+- Finisher UI: the per-technique chips moved under one "Add a finisher" row with
+  compact icon + name chips (drop / myo / rest-pause), mutually exclusive. The
+  perf modal labels and the same-weight follow / pause cue are technique-aware
+  (`buildTechnique`, `FINISHER_TECHS`, `SAME_WEIGHT_TECHS`, `childSectionLabel`).
+- Tests: `test/cluster-b-restpause.test.js` (construction, the per-technique
+  transition map, time cost, tonnage, routing + off-track inertness, the finisher
+  constants). Golden master unchanged; suite green.
+
 ## [Cluster B: myo-reps, second intensity technique] (2026-06-23)
 
 The next Epic 2 technique after the drop set, end-to-end. Myo-reps keep the same

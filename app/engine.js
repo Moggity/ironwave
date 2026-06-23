@@ -271,15 +271,36 @@ const Engine = {
     return Object.assign({}, set, { technique: 'myo', drops });
   },
 
+  // Rest-pause: the working set to failure, then `bursts` short bursts at the
+  // SAME weight, each `burstReps` reps. Shares the `drops` child-set field; the
+  // `technique` tag is what marks it. Weightless set returned unchanged.
+  buildRestPause(set, opts = {}) {
+    const o = (typeof RESTPAUSE_DEFAULTS !== 'undefined') ? RESTPAUSE_DEFAULTS : { bursts: 2, burstReps: 3 };
+    const n = opts.bursts ?? o.bursts;
+    const reps = opts.burstReps ?? o.burstReps;
+    if (!set || !(set.weight > 0) || n < 1) return set;
+    const drops = [];
+    for (let i = 0; i < n; i++) drops.push({ weight: set.weight, reps: Math.max(1, reps) });
+    return Object.assign({}, set, { technique: 'restpause', drops });
+  },
+
+  // The intrinsic intra-set rest (seconds) charged between a technique's child
+  // mini-sets: a myo mini-rest, a rest-pause pause, or a drop's strip transition.
+  // Single source of truth for both the time estimate and the in-modal cue.
+  techTransitionSec(tech, TM) {
+    if (tech === 'myo') return TM.myoRestSec;
+    if (tech === 'restpause') return TM.restPauseSec;
+    return TM.dropTransitionSec;
+  },
+
   // Time cost of one prescribed set, technique-aware (Cluster B). A plain set is
-  // exec(reps) + one rest; a set carrying child mini-sets (drop or myo) adds each
-  // mini-set's exec plus its intrinsic transition, but still only one full rest
-  // at the end. A myo mini-rest (a few breaths) is longer than a drop's strip
-  // transition. `restSec` is the already-resolved rest for this kind.
+  // exec(reps) + one rest; a set carrying child mini-sets (drop / myo / rest-
+  // pause) adds each mini-set's exec plus its intrinsic transition, but still
+  // only one full rest at the end. `restSec` is the resolved rest for this kind.
   setTimeSec(st, TM, kind, restSec) {
     let t = (st.reps || 0) * TM.execSecPerRep[kind] + restSec;
     if (Array.isArray(st.drops)) {
-      const transition = st.technique === 'myo' ? TM.myoRestSec : TM.dropTransitionSec;
+      const transition = this.techTransitionSec(st.technique, TM);
       for (const d of st.drops) t += (d.reps || 0) * TM.execSecPerRep[kind] + transition;
     }
     return t;
