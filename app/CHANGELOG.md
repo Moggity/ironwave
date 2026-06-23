@@ -1,5 +1,30 @@
 # IRONWAVE — Changelog
 
+## [Cluster C: head/SFR-aware selection + cross-meso rotation] (2026-06-23)
+
+The selection slice of Epic 3, now that the head/SFR data shipped: the generator
+and swap picker actually consume `head` / `sfr`. Bodybuilding-only and inert on
+other tracks, so the default/powerbuilding routine and the golden master are
+unchanged.
+
+- `pickAccessory(pool, used, usedHeads, rot)`: shared head-aware selection. It
+  prefers the first unused exercise covering a head not yet hit for that muscle
+  (so a 2-3x muscle spreads across regions, e.g. upper then mid/lower chest),
+  falling back to any unused, then the pool head. `rot` rotates the pool start.
+- Generator: `generateBodybuildingDays` now picks accessories head-diverse per
+  muscle instead of taking the pool in fixed order.
+- Cross-meso rotation: on advancing to a new block, each generator-default
+  bodybuilding accessory rotates to a fresh head-diverse pick from its muscle
+  pool (offset by the meso index), kept distinct per day. Athlete swaps and other
+  tracks are untouched. Hooks into the existing block-advance slot rebuild.
+- Swap picker: on accessory slots, recommended candidates are ordered by SFR
+  (higher stimulus first) after the athlete's familiar lifts; the SFR / head /
+  stretch badges from the data slice explain the pick. Main slots (wave-math
+  variations) are not SFR-biased.
+- Tests: `test/cluster-c-selection.test.js` (pickAccessory head-diversity +
+  rotation, generator head coverage, block-advance rotation, off-track inertness).
+  Golden master unchanged; suite green.
+
 ## [Cluster B: rest-pause + finisher UI consolidation] (2026-06-23)
 
 The third Epic 2 technique, plus a UI tidy now that there are three finishers.

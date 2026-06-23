@@ -334,6 +334,28 @@ function makeProgram(ob) {
     },
   };
 }
+// [Cluster C] Head/SFR-aware accessory selection shared by the generator and the
+// cross-meso rotation. All bodybuilding-only callers, so the default routine
+// never reaches this and the golden master holds.
+function accHead(id) { return (exById(id) || {}).head || null; }
+function muscleOfAcc(id) {
+  for (const m of Object.keys(DEFAULT_ACC)) if (DEFAULT_ACC[m].includes(id)) return m;
+  return null;
+}
+// Pick from a muscle's ordered pool: prefer the first not-yet-used exercise that
+// covers a head we have not hit for this muscle (so frequency spreads across
+// regions), then any unused, then the head of the pool. `rot` rotates the pool's
+// start so successive mesos surface different exercises (cross-meso rotation).
+// Pure given exById.
+function pickAccessory(pool, used, usedHeads, rot = 0) {
+  if (!pool || !pool.length) return null;
+  const n = pool.length, off = ((rot % n) + n) % n;
+  const order = pool.map((_, i) => pool[(i + off) % n]);
+  const newHead = id => { const h = accHead(id); return !h || !usedHeads.has(h); };
+  return order.find(id => !used.has(id) && newHead(id))
+      || order.find(id => !used.has(id))
+      || order[0];
+}
 // ------------------------------------------------------------
 // BODYBUILDING SPLIT GENERATOR (frequency-driven)
 // Builds the week from the muscle-focus sliders: focus = frequency. Region day
@@ -358,8 +380,16 @@ function generateBodybuildingDays(focus, N) {
   else { if (upDays === 0) { upDays = 1; loDays = N - 1; } if (loDays === 0) { loDays = 1; upDays = N - 1; } }
 
   const used = new Set();
+  const headsUsed = {};
   const usedMains = new Set();
-  const pick = m => { for (const id of (DEFAULT_ACC[m] || [])) if (!used.has(id)) { used.add(id); return id; } return (DEFAULT_ACC[m] || [])[0] || null; };
+  // [Cluster C] Head-aware pick: a muscle trained 2-3x spreads across its heads
+  // (e.g. upper then mid/lower chest) instead of doubling one region.
+  const pick = m => {
+    const hs = headsUsed[m] || (headsUsed[m] = new Set());
+    const id = pickAccessory(DEFAULT_ACC[m] || [], used, hs);
+    if (id) { used.add(id); const h = accHead(id); if (h) hs.add(h); }
+    return id;
+  };
   const accSlot = m => { const id = pick(m); return id ? { type: 'acc', cat: (exById(id) || {}).movement, def: id } : null; };
 
   function buildRegion(muscles, nDays) {
@@ -1610,12 +1640,24 @@ function advanceWeek() {
     p.pointer.block++;
     if (p.pointer.block < p.blocks.length) {
       // Clear block-scoped accessory selections so the user picks fresh each block.
+      // [Cluster C] For bodybuilding, also rotate each generator-default accessory
+      // to a fresh head-diverse pick from its muscle pool, so a new meso varies
+      // the exercises (staleness/fatigue management). Athlete swaps (sl.ex) are
+      // cleared as before; an explicit pick is reselected via the select slot.
+      const bb = (p.trainingConfig || {}).track === 'bodybuilding';
       for (const day of p.days) {
         day.slots = day.slots.filter(sl => !sl.added);
+        const used = new Set(), headsUsed = {}; // per-day, to keep rotated picks distinct
         for (const sl of day.slots) {
           if (sl.type === 'main' || sl.type === 'secondary') continue;
           delete sl.ex;
-          if (!sl.def) sl.type = 'select';
+          if (!sl.def) { sl.type = 'select'; continue; }
+          const m = bb ? muscleOfAcc(sl.def) : null;
+          if (m) {
+            const hs = headsUsed[m] || (headsUsed[m] = new Set());
+            const id = pickAccessory(DEFAULT_ACC[m], used, hs, p.pointer.block);
+            if (id) { sl.def = id; used.add(id); const h = accHead(id); if (h) hs.add(h); }
+          }
         }
       }
       toast(`New block: ${p.blocks[p.pointer.block].label}`);
@@ -2783,7 +2825,13 @@ function swapBodyHTML() {
   const matchText = e => !ql || e.name.toLowerCase().includes(ql);
   const matchEquip = e => SW.equip === 'all' || e.equipment === SW.equip;
   const all = allExercises().filter(e => e.id !== SW.current);
-  const sortFn = (a, b) => (used.has(b.id) - used.has(a.id)) || a.name.localeCompare(b.name);
+  // [Cluster C] On accessory slots, surface higher stimulus-to-fatigue options
+  // first (after the athlete's familiar/used lifts); the SFR/head/stretch badges
+  // explain the pick. Main slots are wave-math variations, so SFR is not biased.
+  const sfrBias = !SW.isMain;
+  const sortFn = (a, b) => (used.has(b.id) - used.has(a.id))
+    || (sfrBias ? ((b.sfr || 2) - (a.sfr || 2)) : 0)
+    || a.name.localeCompare(b.name);
 
   // Chips reflect the pool the athlete can actually browse: just the
   // recommended movement for a main slot, every exercise otherwise.
