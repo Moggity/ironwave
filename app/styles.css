@@ -192,6 +192,34 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 .warmup-btn b { color: var(--blue); font-size: 1.2rem; }
 
+/* In-app rest timer: a sticky bar on the session view (Polish). */
+.rest-timer {
+  position: sticky; top: calc(56px + var(--safe-top, 0px)); z-index: 15;
+  background: var(--card-2); border: 1px solid var(--line); border-radius: 12px;
+  overflow: hidden; margin: 8px 0 10px;
+}
+.rest-timer-fill {
+  position: absolute; inset: 0 auto 0 0; width: 0;
+  background: var(--blue-deep); opacity: .35; transition: width .25s linear;
+}
+.rest-timer.done .rest-timer-fill { background: var(--green-deep); opacity: .45; width: 100% !important; }
+.rest-timer-body {
+  position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+}
+.rest-timer-label { color: var(--text-dim); font-weight: 600; font-size: .85rem; }
+.rest-timer-time {
+  font-variant-numeric: tabular-nums; font-weight: 800; font-size: 1.2rem;
+  color: var(--blue); min-width: 64px;
+}
+.rest-timer.done .rest-timer-time { color: var(--green); }
+.rest-timer-btn {
+  margin-left: auto; background: var(--bg-2); border: 1px solid var(--line);
+  color: var(--text-dim); border-radius: 16px; padding: 6px 12px; font-weight: 600; font-size: .82rem;
+}
+.rest-timer-btn + .rest-timer-btn { margin-left: 6px; }
+.rest-timer-btn.primary { color: var(--blue); border-color: var(--blue); }
+.rest-timer.done .rest-timer-btn.primary { color: var(--green); border-color: var(--green); }
+
 .set-row { display: flex; align-items: center; gap: 14px; padding: 9px 0; }
 .set-row .num {
   width: 44px; height: 44px; border-radius: 50%; background: var(--bg-2);
@@ -258,8 +286,11 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .stepper .pm { font-size: 2rem; color: var(--text-dim); width: 64px; height: 64px; }
 .pump-row { display: flex; gap: 8px; }
 .pump-row .btn { flex: 1; }
-.tech-chip { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 12px; padding: 8px 15px;
-  border-radius: 999px; font-weight: 700; font-size: .85rem; cursor: pointer;
+.tech-row { margin: 2px 0 12px; }
+.tech-row-label { display: block; font-weight: 700; font-size: .85rem; margin-bottom: 6px; color: var(--text-dim); }
+.tech-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.tech-chip { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px;
+  border-radius: 999px; font-weight: 700; font-size: .82rem; cursor: pointer;
   background: transparent; border: 1.5px solid var(--amber); color: var(--amber); }
 .tech-chip.on { background: var(--amber); border-color: var(--amber); color: #1a1205; }
 .rir-intro { border-left: 3px solid var(--blue); }

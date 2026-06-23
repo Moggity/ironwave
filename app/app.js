@@ -134,8 +134,15 @@ const kg = w => (w % 1 === 0 ? w : w.toFixed(1));
 const fmtRir = rpe => (rpe == null ? '–' : `${kg(Engine.rpeToRir(rpe))} RIR`);
 const pumpBadge = p => (p ? ` <small class="faint">🔥 ${esc(PUMP_LABELS[p] || 'pump')}</small>` : '');
 const techniqueBadge = t => (t && t !== 'straight' ? ` <small class="faint">${esc(TECHNIQUE_LABELS[t] || t)}</small>` : '');
-// [Cluster B] "70kg×8, 56kg×8" rendering of a drop set's mini-sets.
+// [Cluster B] "70kg×8, 56kg×8" rendering of a set's child mini-sets (drop or myo).
 const dropDetail = (exId, drops) => (drops || []).map(d => `${fmtW(exId, d.weight)}×${d.reps}`).join(', ');
+// Label for the logged child mini-sets, by technique.
+const childWord = tech => (tech === 'myo' ? 'myo' : tech === 'restpause' ? 'rest-pause' : 'drops');
+// Heading for the perf-modal child-set section, by technique.
+const childSectionLabel = tech =>
+  tech === 'myo' ? 'Mini-sets <small class="faint">same weight, short mini-rests, log reps</small>'
+  : tech === 'restpause' ? 'Bursts <small class="faint">same weight, pause then go again, log reps</small>'
+  : 'Drops <small class="faint">strip and go, log reps</small>';
 // [Cluster C] Compact picker badges: muscle region (head), a loaded-stretch flag,
 // and a non-default SFR so the high-value and high-cost picks stand out at a glance.
 function exTagsHTML(e) {
@@ -593,15 +600,23 @@ function applyTechnique(exId, sets, rounding) {
   const tc = P() && P().trainingConfig;
   if (!tc || tc.track !== 'bodybuilding') return sets;
   const tech = (S.techniques || {})[exId];
-  if (tech !== 'drop') return sets;
+  if (!FINISHER_TECHS.includes(tech)) return sets;
   for (let i = sets.length - 1; i >= 0; i--) {
     const s = sets[i];
     if (s.amrap || s.ramp || s.calib || !(s.weight > 0)) continue;
-    const built = Engine.buildDropSet(s, { rounding });
+    const built = buildTechnique(tech, s, rounding);
     if (built !== s) sets = sets.slice(0, i).concat([built], sets.slice(i + 1));
     break;
   }
   return sets;
+}
+// The three opt-in finishers and which keep the working weight (drop strips it).
+const FINISHER_TECHS = ['drop', 'myo', 'restpause'];
+const SAME_WEIGHT_TECHS = ['myo', 'restpause'];
+function buildTechnique(tech, set, rounding) {
+  if (tech === 'myo') return Engine.buildMyoReps(set);
+  if (tech === 'restpause') return Engine.buildRestPause(set);
+  return Engine.buildDropSet(set, { rounding });
 }
 
 // ------------------------------------------------------------
@@ -2094,6 +2109,7 @@ function beginSession() {
   }));
   V.draft = { id: 's' + Date.now(), ts: Date.now(), b, w, d: di, entries,
               sleepHours: cd.sleepHours, mindset: cd.mindset, sliders: { ...cd.sliders } };
+  clearRestTimer();
   save();
   nav('session');
 }
@@ -2148,34 +2164,62 @@ function lastWorkingSetIdx(sets) {
   }
   return -1;
 }
-function entryHasDrop(e) { return e.sets.some(s => s.technique === 'drop'); }
+// The finisher currently on an entry's sets ('drop' | 'myo' | 'restpause'), or
+// null. Only one finisher lives on an exercise at a time.
+function entryTech(e) {
+  const s = e.sets.find(s => FINISHER_TECHS.includes(s.technique));
+  return s ? s.technique : null;
+}
+function entryHasDrop(e) { return entryTech(e) === 'drop'; } // kept for existing tests
 function canDropEntry(e) {
   const tc = P() && P().trainingConfig;
   if (!tc || tc.track !== 'bodybuilding') return false;
   if (e.isMain || e.isSecondary || !e.exId) return false;
   return lastWorkingSetIdx(e.sets) >= 0;
 }
+// Short chip label + the toast that explains how to run the finisher. One short
+// line each so three chips stay readable; athlete-facing, no em dashes.
+const FINISHER_UI = {
+  drop:      { icon: '🔥', label: 'Drop set',   how: 'Drop set added. Hit your last set, then strip and go' },
+  myo:       { icon: '🔁', label: 'Myo-reps',   how: 'Myo-reps added. Hit the activation set, then short mini-rests and mini-sets' },
+  restpause: { icon: '⏸', label: 'Rest-pause', how: 'Rest-pause added. Hit failure, then pause and squeeze out a few more' },
+};
 function techChipHTML(e, ei) {
   if (!canDropEntry(e)) return '';
-  const on = entryHasDrop(e);
-  return `<button class="tech-chip ${on ? 'on' : ''}" onclick="toggleDropInSession(${ei})">${on ? '🔥 Drop set on, tap to remove' : '🔥 Finish with a drop set'}</button>`;
+  const cur = entryTech(e);
+  const chip = (tech) => {
+    const u = FINISHER_UI[tech];
+    return `<button class="tech-chip ${cur === tech ? 'on' : ''}" onclick="toggleTechInSession(${ei},'${tech}')">${u.icon} ${u.label}${cur === tech ? ' ✓' : ''}</button>`;
+  };
+  return `<div class="tech-row">
+    <span class="tech-row-label">Add a finisher <small class="faint">optional, last set</small></span>
+    <div class="tech-chips">${FINISHER_TECHS.map(chip).join('')}</div>
+  </div>`;
 }
-function toggleDropInSession(ei) {
+function clearEntryTechnique(e) {
+  e.sets.forEach(s => {
+    if (FINISHER_TECHS.includes(s.technique)) {
+      s.technique = null; s.dropTargets = null;
+      if (!s.done) s.drops = null; // keep already-logged mini-sets
+    }
+  });
+}
+function toggleTechInSession(ei, tech) {
   const e = V.draft.entries[ei];
-  if (entryHasDrop(e)) {
-    e.sets.forEach(s => { if (s.technique === 'drop') { s.technique = null; s.dropTargets = null; if (!s.done) s.drops = null; } });
+  const cur = entryTech(e);
+  clearEntryTechnique(e); // only one finisher per exercise
+  if (cur === tech) {
     if (S.techniques) delete S.techniques[e.exId];
-    toast('Drop set removed');
+    toast(TECHNIQUE_LABELS[tech] + ' removed');
   } else {
     const i = lastWorkingSetIdx(e.sets);
     if (i < 0) { toast('Set a working weight first', true); return; }
     const s = e.sets[i];
     const baseW = s.done ? s.weight : s.targetWeight;
-    const built = Engine.buildDropSet({ weight: baseW, reps: s.targetReps || s.reps || 8 },
-      { rounding: loadingFor(e.exId).totalInc });
-    s.technique = 'drop'; s.dropTargets = built.drops;
-    S.techniques = S.techniques || {}; S.techniques[e.exId] = 'drop';
-    toast('Drop set added. Hit your last set, then strip and go');
+    const built = buildTechnique(tech, { weight: baseW, reps: s.targetReps || s.reps || 8 }, loadingFor(e.exId).totalInc);
+    s.technique = tech; s.dropTargets = built.drops;
+    S.techniques = S.techniques || {}; S.techniques[e.exId] = tech;
+    toast(FINISHER_UI[tech].how);
   }
   save(); render();
 }
@@ -2193,7 +2237,7 @@ function vSession() {
       const fatigueFlag = shortSleep && !st.ramp && si2 >= e.sets.length - 1 && !e.isMain
         ? `<div class="flag">⚠ optional today, short sleep</div>` : '';
       const loggedDrops = (st.done && st.drops && st.drops.length)
-        ? `<small class="faint">drops ${dropDetail(e.exId, st.drops)}</small>` : '';
+        ? `<small class="faint">${childWord(st.technique)} ${dropDetail(e.exId, st.drops)}</small>` : '';
       return `<div class="set-row ${st.done ? 'done' : ''} ${st.amrap ? 'amrap' : ''}">
           <span class="num">${si2 + 1}</span>
           <span class="target">${setTargetLabel(st, e.exId)}${st.note ? `<small>${esc(st.note)}</small>` : ''}${loggedDrops}</span>
@@ -2226,6 +2270,7 @@ function vSession() {
       <span style="font-weight:700">Week ${dr.b * P().weeksPerBlock + dr.w + 1}, Day ${dr.d + 1}</span></div>
       <span></span></header>
     <div class="view">
+      ${restTimerHTML()}
       ${shortSleep ? `<div class="banner-warn">Short sleep last night (${dr.sleepHours}h). Sets flagged ⚠ carry extra fatigue risk. Skipping them today is smart, not soft.</div>` : ''}
       ${rirIntroHTML()}
       ${dr.mindset ? `<div class="card accent"><span class="faint">Today's focus</span><div style="font-weight:600">${esc(dr.mindset)}</div></div>` : ''}
@@ -2249,6 +2294,79 @@ function abandonSession() {
 }
 
 // ------------------------------------------------------------
+// IN-APP REST TIMER (Polish)
+// A per-set countdown surfaced on the active session view, seeded from the
+// prescribed rest that already lives in TIME_MODEL (Engine.restSecFor). It is
+// ephemeral V state only: no persisted field, no set-object change, read-only on
+// the engine, so the default/powerbuilding golden master is untouched. Copy is
+// athlete-facing, so no em dashes.
+// ------------------------------------------------------------
+let REST_TICK = null;
+function sessionTight() {
+  // A time-capped athlete trains on the compressed rest table, so the timer
+  // counts down what they actually rest, matching estimateSessionSec's input.
+  const tc = P() && P().trainingConfig;
+  return !!(tc && tc.timeMode === 'custom' && tc.timeCapMin);
+}
+function startRestTimer(kind, exId) {
+  const dur = Engine.restSecFor(kind, sessionTight(), TIME_MODEL);
+  V.restTimer = { endTs: Date.now() + dur * 1000, durSec: dur, exId, rung: false };
+  stopRestTick();
+  REST_TICK = setInterval(restTick, 250);
+}
+function restRemainingSec() {
+  return V.restTimer ? Math.max(0, Math.round((V.restTimer.endTs - Date.now()) / 1000)) : 0;
+}
+function fmtClock(sec) {
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+function restTick() {
+  const bar = byId('rest-timer');
+  if (!V.restTimer || !bar) { stopRestTick(); return; } // bar gone (navigated away)
+  const left = restRemainingSec();
+  const disp = byId('rest-timer-time'); if (disp) disp.textContent = left > 0 ? fmtClock(left) : 'Rest done';
+  const fill = byId('rest-timer-fill'); if (fill) fill.style.width = `${100 * (1 - left / V.restTimer.durSec)}%`;
+  const skip = byId('rest-timer-skip'); if (skip && left <= 0) skip.textContent = 'Done';
+  if (left <= 0) {
+    if (!V.restTimer.rung) {
+      V.restTimer.rung = true;
+      bar.classList.add('done');
+      if (navigator.vibrate) { try { navigator.vibrate(200); } catch (_) {} }
+    }
+    stopRestTick();
+  }
+}
+function stopRestTick() { if (REST_TICK) { clearInterval(REST_TICK); REST_TICK = null; } }
+function addRest(sec) {
+  if (!V.restTimer) return;
+  V.restTimer.endTs = Math.max(Date.now(), V.restTimer.endTs + sec * 1000);
+  V.restTimer.durSec = Math.max(1, V.restTimer.durSec + sec);
+  V.restTimer.rung = false;
+  const b = byId('rest-timer'); if (b) b.classList.remove('done');
+  const skip = byId('rest-timer-skip'); if (skip) skip.textContent = 'Skip';
+  stopRestTick(); REST_TICK = setInterval(restTick, 250); restTick();
+}
+function dismissRestTimer() { stopRestTick(); V.restTimer = null; render(); }
+function clearRestTimer() { stopRestTick(); if (V) V.restTimer = null; }
+function restTimerHTML() {
+  if (!V.restTimer) return '';
+  const left = restRemainingSec();
+  const done = left <= 0;
+  const pct = 100 * (1 - Math.min(1, left / V.restTimer.durSec));
+  return `<div class="rest-timer ${done ? 'done' : ''}" id="rest-timer">
+    <div class="rest-timer-fill" id="rest-timer-fill" style="width:${pct}%"></div>
+    <div class="rest-timer-body">
+      <span class="rest-timer-label">Rest</span>
+      <span class="rest-timer-time" id="rest-timer-time">${done ? 'Rest done' : fmtClock(left)}</span>
+      <button class="rest-timer-btn" onclick="addRest(-15)">-15s</button>
+      <button class="rest-timer-btn" onclick="addRest(30)">+30s</button>
+      <button class="rest-timer-btn primary" id="rest-timer-skip" onclick="dismissRestTimer()">${done ? 'Done' : 'Skip'}</button>
+    </div>
+  </div>`;
+}
+
+// ------------------------------------------------------------
 // PERFORMANCE MODAL
 // ------------------------------------------------------------
 let PM = null; // {ei, si, weight, reps, rpe}
@@ -2256,11 +2374,12 @@ function openPerf(ei, si) {
   const st = V.draft.entries[ei].sets[si];
   const e = V.draft.entries[ei];
   let w = st.done ? st.weight : (st.targetWeight ?? lastWeightFor(e.exId) ?? 0);
-  const dropSrc = (st.done && st.drops) ? st.drops : st.dropTargets; // logged drops, else prescribed
+  const dropSrc = (st.done && st.drops) ? st.drops : st.dropTargets; // logged minis, else prescribed
+  const hasKids = FINISHER_TECHS.includes(st.technique) && dropSrc;
   PM = { ei, si, weight: w, reps: st.done ? st.reps : st.targetReps,
          rpe: st.done ? st.rpe : (st.targetRpe ?? 8),
-         pump: st.done ? (st.pump ?? null) : null,
-         drops: st.technique === 'drop' && dropSrc ? dropSrc.map(d => ({ weight: d.weight, reps: d.reps })) : null };
+         pump: st.done ? (st.pump ?? null) : null, tech: st.technique || null,
+         drops: hasKids ? dropSrc.map(d => ({ weight: d.weight, reps: d.reps })) : null };
   showModal(renderPerfModal);
 }
 function lastWeightFor(exId) {
@@ -2334,13 +2453,14 @@ function renderPerfModal(anim) {
           </div>
         </div>
         ${pm.drops ? `<div class="stepper" style="border-bottom:none">
-          <div class="lbl">Drops <small class="faint">strip and go, log reps</small></div>
+          <div class="lbl">${childSectionLabel(pm.tech)}</div>
           ${pm.drops.map((d, i) => `<div class="drop-row">
-            <span class="drop-w">${fmtW(exId, d.weight)}</span>
+            <span class="drop-w" id="pm-dropw-${i}">${fmtW(exId, d.weight)}</span>
             <button class="pm sm" onclick="pmDropReps(${i},-1)">−</button>
             <span class="val sm" id="pm-drop-${i}">${d.reps}</span>
             <button class="pm sm" onclick="pmDropReps(${i},1)">＋</button>
           </div>`).join('')}
+          ${SAME_WEIGHT_TECHS.includes(pm.tech) ? `<button class="btn btn-outline mt8" id="pm-minirest" onclick="startMiniRest()">${pm.tech === 'restpause' ? 'Pause' : 'Mini-rest'} ${fmtClock(Engine.techTransitionSec(pm.tech, TIME_MODEL))}</button>` : ''}
         </div>` : ''}
         <div class="btn-row">
           <button class="btn btn-outline" onclick="clearPerf()">CLEAR</button>
@@ -2362,6 +2482,13 @@ function perfUpdateWeight(dir) {
   const { viz, note } = plateVizHTML(PM.weight, exId);
   const pv = byId('pm-plateviz'); if (pv) pv.innerHTML = viz;
   const pn = byId('pm-platenote'); if (pn) pn.innerHTML = note;
+  // Same-weight finishers (myo / rest-pause) ride the working weight as it changes.
+  if (SAME_WEIGHT_TECHS.includes(PM.tech) && PM.drops) {
+    PM.drops.forEach((d, i) => {
+      d.weight = PM.weight;
+      const el = byId(`pm-dropw-${i}`); if (el) el.textContent = fmtW(exId, d.weight);
+    });
+  }
 }
 function pmW(dir) {
   const exId = V.draft.entries[PM.ei].exId;
@@ -2395,7 +2522,27 @@ function pmDropReps(i, d) {
   PM.drops[i].reps = Math.max(0, PM.drops[i].reps + d);
   const el = byId(`pm-drop-${i}`); if (el) { el.textContent = PM.drops[i].reps; nudge(el, d); }
 }
-function closePerf() { PM = null; closeModal(); }
+// Technique-aware timer (Cluster B): a myo mini-rest or a rest-pause pause is
+// intrinsic to the set, so it is cued inside the perf modal (the modal covers
+// the session rest bar). A short countdown on the prescribed value
+// (Engine.techTransitionSec); buzzes at zero where supported. No em dashes.
+let MINI_TICK = null;
+function startMiniRest() {
+  if (!PM) return;
+  stopMiniRest();
+  const word = PM.tech === 'restpause' ? 'Pause' : 'Mini-rest';
+  const end = Date.now() + Engine.techTransitionSec(PM.tech, TIME_MODEL) * 1000;
+  const tick = () => {
+    const el = byId('pm-minirest');
+    if (!el) { stopMiniRest(); return; }
+    const left = Math.max(0, Math.round((end - Date.now()) / 1000));
+    el.textContent = left > 0 ? `${word} ${fmtClock(left)}` : 'Go again';
+    if (left <= 0) { stopMiniRest(); if (navigator.vibrate) { try { navigator.vibrate(150); } catch (_) {} } }
+  };
+  MINI_TICK = setInterval(tick, 250); tick();
+}
+function stopMiniRest() { if (MINI_TICK) { clearInterval(MINI_TICK); MINI_TICK = null; } }
+function closePerf() { stopMiniRest(); PM = null; closeModal(); }
 function clearPerf() {
   const st = V.draft.entries[PM.ei].sets[PM.si];
   st.done = false; st.weight = st.reps = st.rpe = null; st.pump = null; st.drops = null;
@@ -2441,6 +2588,12 @@ function donePerf() {
     } else if (loggedCalib.length >= e.sets.filter(s => s.calib).length) {
       toast(`${e.name} calibrated. Weights will be prescribed from your next session`);
     }
+  }
+  // Start the rest countdown for a real working set (ramp/warmup sets have their
+  // own short rest and the warmup modal, so they do not arm the timer).
+  if (!st.ramp) {
+    const kind = e.isMain ? 'main' : e.isSecondary ? 'secondary' : 'accessory';
+    startRestTimer(kind, e.exId);
   }
   save();
   closePerf(); render();
@@ -2567,6 +2720,7 @@ function finishSession() {
   logReadiness(dr.readiness);
   V.summaryId = dr.id;
   V.draft = null; V.dayIdx = null;
+  clearRestTimer();
   save();
   closeAllModals();
   toast(`Session saved, ${dr.tonnage.toLocaleString()} kg total tonnage`);
@@ -2757,7 +2911,7 @@ function sessionSetRowsHTML(e, withTarget) {
         ? ` <small>target ${fmtW(e.exId, x.targetWeight)} × ${x.targetReps}${x.targetRpe ? ' · ' + fmtRir(x.targetRpe) : ''}</small>`
         : (x.targetReps ? ` <small>target ${x.targetReps} reps${x.targetRpe ? ' · ' + fmtRir(x.targetRpe) : ''}</small>` : '');
     }
-    const drops = (x.drops && x.drops.length) ? ` <small class="faint">drops ${dropDetail(e.exId, x.drops)}</small>` : '';
+    const drops = (x.drops && x.drops.length) ? ` <small class="faint">${childWord(x.technique)} ${dropDetail(e.exId, x.drops)}</small>` : '';
     return `<div class="set-row"><span class="num">${i + 1}</span>
       <span class="target">${actual}${x.amrap ? ' <small>AMRAP</small>' : ''}${techniqueBadge(x.technique)}${drops}${pumpBadge(x.pump)}${tgt}</span></div>`;
   }).join('');

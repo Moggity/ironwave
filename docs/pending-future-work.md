@@ -103,8 +103,18 @@ and the product moat are the same move.
   shipped (2026-06-23):** `Engine.buildDropSet` + an opt-in `S.techniques` map
   applied via `applyTechnique` on a bodybuilding accessory's last working set,
   logged in the perf modal, timed via `Engine.setTimeSec` /
-  `TIME_MODEL.dropTransitionSec`, and counted in `Engine.tonnage`. Next: myo-reps
-  (its mini-rest is the first technique that needs the timer slice below).
+  `TIME_MODEL.dropTransitionSec`, and counted in `Engine.tonnage`. **Myo-reps
+  shipped (2026-06-23):** `Engine.buildMyoReps` reuses the same child-set
+  plumbing at a fixed activation weight; `setTimeSec` is now technique-aware
+  (`TIME_MODEL.myoRestSec` per mini-set); a second in-session chip
+  (`toggleTechInSession` / `entryTech`, drop and myo mutually exclusive); and the
+  intrinsic myo mini-rest is cued in the perf modal (the technique-aware timer
+  slice, built on the generic rest timer). **Rest-pause shipped (2026-06-23):**
+  `Engine.buildRestPause` (same-weight bursts), `Engine.techTransitionSec` as the
+  one source for each technique's intrinsic intra-set rest, and a consolidated
+  "Add a finisher" chip row (drop / myo / rest-pause, mutually exclusive) with a
+  technique-aware perf modal + pause cue. Next: partials, then supersets / giant
+  sets.
 - **Dependencies:** Cluster A's `technique` field + logging; `estimateSessionSec`
   must learn each technique's time cost; how a drop set counts toward weekly sets
   feeds Epic 4.
@@ -264,19 +274,23 @@ Phase   (F) -- needs D --> modulates E and the deload; starts light
   feedback). [feature]
 - **Prescribed rest periods / in-app timer**, surfaced to the athlete. Two
   slices with different dependencies:
-  - *Generic rest timer (independent, shippable now).* A per-set countdown on the
+  - ~~*Generic rest timer (independent, shippable now).* A per-set countdown on the
     workout view, seeded from the `TIME_MODEL.restSec` / `restSecTight` values that
-    already exist in `data.js` (today they only feed `estimateSessionSec`; nothing
-    surfaces them to the athlete). No dependency on Cluster A or Epic 2: it is UI
-    over data that exists, read-only on the engine. Any new optional set-object
-    field (e.g. a per-set rest override) must stay inert when absent so the
-    default/powerbuilding golden master holds; timer copy is athlete-facing, so no
-    em dashes.
+    already exist in `data.js`.~~ DONE (2026-06-23): `Engine.restSecFor(kind, tight,
+    TM)` reads the prescribed rest the time estimate already uses; a sticky rest bar
+    on the session view starts a countdown when a real working set is logged
+    (`donePerf`, warmups excluded), with -15s / +30s / Skip and a done state. No new
+    persisted/set-object field (ephemeral `V.restTimer` only), so the
+    default/powerbuilding golden master is untouched. Unblocks the technique-aware
+    timer below.
   - *Technique-aware timer (gated on Epic 2 / Cluster B).* Myo-reps, rest-pause,
     and drop sets carry an intrinsic intra-set rest that is part of the
     prescription, not generic recovery, so it cannot be timed until Cluster B
     builds the `technique` set structure. Scoped there as an acceptance criterion
-    per technique, not scheduled ahead of it. [polish -> feature]
+    per technique, not scheduled ahead of it. **Myo-reps slice shipped
+    (2026-06-23):** the myo mini-rest is cued by a short countdown in the perf
+    modal (`startMyoRest`, `TIME_MODEL.myoRestSec`). Rest-pause adds its own pause
+    cue when that technique lands. [polish -> feature]
 - **Show a target rep range** instead of a single number. [polish]
 - **Per-muscle weekly set counter** on the workout view (early slice of
   Epic 4). [polish]

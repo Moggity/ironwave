@@ -14,7 +14,7 @@ const assert = require('node:assert');
 const { loadApp } = require('./load-app');
 
 const app = loadApp();
-const { Engine, WAVES, DEFAULT_PLATES, VOLUME_LANDMARKS, EXPERIENCE_FACTOR } = app;
+const { Engine, WAVES, DEFAULT_PLATES, VOLUME_LANDMARKS, EXPERIENCE_FACTOR, TIME_MODEL } = app;
 
 // Float helper: engine weights/scores are real-valued.
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps;
@@ -113,6 +113,17 @@ test('warmupSets: ascending ramp from the bar, below the top set', () => {
   const w = Engine.warmupSets(30, 20, 2.5).map(s => s.weight);
   for (let i = 1; i < w.length; i++) assert.ok(w[i] > w[i - 1]);
   assert.ok(w.every(x => x < 30));
+});
+
+test('restSecFor: prescribed rest per kind, tight table, safe fallback', () => {
+  // Pulls the real prescription the session estimate uses, by kind.
+  assert.strictEqual(Engine.restSecFor('main', false, TIME_MODEL), TIME_MODEL.restSec.main);
+  assert.strictEqual(Engine.restSecFor('accessory', false, TIME_MODEL), TIME_MODEL.restSec.accessory);
+  // A time-capped athlete rests on the compressed table; it is shorter.
+  assert.strictEqual(Engine.restSecFor('main', true, TIME_MODEL), TIME_MODEL.restSecTight.main);
+  assert.ok(Engine.restSecFor('main', true, TIME_MODEL) < Engine.restSecFor('main', false, TIME_MODEL));
+  // Unknown kind never returns NaN; it falls back to the accessory value.
+  assert.strictEqual(Engine.restSecFor('mystery', false, TIME_MODEL), TIME_MODEL.restSec.accessory);
 });
 
 test('readinessScore: composite, clamped to 0..30', () => {

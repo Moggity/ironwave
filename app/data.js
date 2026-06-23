@@ -1059,12 +1059,32 @@ const TIME_MODEL = {
   // estimateSessionSec charges one full rest after the whole drop set plus this
   // per-drop transition, instead of a full rest per mini-set.
   dropTransitionSec: 15,
+  // [Cluster B] Myo-reps keep the same weight: one activation set near failure,
+  // then short mini-sets with an intrinsic mini-rest (a few breaths) between
+  // them. estimateSessionSec charges this mini-rest per mini-set plus one full
+  // rest after the whole cluster. This is the intrinsic rest the technique-aware
+  // timer surfaces to the athlete.
+  myoRestSec: 18,
+  // [Cluster B] Rest-pause: a set to failure, then a short pause (rack the load,
+  // a few breaths) and squeeze out another small burst at the same weight, a few
+  // times. The pause is intrinsic to the prescription, so the timer surfaces it.
+  restPauseSec: 20,
 };
 
 // [Cluster B] Drop-set construction defaults. A working set carries N child
 // mini-sets, each a step lighter; the athlete runs each to roughly the same rep
 // target. Bodybuilding-only and opt-in, so nothing here touches a default user.
 const DROP_DEFAULTS = { drops: 2, dropPct: 0.2, repFactor: 1 };
+
+// [Cluster B] Myo-reps construction defaults: the activation set is the working
+// set itself; it then carries N short mini-sets at the SAME weight (no strip),
+// each a few reps. Our own simple numbers, not any product's exact parameters.
+const MYO_DEFAULTS = { minis: 3, miniReps: 5 };
+
+// [Cluster B] Rest-pause defaults: the working set is taken to failure, then a
+// couple of short bursts at the SAME weight, each only a few reps as fatigue
+// climbs. Fewer, smaller bursts than myo-reps; our own numbers.
+const RESTPAUSE_DEFAULTS = { bursts: 2, burstReps: 3 };
 
 // Bodybuilding muscle-focus slider (0..6) -> accessory set-count multiplier vs
 // the scheme baseline (slider 3 = 1.0 = unchanged). 0 removes the exercise.
