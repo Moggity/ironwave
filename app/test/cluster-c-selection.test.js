@@ -102,6 +102,27 @@ test('advancing a block rotates bodybuilding generator accessories, keeping a da
   }
 });
 
+// ---------------------------------------------------------------------------
+// Swap picker: heads already covered on a day (drives the "Adds <head>" hint)
+// ---------------------------------------------------------------------------
+test('dayHeadsCovered reports a day\'s same-movement heads, excluding the swapped slot', () => {
+  app.S = app.defaultState();
+  app.S.program = {
+    days: [{
+      name: 'Chest', slots: [
+        { type: 'acc', cat: 'chest', def: 'db-incline-bench' }, // chest-upper
+        { type: 'acc', cat: 'chest', def: 'dips' },             // chest-lower
+        { type: 'acc', cat: 'back', def: 'lat-pulldown' },      // different movement
+      ],
+    }],
+  };
+  // From slot 0's view, the day already covers chest-lower (dips, slot 1); the
+  // back lift is a different movement, so its head does not count here.
+  const heads = app.dayHeadsCovered(0, 0, 'chest');
+  assert.ok(heads.has('chest-lower'), 'sees the other chest slot head');
+  assert.ok(!heads.has('chest-upper'), 'excludes the slot being swapped');
+});
+
 test('rotation is bodybuilding-only: a powerbuilding program keeps its accessory defs', () => {
   app.S = app.defaultState();
   app.V = {};
