@@ -584,3 +584,26 @@ Engine.fatigueSaturated = function (statuses, threshold = 3) {
   const over = (statuses || []).filter(s => s && (s.key === 'over' || s.pct >= 90)).length;
   return { over, saturated: over >= threshold, threshold };
 };
+
+// [Cluster D] Autoregulated deload depth. Sizes the deload to accumulated
+// fatigue: a fried athlete (many muscles at/near MRV, or readiness trending down)
+// deloads DEEPER (one fewer set on top of the scheme's already-halved deload); a
+// fresh athlete takes a LIGHTER deload (one more set) so they shed fatigue
+// without losing momentum. `setDelta` composes with the existing deload
+// prescription, so 0 = today's behavior. Pure; caller passes volumeStatus objects
+// and a readiness-trend flag. Bodybuilding-surfaced and inert (delta 0) without
+// enough fatigue signal, so the default routine is unchanged.
+Engine.deloadDepth = function (statuses, trendDown) {
+  const sat = Engine.fatigueSaturated(statuses);
+  if (sat.saturated || (sat.over >= 2 && trendDown)) {
+    return { level: 'deep', setDelta: -1, over: sat.over,
+      reason: `High fatigue this block (${sat.over} muscles near MRV), taking a deeper deload` };
+  }
+  // "Light" needs positive evidence of low fatigue (trained muscles, none near
+  // MRV), not just an absence of data; no statuses falls through to standard.
+  if (statuses && statuses.length && sat.over === 0 && !trendDown) {
+    return { level: 'light', setDelta: 1, over: 0,
+      reason: 'Low fatigue this block, a lighter deload to keep momentum' };
+  }
+  return { level: 'standard', setDelta: 0, over: sat.over, reason: 'Standard deload' };
+};

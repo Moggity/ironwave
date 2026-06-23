@@ -1,5 +1,33 @@
 # IRONWAVE — Changelog
 
+## [Cluster D: autoregulated deload depth + resensitization] (2026-06-23)
+
+Makes the deload respond to accumulated fatigue instead of a fixed halving, and
+resensitizes volume back to MEV when a block ends. Bodybuilding-only and inert
+without a fatigue signal, so the default/powerbuilding routine and the golden
+master are unchanged.
+
+- `Engine.deloadDepth(statuses, trendDown)`: sizes the deload from how saturated
+  the athlete is (muscles at/near MRV via `fatigueSaturated`) and whether
+  readiness is trending down. A fried athlete deloads DEEPER (one fewer set on top
+  of the scheme's already-halved deload), a fresh one LIGHTER (one more set);
+  "light" needs positive low-fatigue evidence, so no data defaults to standard.
+- `advanceWeek` computes the plan as the athlete enters the deload week (pointer
+  still on the peak week, so `resolveSlot` stays pure and just reads
+  `P().deloadPlan`), and on block end resensitizes by resetting `P().volAdj` to 0
+  and clearing the spent plan.
+- `resolveSlot` applies the plan's set delta to a bodybuilding accessory on the
+  deload week only (via `deloadDepthDelta`); off-track / off-week / no-plan is
+  byte-identical.
+- The Weekly volume screen shows a "Deeper / Lighter deload" note on the deload
+  week explaining the sizing and the resensitization.
+- Tests: `test/cluster-d-deload.test.js` (depth decisions, the no-data default,
+  resolveSlot application + inertness, resensitization on block end, plan stored
+  on entry). Golden master unchanged; full suite green.
+- Still open in Cluster D (own branches): early-deload TIMING (trigger the deload
+  before week 5 on mid-block MRV saturation, a block-engine change), a fatigue
+  trend chart, and the zero-sum budget + specialization phase.
+
 ## [Calibration redesign: RIR-first, reduced-fatigue ramp] (2026-06-23)
 
 Reworks the calibration ramp (the weightless feeler sets prescribed when there is
