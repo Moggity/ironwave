@@ -211,9 +211,97 @@ const EXERCISE_LIST = [
   ['suitcase-carry','Suitcase Carry','abs','db',0],
 ];
 
-const EXERCISES = EXERCISE_LIST.map(e => ({
-  id: e[0], name: e[1], movement: e[2], equipment: e[3], isMain: !!e[4],
-}));
+// ============================================================
+// [Cluster C] Head/region + stimulus metadata (Epic 3).
+// Our OWN ratings and taxonomy, authored here (training opinions/facts, safe to
+// write); we deliberately do NOT reproduce any product's exercise database or
+// numeric SFR tables. Everything is OPTIONAL and INERT: no prescription code in
+// engine.js reads these fields, so the golden master is untouched. The picker
+// and the exercise detail surface them; a later slice lets the generator rotate
+// and bias by head/SFR.
+//   sfr     1..3 stimulus-to-fatigue read (1 lower, 2 moderate, 3 high)
+//   stretch true when the exercise loads the lengthened position hard
+//   head    a finer muscle region, only where heads genuinely differ
+// ============================================================
+const SFR_LABELS = { 1: 'Lower', 2: 'Moderate', 3: 'High' };
+const HEAD_LABELS = {
+  'delt-front': 'Front delt', 'delt-side': 'Side delt', 'delt-rear': 'Rear delt',
+  'chest-upper': 'Upper chest', 'chest-lower': 'Mid/lower chest',
+  'tri-long': 'Long head', 'tri-lateral': 'Lateral head',
+  'back-lat': 'Lats', 'back-upper': 'Upper back',
+  'ham-hip': 'Hip flexion', 'ham-knee': 'Knee flexion',
+  'bi-long': 'Long head', 'bi-short': 'Short head',
+};
+const EX_META_DEFAULT = { sfr: 2, stretch: false, head: null };
+const EX_META = {
+  // Big compounds: huge stimulus, high systemic fatigue -> lower SFR.
+  'comp-squat': { sfr: 1 }, 'comp-bench': { sfr: 1, head: 'chest-lower' },
+  'comp-deadlift': { sfr: 1 }, 'military-press': { sfr: 1, head: 'delt-front' },
+  'conv-deadlift': { sfr: 1 }, 'sumo-deadlift': { sfr: 1 },
+  'front-squat': { sfr: 2 }, 'close-grip-bench': { sfr: 2, head: 'tri-lateral' },
+  // Hamstrings: RDL family is the loaded-stretch hip-flexion work; curls are knee.
+  'romanian-deadlift': { sfr: 2, stretch: true, head: 'ham-hip' },
+  'db-rdl': { sfr: 2, stretch: true, head: 'ham-hip' },
+  'single-leg-rdl': { sfr: 2, stretch: true, head: 'ham-hip' },
+  'stiff-leg-deadlift': { sfr: 2, stretch: true, head: 'ham-hip' },
+  'good-mornings': { sfr: 2, stretch: true, head: 'ham-hip' },
+  'hamstring-curls': { sfr: 3, head: 'ham-knee' },
+  'seated-leg-curl': { sfr: 3, stretch: true, head: 'ham-knee' },
+  'ghr': { sfr: 2, stretch: true, head: 'ham-knee' },
+  'nordic-curl': { sfr: 2, stretch: true, head: 'ham-knee' },
+  // Quads
+  'leg-extensions': { sfr: 3 }, 'leg-press': { sfr: 2 },
+  'hack-squat-machine': { sfr: 2, stretch: true }, 'sissy-squat': { sfr: 2, stretch: true },
+  'bulgarian-split-squat': { sfr: 2, stretch: true },
+  // Chest: incline = upper, dips/decline = lower; flyes load the stretch.
+  'incline-bench': { sfr: 2, head: 'chest-upper' },
+  'db-incline-bench': { sfr: 2, stretch: true, head: 'chest-upper' },
+  'decline-bench': { sfr: 2, head: 'chest-lower' },
+  'db-bench': { sfr: 2, stretch: true, head: 'chest-lower' },
+  'dips': { sfr: 2, stretch: true, head: 'chest-lower' },
+  'weighted-dips': { sfr: 2, stretch: true, head: 'chest-lower' },
+  'cable-fly': { sfr: 3, stretch: true }, 'db-fly': { sfr: 2, stretch: true },
+  'pec-deck': { sfr: 3 }, 'machine-chest-press': { sfr: 3, head: 'chest-lower' },
+  'deficit-pushup': { sfr: 2, stretch: true, head: 'chest-lower' },
+  // Shoulders by head.
+  'lateral-raise': { sfr: 3, head: 'delt-side' },
+  'cable-lateral-raise': { sfr: 3, stretch: true, head: 'delt-side' },
+  'front-raise': { sfr: 2, head: 'delt-front' }, 'upright-row': { sfr: 2, head: 'delt-side' },
+  'rear-delt-fly': { sfr: 3, head: 'delt-rear' }, 'reverse-pec-deck': { sfr: 3, head: 'delt-rear' },
+  'face-pull': { sfr: 3, head: 'delt-rear' }, 'seated-db-press': { sfr: 2, head: 'delt-front' },
+  'arnold-press': { sfr: 2, head: 'delt-front' }, 'machine-shoulder-press': { sfr: 3, head: 'delt-front' },
+  // Triceps: overhead/skull hit the long head at length; pushdowns the lateral.
+  'triceps-pushdown': { sfr: 3, head: 'tri-lateral' },
+  'overhead-triceps-ext': { sfr: 3, stretch: true, head: 'tri-long' },
+  'skullcrusher': { sfr: 2, stretch: true, head: 'tri-long' },
+  'db-triceps-ext': { sfr: 2, stretch: true, head: 'tri-long' },
+  'jm-press': { sfr: 2, head: 'tri-lateral' },
+  // Biceps: incline curls bias the long head at length.
+  'incline-db-curl': { sfr: 3, stretch: true, head: 'bi-long' },
+  'preacher-curl': { sfr: 3, head: 'bi-short' }, 'cable-curl': { sfr: 3 },
+  'bb-curl': { sfr: 2 }, 'db-curl': { sfr: 2 }, 'hammer-curl': { sfr: 2 },
+  // Back: pulldowns/straight-arm bias the lats; rows the upper back.
+  'lat-pulldown': { sfr: 3, head: 'back-lat' },
+  'straight-arm-pulldown': { sfr: 3, stretch: true, head: 'back-lat' },
+  'close-grip-pulldown': { sfr: 3, head: 'back-lat' },
+  'pullup': { sfr: 2, stretch: true, head: 'back-lat' },
+  'chinup': { sfr: 2, stretch: true, head: 'back-lat' },
+  'barbell-row': { sfr: 2, head: 'back-upper' }, 'pendlay-row': { sfr: 2, head: 'back-upper' },
+  'db-row': { sfr: 2, head: 'back-upper' }, 'chest-supported-row': { sfr: 3, head: 'back-upper' },
+  'cable-row': { sfr: 3, head: 'back-upper' }, 'tbar-row': { sfr: 2, head: 'back-upper' },
+  // Glutes / calves / abs: SFR and stretch where it matters, head left general.
+  'bb-hip-thrust': { sfr: 2 }, 'cable-kickback': { sfr: 3 },
+  'standing-calf-raise': { sfr: 3, stretch: true }, 'seated-calf-raise': { sfr: 3, stretch: true },
+  'cable-crunch': { sfr: 3 }, 'hanging-leg-raise': { sfr: 2, stretch: true },
+};
+
+const EXERCISES = EXERCISE_LIST.map(e => {
+  const m = EX_META[e[0]] || EX_META_DEFAULT;
+  return {
+    id: e[0], name: e[1], movement: e[2], equipment: e[3], isMain: !!e[4],
+    sfr: m.sfr ?? EX_META_DEFAULT.sfr, stretch: !!m.stretch, head: m.head || null,
+  };
+});
 
 // ============================================================
 // COACHING CUES — per exercise (3 to 6 short bullets each).
