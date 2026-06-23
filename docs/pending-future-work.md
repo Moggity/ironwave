@@ -295,7 +295,20 @@ Phase   (F) -- needs D --> modulates E and the deload; starts light
 - Branch discipline (see the retrospective): one cluster, ideally one
   technique/feature, per branch.
 
-## Split-generator tuning
+## Quality of life UI improvements
+
+Small surfacing/clarity polishes that make existing features easier to read at a
+glance. None change prescription math, so they are golden-master-irrelevant.
+
+- **Make a deficit phase obvious on the dashboard.** The dashboard phase chip
+  (`🍽 Phase: ...`, `vDashboard` in `app.js`) is text only today, so a cut/minicut
+  reads the same as lean-gain at a glance. Color the chip (e.g. amber) and add a
+  short "deficit" tag when `PHASE_DEFICIT[phase]`, so an energy deficit is
+  unmistakable without reading the word. The "recovery is lower, volume holds"
+  explainer currently lives only on the Weekly volume screen; consider echoing a
+  one-word cue on the dashboard too.
+
+
 
 - ~~**Balanced multi-day over-allocates lower.**~~ ~~**Lower region themes only
   around Legs.**~~ ~~**Same-muscle day spacing.**~~ DONE (2026-06-22, see Resolved
