@@ -848,6 +848,24 @@ const RPE_DESCRIPTIONS = {
   5:   'Could do 5+ more reps, felt like a warmup',
 };
 
+// [Cluster A] Optional per-set pump quick-tap. A coarse 3-point stimulus read the
+// athlete can leave blank; nothing depends on it yet (it feeds Epic 1 feedback
+// later). Athlete-facing labels, so no em dashes.
+const PUMP_LABELS = { 1: 'Light', 2: 'Solid', 3: 'Skin splitting' };
+
+// [Cluster A] Set-modifier taxonomy. The `technique` field on a set object is
+// schema groundwork for Epic 2 (advanced intensity techniques); only `straight`
+// is used today, the rest are reserved so logging/rendering already understand
+// them when the prescription side lands. Athlete-facing labels, no em dashes.
+const TECHNIQUE_LABELS = {
+  straight:  'Straight set',
+  drop:      'Drop set',
+  myo:       'Myo-reps',
+  restpause: 'Rest-pause',
+  partials:  'Lengthened partials',
+  superset:  'Superset',
+};
+
 /* ============================================================
    DYNAMIC ROUTINE ADAPTATION ENGINE — config tables
    See docs/dynamic-routine-engine-design.md. All of this is data,

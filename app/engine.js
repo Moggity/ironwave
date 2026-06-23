@@ -225,6 +225,40 @@ const Engine = {
     }
     return Math.round(t);
   },
+
+  // ---------- RIR <-> RPE (presentation only) ----------
+  // RIR (reps in reserve) reads easier for novices; the engine keeps RPE as the
+  // stored/canonical intensity and these convert for display and logging input.
+  // No prescription math changes: rir = 10 - rpe (the same identity e1rm uses).
+  rpeToRir(rpe) { return Math.max(0, 10 - (rpe ?? 8)); },
+  rirToRpe(rir) { return Math.min(10, Math.max(0, 10 - rir)); },
+
+  // ---------- progression trends (Cluster A charts) ----------
+  // Group logged records into one bucket per calendar day (UTC) inside the
+  // window. Pure and deterministic (callers seed ts), ascending by time. Only
+  // real working sets (weight>0, reps>0) count; warmups never carry weight=0
+  // into a record, so this mirrors what bestE1RM already trusts.
+  _recordsByDay(records, days) {
+    const cutoff = Date.now() - days * 864e5;
+    const groups = new Map();
+    for (const r of records || []) {
+      if (!(r.ts > cutoff) || !(r.weight > 0) || !(r.reps > 0)) continue;
+      const key = new Date(r.ts).toISOString().slice(0, 10);
+      if (!groups.has(key)) groups.set(key, { ts: r.ts, recs: [] });
+      groups.get(key).recs.push(r);
+    }
+    return [...groups.values()].sort((a, b) => a.ts - b.ts);
+  },
+  // Best (max) estimated 1RM achieved each day.
+  e1rmTrend(records, days = 120) {
+    return this._recordsByDay(records, days).map(g =>
+      ({ ts: g.ts, value: Math.max(...g.recs.map(r => this.e1rm(r.weight, r.reps, r.rpe))) }));
+  },
+  // Total volume load (sum of weight * reps) each day.
+  volumeLoadTrend(records, days = 120) {
+    return this._recordsByDay(records, days).map(g =>
+      ({ ts: g.ts, value: g.recs.reduce((a, r) => a + r.weight * r.reps, 0) }));
+  },
 };
 
 /* ============================================================

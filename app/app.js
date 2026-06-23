@@ -31,7 +31,7 @@ function defaultState() {
                trainingAge: { startedTs: null, blocksCompleted: 0 },
                landmarks: {} },
     program: null,
-    records: {},      // exId -> [{ts, weight, reps, rpe}]
+    records: {},      // exId -> [{ts, weight, reps, rpe, pump?, technique?}] (last 3 optional, Cluster A)
     loadingProfiles: {}, // exId -> { mode, count, barWeight } — per-exercise loading, persists across programs
     customEx: [],
     sessions: [],
@@ -120,6 +120,11 @@ const byId = id => document.getElementById(id);
 const fmtDate = ts => new Date(ts).toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
 const fmtDateLong = ts => new Date(ts).toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric', year:'numeric' });
 const kg = w => (w % 1 === 0 ? w : w.toFixed(1));
+// [Cluster A] RIR-first display. The athlete sees reps-in-reserve everywhere;
+// the stored intensity stays RPE (rir = 10 - rpe), so the engine is untouched.
+const fmtRir = rpe => (rpe == null ? '–' : `${kg(Engine.rpeToRir(rpe))} RIR`);
+const pumpBadge = p => (p ? ` <small class="faint">🔥 ${esc(PUMP_LABELS[p] || 'pump')}</small>` : '');
+const techniqueBadge = t => (t && t !== 'straight' ? ` <small class="faint">${esc(TECHNIQUE_LABELS[t] || t)}</small>` : '');
 
 function allExercises() { return EXERCISES.concat(S.customEx); }
 function exById(id) { return allExercises().find(e => e.id === id); }
@@ -1114,6 +1119,29 @@ function sparklineHTML() {
     ${pts.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.6" fill="#67a3ff"/>`).join('')}
   </svg>`;
 }
+// [Cluster A] Generic progression sparkline for a [{ts, value}] series (e1RM or
+// volume load). Auto-scales to the series range; shows first -> last with a
+// direction marker. Colors are literals so it does not depend on theme vars.
+function trendChartHTML(points, color, fmt) {
+  if (!points || !points.length) return '<p class="faint">No data yet.</p>';
+  if (points.length === 1) return `<p class="faint">${fmt(points[0].value)} · one session so far</p>`;
+  const W = 300, H = 64, pad = 8;
+  const vals = points.map(p => p.value);
+  const lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1;
+  const x = i => pad + i * (W - 2 * pad) / (points.length - 1);
+  const y = v => H - pad - ((v - lo) / span) * (H - 2 * pad);
+  const pts = points.map((p, i) => [x(i), y(p.value)]);
+  const first = points[0].value, last = points[points.length - 1].value, delta = last - first;
+  const mark = delta > 0 ? '▲' : delta < 0 ? '▼' : '·';
+  const col = delta > 0 ? '#37c978' : delta < 0 ? '#e2557b' : '#8a93a6';
+  return `<svg class="spark-line" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <polyline points="${pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')}"
+        fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      ${pts.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.4" fill="${color}"/>`).join('')}
+    </svg>
+    <div class="row faint" style="margin:-2px 0 12px"><span>${fmt(first)}</span>
+      <span style="color:${col}">${mark} ${fmt(last)}</span></div>`;
+}
 // Tentative weekly volume index — routed through the block's scheme
 function weekVolume(block, w) {
   return Engine.schemeFor(block).weekVolume(block, w);
@@ -1824,16 +1852,17 @@ function lastSetInfo(exId) {
   if (!recs.length) return '';
   const r = recs[recs.length - 1];
   return `<div class="lastset">Last Set ${new Date(r.ts).toLocaleDateString()}<br>
-    ${r.reps} reps x ${fmtW(exId, r.weight)} @ RPE ${r.rpe} ›</div>`;
+    ${r.reps} reps x ${fmtW(exId, r.weight)} · ${fmtRir(r.rpe)}${pumpBadge(r.pump)} ›</div>`;
 }
 
 function setTargetLabel(st, exId) {
-  if (st.amrap) return `${fmtW(exId, st.targetWeight)} × AMRAP <small>standard ${st.targetReps}</small>`;
-  if (st.calib) return `${st.targetReps} reps @ ${st.targetRpe} RPE <small>calibration, eyeball the weight</small>`;
+  const tech = techniqueBadge(st.technique);
+  if (st.amrap) return `${fmtW(exId, st.targetWeight)} × AMRAP <small>standard ${st.targetReps}</small>${tech}`;
+  if (st.calib) return `${st.targetReps} reps @ ${fmtRir(st.targetRpe)} <small>calibration, eyeball the weight</small>${tech}`;
   if (st.targetWeight != null && st.targetRpe != null)
-    return `${fmtW(exId, st.targetWeight)} × ${st.targetReps} <small>cap at ${st.targetRpe} RPE</small>`;
-  if (st.targetWeight != null) return `${fmtW(exId, st.targetWeight)} × ${st.targetReps}`;
-  return `${st.targetReps} reps @ ${st.targetRpe} RPE`;
+    return `${fmtW(exId, st.targetWeight)} × ${st.targetReps} <small>cap at ${fmtRir(st.targetRpe)}</small>${tech}`;
+  if (st.targetWeight != null) return `${fmtW(exId, st.targetWeight)} × ${st.targetReps}${tech}`;
+  return `${st.targetReps} reps @ ${fmtRir(st.targetRpe)}${tech}`;
 }
 
 function vSession() {
@@ -1844,7 +1873,7 @@ function vSession() {
   const cards = dr.entries.map((e, ei) => {
     const setRows = e.sets.map((st, si2) => {
       const perfLabel = st.done
-        ? `${fmtW(e.exId, st.weight)} x ${st.reps} @ ${st.rpe} RPE`
+        ? `${fmtW(e.exId, st.weight)} x ${st.reps} · ${fmtRir(st.rpe)}`
         : 'Performance';
       const fatigueFlag = shortSleep && !st.ramp && si2 >= e.sets.length - 1 && !e.isMain
         ? `<div class="flag">⚠ optional today, short sleep</div>` : '';
@@ -1909,7 +1938,8 @@ function openPerf(ei, si) {
   const e = V.draft.entries[ei];
   let w = st.done ? st.weight : (st.targetWeight ?? lastWeightFor(e.exId) ?? 0);
   PM = { ei, si, weight: w, reps: st.done ? st.reps : st.targetReps,
-         rpe: st.done ? st.rpe : (st.targetRpe ?? 8) };
+         rpe: st.done ? st.rpe : (st.targetRpe ?? 8),
+         pump: st.done ? (st.pump ?? null) : null };
   showModal(renderPerfModal);
 }
 function lastWeightFor(exId) {
@@ -1966,14 +1996,20 @@ function renderPerfModal(anim) {
             <button class="pm" onclick="pmR(1)">＋</button>
           </div>
         </div>
-        <div class="stepper" style="border-bottom:none">
-          <div class="lbl">Rate of Perceived Exertion</div>
+        <div class="stepper">
+          <div class="lbl">Reps In Reserve (RIR)</div>
           <div class="ctr">
-            <button class="pm" onclick="pmP(-0.5)">−</button>
-            <span class="val" id="pm-rpe">${pm.rpe}</span>
-            <button class="pm" onclick="pmP(0.5)">＋</button>
+            <button class="pm" onclick="pmRir(-0.5)">−</button>
+            <span class="val" id="pm-rir">${kg(Engine.rpeToRir(pm.rpe))}</span>
+            <button class="pm" onclick="pmRir(0.5)">＋</button>
           </div>
           <div class="rpe-desc" id="pm-rpe-desc">${RPE_DESCRIPTIONS[pm.rpe] || ''}</div>
+        </div>
+        <div class="stepper" style="border-bottom:none">
+          <div class="lbl">Pump <small class="faint">optional</small></div>
+          <div class="pump-row">
+            ${[1, 2, 3].map(n => `<button class="btn ${pm.pump === n ? 'btn-blue' : 'btn-outline'}" onclick="pmPump(${n})">${PUMP_LABELS[n]}</button>`).join('')}
+          </div>
         </div>
         <div class="btn-row">
           <button class="btn btn-outline" onclick="clearPerf()">CLEAR</button>
@@ -2012,23 +2048,32 @@ function pmR(d) {
   PM.reps = Math.max(0, PM.reps + d);
   const el = byId('pm-reps'); el.textContent = PM.reps; nudge(el, d);
 }
-function pmP(d) {
-  PM.rpe = Math.min(10, Math.max(5, PM.rpe + d));
-  const el = byId('pm-rpe'); el.textContent = PM.rpe;
+// RIR stepper: the athlete edits reps-in-reserve, we store the inverse RPE.
+// Adding RIR (easier) lowers RPE and vice versa, clamped to RPE 5..10 (RIR 0..5).
+function pmRir(d) {
+  PM.rpe = Math.min(10, Math.max(5, PM.rpe - d));
+  const el = byId('pm-rir'); el.textContent = kg(Engine.rpeToRir(PM.rpe));
   byId('pm-rpe-desc').textContent = RPE_DESCRIPTIONS[PM.rpe] || '';
   nudge(el, d);
 }
+// Optional pump quick-tap: tapping the active level clears it (stays optional).
+function pmPump(n) { PM.pump = PM.pump === n ? null : n; rerenderTop(); }
 function closePerf() { PM = null; closeModal(); }
 function clearPerf() {
   const st = V.draft.entries[PM.ei].sets[PM.si];
-  st.done = false; st.weight = st.reps = st.rpe = null;
+  st.done = false; st.weight = st.reps = st.rpe = null; st.pump = null;
   closePerf(); render();
 }
 function donePerf() {
   const e = V.draft.entries[PM.ei];
   const st = e.sets[PM.si];
-  st.weight = PM.weight; st.reps = PM.reps; st.rpe = PM.rpe; st.done = true;
-  pushRecord(e.exId, { ts: Date.now(), weight: st.weight, reps: st.reps, rpe: st.rpe });
+  st.weight = PM.weight; st.reps = PM.reps; st.rpe = PM.rpe; st.pump = PM.pump; st.done = true;
+  // Optional Cluster A fields are only written when set, so a plain straight set
+  // logs the same record shape as before (persistence / golden master unaffected).
+  const rec = { ts: Date.now(), weight: st.weight, reps: st.reps, rpe: st.rpe };
+  if (st.pump != null) rec.pump = st.pump;
+  if (st.technique) rec.technique = st.technique;
+  pushRecord(e.exId, rec);
 
   // AMRAP on a main lift → adjust working max (the JM 2.0 engine).
   // A swapped-in variation logs normally but never moves the base lift's WM.
@@ -2366,15 +2411,15 @@ function sessionSetRowsHTML(e, withTarget) {
   const done = e.sets.filter(x => x.done);
   if (!done.length) return '<p class="faint">No sets logged</p>';
   return done.map((x, i) => {
-    const actual = `${fmtW(e.exId, x.weight)} × ${x.reps} @ ${x.rpe} RPE`;
+    const actual = `${fmtW(e.exId, x.weight)} × ${x.reps} · ${fmtRir(x.rpe)}`;
     let tgt = '';
     if (withTarget) {
       tgt = x.targetWeight != null
-        ? ` <small>target ${fmtW(e.exId, x.targetWeight)} × ${x.targetReps}${x.targetRpe ? ' @ ' + x.targetRpe + ' RPE' : ''}</small>`
-        : (x.targetReps ? ` <small>target ${x.targetReps} reps${x.targetRpe ? ' @ ' + x.targetRpe + ' RPE' : ''}</small>` : '');
+        ? ` <small>target ${fmtW(e.exId, x.targetWeight)} × ${x.targetReps}${x.targetRpe ? ' · ' + fmtRir(x.targetRpe) : ''}</small>`
+        : (x.targetReps ? ` <small>target ${x.targetReps} reps${x.targetRpe ? ' · ' + fmtRir(x.targetRpe) : ''}</small>` : '');
     }
     return `<div class="set-row"><span class="num">${i + 1}</span>
-      <span class="target">${actual}${x.amrap ? ' <small>AMRAP</small>' : ''}${tgt}</span></div>`;
+      <span class="target">${actual}${x.amrap ? ' <small>AMRAP</small>' : ''}${techniqueBadge(x.technique)}${pumpBadge(x.pump)}${tgt}</span></div>`;
   }).join('');
 }
 function sessionLiftCardHTML(e, withTarget) {
@@ -2558,9 +2603,19 @@ function renderExDetail(anim) {
   } else if (XD.tab === 'history') {
     body = recs.length ? [...recs].reverse().slice(0, 40).map(r =>
       `<div class="row" style="padding:9px 0;border-bottom:1px solid var(--line)">
-        <span class="subtle">${fmtDate(r.ts)}${r.seed ? ' · seeded' : ''}</span>
-        <b>${fmtW(XD.id, r.weight)} × ${r.reps} @ ${r.rpe ?? '–'}</b></div>`).join('')
+        <span class="subtle">${fmtDate(r.ts)}${r.seed ? ' · seeded' : ''}${techniqueBadge(r.technique)}${pumpBadge(r.pump)}</span>
+        <b>${fmtW(XD.id, r.weight)} × ${r.reps} · ${fmtRir(r.rpe)}</b></div>`).join('')
       : '<p class="faint mt16">No logged sets yet.</p>';
+  } else if (XD.tab === 'trend') {
+    const e1Series = Engine.e1rmTrend(recs);
+    const vlSeries = Engine.volumeLoadTrend(recs);
+    body = (e1Series.length < 2 && vlSeries.length < 2)
+      ? '<p class="faint mt16">Log a few sessions to see your e1RM and volume-load trends.</p>'
+      : `<div class="section-title" style="font-size:1.05rem">Estimated 1RM</div>
+        ${trendChartHTML(e1Series, '#67a3ff', v => kg(Engine.roundLoad(v, 0.5)) + ' kg')}
+        <div class="section-title" style="font-size:1.05rem">Volume load <small class="faint">weight × reps per day</small></div>
+        ${trendChartHTML(vlSeries, '#4ad6a0', v => Math.round(v).toLocaleString() + ' kg')}
+        <p class="faint">Both trends read straight from your logged sets over the last few months.</p>`;
   } else if (XD.tab === 'maxes') {
     const best = Engine.bestE1RM(recs);
     const wm = P()?.wm?.[XD.id];
@@ -2568,12 +2623,12 @@ function renderExDetail(anim) {
       ${wm ? `<div class="card accent"><div class="row"><span>Working Max</span><b>${kg(wm)} kg</b></div>
         <p class="faint mt8">All wave percentages run off this number (90% of your real 1RM).</p></div>` : ''}
       <div class="card"><div class="row"><span>Estimated 1RM</span><b>${best ? kg(Engine.roundLoad(best, 0.5)) + ' kg' : '—'}</b></div>
-        <p class="faint mt8">Computed from your recent logged sets (weight, reps, RPE).</p></div>
+        <p class="faint mt8">Computed from your recent logged sets (weight, reps, RIR).</p></div>
       ${recs.length ? `<div class="section-title" style="font-size:1.05rem">Best recent sets</div>` +
         [...recs].sort((a, b) => Engine.e1rm(b.weight, b.reps, b.rpe) - Engine.e1rm(a.weight, a.reps, a.rpe)).slice(0, 5)
           .map(r => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">
             <span class="subtle">${fmtDate(r.ts)}</span>
-            <span>${fmtW(XD.id, r.weight)} × ${r.reps} @ ${r.rpe ?? '–'} <b style="color:var(--blue)">→ ${kg(Engine.roundLoad(Engine.e1rm(r.weight, r.reps, r.rpe), 0.5))}</b></span></div>`).join('') : ''}`;
+            <span>${fmtW(XD.id, r.weight)} × ${r.reps} · ${fmtRir(r.rpe)} <b style="color:var(--blue)">→ ${kg(Engine.roundLoad(Engine.e1rm(r.weight, r.reps, r.rpe), 0.5))}</b></span></div>`).join('') : ''}`;
   } else {
     const isMainLift = P()?.wm && XD.id in P().wm;
     // Change 1: loading-mode control for every exercise, with a transient draft so the
@@ -2609,7 +2664,7 @@ function renderExDetail(anim) {
       ${e.custom ? `<button class="btn btn-outline mt16" style="color:var(--red);border-color:var(--red)" onclick="deleteCustomEx('${e.id}')">Delete custom exercise</button>` : ''}`;
   }
   $modal.innerHTML = modalShell(anim, esc(e.name),
-    `<div class="tabs">${tabBtn('info')}${tabBtn('history')}${tabBtn('maxes')}${tabBtn('settings')}</div>${body}`);
+    `<div class="tabs">${tabBtn('info')}${tabBtn('history')}${tabBtn('trend')}${tabBtn('maxes')}${tabBtn('settings')}</div>${body}`);
 }
 function saveExSettings() {
   const wmv = parseFloat(document.getElementById('xd-wm').value);

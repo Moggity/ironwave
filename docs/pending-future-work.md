@@ -24,6 +24,22 @@ them into focused branches rather than one large one (see the retrospective).
   never trained; the inverse (an optional consistently completed gets promoted
   into core / nudged up) is not built. (Pairs with **Epic 4 / Cluster D** under
   one volume-management roof.)
+- **Calibration redesign (RIR-first, reduced-fatigue ramp).** From athlete
+  feedback: prescribe the calibration ramp in RIR rather than RPE (RIR reads
+  easier for novices) and lower its fatigue cost with a descending rep scheme
+  (e.g. 12/10/8 at RIR 4/3/2) instead of today's flat-ish 14/12/12 at RPE 5/7/8.
+  Beginners' meso 1 should also read in RIR. **High-impact / golden-master-
+  affecting and NOT bodybuilding-only:** calibration is prescribed on the shared
+  `prescribeMain` path (`engine.js:76-80`) plus the `jbb-hyp`/accessory ramp
+  (`engine.js:147-149`), and the *uncalibrated* Powerbuilding golden master IS the
+  calibration ramp, so this deliberately regenerates the snapshot and changes
+  every track. RPE and RIR are interconvertible in the math (`rir = 10 - rpe`), so
+  the RIR switch is presentation; the rep scheme and the light-set intensity
+  (RPE 5 -> RIR 4 / RPE 6) are the real prescription change. Its own branch after
+  Cluster A, with owner sign-off on the exact rep/RIR targets and experience
+  gating, plus new prescription unit tests and a reviewed golden-master regen.
+  Cluster A should land RIR as the primary logged scale first so this builds on
+  existing RIR plumbing.
 
 ## Hardcore hypertrophy roadmap (epics, clusters, dependencies)
 
@@ -61,9 +77,10 @@ and the product moat are the same move.
 
 ### Cluster A - Logging & data foundation (enabler, do first, low IP risk)
 
-- **What:** per-set logging of actual reps + RIR (not just RPE), an optional
-  pump/burn quick-tap, a `technique` field on set objects, and per-exercise
-  progression views (e1RM and volume-load trend, both already computable).
+- **What:** per-set logging of actual reps + RIR (not just RPE, surfaced
+  RIR-first since RIR reads easier for novices), an optional pump/burn quick-tap,
+  a `technique` field on set objects, and per-exercise progression views (e1RM and
+  volume-load trend, both already computable).
 - **Why:** nothing autoregulates without honest per-set data; charts are
   table-stakes for a serious lifter.
 - **Enables:** Epic 1 (feedback signals), Epic 2 (technique-tagged sets), Epic 4
