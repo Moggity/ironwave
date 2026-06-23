@@ -176,10 +176,16 @@ and the product moat are the same move.
   `weeklyVolumeByMuscle` surface weekly direct working sets per muscle vs the
   athlete's MV/MEV/MRV (compounds attribute through `SYNERGIST_COVERAGE`), on a
   "Weekly volume" screen reached from the dashboard and the More hub. Read-only,
-  golden-master-safe. **Still open in this cluster (own slices):** the fatigue
-  trend, MRV-hit / overreach detection, the autoregulated deload + resensitization
-  (these change deload behavior), and the absorbed zero-sum budget + specialization
-  phase.
+  golden-master-safe. **Autoregulated deload DEPTH + resensitization shipped
+  (2026-06-23):** `Engine.deloadDepth` sizes the deload to accumulated fatigue
+  (MRV saturation + readiness trend); `advanceWeek` stores the plan entering the
+  deload week and resets `P().volAdj` to MEV on block end; `resolveSlot` deepens
+  or lightens a bodybuilding accessory's deload accordingly (bb-only, deload-week
+  only). Per-head volume also shipped (`weeklyVolumeByHead`, see Cluster C).
+  **Still open in this cluster (own slices):** the early-deload TIMING trigger
+  (deload before week 5 on mid-block MRV saturation, a block-engine change), a
+  fatigue trend chart, MRV-hit / overreach detection beyond the deload sizing,
+  and the absorbed zero-sum budget + specialization phase.
 - **Dependencies:** Cluster A logging + (ideally) Cluster C granularity for
   accurate counts. Reuses `seedLandmarks`/`recalibrateLandmarks` and readiness.
   The specialization phase depends on the zero-sum budget (below) so non-priority

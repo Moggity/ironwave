@@ -594,6 +594,8 @@ function resolveSlot(slot, blockIdx, wIdx) {
   }
   const r = loadingFor(exId).totalInc;
   let sets = sch.accessory(block, wIdx, recordsFor(exId), r, S.profile.experience);
+  const dld = deloadDepthDelta(blockIdx, wIdx); // [Cluster D] autoregulated deload depth
+  if (dld) sets = applySetDelta(sets, dld);
   if (mod) sets = applySetDelta(sets, mod.accSetDelta || 0);
   const focus = focusForAccessory(exId, sets);
   if (focus.removed) return { exId, name: exName(exId), sets: [], cat: slot.cat, isRemoved: true };
@@ -602,6 +604,18 @@ function resolveSlot(slot, blockIdx, wIdx) {
   if (adj) sets = applySetDelta(sets, adj);
   sets = applyTechnique(exId, sets, r);
   return { exId, name: exName(exId), sets, cat: slot.cat };
+}
+// [Cluster D] Autoregulated deload depth applied to a bodybuilding accessory on
+// the deload week: the per-block plan (sized to accumulated fatigue at the end of
+// the peak week, stored on P().deloadPlan) deepens or lightens the scheme's
+// already-halved deload by a set. Inert off the bodybuilding track, off the
+// deload week, or without a plan, so the default routine is byte-identical.
+function deloadDepthDelta(blockIdx, wIdx) {
+  const p = P();
+  const tc = p && p.trainingConfig;
+  if (!tc || tc.track !== 'bodybuilding') return 0;
+  if (Engine.weekType(wIdx) !== 'deload') return 0;
+  return (p.deloadPlan && p.deloadPlan.setDelta) || 0;
 }
 // [Cluster E] Per-muscle autoregulation applied to prescribed accessory volume.
 // Reads the accumulated, feedback-driven offset on P().volAdj (updated weekly),
@@ -1551,8 +1565,18 @@ function volumeDashboardHTML() {
         <button class="btn btn-outline mt8" onclick="openPhase()">Plan a minicut ›</button></div>`;
     }
   }
+  // [Cluster D] On the deload week, show how the deload was sized to the block's
+  // accumulated fatigue (autoregulated depth).
+  let deloadNote = '';
+  if (autoreg && Engine.weekType(P().pointer.week) === 'deload' && P().deloadPlan && P().deloadPlan.level !== 'standard') {
+    const dp = P().deloadPlan;
+    deloadNote = `<div class="card accent" style="border-left:3px solid ${dp.level === 'deep' ? 'var(--amber)' : 'var(--green)'}">
+      <div style="font-weight:700">${dp.level === 'deep' ? 'Deeper deload' : 'Lighter deload'}</div>
+      <p class="faint mt8">${esc(dp.reason)}. Accessory volume is ${dp.level === 'deep' ? 'pulled back further' : 'kept a touch higher'} this week, then your volume resensitizes from MEV next block.</p></div>`;
+  }
   return `<p class="subtle">Estimated direct working sets per muscle this week, against your own volume landmarks. The big compounds count toward the muscles they train.</p>
     ${autoreg ? `<div class="vol-phase faint">Phase: <b>${PHASE_LABELS[phase] || phase}</b>${PHASE_DEFICIT[phase] ? ' · recovery is lower, volume holds' : ''} <button class="link-btn" onclick="openPhase()">change ›</button></div>` : ''}
+    ${deloadNote}
     ${minicut}
     <div class="vol-legend faint">
       <span><i class="dot k-maint"></i>Maintenance</span>
@@ -1662,7 +1686,18 @@ function doCompleteWeek() {
 function advanceWeek() {
   const p = P();
   const finishedBlock = p.pointer.block;
+  const bb = (p.trainingConfig || {}).track === 'bodybuilding';
   updateAutoreg(); // [Cluster E] fold the week's feedback into per-muscle volume
+  // [Cluster D] About to enter the deload week: size the deload to accumulated
+  // fatigue now, while the pointer still sits on the peak week, so resolveSlot can
+  // stay pure and just read the stored plan. Bodybuilding only.
+  if (bb && Engine.weekType(p.pointer.week + 1) === 'deload') {
+    const lm = (S.profile && S.profile.landmarks) || {};
+    const tally = weeklyVolumeByMuscle();
+    const statuses = VOL_ORDER.filter(mv => tally[mv] > 0)
+      .map(mv => Engine.volumeStatus(tally[mv], lm[mv] || VOLUME_LANDMARKS[mv]));
+    p.deloadPlan = Engine.deloadDepth(statuses, readinessTrendingDown());
+  }
   p.pointer.week++;
   if (p.pointer.week >= p.weeksPerBlock) {
     // Block just completed: evolve the athlete's volume landmarks from how the
@@ -1671,6 +1706,11 @@ function advanceWeek() {
     // Carryover: drop optional accessories the athlete never trained all block.
     const dropped = carryoverOptionalDrops(finishedBlock);
     if (dropped.length) toast(`Dropped from your routine: ${dropped.join(', ')} (you skipped it all block)`);
+    // [Cluster D] Resensitization: the block ended in a deload, which freshens the
+    // athlete, so the per-muscle autoreg offset resets toward MEV and the next
+    // meso re-ramps from a clean base. The deload plan is spent.
+    if (bb && p.volAdj) for (const mv in p.volAdj) p.volAdj[mv] = 0;
+    p.deloadPlan = null;
     p.pointer.week = 0;
     p.pointer.block++;
     if (p.pointer.block < p.blocks.length) {
@@ -1679,7 +1719,6 @@ function advanceWeek() {
       // to a fresh head-diverse pick from its muscle pool, so a new meso varies
       // the exercises (staleness/fatigue management). Athlete swaps (sl.ex) are
       // cleared as before; an explicit pick is reselected via the select slot.
-      const bb = (p.trainingConfig || {}).track === 'bodybuilding';
       for (const day of p.days) {
         day.slots = day.slots.filter(sl => !sl.added);
         const used = new Set(), headsUsed = {}; // per-day, to keep rotated picks distinct
