@@ -43,7 +43,7 @@ const EXPORTS = `return {
   estimateSessionSec, candidateCostMin, accessoryCostMin,
   exById, exName, loadingFor,
   focusForAccessory, bbLiftRemoval, generateBodybuildingDays, spaceSameMuscle, carryoverOptionalDrops,
-  pickAccessory, accHead, muscleOfAcc, advanceWeek, DEFAULT_ACC,
+  pickAccessory, accHead, muscleOfAcc, advanceWeek, DEFAULT_ACC, dayHeadsCovered,
   checkinGroupsForDay, estimateMedianSessionMin,
   Engine, PROGRAM_TEMPLATES, DAY_TEMPLATES, WAVES, TIME_MODEL,
   ACC_SCHEMES, SECONDARY_SCHEMES, JBB_HYP, DELOAD_SETS,

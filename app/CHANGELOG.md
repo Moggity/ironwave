@@ -1,5 +1,21 @@
 # IRONWAVE — Changelog
 
+## [Cluster C: head-aware swap ordering] (2026-06-23)
+
+Extends the swap picker's SFR ordering so it also fills muscle-head gaps. On an
+accessory swap, candidates that cover a head the current day is missing are
+surfaced first (after the athlete's familiar lifts, ahead of the raw SFR bias),
+each flagged with an "Adds <head>" hint. Bodybuilding-data-driven but harmless
+elsewhere; swap is athlete-initiated and never touches `resolveSlot`, so the
+golden master is unaffected.
+
+- `dayHeadsCovered(di, exceptSi, cat)`: the heads already trained on a day for the
+  swapped slot's movement group (that slot excluded).
+- Swap ordering: used -> fills-a-gap -> higher SFR -> name. The recommended cards
+  show an "Adds <head>" badge when the exercise covers a missing region.
+- Tests: `dayHeadsCovered` case added to `test/cluster-c-selection.test.js`.
+  Golden master unchanged; suite green.
+
 ## [Cluster C: head/SFR-aware selection + cross-meso rotation] (2026-06-23)
 
 The selection slice of Epic 3, now that the head/SFR data shipped: the generator

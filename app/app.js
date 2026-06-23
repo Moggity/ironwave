@@ -2819,17 +2819,37 @@ function renderSwap(anim) {
      <input class="search-input" placeholder="Search any exercise…" value="${esc(SW.q)}" oninput="SW.q=this.value;refreshSwapBody()">
      <div id="swap-body">${swapBodyHTML()}</div>`);
 }
+// [Cluster C] Muscle heads already trained on a day, for the same movement group
+// as the slot being swapped (the swapped slot itself excluded). Lets the picker
+// flag a candidate that covers a region the day is missing.
+function dayHeadsCovered(di, exceptSi, cat) {
+  const heads = new Set();
+  const day = P().days[di];
+  if (!day) return heads;
+  day.slots.forEach((sl, j) => {
+    if (j === exceptSi) return;
+    const id = sl.ex || sl.def || sl.lift;
+    const e = id && exById(id);
+    if (e && e.movement === cat && e.head) heads.add(e.head);
+  });
+  return heads;
+}
 function swapBodyHTML() {
   const used = new Set(Object.keys(S.records));
   const ql = SW.q.trim().toLowerCase();
   const matchText = e => !ql || e.name.toLowerCase().includes(ql);
   const matchEquip = e => SW.equip === 'all' || e.equipment === SW.equip;
   const all = allExercises().filter(e => e.id !== SW.current);
-  // [Cluster C] On accessory slots, surface higher stimulus-to-fatigue options
-  // first (after the athlete's familiar/used lifts); the SFR/head/stretch badges
-  // explain the pick. Main slots are wave-math variations, so SFR is not biased.
+  // [Cluster C] On accessory slots, bias the order toward better stimulus:
+  // first the athlete's familiar/used lifts, then exercises that cover a muscle
+  // head the day is missing (so a swap broadens coverage), then higher SFR. The
+  // head/SFR/stretch badges explain the pick. Main slots are wave-math
+  // variations, so neither bias applies there.
   const sfrBias = !SW.isMain;
+  const dayHeads = sfrBias ? dayHeadsCovered(SW.di, SW.si, SW.cat) : new Set();
+  const fillsGap = e => !!(e.head && !dayHeads.has(e.head));
   const sortFn = (a, b) => (used.has(b.id) - used.has(a.id))
+    || (sfrBias ? (fillsGap(b) - fillsGap(a)) : 0)
     || (sfrBias ? ((b.sfr || 2) - (a.sfr || 2)) : 0)
     || a.name.localeCompare(b.name);
 
@@ -2841,7 +2861,7 @@ function swapBodyHTML() {
 
   const recommended = all.filter(e => e.movement === SW.cat && matchEquip(e) && matchText(e)).sort(sortFn);
   const recHTML = recommended.length
-    ? recommended.map(e => swapCardHTML(e, false)).join('')
+    ? recommended.map(e => swapCardHTML(e, false, fillsGap(e))).join('')
     : `<p class="faint mt8">No matches in this group${SW.equip === 'all' ? '' : ' for ' + EQUIP_LABEL[SW.equip].toLowerCase()}.</p>`;
 
   // Out-of-group browsing lets an athlete fine tune freely: a machine they
@@ -2863,14 +2883,16 @@ function swapBodyHTML() {
 }
 function refreshSwapBody() { const el = byId('swap-body'); if (el) el.innerHTML = swapBodyHTML(); }
 function setSwapEquip(v) { SW.equip = v; refreshSwapBody(); }
-function swapCardHTML(e, showGroup) {
+function swapCardHTML(e, showGroup, gap) {
   // Per-candidate time cost: only meaningful for a capped athlete, and only on
   // accessory slots (main/secondary variations all run the same wave math, so
   // their cost is identical and would just be noise).
   const cost = (!SW.isMain && timeCapMin()) ? candidateCostMin(e.id) : null;
   const costTag = cost ? ` <span class="cost-tag">+${cost} min</span>` : '';
+  // [Cluster C] When this exercise covers a head the day is missing, say so.
+  const gapTag = (gap && e.head && HEAD_LABELS[e.head]) ? ` <span class="ex-tag gap">Adds ${HEAD_LABELS[e.head]}</span>` : '';
   return `<div class="ex-card">
-      <span class="name">${esc(e.name)}${costTag}${showGroup ? `<span class="sub">${MOVEMENTS[e.movement]?.label || ''}</span>` : ''}${exTagsHTML(e)}</span>
+      <span class="name">${esc(e.name)}${costTag}${gapTag}${showGroup ? `<span class="sub">${MOVEMENTS[e.movement]?.label || ''}</span>` : ''}${exTagsHTML(e)}</span>
       <span class="actions">
         <button class="icon-btn" onclick="openExDetail('${e.id}')"><span class="ic">ⓘ</span>Info</button>
         <button class="icon-btn" onclick="doSwap(${SW.di},${SW.si},'${e.id}')"><span class="ic">☐</span>Select</button>

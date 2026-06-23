@@ -150,9 +150,11 @@ and the product moat are the same move.
   rotation in the block-advance rebuild rotates each generator-default accessory
   to a fresh head-diverse pick per meso; and the swap picker orders accessory
   candidates by SFR (higher stimulus first). Bodybuilding-only, golden-master-safe.
-  **Still open (own branch):** cross-meso rotation for athlete-picked (select)
-  slots, head-aware ordering inside the swap picker (not just SFR), and per-head
-  volume accounting feeding Epic 4.
+  **Head-aware swap ordering shipped (2026-06-23):** `dayHeadsCovered` plus a
+  fills-a-gap sort tier and an "Adds <head>" hint surface a candidate that covers
+  a region the day is missing. **Still open (own branch):** cross-meso rotation
+  for athlete-picked (select) slots, and per-head volume accounting feeding Epic 4
+  (the Cluster D dashboard breaking weekly sets down by head where heads exist).
 - **Dependencies:** mostly a data lift in `data.js` (`EXERCISES`/`MOVEMENTS`); the
   generator and swap picker consume the new metadata. Sharpens Epic 4's per-muscle
   counting and the split generator's selection. Independent of Epic 2.
