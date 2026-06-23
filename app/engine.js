@@ -63,9 +63,35 @@ const Engine = {
             'Week 4 · Realization', 'Week 5 · Deload'][weekIdx] || '';
   },
 
+  // ---------- CALIBRATION RAMP ----------
+  // Three ascending feeler sets, weightless (the athlete eyeballs the load),
+  // used when there is no working max / e1RM yet. We read the working weight from
+  // the top set, so it is built for a clean, low-fatigue e1RM estimate:
+  //   · reads in RIR (RIR 4 / 3 / 2), the flip side of RPE that novices prefer;
+  //     RPE stays the stored value (rir = 10 - rpe).
+  //   · reps DESCEND (R, R-2, R-4) floored at 3 as the load climbs, the standard
+  //     ramp shape. Fewer total reps means lower fatigue, and a moderate top set
+  //     estimates e1RM more accurately than a high-rep one (the conversion
+  //     degrades past ~10 reps); the floor keeps us off a near-max single on a
+  //     cold, never-calibrated lift.
+  //   · experience gating: beginners stop at RIR 3, never close to failure on a
+  //     guessed weight.
+  // Bodybuilding meso 1 and every track share this ramp (it is the uncalibrated
+  // path), so changing it deliberately moves the golden master.
+  calibrationRamp(baseReps, experience) {
+    const topRir = experience === 'beginner' ? 3 : 2;
+    const notes = ['Calibration · build up', 'Calibration', 'Calibration · top set'];
+    return [4, 3, topRir].map((rir, i) => ({
+      reps: Math.max(3, baseReps - 2 * i),
+      rpe: 10 - rir,
+      calib: true,
+      note: notes[i],
+    }));
+  },
+
   // ---------- MAIN LIFT PRESCRIPTION (the Juggernaut tables) ----------
   // Returns array of set objects: {weight?, reps, rpe?, amrap?, note?}
-  prescribeMain(wave, weekIdx, workingMax, rounding, pctMod = 1) {
+  prescribeMain(wave, weekIdx, workingMax, rounding, pctMod = 1, experience) {
     const W = WAVES[wave];
     const wm = workingMax * pctMod;
     const R = (p) => this.roundLoad(wm * p, rounding);
@@ -73,12 +99,8 @@ const Engine = {
     const sets = [];
 
     if (!workingMax) {
-      // No working max yet → calibration ramp (3 ascending sets, eyeball + RPE)
-      return [
-        { reps: W.acc.reps, rpe: 6, calib: true, note: 'Calibration · build up' },
-        { reps: W.acc.reps, rpe: 7, calib: true, note: 'Calibration' },
-        { reps: W.acc.reps, rpe: 8, calib: true, note: 'Calibration · top set' },
-      ];
+      // No working max yet → calibration ramp (descending reps, RIR-led).
+      return this.calibrationRamp(W.acc.reps, experience);
     }
 
     if (type === 'intro') {
@@ -112,11 +134,11 @@ const Engine = {
   },
 
   // Secondary main-lift volume work (Inverted Juggernaut style)
-  prescribeSecondary(blockType, weekIdx, workingMax, rounding, pctMod = 1) {
+  prescribeSecondary(blockType, weekIdx, workingMax, rounding, pctMod = 1, experience) {
     const type = this.weekType(weekIdx);
     const S = SECONDARY_SCHEMES[blockType] || SECONDARY_SCHEMES.hypertrophy;
     if (!workingMax) {
-      return [{ reps: S.reps, rpe: 6, calib: true }, { reps: S.reps, rpe: 7, calib: true }, { reps: S.reps, rpe: 8, calib: true }];
+      return this.calibrationRamp(S.reps, experience);
     }
     const wm = workingMax * pctMod;
     if (type === 'deload') {
@@ -133,7 +155,7 @@ const Engine = {
 
   // Accessory prescription — BOLD: compute weight from e1RM when records exist,
   // otherwise run a 3-set calibration ramp.
-  prescribeAccessory(blockType, weekIdx, records, rounding) {
+  prescribeAccessory(blockType, weekIdx, records, rounding, experience) {
     const type = this.weekType(weekIdx);
     const S = ACC_SCHEMES[blockType] || ACC_SCHEMES.hypertrophy;
     const e1 = this.bestE1RM(records);
@@ -143,11 +165,7 @@ const Engine = {
     const rpe = deload ? 6 : S.rpe;
 
     if (!e1) {
-      return [
-        { reps: S.reps + 2, rpe: 5, calib: true, note: 'Calibration · light' },
-        { reps: S.reps, rpe: 7, calib: true, note: 'Calibration · medium' },
-        { reps: S.reps, rpe: 8, calib: true, note: 'Calibration · top set' },
-      ];
+      return this.calibrationRamp(S.reps, experience);
     }
     // gentle wave inside the block: +1 RPE worth of load by week 3-4 via rpe target
     const weekRpe = { intro: rpe - 1, accumulation: rpe, intensification: rpe + 0.5, realization: rpe + 0.5, deload: 6 }[type] ?? rpe;
@@ -367,14 +385,14 @@ Engine.schemes = {
   'jm2-wave': {
     label: 'Juggernaut 2.0 wave',
     short: 'JM2 wave',
-    main(block, w, wm, rounding, pctMod = 1) {
-      return Engine.prescribeMain(block.wave, w, wm, rounding, pctMod);
+    main(block, w, wm, rounding, pctMod = 1, experience) {
+      return Engine.prescribeMain(block.wave, w, wm, rounding, pctMod, experience);
     },
-    secondary(block, w, wm, rounding, pctMod = 1) {
-      return Engine.prescribeSecondary(block.type, w, wm, rounding, pctMod);
+    secondary(block, w, wm, rounding, pctMod = 1, experience) {
+      return Engine.prescribeSecondary(block.type, w, wm, rounding, pctMod, experience);
     },
-    accessory(block, w, records, rounding) {
-      return Engine.prescribeAccessory(block.type, w, records, rounding);
+    accessory(block, w, records, rounding, experience) {
+      return Engine.prescribeAccessory(block.type, w, records, rounding, experience);
     },
     // Volume index: main working reps + one accessory's weekly reps
     weekVolume(block, w) {
@@ -405,9 +423,9 @@ Engine.schemes = {
     // mesoIdx (block.mesoIdx, 0-based among same-scheme blocks) selects
     // the macrocycle row; clamped so longer programs reuse the top row.
     _meso(block) { return Math.min(block.mesoIdx || 0, JBB_HYP.mainSets.length - 1); },
-    main(block, w, wm, rounding, pctMod = 1) {
+    main(block, w, wm, rounding, pctMod = 1, experience) {
       const W = WAVES[block.wave];
-      if (!wm) return Engine.prescribeMain(block.wave, w, null, rounding, pctMod); // calibration ramp
+      if (!wm) return Engine.prescribeMain(block.wave, w, null, rounding, pctMod, experience); // calibration ramp
       const t = Engine.weekType(w);
       const wmE = wm * pctMod;
       const R = p => Engine.roundLoad(wmE * p, rounding);
@@ -428,8 +446,8 @@ Engine.schemes = {
       }
       return sets;
     },
-    secondary(block, w, wm, rounding, pctMod = 1) {
-      if (!wm) return Engine.prescribeSecondary(block.type, w, null, rounding, pctMod);
+    secondary(block, w, wm, rounding, pctMod = 1, experience) {
+      if (!wm) return Engine.prescribeSecondary(block.type, w, null, rounding, pctMod, experience);
       const t = Engine.weekType(w);
       const wmE = wm * pctMod;
       if (t === 'deload') {
@@ -441,9 +459,9 @@ Engine.schemes = {
       const wt = Engine.roundLoad(wmE * (JBB_HYP.secPct + JBB_HYP.secStep * idx), rounding);
       return Array.from({ length: JBB_HYP.secSets[m][idx] }, () => ({ weight: wt, reps: JBB_HYP.secReps, rpe: 7 }));
     },
-    accessory(block, w, records, rounding) {
+    accessory(block, w, records, rounding, experience) {
       const e1 = Engine.bestE1RM(records);
-      if (!e1) return Engine.prescribeAccessory(block.type, w, records, rounding); // calibration ramp
+      if (!e1) return Engine.prescribeAccessory(block.type, w, records, rounding, experience); // calibration ramp
       const t = Engine.weekType(w);
       if (t === 'deload') {
         const wt = Engine.weightFor(e1, JBB_HYP.accReps, JBB_HYP.deload.accRpe, rounding);

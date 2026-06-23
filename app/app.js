@@ -566,7 +566,7 @@ function resolveSlot(slot, blockIdx, wIdx) {
     const rm = bbLiftRemoval(exId);
     if (rm) return { exId, name: exName(exId), sets: [], isMain: true, wmKey, isRemoved: true, removedReason: rm };
     const r = loadingFor(exId).totalInc;      // Change 1: round the total to this implement's increment
-    let sets = sch.main(block, wIdx, P().wm[wmKey], r, modPct);
+    let sets = sch.main(block, wIdx, P().wm[wmKey], r, modPct, S.profile.experience);
     if (mod) sets = applySetDelta(sets, mod.mainSetDelta || 0);
     return { exId, name: exName(exId), sets, isMain: true, wmKey };
   }
@@ -576,7 +576,7 @@ function resolveSlot(slot, blockIdx, wIdx) {
     const rm = bbLiftRemoval(exId);
     if (rm) return { exId, name: exName(exId), sets: [], isSecondary: true, wmKey, isRemoved: true, removedReason: rm };
     const r = loadingFor(exId).totalInc;
-    const sets = sch.secondary(block, wIdx, P().wm[wmKey], r, (slot.pctMod || 1) * modPct);
+    const sets = sch.secondary(block, wIdx, P().wm[wmKey], r, (slot.pctMod || 1) * modPct, S.profile.experience);
     return { exId, name: exName(exId), sets, isSecondary: true, wmKey };
   }
   const exId = slot.ex || slot.def || null; // select slots may be unfilled
@@ -593,7 +593,7 @@ function resolveSlot(slot, blockIdx, wIdx) {
     return { exId: null, name: null, isSelect: true, cat: slot.cat, sets: [] };
   }
   const r = loadingFor(exId).totalInc;
-  let sets = sch.accessory(block, wIdx, recordsFor(exId), r);
+  let sets = sch.accessory(block, wIdx, recordsFor(exId), r, S.profile.experience);
   if (mod) sets = applySetDelta(sets, mod.accSetDelta || 0);
   const focus = focusForAccessory(exId, sets);
   if (focus.removed) return { exId, name: exName(exId), sets: [], cat: slot.cat, isRemoved: true };
