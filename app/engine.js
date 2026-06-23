@@ -452,3 +452,19 @@ Engine.seedLandmarks = function (experience) {
   }
   return out;
 };
+
+// [Cluster D] Classify a muscle's weekly working sets against its landmarks.
+// Pure and read-only (no prescription change): below MV is undertraining, MEV..MRV
+// is the productive window, above MRV is more than you can recover from. Returns a
+// status key + label plus a 0..100 fill (sets relative to MRV) for the bar.
+Engine.volumeStatus = function (sets, lm) {
+  if (!lm) return { key: 'none', label: 'No landmark', pct: 0 };
+  const { mv, mev, mrv } = lm;
+  let key, label;
+  if (sets <= 0) { key = 'none'; label = 'Not trained'; }
+  else if (sets < mv) { key = 'under'; label = 'Below maintenance'; }
+  else if (sets < mev) { key = 'maint'; label = 'Maintenance'; }
+  else if (sets <= mrv) { key = 'productive'; label = 'Productive'; }
+  else { key = 'over'; label = 'Over MRV'; }
+  return { key, label, pct: mrv > 0 ? Math.min(100, Math.round(sets / mrv * 100)) : 0, mv, mev, mrv };
+};

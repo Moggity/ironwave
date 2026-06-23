@@ -154,6 +154,14 @@ and the product moat are the same move.
   phase on top.
 - **Why:** the visible control panel a serious lifter expects; deload-by-fatigue
   beats the fixed week-5 halving.
+- **Volume dashboard shipped (2026-06-23):** `Engine.volumeStatus` +
+  `weeklyVolumeByMuscle` surface weekly direct working sets per muscle vs the
+  athlete's MV/MEV/MRV (compounds attribute through `SYNERGIST_COVERAGE`), on a
+  "Weekly volume" screen reached from the dashboard and the More hub. Read-only,
+  golden-master-safe. **Still open in this cluster (own slices):** the fatigue
+  trend, MRV-hit / overreach detection, the autoregulated deload + resensitization
+  (these change deload behavior), and the absorbed zero-sum budget + specialization
+  phase.
 - **Dependencies:** Cluster A logging + (ideally) Cluster C granularity for
   accurate counts. Reuses `seedLandmarks`/`recalibrateLandmarks` and readiness.
   The specialization phase depends on the zero-sum budget (below) so non-priority

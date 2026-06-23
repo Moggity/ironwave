@@ -1,5 +1,27 @@
 # IRONWAVE — Changelog
 
+## [Cluster D: per-muscle weekly volume dashboard, first slice] (2026-06-23)
+
+First slice of Epic 4: the visible control panel. Surfaces weekly working sets
+per muscle against the athlete's own MV/MEV/MRV landmarks. Read-only and
+golden-master-safe: no prescription or deload behavior changes here.
+
+- `Engine.volumeStatus(sets, lm)` classifies a muscle's weekly sets vs its
+  landmarks (below maintenance / maintenance / productive MEV-MRV / over MRV) and
+  returns a 0..100 fill for the bar. Pure.
+- `weeklyVolumeByMuscle()` tallies the current week's non-warmup working sets per
+  muscle, keyed like the landmark grid; direct movements count fully and the big
+  compounds attribute to the muscles they train via `SYNERGIST_COVERAGE`.
+- A "Weekly volume" screen (per-muscle bars with MEV/MRV markers and a status
+  color) reachable from a dashboard button and the More hub, so it is visible,
+  not buried.
+- Deferred to later slices (own branches): the fatigue trend, MRV-hit / overreach
+  detection, and the autoregulated deload + resensitization (those change deload
+  behavior); plus the zero-sum cross-muscle budget and specialization phase.
+- Tests: `test/cluster-d.test.js` (status classification, the weekly tally,
+  compound-to-muscle attribution, warmups excluded). Golden master unchanged;
+  full suite green.
+
 ## [Cluster C: head/region + SFR exercise model, data slice] (2026-06-23)
 
 First slice of Epic 3: the exercise data lift plus surfacing, so the picker and
