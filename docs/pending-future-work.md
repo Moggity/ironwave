@@ -151,10 +151,15 @@ and the product moat are the same move.
   fills-a-gap sort tier and an "Adds <head>" hint surface a candidate that covers
   a region the day is missing. **Per-head volume shipped (2026-06-23):**
   `weeklyVolumeByHead` plus a "Regions" line on the Weekly volume screen split a
-  muscle's direct work by head. **Still open (own branch):** cross-meso rotation
-  for athlete-picked (select) slots, and per-head MEV/MRV landmarks (today the
-  head split is informational against the whole-muscle landmark, not per-head
-  targets).
+  muscle's direct work by head. **Still open (own branch):** per-head MEV/MRV
+  landmarks (today the head split is informational against the whole-muscle
+  landmark, not per-head targets), and a per-head over-MRV warning in the picker.
+  *Note (found while building rotation):* "cross-meso rotation for athlete-picked
+  (select) slots" is near-empty as scoped: `generateBodybuildingDays` assigns a
+  `def` to every accessory slot, so def-less select slots do not occur on a
+  generated bodybuilding program and there is nothing to rotate. Only revisit it
+  if select slots are reintroduced (e.g. a template path that leaves a category
+  unfilled for the athlete to pick).
 - **Dependencies:** mostly a data lift in `data.js` (`EXERCISES`/`MOVEMENTS`); the
   generator and swap picker consume the new metadata. Sharpens Epic 4's per-muscle
   counting and the split generator's selection. Independent of Epic 2.
@@ -186,6 +191,19 @@ and the product moat are the same move.
   (deload before week 5 on mid-block MRV saturation, a block-engine change), a
   fatigue trend chart, MRV-hit / overreach detection beyond the deload sizing,
   and the absorbed zero-sum budget + specialization phase.
+- **Deload-depth refinements (found while building the deload, own small
+  branch):**
+  - *Suppress autoreg adds on the deload week.* `autoregForAccessory` (E) still
+    reads `volAdj` on the deload week, so it can add a set even as `deloadDepth`
+    pulls volume back; `volAdj` only resets on block end (after the deload is
+    trained). Consider gating the autoreg add to non-deload weeks so the two do
+    not fight.
+  - *Modulate intensity, not just sets.* `deloadDepth` changes the deload set
+    count only; a deeper deload could also drop load/RPE (the deload sets carry a
+    fixed `accRpe`). Add an intensity component to the plan.
+  - *Extend depth to secondary/main.* Today the plan applies to bodybuilding
+    accessories only; the secondary volume and the main `DELOAD_SETS` are not
+    autoregulated. Low priority (mains are already minimal on a deload).
 - **Dependencies:** Cluster A logging + (ideally) Cluster C granularity for
   accurate counts. Reuses `seedLandmarks`/`recalibrateLandmarks` and readiness.
   The specialization phase depends on the zero-sum budget (below) so non-priority

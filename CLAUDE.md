@@ -87,20 +87,29 @@ it for any new cluster work:
 - **New set-object / record fields are optional** and only written when used
   (`technique`, `drops`, `pump`; RIR is display-only, RPE stays stored). A plain
   straight set logs the same shape as before.
-- **New state is additive and migrated**: `S.techniques` (B drop-set opt-in),
-  `S.flags` (one-time UI), `S.bodyweight` + `profile.phase` (F), `program.volAdj`
-  (E per-muscle offset). All default empty/neutral and backfill in `migrateState`.
+- **New state is additive and migrated**: `S.techniques` (B drop-set/myo/rest-
+  pause opt-in), `S.flags` (one-time UI), `S.bodyweight` + `profile.phase` (F),
+  `program.volAdj` (E per-muscle offset). All default empty/neutral and backfill
+  in `migrateState`. `program.deloadPlan` (D) is *transient* (recomputed each
+  block entering the deload, cleared on block end), so it needs no migration.
+  `V.restTimer` is ephemeral view state (the in-app rest timer).
 - **Prescription changes are gated on `track === 'bodybuilding'` AND inert when
-  their data map is empty.** `applyTechnique` (B) and `autoregForAccessory` (E)
-  both no-op for other tracks and for a fresh program, so `resolveSlot` output is
-  unchanged on the default path. Order in the accessory branch: scheme -> weekMod
-  -> focus -> autoreg (E) -> technique (B).
+  their data map is empty.** `applyTechnique` (B), `autoregForAccessory` (E), and
+  `deloadDepthDelta` (D) all no-op for other tracks and for a fresh program, so
+  `resolveSlot` output is unchanged on the default path. Order in the accessory
+  branch: scheme -> deload depth (D, deload week only) -> weekMod -> focus ->
+  autoreg (E) -> technique (B). The shared calibration ramp also threads
+  `experience` through the scheme `main/secondary/accessory` entry points (it is
+  the uncalibrated path, so changing it moves the golden master deliberately).
 - **The autoreg loop (E) must converge**: `updateAutoreg` (run on each week
   advance) nudges `volAdj` by `Engine.autoregVolume`'s add/hold/cut, clamped to a
   small range; the per-session landmark cap bounds the applied delta. `phase` (F)
-  feeds `autoregVolume` so a deficit holds volume. Pure engine helpers
-  (`volumeStatus`, `autoregVolume`, `fatigueSaturated`, `e1rmTrend`, `buildDropSet`)
-  carry the math and are unit-tested with seeded inputs.
+  feeds `autoregVolume` so a deficit holds volume. The deload (D) resensitizes by
+  resetting `volAdj` to 0 on block end, so each meso re-ramps from MEV. Pure
+  engine helpers (`volumeStatus`, `autoregVolume`, `fatigueSaturated`,
+  `deloadDepth`, `calibrationRamp`, `e1rmTrend`, `buildDropSet`, `buildMyoReps`,
+  `buildRestPause`, `techTransitionSec`, `restSecFor`) carry the math and are
+  unit-tested with seeded inputs.
 - When clusters interact, cover it in `test/cluster-integration.test.js` (A..F on
   a simulated routine) and keep the golden master green.
 
