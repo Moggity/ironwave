@@ -99,7 +99,12 @@ and the product moat are the same move.
   especially late in a meso.
 - **Scale slowly:** ship ONE technique end-to-end first (a drop set is simplest:
   a working set carrying child mini-sets), prove prescription + logging + time
-  accounting, then add myo-reps, rest-pause, partials, supersets.
+  accounting, then add myo-reps, rest-pause, partials, supersets. **Drop set
+  shipped (2026-06-23):** `Engine.buildDropSet` + an opt-in `S.techniques` map
+  applied via `applyTechnique` on a bodybuilding accessory's last working set,
+  logged in the perf modal, timed via `Engine.setTimeSec` /
+  `TIME_MODEL.dropTransitionSec`, and counted in `Engine.tonnage`. Next: myo-reps
+  (its mini-rest is the first technique that needs the timer slice below).
 - **Dependencies:** Cluster A's `technique` field + logging; `estimateSessionSec`
   must learn each technique's time cost; how a drop set counts toward weekly sets
   feeds Epic 4.

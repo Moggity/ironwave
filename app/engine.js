@@ -222,8 +222,50 @@ const Engine = {
     let t = 0;
     for (const e of entries) for (const s of e.sets) {
       if (s.done && s.weight > 0 && s.reps > 0) t += s.weight * s.reps;
+      // A logged drop set adds the volume of each mini-set it carried.
+      if (s.done && Array.isArray(s.drops)) {
+        for (const d of s.drops) if (d.weight > 0 && d.reps > 0) t += d.weight * d.reps;
+      }
     }
     return Math.round(t);
+  },
+
+  // ---------- INTENSITY TECHNIQUES (Cluster B) ----------
+  // A technique is a prescribable set modifier: it takes a plain working set and
+  // returns a richer set object carrying child mini-sets. Self-contained and
+  // opt-in (bodybuilding only); nothing here runs for a default user, so the
+  // golden master is untouched. Built to extend: myo-reps / rest-pause register
+  // here later the same way schemes register in Engine.schemes.
+
+  // A drop set: keep the top set, then `drops` strips each `dropPct` lighter,
+  // run to roughly the same rep target. Needs a real weight to strip from, so a
+  // weightless (calibration / RIR-only) set is returned unchanged.
+  buildDropSet(set, opts = {}) {
+    const o = (typeof DROP_DEFAULTS !== 'undefined') ? DROP_DEFAULTS : { drops: 2, dropPct: 0.2, repFactor: 1 };
+    const n = opts.drops ?? o.drops;
+    const pct = opts.dropPct ?? o.dropPct;
+    const repFactor = opts.repFactor ?? o.repFactor;
+    const rounding = opts.rounding || 2.5;
+    if (!set || !(set.weight > 0) || n < 1) return set;
+    const drops = [];
+    let w = set.weight;
+    for (let i = 0; i < n; i++) {
+      w = this.roundLoad(w * (1 - pct), rounding);
+      drops.push({ weight: w, reps: Math.max(1, Math.round(set.reps * repFactor)) });
+    }
+    return Object.assign({}, set, { technique: 'drop', drops });
+  },
+
+  // Time cost of one prescribed set, technique-aware (Cluster B). A plain set is
+  // exec(reps) + one rest; a drop set adds each mini-set's exec plus a short
+  // transition per drop, but still only one full rest at the end. `restSec` is
+  // the already-resolved rest for this set kind (normal or compressed).
+  setTimeSec(st, TM, kind, restSec) {
+    let t = (st.reps || 0) * TM.execSecPerRep[kind] + restSec;
+    if (Array.isArray(st.drops)) {
+      for (const d of st.drops) t += (d.reps || 0) * TM.execSecPerRep[kind] + TM.dropTransitionSec;
+    }
+    return t;
   },
 
   // ---------- RIR <-> RPE (presentation only) ----------

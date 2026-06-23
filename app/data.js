@@ -948,7 +948,17 @@ const TIME_MODEL = {
   // Keyed by exercise.equipment; setupSecDefault covers anything unmapped.
   setupSec: { bb: 120, db: 70, kb: 70, cb: 40, mc: 20, bd: 20, bw: 10 },
   setupSecDefault: 40,
+  // [Cluster B] A drop set is one hard set then immediate strips: no real rest
+  // between drops, just the time to pull plates / move the pin and keep going.
+  // estimateSessionSec charges one full rest after the whole drop set plus this
+  // per-drop transition, instead of a full rest per mini-set.
+  dropTransitionSec: 15,
 };
+
+// [Cluster B] Drop-set construction defaults. A working set carries N child
+// mini-sets, each a step lighter; the athlete runs each to roughly the same rep
+// target. Bodybuilding-only and opt-in, so nothing here touches a default user.
+const DROP_DEFAULTS = { drops: 2, dropPct: 0.2, repFactor: 1 };
 
 // Bodybuilding muscle-focus slider (0..6) -> accessory set-count multiplier vs
 // the scheme baseline (slider 3 = 1.0 = unchanged). 0 removes the exercise.

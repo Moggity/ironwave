@@ -1,5 +1,43 @@
 # IRONWAVE — Changelog
 
+## [Cluster B: intensity techniques, drop set] (2026-06-23)
+
+First slice of Epic 2: one technique end-to-end, the drop set, proving the whole
+loop (prescription, logging, time accounting, volume). Bodybuilding-only and
+opt-in, so the default/powerbuilding routine and the golden master are unchanged.
+
+- Prescription: new `Engine.buildDropSet` turns a working set into a top set plus
+  N lighter mini-sets (defaults: 2 strips at 20%). A weightless (calibration /
+  RIR-only) set is returned untouched, and the constructor never mutates its input.
+- Opt-in: the exercise detail Settings tab gains a "Finish with a drop set" toggle
+  for bodybuilding accessories, stored in `S.techniques` (exId -> 'drop'). A new
+  `applyTechnique` converts the accessory's last real working set; every other
+  track and untagged exercise stays byte-identical.
+- Logging: the performance modal shows a Drops section (prescribed strip weights,
+  reps logged per drop). Logged drops ride on the set and the record, and surface
+  in the session view, summary, and history.
+- Time accounting: `Engine.setTimeSec` (used by `estimateSessionSec`) charges each
+  drop its execution plus a short transition (`TIME_MODEL.dropTransitionSec`, 15s)
+  instead of a full rest, since a drop set is one hard set then immediate strips.
+- Volume: `Engine.tonnage` now adds each logged drop's weight x reps.
+
+Comprehension + discoverability pass (so the new features read clearly and the
+engaging ones are surfaced, not buried):
+
+- Drop sets are now offered right in the workout: a "Finish with a drop set" chip
+  on each bodybuilding accessory card toggles the technique live on the last
+  working set and remembers it for next time. The Settings-tab toggle stays as the
+  persistent preference.
+- One-time RIR note on the session view explaining the switch from RPE (dismissed
+  for good once read, stored in `S.flags`), plus a permanent one-line RIR hint in
+  the performance modal.
+- Copy swept to RIR where it still said RPE (onboarding maxes step, the
+  "Waiting for calibration" explainer) and the history session-rating chip
+  relabeled from "RPE n" to "rated n/10" (it was the 1-10 session score, not RPE).
+- Tests: `test/cluster-b.test.js` (construction, time cost, tonnage, opt-in
+  routing, the surfacing helpers, and the additive flags/techniques maps). Golden
+  master unchanged; full suite green.
+
 ## [Cluster A: logging & data foundation] (2026-06-23)
 
 The first hypertrophy-roadmap enabler. All additive and golden-master-safe: no

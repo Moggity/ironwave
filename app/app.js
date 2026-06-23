@@ -33,6 +33,8 @@ function defaultState() {
     program: null,
     records: {},      // exId -> [{ts, weight, reps, rpe, pump?, technique?}] (last 3 optional, Cluster A)
     loadingProfiles: {}, // exId -> { mode, count, barWeight } — per-exercise loading, persists across programs
+    techniques: {},   // exId -> intensity technique id (e.g. 'drop'), Cluster B; empty = none
+    flags: {},        // one-time UI flags (e.g. rirSeen), additive
     customEx: [],
     sessions: [],
     checkins: [],
@@ -83,6 +85,8 @@ function migrateState(s) {
   p.experience = p.experience || 'intermediate';
   if (!p.trainingAge) p.trainingAge = { startedTs: (s.program && s.program.startDate) || null, blocksCompleted: 0 };
   if (!p.landmarks || !Object.keys(p.landmarks).length) p.landmarks = Engine.seedLandmarks(p.experience);
+  if (!s.techniques) s.techniques = {}; // Cluster B opt-in map, additive and inert when empty
+  if (!s.flags) s.flags = {};           // one-time UI flags, additive
   if (s.program && !s.program.trainingConfig) {
     // Legacy programs predate tracks: stamp them as the powerbuilding default.
     s.program.trainingConfig = { track: 'powerbuilding', timeMode: 'unlimited', timeCapMin: null,
@@ -125,6 +129,8 @@ const kg = w => (w % 1 === 0 ? w : w.toFixed(1));
 const fmtRir = rpe => (rpe == null ? '–' : `${kg(Engine.rpeToRir(rpe))} RIR`);
 const pumpBadge = p => (p ? ` <small class="faint">🔥 ${esc(PUMP_LABELS[p] || 'pump')}</small>` : '');
 const techniqueBadge = t => (t && t !== 'straight' ? ` <small class="faint">${esc(TECHNIQUE_LABELS[t] || t)}</small>` : '');
+// [Cluster B] "70kg×8, 56kg×8" rendering of a drop set's mini-sets.
+const dropDetail = (exId, drops) => (drops || []).map(d => `${fmtW(exId, d.weight)}×${d.reps}`).join(', ');
 
 function allExercises() { return EXERCISES.concat(S.customEx); }
 function exById(id) { return allExercises().find(e => e.id === id); }
@@ -529,7 +535,27 @@ function resolveSlot(slot, blockIdx, wIdx) {
   const focus = focusForAccessory(exId, sets);
   if (focus.removed) return { exId, name: exName(exId), sets: [], cat: slot.cat, isRemoved: true };
   if (focus.delta) sets = applySetDelta(sets, focus.delta);
+  sets = applyTechnique(exId, sets, r);
   return { exId, name: exName(exId), sets, cat: slot.cat };
+}
+// [Cluster B] Turn an accessory's last real working set into its opted-in
+// intensity technique (today: drop set). Bodybuilding-only and only when the
+// athlete has tagged this exercise, so every other track and an untagged
+// exercise are byte-identical (golden master holds). Calibration / AMRAP / ramp
+// and weightless sets are never modified.
+function applyTechnique(exId, sets, rounding) {
+  const tc = P() && P().trainingConfig;
+  if (!tc || tc.track !== 'bodybuilding') return sets;
+  const tech = (S.techniques || {})[exId];
+  if (tech !== 'drop') return sets;
+  for (let i = sets.length - 1; i >= 0; i--) {
+    const s = sets[i];
+    if (s.amrap || s.ramp || s.calib || !(s.weight > 0)) continue;
+    const built = Engine.buildDropSet(s, { rounding });
+    if (built !== s) sets = sets.slice(0, i).concat([built], sets.slice(i + 1));
+    break;
+  }
+  return sets;
 }
 
 // ------------------------------------------------------------
@@ -547,8 +573,7 @@ function estimateSessionSec(resolved, tight) {
     const equip = (exById(rs.exId) || {}).equipment;
     t += TM.setupSec[equip] != null ? TM.setupSec[equip] : TM.setupSecDefault; // per-exercise setup
     for (const st of rs.sets) {
-      t += (st.reps || 0) * TM.execSecPerRep[kind];   // execution
-      t += rest[kind];                                 // rest after each set
+      t += Engine.setTimeSec(st, TM, kind, rest[kind]); // exec + rest, drop-aware
     }
     if (kind === 'main' && loadingFor(rs.exId).showPlates) {
       const work = rs.sets.filter(s => s.weight);
@@ -1016,7 +1041,7 @@ function vOnboarding() {
     const lifts = obMainLifts(ob.track);
     body = `
       <div class="ob-title">Your maxes</div>
-      <p class="subtle">Enter a recent, real 1RM for each main lift. The working max is set to 90% of it, and being conservative here is how you progress for months. Leave blank to calibrate in week 1 with ramping RPE sets.</p>
+      <p class="subtle">Enter a recent, real 1RM for each main lift. The working max is set to 90% of it, and being conservative here is how you progress for months. Leave blank to calibrate in week 1 with ramping RIR sets.</p>
       ${lifts.map(([id,label]) => `
         <div class="field"><label>${label} · 1RM (kg)</label>
           <input id="ob-max-${id}" type="number" inputmode="decimal"
@@ -1215,7 +1240,7 @@ function openCalibrationInfo() {
     $modal.innerHTML = modalShell(anim, 'Waiting for calibration', `
       <div class="card">
         <p>This lift does not have a reference number yet, so the app cannot
-        prescribe exact weights or a target RPE for it. Until it does, you will
+        prescribe exact weights or a target RIR for it. Until it does, you will
         see "Waiting for calibration" instead of a set and weight scheme.</p>
 
         <p class="mt16"><b>What calibration is.</b> The app builds every working
@@ -1225,12 +1250,12 @@ function openCalibrationInfo() {
 
         <p class="mt16"><b>How to calibrate it.</b> Train the lift in week 1 and
         log what you actually did. The week 1 plan gives you a short ramp of
-        easy to moderate sets (around RPE 6 to 8) so you can find a weight that
-        feels right without grinding. Log those sets and the app reads your
-        effort to set the anchor.</p>
+        easy to moderate sets (leaving about 2 to 4 reps in reserve) so you can
+        find a weight that feels right without grinding. Log those sets and the
+        app reads your effort to set the anchor.</p>
 
         <p class="mt16"><b>What happens next.</b> Once the anchor exists, this
-        lift starts showing real weights and a target RPE that climbs week to
+        lift starts showing real weights and a target RIR that tightens week to
         week, peaking in the realization week, exactly like your calibrated
         lifts already do. You only calibrate a lift once. After that the app
         carries it forward and adjusts it from your logged performance.</p>
@@ -1829,7 +1854,8 @@ function beginSession() {
     sets: x.rs.sets.map(t => ({
       targetWeight: t.weight ?? null, targetReps: t.reps, targetRpe: t.rpe ?? null,
       amrap: !!t.amrap, ramp: !!t.ramp, calib: !!t.calib, note: t.note || null,
-      weight: null, reps: null, rpe: null, done: false,
+      technique: t.technique || null, dropTargets: t.drops || null,
+      weight: null, reps: null, rpe: null, drops: null, done: false,
     })),
   }));
   V.draft = { id: 's' + Date.now(), ts: Date.now(), b, w, d: di, entries,
@@ -1856,13 +1882,68 @@ function lastSetInfo(exId) {
 }
 
 function setTargetLabel(st, exId) {
-  const tech = techniqueBadge(st.technique);
+  const tech = techniqueBadge(st.technique) +
+    (st.dropTargets ? ` <small class="faint">then ${dropDetail(exId, st.dropTargets)}</small>` : '');
   if (st.amrap) return `${fmtW(exId, st.targetWeight)} × AMRAP <small>standard ${st.targetReps}</small>${tech}`;
   if (st.calib) return `${st.targetReps} reps @ ${fmtRir(st.targetRpe)} <small>calibration, eyeball the weight</small>${tech}`;
   if (st.targetWeight != null && st.targetRpe != null)
     return `${fmtW(exId, st.targetWeight)} × ${st.targetReps} <small>cap at ${fmtRir(st.targetRpe)}</small>${tech}`;
   if (st.targetWeight != null) return `${fmtW(exId, st.targetWeight)} × ${st.targetReps}${tech}`;
   return `${st.targetReps} reps @ ${fmtRir(st.targetRpe)}${tech}`;
+}
+
+// [Cluster B] One-time "we switched to RIR" note, dismissed for good once read.
+function rirIntroHTML() {
+  if (S.flags && S.flags.rirSeen) return '';
+  return `<div class="card accent rir-intro">
+    <div style="font-weight:700">New: effort is logged as RIR</div>
+    <p class="faint mt8">RIR is reps left in reserve, the flip side of RPE. Lower RIR means closer to failure, and 0 is all out. Your weights and history did not change, just the wording.</p>
+    <button class="btn btn-outline mt8" onclick="dismissRir()">Got it</button></div>`;
+}
+function dismissRir() { S.flags = S.flags || {}; S.flags.rirSeen = true; save(); render(); }
+
+// [Cluster B] Surface the drop set right where the athlete trains, not buried in
+// settings. The chip toggles the technique live on this entry's last working set
+// and remembers the choice (S.techniques) for next time. Bodybuilding accessories
+// only, so it never appears on the default/powerbuilding path.
+function lastWorkingSetIdx(sets) {
+  for (let i = sets.length - 1; i >= 0; i--) {
+    const s = sets[i];
+    if (s.amrap || s.ramp || s.calib) continue;
+    if ((s.done ? s.weight : s.targetWeight) > 0) return i;
+  }
+  return -1;
+}
+function entryHasDrop(e) { return e.sets.some(s => s.technique === 'drop'); }
+function canDropEntry(e) {
+  const tc = P() && P().trainingConfig;
+  if (!tc || tc.track !== 'bodybuilding') return false;
+  if (e.isMain || e.isSecondary || !e.exId) return false;
+  return lastWorkingSetIdx(e.sets) >= 0;
+}
+function techChipHTML(e, ei) {
+  if (!canDropEntry(e)) return '';
+  const on = entryHasDrop(e);
+  return `<button class="tech-chip ${on ? 'on' : ''}" onclick="toggleDropInSession(${ei})">${on ? '🔥 Drop set on, tap to remove' : '🔥 Finish with a drop set'}</button>`;
+}
+function toggleDropInSession(ei) {
+  const e = V.draft.entries[ei];
+  if (entryHasDrop(e)) {
+    e.sets.forEach(s => { if (s.technique === 'drop') { s.technique = null; s.dropTargets = null; if (!s.done) s.drops = null; } });
+    if (S.techniques) delete S.techniques[e.exId];
+    toast('Drop set removed');
+  } else {
+    const i = lastWorkingSetIdx(e.sets);
+    if (i < 0) { toast('Set a working weight first', true); return; }
+    const s = e.sets[i];
+    const baseW = s.done ? s.weight : s.targetWeight;
+    const built = Engine.buildDropSet({ weight: baseW, reps: s.targetReps || s.reps || 8 },
+      { rounding: loadingFor(e.exId).totalInc });
+    s.technique = 'drop'; s.dropTargets = built.drops;
+    S.techniques = S.techniques || {}; S.techniques[e.exId] = 'drop';
+    toast('Drop set added. Hit your last set, then strip and go');
+  }
+  save(); render();
 }
 
 function vSession() {
@@ -1877,9 +1958,11 @@ function vSession() {
         : 'Performance';
       const fatigueFlag = shortSleep && !st.ramp && si2 >= e.sets.length - 1 && !e.isMain
         ? `<div class="flag">⚠ optional today, short sleep</div>` : '';
+      const loggedDrops = (st.done && st.drops && st.drops.length)
+        ? `<small class="faint">drops ${dropDetail(e.exId, st.drops)}</small>` : '';
       return `<div class="set-row ${st.done ? 'done' : ''} ${st.amrap ? 'amrap' : ''}">
           <span class="num">${si2 + 1}</span>
-          <span class="target">${setTargetLabel(st, e.exId)}${st.note ? `<small>${esc(st.note)}</small>` : ''}</span>
+          <span class="target">${setTargetLabel(st, e.exId)}${st.note ? `<small>${esc(st.note)}</small>` : ''}${loggedDrops}</span>
           <button class="perf ${st.done ? 'filled' : ''}" onclick="openPerf(${ei},${si2})">${perfLabel}</button>
         </div>${fatigueFlag}`;
     }).join('');
@@ -1896,6 +1979,7 @@ function vSession() {
       </div>
       ${top && loadingFor(e.exId).showPlates ? `<button class="warmup-btn" onclick="openWarmup(${top},'${e.exId}')"><b>＋</b> Warmup</button>` : ''}
       <div class="scheme">${schemeTxt}</div>
+      ${techChipHTML(e, ei)}
       ${setRows}
       <button class="notes-link" onclick="toggleNotes(${ei})">Notes ✎</button>
       ${e.notesOpen ? `<textarea class="notes-area" oninput="setNotes(${ei}, this.value)" placeholder="Session notes…">${esc(e.notes)}</textarea>` : ''}
@@ -1909,6 +1993,7 @@ function vSession() {
       <span></span></header>
     <div class="view">
       ${shortSleep ? `<div class="banner-warn">Short sleep last night (${dr.sleepHours}h). Sets flagged ⚠ carry extra fatigue risk. Skipping them today is smart, not soft.</div>` : ''}
+      ${rirIntroHTML()}
       ${dr.mindset ? `<div class="card accent"><span class="faint">Today's focus</span><div style="font-weight:600">${esc(dr.mindset)}</div></div>` : ''}
       ${ratingsStripHTML(dr.sliders)}
       ${cards}
@@ -1937,9 +2022,11 @@ function openPerf(ei, si) {
   const st = V.draft.entries[ei].sets[si];
   const e = V.draft.entries[ei];
   let w = st.done ? st.weight : (st.targetWeight ?? lastWeightFor(e.exId) ?? 0);
+  const dropSrc = (st.done && st.drops) ? st.drops : st.dropTargets; // logged drops, else prescribed
   PM = { ei, si, weight: w, reps: st.done ? st.reps : st.targetReps,
          rpe: st.done ? st.rpe : (st.targetRpe ?? 8),
-         pump: st.done ? (st.pump ?? null) : null };
+         pump: st.done ? (st.pump ?? null) : null,
+         drops: st.technique === 'drop' && dropSrc ? dropSrc.map(d => ({ weight: d.weight, reps: d.reps })) : null };
   showModal(renderPerfModal);
 }
 function lastWeightFor(exId) {
@@ -2004,13 +2091,23 @@ function renderPerfModal(anim) {
             <button class="pm" onclick="pmRir(0.5)">＋</button>
           </div>
           <div class="rpe-desc" id="pm-rpe-desc">${RPE_DESCRIPTIONS[pm.rpe] || ''}</div>
+          <div class="faint" style="font-size:.78rem;margin-top:2px">RIR is how many reps you could still do. 0 is all out.</div>
         </div>
-        <div class="stepper" style="border-bottom:none">
+        <div class="stepper" ${pm.drops ? '' : 'style="border-bottom:none"'}>
           <div class="lbl">Pump <small class="faint">optional</small></div>
           <div class="pump-row">
             ${[1, 2, 3].map(n => `<button class="btn ${pm.pump === n ? 'btn-blue' : 'btn-outline'}" onclick="pmPump(${n})">${PUMP_LABELS[n]}</button>`).join('')}
           </div>
         </div>
+        ${pm.drops ? `<div class="stepper" style="border-bottom:none">
+          <div class="lbl">Drops <small class="faint">strip and go, log reps</small></div>
+          ${pm.drops.map((d, i) => `<div class="drop-row">
+            <span class="drop-w">${fmtW(exId, d.weight)}</span>
+            <button class="pm sm" onclick="pmDropReps(${i},-1)">−</button>
+            <span class="val sm" id="pm-drop-${i}">${d.reps}</span>
+            <button class="pm sm" onclick="pmDropReps(${i},1)">＋</button>
+          </div>`).join('')}
+        </div>` : ''}
         <div class="btn-row">
           <button class="btn btn-outline" onclick="clearPerf()">CLEAR</button>
           <button class="btn btn-green" onclick="donePerf()">DONE</button>
@@ -2058,21 +2155,29 @@ function pmRir(d) {
 }
 // Optional pump quick-tap: tapping the active level clears it (stays optional).
 function pmPump(n) { PM.pump = PM.pump === n ? null : n; rerenderTop(); }
+// Drop-set mini-set reps: weight stays the prescribed strip, the athlete logs reps.
+function pmDropReps(i, d) {
+  if (!PM.drops || !PM.drops[i]) return;
+  PM.drops[i].reps = Math.max(0, PM.drops[i].reps + d);
+  const el = byId(`pm-drop-${i}`); if (el) { el.textContent = PM.drops[i].reps; nudge(el, d); }
+}
 function closePerf() { PM = null; closeModal(); }
 function clearPerf() {
   const st = V.draft.entries[PM.ei].sets[PM.si];
-  st.done = false; st.weight = st.reps = st.rpe = null; st.pump = null;
+  st.done = false; st.weight = st.reps = st.rpe = null; st.pump = null; st.drops = null;
   closePerf(); render();
 }
 function donePerf() {
   const e = V.draft.entries[PM.ei];
   const st = e.sets[PM.si];
   st.weight = PM.weight; st.reps = PM.reps; st.rpe = PM.rpe; st.pump = PM.pump; st.done = true;
-  // Optional Cluster A fields are only written when set, so a plain straight set
+  if (PM.drops) st.drops = PM.drops.map(d => ({ weight: d.weight, reps: d.reps }));
+  // Optional Cluster A/B fields are only written when set, so a plain straight set
   // logs the same record shape as before (persistence / golden master unaffected).
   const rec = { ts: Date.now(), weight: st.weight, reps: st.reps, rpe: st.rpe };
   if (st.pump != null) rec.pump = st.pump;
   if (st.technique) rec.technique = st.technique;
+  if (st.drops) rec.drops = st.drops;
   pushRecord(e.exId, rec);
 
   // AMRAP on a main lift → adjust working max (the JM 2.0 engine).
@@ -2396,7 +2501,7 @@ function vHistory() {
       const pct = Math.max(8, (s.tonnage || 0) / maxT * 100);
       const label = `${blockOf(s.b)?.label || ''} · W${s.b * P().weeksPerBlock + s.w + 1} D${s.d + 1}`;
       return `<button class="hist-row ${s.skipped ? 'skipped' : ''}" style="display:block;width:100%;text-align:left" onclick="openSessionDetail('${s.id}')">
-        <div class="meta"><span>${fmtDate(s.ts)} · ${esc(label)}</span><span>${s.skipped ? 'Skipped' : (s.rating ? 'RPE ' + s.rating : '')}</span></div>
+        <div class="meta"><span>${fmtDate(s.ts)} · ${esc(label)}</span><span>${s.skipped ? 'Skipped' : (s.rating ? 'rated ' + s.rating + '/10' : '')}</span></div>
         <div class="bar-track"><div class="bar" style="width:${s.skipped ? 100 : pct}%">${s.skipped ? '—' : (s.tonnage || 0).toLocaleString() + ' kg'}</div></div>
       </button>`;
     }).join('');
@@ -2418,8 +2523,9 @@ function sessionSetRowsHTML(e, withTarget) {
         ? ` <small>target ${fmtW(e.exId, x.targetWeight)} × ${x.targetReps}${x.targetRpe ? ' · ' + fmtRir(x.targetRpe) : ''}</small>`
         : (x.targetReps ? ` <small>target ${x.targetReps} reps${x.targetRpe ? ' · ' + fmtRir(x.targetRpe) : ''}</small>` : '');
     }
+    const drops = (x.drops && x.drops.length) ? ` <small class="faint">drops ${dropDetail(e.exId, x.drops)}</small>` : '';
     return `<div class="set-row"><span class="num">${i + 1}</span>
-      <span class="target">${actual}${x.amrap ? ' <small>AMRAP</small>' : ''}${techniqueBadge(x.technique)}${pumpBadge(x.pump)}${tgt}</span></div>`;
+      <span class="target">${actual}${x.amrap ? ' <small>AMRAP</small>' : ''}${techniqueBadge(x.technique)}${drops}${pumpBadge(x.pump)}${tgt}</span></div>`;
   }).join('');
 }
 function sessionLiftCardHTML(e, withTarget) {
@@ -2651,6 +2757,15 @@ function renderExDetail(anim) {
         <input id="xd-bar" type="number" inputmode="decimal" value="${Ld.barWeight}"></div>` : ''}
       <p class="faint">Weights are stored as the total load moved; dumbbells display per hand. This setting persists across programs.</p>
       <button class="btn btn-blue mt8" onclick="saveExLoading()">Save loading</button>`;
+    // [Cluster B] Intensity technique opt-in. Bodybuilding accessories only, so
+    // it never reaches the default/powerbuilding path. Today: a finishing drop set.
+    const tcd = P() && P().trainingConfig;
+    const canTech = tcd && tcd.track === 'bodybuilding' && !isMainLift;
+    const techUI = canTech ? `
+      <div class="section-title" style="font-size:1.05rem">Intensity technique</div>
+      <label class="check-row"><input type="checkbox" ${(S.techniques || {})[XD.id] === 'drop' ? 'checked' : ''}
+        onchange="toggleDropSet('${XD.id}', this.checked)"> Finish with a drop set</label>
+      <p class="faint">Adds two lighter strips after your last working set, run to the same rep target. Counts toward your session time.</p>` : '';
     body = `
       ${isMainLift ? `
         <div class="field"><label>Working max (kg)</label>
@@ -2660,6 +2775,7 @@ function renderExDetail(anim) {
         <p class="faint">Book guidance: 2.5 kg/rep lower body, 1.25 kg/rep upper body. Halve it if progress stalls.</p>
         <button class="btn btn-blue mt8" onclick="saveExSettings()">Save</button>` :
         `<p class="subtle">Accessory weights are computed from your logged history (e1RM). Log honestly, the engine follows you.</p>`}
+      ${techUI}
       ${loadingUI}
       ${e.custom ? `<button class="btn btn-outline mt16" style="color:var(--red);border-color:var(--red)" onclick="deleteCustomEx('${e.id}')">Delete custom exercise</button>` : ''}`;
   }
@@ -2672,6 +2788,11 @@ function saveExSettings() {
   if (wmv > 0) P().wm[XD.id] = wmv;
   if (incv > 0) P().increments[XD.id] = incv;
   save(); toast('Saved'); rerenderTop();
+}
+function toggleDropSet(id, on) {
+  S.techniques = S.techniques || {};
+  if (on) S.techniques[id] = 'drop'; else delete S.techniques[id];
+  save(); toast(on ? 'Drop set added to this exercise' : 'Drop set removed'); rerenderTop();
 }
 function xdSetMode(m) { if (XD.load) XD.load.mode = m; rerenderTop(); }
 function saveExLoading() {

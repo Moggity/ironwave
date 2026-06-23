@@ -258,6 +258,15 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .stepper .pm { font-size: 2rem; color: var(--text-dim); width: 64px; height: 64px; }
 .pump-row { display: flex; gap: 8px; }
 .pump-row .btn { flex: 1; }
+.tech-chip { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 12px; padding: 8px 15px;
+  border-radius: 999px; font-weight: 700; font-size: .85rem; cursor: pointer;
+  background: transparent; border: 1.5px solid var(--amber); color: var(--amber); }
+.tech-chip.on { background: var(--amber); border-color: var(--amber); color: #1a1205; }
+.rir-intro { border-left: 3px solid var(--blue); }
+.drop-row { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 6px 0; }
+.drop-row .drop-w { min-width: 84px; text-align: right; font-weight: 600; color: var(--text-dim); }
+.stepper .pm.sm { width: 40px; height: 40px; font-size: 1.4rem; }
+.stepper .val.sm { font-size: 1.6rem; font-weight: 700; min-width: 40px; }
 .stepper input {
   background: none; border: none; color: var(--text); font-size: 3rem; font-weight: 800;
   width: 140px; text-align: center; font-family: inherit; padding: 0; line-height: 1;
