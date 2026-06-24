@@ -41,6 +41,25 @@ running once it is installed.
 5. From then on the app works **fully offline** — you can leave Wi-Fi and the
    server can be off. All your training data is saved on the phone.
 
+### Installing over HTTPS (required for true offline)
+
+The offline service worker only activates on a **secure context** (`https://` or
+`localhost`), so a plain `http://YOUR_LAN_IP` address lets you Add to Home Screen
+but will **not** cache for offline use. To install once over HTTPS, run a free
+Cloudflare quick tunnel (no account needed) while the server is up:
+
+```bash
+npm run tunnel   # prints an https://<random>.trycloudflare.com URL
+```
+
+Send that `https://…` link to yourself (WhatsApp/Telegram/etc.), open it **in
+Safari** on the iPhone, then Share → **Add to Home Screen**. The service worker
+installs and the app launches fully offline afterward. The tunnel only needs to
+be up for that first install; you can close it once installed.
+
+> A PWA is a website, not a file: you are sending yourself the *link*, not the
+> app. The phone installs it by loading that URL once.
+
 ### How storage works (phone is the source of truth)
 
 State lives in the phone's local storage and is read/written on-device, so it
