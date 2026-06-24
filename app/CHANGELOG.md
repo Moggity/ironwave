@@ -1,5 +1,23 @@
 # IRONWAVE — Changelog
 
+## [Mid-session exercise swap] (2026-06-24)
+
+A swap button on each in-session exercise card, so an athlete can change a lift
+mid-workout when a machine is busy or the equipment is not available (the report
+was a fixed-dumbbell goblet squat that could not be loaded).
+
+- A `⇄` button sits next to the `ⓘ` in the session card's head actions, opening the
+  existing Swap Exercise picker (`openSwap`) for that day/slot.
+- `doSwap` now rebuilds the affected live draft entry when a session is in progress
+  (the draft is a snapshot taken at session start), so the new exercise shows
+  immediately. Any logged sets on the swapped slot reset, which is correct since it
+  is a different lift; other entries keep their progress.
+- The entry build is extracted to a shared `sessionEntryFrom` helper used by both
+  session start and the swap rebuild.
+- Tests: `render-smoke.test.js` gains a mid-session swap integration case per track
+  (the live entry rebuilds to the chosen exercise, sets reset); the smoke harness
+  surface exposes `doSwap`/`exById`/`allExercises`.
+
 ## [Realism pass: archetypes, beginner safety, peak taper] (2026-06-24)
 
 A correctness/realism pass over the new macrocycle features after simulating

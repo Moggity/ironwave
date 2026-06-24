@@ -2489,7 +2489,17 @@ function beginSession() {
   // or optional for a time-capped athlete. All are logged; optional ones are
   // flagged so the session shows them and the block-end carryover can learn.
   const built = resolveDayEntries(di, b, w);
-  const entries = built.items.map(x => ({
+  const entries = built.items.map(sessionEntryFrom);
+  V.draft = { id: 's' + Date.now(), ts: Date.now(), b, w, d: di, entries,
+              sleepHours: cd.sleepHours, mindset: cd.mindset, sliders: { ...cd.sliders } };
+  clearRestTimer();
+  save();
+  nav('session');
+}
+// Build one session entry (logging shape) from a resolveDayEntries item. Shared by
+// session start and the mid-session swap rebuild so both stay in sync.
+function sessionEntryFrom(x) {
+  return {
     si: x.si, exId: x.rs.exId, name: x.rs.name,
     isMain: !!x.rs.isMain, isSecondary: !!x.rs.isSecondary, wmKey: x.rs.wmKey || null,
     optional: !!x.rs.optional,
@@ -2500,12 +2510,7 @@ function beginSession() {
       technique: t.technique || null, dropTargets: t.drops || null,
       weight: null, reps: null, rpe: null, drops: null, done: false,
     })),
-  }));
-  V.draft = { id: 's' + Date.now(), ts: Date.now(), b, w, d: di, entries,
-              sleepHours: cd.sleepHours, mindset: cd.mindset, sliders: { ...cd.sliders } };
-  clearRestTimer();
-  save();
-  nav('session');
+  };
 }
 
 function ratingsStripHTML(sliders) {
@@ -2647,6 +2652,7 @@ function vSession() {
       ${e.optional ? '<p class="faint" style="margin:-4px 0 6px">Over your time limit. Do it if you have time, otherwise skip it.</p>' : ''}
       ${lastSetInfo(e.exId)}
       <div class="head-actions">
+        <button onclick="openSwap(${dr.d},${e.si})" aria-label="Swap exercise">⇄</button>
         <button onclick="openExDetail('${e.exId}')">ⓘ</button>
       </div>
       ${top && loadingFor(e.exId).showPlates ? `<button class="warmup-btn" onclick="openWarmup(${top},'${e.exId}')"><b>＋</b> Warmup</button>` : ''}
@@ -3254,6 +3260,17 @@ function doSwap(di, si, exId) {
   const slot = P().days[di].slots[si];
   slot.ex = exId;
   if (slot.type === 'select') slot.type = 'acc';
+  // Mid-session swap: rebuild the affected draft entry so the live session shows
+  // the new exercise immediately (the draft is a snapshot taken at session start).
+  // Any logged sets on the swapped slot reset, which is correct: it is a different
+  // lift. Other entries keep their progress.
+  const dr = V.draft;
+  if (dr && dr.d === di) {
+    const built = resolveDayEntries(di, dr.b, dr.w);
+    const item = built.items.find(x => x.si === si);
+    const ei = dr.entries.findIndex(e => e.si === si);
+    if (item && ei >= 0) dr.entries[ei] = sessionEntryFrom(item);
+  }
   save(); closeAllModals(); render();
   toast(exName(exId) + ' set for ' + P().days[di].name);
 }

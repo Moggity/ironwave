@@ -23,6 +23,7 @@ const { JSDOM } = require('jsdom');
 const EXPORTS = `
 ;window.__APP__ = {
   render, makeProgram, defaultState, obDefaults, startCheckin, beginSession,
+  doSwap, exById, allExercises,
   get S() { return S; }, set S(v) { S = v; },
   get V() { return V; }, set V(v) { V = v; },
 };`;
