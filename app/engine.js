@@ -70,15 +70,19 @@ const Engine = {
   // calibration/intro or deload week. They escalate across the macrocycle, so an
   // early meso (mesoIdx 0) only carries the realization drop set, while later
   // mesos (the athlete has adapted) add a myo-rep week. A deficit holds the added
-  // myo back, since recovery is lower. Returns a technique id or null. Pure and
-  // display-first: it drives the timeline markers and the weekly recommendation,
-  // not the prescription itself (the athlete still opts a finisher in).
+  // myo back, since recovery is lower. Experience gates it: a beginner gets none
+  // (build a base on straight sets first), an advanced lifter gets the myo from
+  // meso 0. Returns a technique id or null. Pure and display-first: it drives the
+  // timeline markers and the weekly recommendation, not the prescription itself
+  // (the athlete still opts a finisher in).
   scheduledTech(weekIdx, mesoIdx, opts) {
     opts = opts || {};
+    if (opts.experience === 'beginner') return null;
     const type = this.weekType(weekIdx);
     if (type === 'intro' || type === 'accumulation' || type === 'deload') return null;
     if (type === 'realization') return 'drop';
-    if (type === 'intensification' && (mesoIdx || 0) >= 1 && !opts.deficit) return 'myo';
+    const myoMeso = opts.experience === 'advanced' ? 0 : 1;
+    if (type === 'intensification' && (mesoIdx || 0) >= myoMeso && !opts.deficit) return 'myo';
     return null;
   },
 

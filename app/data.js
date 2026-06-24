@@ -289,11 +289,24 @@ const GOAL_ARCHETYPES = {
     weeks: null, // null keeps the track's standard length
     phaseCycle: ['lean-gain', 'lean-gain', 'minicut', 'gain', 'gain', 'cut'],
   },
+  // [Realism] Recomp / look-good: the middle ground (matches the early mockup of
+  // two lean-gain blocks then a cut). Build a little, then lean down into the date.
+  // The broadly-applicable default, and the right call for newer lifters who can
+  // build and lean at once.
+  'recomp': {
+    label: 'Look good (recomp)',
+    desc: 'Build some size, then lean down into your date: lean-gain blocks finishing on a cut. A balanced look-good plan that suits most lifters.',
+    weeks: 18,
+    phaseCycle: ['lean-gain', 'lean-gain', 'cut'],
+  },
   'lean-asap': {
     label: 'Look lean ASAP',
-    desc: 'Get lean for a near date: a sharp minicut into a steady cut, holding muscle while volume stays in check.',
+    desc: 'Aggressive fat loss for a near date: a sharp minicut into a cut, with a maintenance diet break if the plan runs long. Holds muscle while volume stays in check.',
     weeks: 12,
-    phaseCycle: ['minicut', 'cut'],
+    // A maintenance diet break every third block keeps a longer run from being one
+    // unbroken deficit (you cannot cut hard indefinitely).
+    phaseCycle: ['minicut', 'cut', 'maintenance'],
+    warn: 'This is an aggressive deficit. It suits a leaner intermediate or advanced lifter with a near date. If you are newer or not already fairly lean, pick Look good (recomp): you can build muscle and lose fat at the same time, which is the better long game.',
   },
 };
 const EX_META = {

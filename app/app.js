@@ -298,6 +298,14 @@ function applyArchetypePhases(blocks, archetypeId) {
   if (!arch || !arch.phaseCycle || !arch.phaseCycle.length) return;
   blocks.forEach((b, i) => { b.phase = arch.phaseCycle[i % arch.phaseCycle.length]; });
 }
+// [Realism] The final strength block is the taper/peak into the meet, so a
+// strength-ending track (powerlifting / powerbuilding) reads as Peak at the end,
+// matching the run-in shown in the mockups. Creation-time only (migration stays
+// conservative, and the plan editor lets the athlete set phases explicitly).
+function markPeakBlock(blocks) {
+  const last = blocks[blocks.length - 1];
+  if (last && last.type === 'strength') last.phase = 'peak';
+}
 // [Epic G2] Build a block list of `targetCount` blocks by cycling the template's
 // block pattern, then renumber the per-type labels so they read 1..N. Used only
 // when the athlete picks a custom macrocycle length; the default path passes the
@@ -355,6 +363,7 @@ function makeProgram(ob) {
     : JSON.parse(JSON.stringify(tpl.blocks));
   stampMesoIdx(blocks);
   stampBlockPhase(blocks);
+  markPeakBlock(blocks); // [Realism] strength-ending tracks taper into a peak
   // [Epic G6] A bodybuilding goal archetype overrides the default per-block phases
   // with its own sequence (lean-fast vs serious macro). Inert on other tracks.
   if (track === 'bodybuilding' && ob.goalArchetype) applyArchetypePhases(blocks, ob.goalArchetype);
@@ -1085,7 +1094,7 @@ function obDefaults() {
   return { name: '', bodyweight: '', daysPerWeek: 4, track: 'powerbuilding',
            experience: 'intermediate', timeMode: 'unlimited', timeCapMin: '',
            macroWeeks: null, // [Epic G2] null = standard template length
-           goalArchetype: 'serious-macro', // [Epic G6] bodybuilding only
+           goalArchetype: 'recomp', // [Epic G6] bodybuilding only; recomp is the safe default
            muscleFocus: { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
            maxes: {} };
 }
@@ -1185,7 +1194,9 @@ function vOnboarding() {
         <p class="faint">This shapes your phases. Look lean fast for a near date, or build muscle over a longer plan.</p>
         ${Object.entries(GOAL_ARCHETYPES).map(([id, a]) => `
           <button class="pick-card ${ob.goalArchetype===id?'on':''}" onclick="obArchetype('${id}')">
-            <b>${a.label}</b><span class="faint">${a.desc}</span></button>`).join('')}` : ''}
+            <b>${a.label}</b><span class="faint">${a.desc}</span></button>`).join('')}
+        ${GOAL_ARCHETYPES[ob.goalArchetype] && GOAL_ARCHETYPES[ob.goalArchetype].warn
+          ? `<div class="banner-warn mt8">${GOAL_ARCHETYPES[ob.goalArchetype].warn}</div>` : ''}` : ''}
       <div class="ob-sub mt16">Program length</div>
       <p class="faint">How long until your goal date? Standard uses this track's default block count. A shorter plan trims blocks, a longer one adds them.</p>
       <div class="seg mt8">
@@ -1404,7 +1415,8 @@ const TECH_MARK = { myo: '◆', drop: '»', restpause: '‖' };
 // in). A deficit phase holds the added myo back.
 function scheduledTechForBlock(block, w, bbTrack) {
   if (!bbTrack || blockScheme(block) !== 'jbb-hyp') return null;
-  return Engine.scheduledTech(w, block.mesoIdx, { deficit: !!PHASE_DEFICIT[blockPhase(block)] });
+  const experience = (typeof S !== 'undefined' && S && S.profile && S.profile.experience) || 'intermediate';
+  return Engine.scheduledTech(w, block.mesoIdx, { deficit: !!PHASE_DEFICIT[blockPhase(block)], experience });
 }
 // [Epic G3] Macrocycle timeline v2: blocks grouped into phase-tinted containers
 // with a phase label, week bars colored by training emphasis (deload weeks

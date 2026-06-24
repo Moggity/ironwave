@@ -410,6 +410,19 @@ model + timeline v2)**.
   the preset cycles (that is G4's job), and intensity/volume differences between
   archetypes beyond the phase-driven autoreg.
 
+- **Realism pass (2026-06-24, after simulating G1-G6 across personas).** Aligned
+  the auto-generated plans with established practice. Added a third **"Look good
+  (recomp)"** archetype (lean-gain blocks into a cut) as the default, since
+  recomposition fits most lifters and newer ones especially. **Look lean ASAP** now
+  interleaves a maintenance diet break every third block and carries a serious
+  onboarding warning (an aggressive deficit is an intermediate/advanced tool;
+  beginners should recomp). `Engine.scheduledTech` is experience-aware: beginners
+  are never auto-scheduled intensity techniques, advanced get the myo earlier.
+  Strength-ending tracks mark a final **peak** block (`markPeakBlock`). **Still
+  open:** a hard confirm (not just a banner) if a beginner insists on lean-asap;
+  archetype-specific volume/intensity beyond phase; per-block-weeks so a peak/taper
+  block can be shorter than a 5-week meso.
+
 ```
 G1 (phase model) -- foundation --> G3, G4, G6; later feeds autoregVolume
 G2 (variable length) -- with G1 --> G4, G6; date-driven default + builder override
