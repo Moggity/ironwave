@@ -1,5 +1,30 @@
 # IRONWAVE — Changelog
 
+## [Epic G1 + G3: per-block phase model + macrocycle timeline v2] (2026-06-24)
+
+First slice of the "gym side final state" planning epic group (see
+`docs/pending-future-work.md`). Surfaces the macrocycle as a phase-aware timeline.
+Additive and display-only, so prescription and the golden master are unchanged.
+
+- `block.phase` (lean-gain / gain / maintenance / cut / minicut / peak): a new
+  additive, optional field. `stampBlockPhase` backfills it from the block type
+  (hypertrophy -> lean-gain, strength -> maintenance, peaking -> peak) at program
+  creation and in `migrateState` (idempotent, respects an explicit phase). It does
+  NOT yet feed prescription; the global `profile.phase` still drives the
+  autoregulator. Wiring per-block phase into `autoregVolume` is a later G-epic.
+- Phase taxonomy extended: `PHASE_LABELS`/`PHASE_BLURB` gain `gain` and `peak`
+  entries; new `PHASE_COLORS` (our own palette) and `DEFAULT_BLOCK_PHASE` in
+  `data.js`. The Cluster F phase picker keeps its fixed four-option list, so its
+  behavior is unchanged.
+- `timelineHTML` rewritten to v2: blocks grouped into phase-tinted containers with
+  a phase label, week bars colored by training emphasis (`barColorFor`: strength
+  orange, deficit teal, peak red, else hypertrophy blue), deload weeks hatched,
+  the current week glowing, past weeks dimmed, and a legend listing only the
+  emphases present. New `.timeline-v2` / `.tl-block` / `.tl-bars` styles.
+- Tests: `test/timeline.test.js` (phase backfill, idempotency, the emphasis-color
+  rules, label/color completeness) and a phase-backfill assertion in
+  `test/migration.test.js`. Golden master and render-smoke unchanged (151 pass).
+
 ## [Cluster D: autoregulated deload depth + resensitization] (2026-06-23)
 
 Makes the deload respond to accumulated fatigue instead of a fixed halving, and

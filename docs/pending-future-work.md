@@ -341,6 +341,68 @@ Phase   (F) -- needs D --> modulates E and the deload; starts light
 - Branch discipline (see the retrospective): one cluster, ideally one
   technique/feature, per branch.
 
+## Gym side final state (macrocycle planning epic group)
+
+From an owner design review (Figma mockups, 2026-06-24): the "final state" of the
+gym side is a rich macrocycle timeline that surfaces *phases* and *intensity
+techniques* across the whole plan, plus athlete control over macrocycle length
+and a build-your-own-from-blocks flow. The existing `timelineHTML` (one bar per
+week, colored by scheme, tap-to-preview) is the seed; these epics grow it into
+the mocked-up planner. Same constraints as the hypertrophy roadmap apply: keep
+non-default tracks no-ops on the default path (golden master), and "inspired, not
+cloned" (our own copy, colors, and simpler where possible).
+
+Owner decisions captured: macrocycle length is controlled **both** ways (a simple
+date-driven default that auto-arranges blocks, with the block builder as the
+power-user override); the first implementation branch is **Epic G1 + G3 (phase
+model + timeline v2)**.
+
+- **Epic G1 - Per-block phase model.** Promote Cluster F's single global
+  `profile.phase` to a per-block `block.phase` (lean-gain / gain / maintenance /
+  cut / minicut / peak). Additive + migrated (backfill from block type/track),
+  display-only at first; later it replaces the global phase as the input to
+  `autoregVolume` (bodybuilding-only, so golden-master-safe). Foundation for
+  everything below.
+- **Epic G2 - Variable macrocycle length.** Block count and per-block week count
+  become program data instead of template constants (`weeksPerBlock`, fixed
+  `blocks`); `testDate`/`daysOut`/the timeline derive from them. Date-driven
+  default (athlete picks an end date, app auto-arranges blocks/phases to fit) with
+  the builder (G4) as the manual override.
+- **Epic G3 - Macrocycle timeline v2 (UI).** The mocked-up bar chart: per-block
+  containers tinted by phase with a phase label, bars colored by training
+  emphasis (hypertrophy blue / strength orange / cut teal / peak red), deload
+  weeks hatched, current week glowing, richer legend. Depends on G1 (phase data)
+  and reads G5's technique schedule for markers. *First branch ships G1 + the
+  phase-coloring/labels half of G3; markers follow with G5.*
+- **Epic G4 - Block builder ("+").** Pick, arrange, and edit blocks to plan a
+  macrocycle from scratch (the year-planner power-user flow behind the "+" in the
+  mockups). Biggest new epic; depends on G1 + G2.
+- **Epic G5 - Technique periodization + markers.** Today intensifiers
+  (`S.techniques`: drop / myo / rest-pause) are opt-in *in-session* toggles, never
+  scheduled across the macro, so there is nothing to show "coming up". This epic
+  adds an engine model that schedules intensifiers across the macrocycle (introduce
+  in the back half of an accumulation, suppress on deloads/peak) and surfaces them
+  as the diamond/chevron markers on the timeline. Builds on the shipped Cluster B
+  technique set structure. The marker *rendering* is trivial; the *schedule* is the
+  real work. Owner flagged the marker visibility as high priority.
+- **Epic G6 - Goal archetype branch.** An onboarding fork: "look lean ASAP / summer
+  body" vs "serious hypertrophy macro", picking different default macro shapes
+  (length, phase sequence, intensity). Depends on G1 + G2.
+
+```
+G1 (phase model) -- foundation --> G3, G4, G6; later feeds autoregVolume
+G2 (variable length) -- with G1 --> G4, G6; date-driven default + builder override
+G3 (timeline v2) -- needs G1, reads G5 --> the visible deliverable (FIRST BRANCH: G1 + G3 colors/labels)
+G4 (block builder) -- needs G1 + G2 --> the "+" power-user planner
+G5 (technique periodization) -- builds on Cluster B --> lights up timeline markers
+G6 (goal archetype) -- needs G1 + G2 --> ASAP vs serious-macro onboarding fork
+```
+
+Assets/fidelity notes: the timeline is pure CSS/inline SVG (bars, gradients,
+deload hatch, markers) - no image files needed; exact Figma hex/gradient tokens
+are a fidelity nice-to-have, not a blocker. No Figma connector in the build
+environment, so reproduce from PNGs/tokens.
+
 ## Quality of life UI improvements
 
 Small surfacing/clarity polishes that make existing features easier to read at a

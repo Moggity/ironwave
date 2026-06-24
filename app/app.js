@@ -66,6 +66,7 @@ function migrateState(s) {
       if (!b.scheme) b.scheme = b.type === 'hypertrophy' ? 'jbb-hyp' : 'jm2-wave';
     });
     if (s.program.blocks.some(b => b.mesoIdx == null)) stampMesoIdx(s.program.blocks);
+    if (s.program.blocks.some(b => b.phase == null)) stampBlockPhase(s.program.blocks); // [Epic G1]
     if (!s.program.methodology) s.program.methodology = 'Juggernaut + Bodybuilding';
     // Defensive defaults: a program from a very old save (or hand-edited
     // database.json) may predate these fields. The dashboard reads
@@ -282,6 +283,13 @@ function stampMesoIdx(blocks) {
     counts[id] = b.mesoIdx + 1;
   });
 }
+// [Epic G1] Stamp each block's default training phase from its type, so the
+// macrocycle timeline can group and color blocks by phase. Additive and
+// display-only for now (does not feed prescription); later epics let the athlete
+// set richer per-block phases and wire them into the autoregulator.
+function stampBlockPhase(blocks) {
+  blocks.forEach(b => { if (b.phase == null) b.phase = DEFAULT_BLOCK_PHASE[b.type] || 'lean-gain'; });
+}
 function makeProgram(ob) {
   // Track selects the block periodization; day layouts are shared. Defaults to
   // powerbuilding so an onboarding without a track behaves exactly as before.
@@ -289,6 +297,7 @@ function makeProgram(ob) {
   const tpl = PROGRAM_TEMPLATES[track] || PROGRAM_TEMPLATES.powerbuilding;
   const blocks = JSON.parse(JSON.stringify(tpl.blocks));
   stampMesoIdx(blocks);
+  stampBlockPhase(blocks);
   const totalWeeks = blocks.length * tpl.weeksPerBlock;
   const start = Date.now();
   const wm = {};
@@ -1280,27 +1289,59 @@ function weekLabelFor(block, w) {
   const sch = Engine.schemeFor(block);
   return sch.weekLabel ? sch.weekLabel(w) : Engine.weekTypeLabel(w);
 }
+// [Epic G1] The block's phase (display label + tint), backfilled if a legacy
+// save predates the field.
+function blockPhase(block) { return block.phase || DEFAULT_BLOCK_PHASE[block.type] || 'lean-gain'; }
+// [Epic G3] Bar color = training emphasis: a strength block is always orange; an
+// energy-deficit phase (cut/minicut) reads teal and a peak reads red regardless
+// of the underlying hypertrophy scheme; everything else (building/maintenance
+// hypertrophy) is the hypertrophy blue. This is what the timeline legend lists.
+function barColorFor(block) {
+  if (blockScheme(block) === 'jm2-wave') return BLOCK_COLORS.strength;
+  const ph = blockPhase(block);
+  if (ph === 'peak') return BLOCK_COLORS.peaking;
+  if (PHASE_DEFICIT[ph]) return BLOCK_COLORS.bridge;
+  return BLOCK_COLORS.hypertrophy;
+}
+// [Epic G3] Macrocycle timeline v2: blocks grouped into phase-tinted containers
+// with a phase label, week bars colored by training emphasis (deload weeks
+// hatched), the current week glowing and past weeks dimmed. Heights share one
+// scale across the whole program so blocks are comparable. Tap a week to preview.
 function timelineHTML() {
   const p = P();
   let maxV = 1;
   p.blocks.forEach(b => { for (let w = 0; w < p.weeksPerBlock; w++) maxV = Math.max(maxV, weekVolume(b, w)); });
-  const bars = [];
-  p.blocks.forEach((b, bi) => {
+  const emphases = {}; // which legend swatches this program actually uses
+  const groups = p.blocks.map((b, bi) => {
+    const phase = blockPhase(b);
+    const pc = PHASE_COLORS[phase] || BLOCK_COLORS[b.type] || 'var(--blue)';
+    const barC = barColorFor(b);
+    if (blockScheme(b) === 'jm2-wave') emphases.strength = 1;
+    else if (phase === 'peak') emphases.peak = 1;
+    else if (PHASE_DEFICIT[phase]) emphases.cut = 1;
+    else emphases.hypertrophy = 1;
+    const bars = [];
     for (let w = 0; w < p.weeksPerBlock; w++) {
       const passed = bi < p.pointer.block || (bi === p.pointer.block && w < p.pointer.week);
       const cur = bi === p.pointer.block && w === p.pointer.week;
+      const deload = Engine.weekType(w) === 'deload';
       const h = Math.max(10, weekVolume(b, w) / maxV * 100);
-      bars.push(`<i class="${passed ? 'done' : ''}${cur ? ' current' : ''}"
+      bars.push(`<i class="${passed ? 'done' : ''}${cur ? ' current' : ''}${deload ? ' deload' : ''}"
         onclick="openWeekPreview(${bi},${w})"
-        style="height:${h.toFixed(0)}%;background:${BLOCK_COLORS[b.type]}"></i>`);
+        style="height:${h.toFixed(0)}%;background:${barC}"></i>`);
     }
-  });
-  return `<div class="timeline">${bars.join('')}</div>
-    <div class="legend">
-      <span><i style="background:${BLOCK_COLORS.hypertrophy}"></i>Hypertrophy</span>
-      <span><i style="background:${BLOCK_COLORS.strength}"></i>Strength</span>
-      <span class="faint">tap a week to preview</span>
+    return `<div class="tl-block" style="--phase:${pc}">
+      <span class="tl-phase">${esc(PHASE_LABELS[phase] || phase)}</span>
+      <div class="tl-bars">${bars.join('')}</div>
     </div>`;
+  }).join('');
+  const leg = [];
+  if (emphases.hypertrophy) leg.push(`<span><i style="background:${BLOCK_COLORS.hypertrophy}"></i>Hypertrophy</span>`);
+  if (emphases.strength) leg.push(`<span><i style="background:${BLOCK_COLORS.strength}"></i>Strength</span>`);
+  if (emphases.cut) leg.push(`<span><i style="background:${BLOCK_COLORS.bridge}"></i>Cut</span>`);
+  if (emphases.peak) leg.push(`<span><i style="background:${BLOCK_COLORS.peaking}"></i>Peak</span>`);
+  return `<div class="timeline-v2">${groups}</div>
+    <div class="legend">${leg.join('')}<span class="faint">tap a week to preview</span></div>`;
 }
 function openWeekPreview(bi, wi) {
   const p = P();
