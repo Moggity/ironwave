@@ -1,5 +1,34 @@
 # IRONWAVE — Changelog
 
+## [Early (autoregulated) deload timing] (2026-06-24)
+
+Cluster D / Epic 4: the deload can now be pulled in *before* the scheduled week 5
+when accumulated fatigue says so, instead of always grinding the full meso.
+Bodybuilding-only and inert by absence, so the Powerbuilding golden master is
+untouched.
+
+- `Engine.earlyDeloadAdvised(statuses, trendDown)` decides mid-block whether to
+  advise an early deload, from the same fatigue read as the depth sizing
+  (`fatigueSaturated` + readiness trend): saturated, or several muscles near MRV
+  with readiness sliding.
+- The dashboard surfaces a suggestion banner on a mid-block work week
+  (`earlyDeloadBannerHTML`); accepting (`acceptEarlyDeload`, behind a confirm)
+  marks the week (`P().earlyDeload`, transient like `deloadPlan`, no migration)
+  and sizes the deload depth. `resolveSlot` remaps that one week to the deload
+  slot (`effectiveWeekIdx`) so the scheme prescribes it exactly like a scheduled
+  deload; `advanceWeek` then ends the block early, resensitizing (offsets reset to
+  MEV) and rolling to the next block. The block-end logic is extracted to a shared
+  `endBlock` so a scheduled and an early deload resensitize identically. The
+  athlete can `cancelEarlyDeload` (resume the normal block) until they complete the
+  week.
+- Timeline + volume dashboard: the early-deload week wears a denser amber hatch
+  (`.tl-bars i.deload-early`) distinct from the routine deload weave, and the weeks
+  it skips are dimmed (`.skipped`); the volume screen shows an "Early deload this
+  week" note.
+- Tests: `test/early-deload.test.js` (engine decision, the resolveSlot remap and
+  its off-track inertness, and the block-end resensitization). Golden master
+  unchanged.
+
 ## [Perf-modal RIR stepper fix + timer chime] (2026-06-24)
 
 - Fixed the performance modal's RIR stepper "jumping" mid-tap. The effort
