@@ -363,11 +363,15 @@ model + timeline v2)**.
   display-only at first; later it replaces the global phase as the input to
   `autoregVolume` (bodybuilding-only, so golden-master-safe). Foundation for
   everything below.
-- **Epic G2 - Variable macrocycle length.** Block count and per-block week count
-  become program data instead of template constants (`weeksPerBlock`, fixed
-  `blocks`); `testDate`/`daysOut`/the timeline derive from them. Date-driven
-  default (athlete picks an end date, app auto-arranges blocks/phases to fit) with
-  the builder (G4) as the manual override.
+- **Epic G2 - Variable macrocycle length.** *Block-count slice shipped
+  (2026-06-24):* an onboarding "Program length" choice (`ob.macroWeeks`) rebuilds
+  the block list via `extendBlocks`/`blocksForWeeks` (cycle the template pattern to
+  fit, renumber labels, re-stamp mesoIdx + phase); `testDate`/`daysOut`/the
+  timeline derive from the result; the default (no choice) keeps the template
+  verbatim, so the golden master is untouched. **Still open:** variable *per-block*
+  week count (a deeper, scheme-level change to `weekType`/`JBB_HYP`), an explicit
+  end-date picker (today it is weeks presets), and smart phase auto-arrange (the
+  cycled pattern is mechanical; intelligent phase placement is G4/G6 territory).
 - **Epic G3 - Macrocycle timeline v2 (UI).** The mocked-up bar chart: per-block
   containers tinted by phase with a phase label, bars colored by training
   emphasis (hypertrophy blue / strength orange / cut teal / peak red), deload
@@ -377,14 +381,17 @@ model + timeline v2)**.
 - **Epic G4 - Block builder ("+").** Pick, arrange, and edit blocks to plan a
   macrocycle from scratch (the year-planner power-user flow behind the "+" in the
   mockups). Biggest new epic; depends on G1 + G2.
-- **Epic G5 - Technique periodization + markers.** Today intensifiers
-  (`S.techniques`: drop / myo / rest-pause) are opt-in *in-session* toggles, never
-  scheduled across the macro, so there is nothing to show "coming up". This epic
-  adds an engine model that schedules intensifiers across the macrocycle (introduce
-  in the back half of an accumulation, suppress on deloads/peak) and surfaces them
-  as the diamond/chevron markers on the timeline. Builds on the shipped Cluster B
-  technique set structure. The marker *rendering* is trivial; the *schedule* is the
-  real work. Owner flagged the marker visibility as high priority.
+- **Epic G5 - Technique periodization + markers.** *Schedule + markers shipped
+  (2026-06-24):* `Engine.scheduledTech(weekIdx, mesoIdx, {deficit})` places a drop
+  set on every meso's realization week and adds a myo-rep week in intensification
+  once adapted (mesoIdx >= 1), held back in a deficit; none on intro/accumulation/
+  deload. `scheduledTechForBlock` gates it to bodybuilding-track hypertrophy blocks
+  (display-first: drives the timeline ◆/» markers and the week-preview "Finisher
+  this week" note, not the prescription). **Still open:** auto-*application* of the
+  scheduled technique (today the athlete still opts the finisher in per session;
+  the schedule could pre-select it), rest-pause/partials in the schedule, and a
+  peak-phase suppression once peak blocks actually program hypertrophy. Builds on
+  the shipped Cluster B technique set structure.
 - **Epic G6 - Goal archetype branch.** An onboarding fork: "look lean ASAP / summer
   body" vs "serious hypertrophy macro", picking different default macro shapes
   (length, phase sequence, intensity). Depends on G1 + G2.

@@ -290,12 +290,41 @@ function stampMesoIdx(blocks) {
 function stampBlockPhase(blocks) {
   blocks.forEach(b => { if (b.phase == null) b.phase = DEFAULT_BLOCK_PHASE[b.type] || 'lean-gain'; });
 }
+// [Epic G2] Build a block list of `targetCount` blocks by cycling the template's
+// block pattern, then renumber the per-type labels so they read 1..N. Used only
+// when the athlete picks a custom macrocycle length; the default path passes the
+// template blocks through untouched, so the golden master is unaffected. (Variable
+// per-block week counts are a deeper, scheme-level change and stay future work;
+// this slice varies the block COUNT at the fixed weeks-per-block.)
+function extendBlocks(tplBlocks, targetCount) {
+  const out = [];
+  for (let i = 0; i < targetCount; i++) {
+    out.push(JSON.parse(JSON.stringify(tplBlocks[i % tplBlocks.length])));
+  }
+  const counts = {};
+  out.forEach(b => {
+    const base = b.type === 'hypertrophy' ? 'Hypertrophy' : b.type === 'strength' ? 'Strength' : (b.label || b.type);
+    counts[base] = (counts[base] || 0) + 1;
+    b.label = base + ' ' + counts[base];
+  });
+  return out;
+}
+// [Epic G2] How many fixed-length blocks best fit a target macrocycle length in
+// weeks, clamped to a sane range (a short cut up to a long planned macro).
+function blocksForWeeks(weeks, weeksPerBlock) {
+  const n = Math.round(weeks / weeksPerBlock);
+  return Math.max(2, Math.min(12, n));
+}
 function makeProgram(ob) {
   // Track selects the block periodization; day layouts are shared. Defaults to
   // powerbuilding so an onboarding without a track behaves exactly as before.
   const track = ob.track || 'powerbuilding';
   const tpl = PROGRAM_TEMPLATES[track] || PROGRAM_TEMPLATES.powerbuilding;
-  const blocks = JSON.parse(JSON.stringify(tpl.blocks));
+  // [Epic G2] A custom macrocycle length (weeks) rebuilds the block list to fit;
+  // no length keeps the template verbatim, so the default path stays byte-identical.
+  const blocks = ob.macroWeeks
+    ? extendBlocks(tpl.blocks, blocksForWeeks(ob.macroWeeks, tpl.weeksPerBlock))
+    : JSON.parse(JSON.stringify(tpl.blocks));
   stampMesoIdx(blocks);
   stampBlockPhase(blocks);
   const totalWeeks = blocks.length * tpl.weeksPerBlock;
@@ -1024,6 +1053,7 @@ const FOCUS_LABELS = { arms: 'Arms', chest: 'Chest', back: 'Back', shoulders: 'S
 function obDefaults() {
   return { name: '', bodyweight: '', daysPerWeek: 4, track: 'powerbuilding',
            experience: 'intermediate', timeMode: 'unlimited', timeCapMin: '',
+           macroWeeks: null, // [Epic G2] null = standard template length
            muscleFocus: { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
            maxes: {} };
 }
@@ -1118,6 +1148,13 @@ function vOnboarding() {
       ${OB_TRACKS.map(([id, label, desc]) => `
         <button class="pick-card ${ob.track===id?'on':''}" onclick="obTrack('${id}')">
           <b>${label}</b><span class="faint">${desc}</span></button>`).join('')}
+      <div class="ob-sub mt16">Program length</div>
+      <p class="faint">How long until your goal date? Standard uses this track's default block count. A shorter plan trims blocks, a longer one adds them.</p>
+      <div class="seg mt8">
+        <button class="${ob.macroWeeks==null?'on':''}" onclick="obMacro(null)">Standard</button>
+        ${[12,18,24,36].map(w => `<button class="${ob.macroWeeks===w?'on':''}" onclick="obMacro(${w})">${w} wk</button>`).join('')}
+      </div>
+      <div class="focus-time">${obMacroLine(ob)}</div>
       <button class="btn btn-green mt16" onclick="obNext(2)">Continue</button>`;
   } else if (step === 3) {
     body = `
@@ -1166,6 +1203,13 @@ function vOnboarding() {
 }
 function obDays(n) { V.ob.daysPerWeek = n; render(); }
 function obTrack(id) { V.ob.track = id; render(); }
+function obMacro(weeks) { V.ob.macroWeeks = weeks; render(); }
+// [Epic G2] One-line summary of the macrocycle the current length choice builds.
+function obMacroLine(ob) {
+  const tpl = PROGRAM_TEMPLATES[ob.track] || PROGRAM_TEMPLATES.powerbuilding;
+  const blocks = ob.macroWeeks ? blocksForWeeks(ob.macroWeeks, tpl.weeksPerBlock) : tpl.blocks.length;
+  return blocks + ' blocks, about ' + (blocks * tpl.weeksPerBlock) + ' weeks to your goal date.';
+}
 function obExp(id) { V.ob.experience = id; render(); }
 function obTimeMode(mode) { V.ob.timeMode = mode; render(); }
 // Live-update the time estimate as the cap is typed, without a full re-render
@@ -1303,23 +1347,39 @@ function barColorFor(block) {
   if (PHASE_DEFICIT[ph]) return BLOCK_COLORS.bridge;
   return BLOCK_COLORS.hypertrophy;
 }
+// [Epic G5] Glyphs for a scheduled intensity technique on the timeline.
+const TECH_MARK = { myo: '◆', drop: '»', restpause: '‖' };
+// [Epic G5] Which technique (if any) the schedule places on this block's week.
+// Bodybuilding-track hypertrophy blocks only, so other tracks show no markers and
+// the prescription is untouched (display-first: the athlete still opts a finisher
+// in). A deficit phase holds the added myo back.
+function scheduledTechForBlock(block, w, bbTrack) {
+  if (!bbTrack || blockScheme(block) !== 'jbb-hyp') return null;
+  return Engine.scheduledTech(w, block.mesoIdx, { deficit: !!PHASE_DEFICIT[blockPhase(block)] });
+}
 // [Epic G3] Macrocycle timeline v2: blocks grouped into phase-tinted containers
 // with a phase label, week bars colored by training emphasis (deload weeks
-// hatched), the current week glowing and past weeks dimmed. Heights share one
-// scale across the whole program so blocks are comparable. Tap a week to preview.
+// hatched), the current week glowing and past weeks dimmed. Bodybuilding weeks
+// carrying a scheduled technique (Epic G5) get a marker so the athlete sees an
+// intensifier coming. Heights share one scale so blocks are comparable.
 function timelineHTML() {
   const p = P();
+  const bbTrack = (p.trainingConfig && p.trainingConfig.track) === 'bodybuilding';
   let maxV = 1;
   p.blocks.forEach(b => { for (let w = 0; w < p.weeksPerBlock; w++) maxV = Math.max(maxV, weekVolume(b, w)); });
   const emphases = {}; // which legend swatches this program actually uses
+  const techs = {};    // which technique markers this program actually uses
   const bar = (b, bi, w) => {
     const passed = bi < p.pointer.block || (bi === p.pointer.block && w < p.pointer.week);
     const cur = bi === p.pointer.block && w === p.pointer.week;
     const deload = Engine.weekType(w) === 'deload';
     const h = Math.max(10, weekVolume(b, w) / maxV * 100);
+    const tech = scheduledTechForBlock(b, w, bbTrack);
+    if (tech) techs[tech] = 1;
+    const mark = tech ? `<b class="tl-mark">${TECH_MARK[tech] || ''}</b>` : '';
     return `<i class="${passed ? 'done' : ''}${cur ? ' current' : ''}${deload ? ' deload' : ''}"
       onclick="openWeekPreview(${bi},${w})"
-      style="height:${h.toFixed(0)}%;background:${barColorFor(b)}"></i>`;
+      style="height:${h.toFixed(0)}%;background:${barColorFor(b)}">${mark}</i>`;
   };
   // Group consecutive blocks that share a phase under one labeled, tinted
   // container (two back-to-back lean-gain blocks read as one phase, not two).
@@ -1350,6 +1410,8 @@ function timelineHTML() {
   if (emphases.strength) leg.push(`<span><i style="background:${BLOCK_COLORS.strength}"></i>Strength</span>`);
   if (emphases.cut) leg.push(`<span><i style="background:${BLOCK_COLORS.bridge}"></i>Cut</span>`);
   if (emphases.peak) leg.push(`<span><i style="background:${BLOCK_COLORS.peaking}"></i>Peak</span>`);
+  if (techs.myo) leg.push(`<span><b class="tl-mark-leg">${TECH_MARK.myo}</b>Myo-reps</span>`);
+  if (techs.drop) leg.push(`<span><b class="tl-mark-leg">${TECH_MARK.drop}</b>Drop set</span>`);
   return `<div class="timeline-v2">${groups}</div>
     <div class="legend">${leg.join('')}<span class="faint">tap a week to preview</span></div>`;
 }
@@ -1384,8 +1446,13 @@ function openWeekPreview(bi, wi) {
       }).join('');
       return `<div class="card"><b>Day ${di + 1}</b>${dayTheme(d) ? ` <span class="faint">${esc(dayTheme(d))}</span>` : ''}${rows}</div>`;
     }).join('');
+    const bbTrack = (p.trainingConfig && p.trainingConfig.track) === 'bodybuilding';
+    const tech = scheduledTechForBlock(b, wi, bbTrack);
+    const techNote = tech
+      ? `<p class="tl-finisher">${TECH_MARK[tech] || ''} Finisher this week: ${TECHNIQUE_LABELS[tech] || tech}. Add it on an accessory's last set.</p>`
+      : '';
     $modal.innerHTML = modalShell(anim, `${esc(b.label)} · Week ${bi * p.weeksPerBlock + wi + 1}`,
-      `<p class="subtle" style="margin-bottom:10px">${weekLabelFor(b, wi)} · projected with current working maxes</p>${days}`);
+      `<p class="subtle" style="margin-bottom:10px">${weekLabelFor(b, wi)} · projected with current working maxes</p>${techNote}${days}`);
   });
 }
 
