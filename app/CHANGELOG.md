@@ -1,5 +1,25 @@
 # IRONWAVE — Changelog
 
+## [Epic G6: hypertrophy goal archetypes] (2026-06-24)
+
+A bodybuilding-only onboarding fork that shapes the macrocycle to the athlete's
+goal. Inert on other tracks, so the golden master is unchanged (161 tests pass).
+
+- `GOAL_ARCHETYPES` (data.js): "Serious muscle macro" (long, lean-gain/gain with
+  periodic minicuts, finishing on a cut) and "Look lean ASAP" (short 12wk, minicut
+  into a cut). Each carries a default length and a per-block `phaseCycle`.
+- A "What is your goal?" card pair appears on the onboarding goal step only when
+  the Hypertrophy track is selected (`obArchetype` seeds the matching length;
+  athletes can still override the length presets).
+- `applyArchetypePhases` overwrites the blocks' phases from the chosen cycle
+  (bodybuilding-only call site in `makeProgram`). The first block's phase seeds
+  `profile.phase`, so the Cluster F autoregulator knows a lean-fast plan starts in
+  a deficit; the G5 timeline markers adapt automatically (deficit blocks hold the
+  myo, keep the drop).
+- Tests: `test/timeline.test.js` gains archetype cases (phase cycling, no-op on
+  unknown / non-bb track, lean-asap shape). Golden master and render-smoke
+  unchanged.
+
 ## [Epic G2 + G5: variable macrocycle length + technique periodization] (2026-06-24)
 
 Two more slices of the gym-side planning epic group. Both keep non-default tracks

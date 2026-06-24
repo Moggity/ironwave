@@ -276,6 +276,26 @@ const DEFAULT_BLOCK_PHASE = {
   peaking:     'peak',
   bridge:      'gain',
 };
+// [Epic G6] Hypertrophy goal archetypes. A bodybuilding athlete picks how they
+// want to run the macrocycle: get lean fast for a near date, or build muscle over
+// a long planned macro. The archetype sets a default length and a per-block phase
+// sequence (cycled to the block count). Our own simple shapes, athlete-facing copy
+// with no em dashes. Inert for non-bodybuilding tracks, so the default golden
+// master is untouched.
+const GOAL_ARCHETYPES = {
+  'serious-macro': {
+    label: 'Serious muscle macro',
+    desc: 'Build muscle over a long plan: lean-gain and gain blocks with periodic minicuts to shed fatigue, finishing with a cut.',
+    weeks: null, // null keeps the track's standard length
+    phaseCycle: ['lean-gain', 'lean-gain', 'minicut', 'gain', 'gain', 'cut'],
+  },
+  'lean-asap': {
+    label: 'Look lean ASAP',
+    desc: 'Get lean for a near date: a sharp minicut into a steady cut, holding muscle while volume stays in check.',
+    weeks: 12,
+    phaseCycle: ['minicut', 'cut'],
+  },
+};
 const EX_META = {
   // Big compounds: huge stimulus, high systemic fatigue -> lower SFR.
   'comp-squat': { sfr: 1 }, 'comp-bench': { sfr: 1, head: 'chest-lower' },

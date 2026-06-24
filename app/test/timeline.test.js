@@ -107,3 +107,38 @@ test('scheduledTechForBlock: bodybuilding hypertrophy only, never on strength or
   const str = { scheme: 'jm2-wave', mesoIdx: 1, phase: 'maintenance' };
   assert.strictEqual(app.scheduledTechForBlock(str, 3, true), null, 'never on a strength block');
 });
+
+// ---- Epic G6: goal archetypes ----
+
+test('applyArchetypePhases cycles the archetype phase sequence across blocks', () => {
+  const blocks = Array.from({ length: 5 }, () => ({ phase: 'lean-gain' }));
+  app.applyArchetypePhases(blocks, 'serious-macro');
+  assert.deepStrictEqual(blocks.map(b => b.phase),
+    ['lean-gain', 'lean-gain', 'minicut', 'gain', 'gain']);
+  const two = Array.from({ length: 2 }, () => ({ phase: 'lean-gain' }));
+  app.applyArchetypePhases(two, 'lean-asap');
+  assert.deepStrictEqual(two.map(b => b.phase), ['minicut', 'cut']);
+});
+
+test('applyArchetypePhases is a no-op for an unknown archetype', () => {
+  const blocks = [{ phase: 'lean-gain' }];
+  app.applyArchetypePhases(blocks, 'nope');
+  assert.strictEqual(blocks[0].phase, 'lean-gain');
+});
+
+test('makeProgram: a lean-asap bodybuilding program is short and deficit-phased', () => {
+  app.S = app.defaultState(); // the bodybuilding generator reads global S (customEx)
+  const p = app.makeProgram({ daysPerWeek: 4, track: 'bodybuilding', experience: 'intermediate',
+    timeMode: 'unlimited', muscleFocus: {}, maxes: {}, goalArchetype: 'lean-asap', macroWeeks: 12 });
+  assert.strictEqual(p.blocks.length, 2, '12wk / 5 = 2 blocks');
+  assert.deepStrictEqual(p.blocks.map(b => b.phase), ['minicut', 'cut']);
+  assert.ok(p.blocks.every(b => app.PHASE_DEFICIT[b.phase]), 'every block is a deficit phase');
+});
+
+test('makeProgram: an archetype only reshapes the bodybuilding track', () => {
+  const pb = app.makeProgram({ daysPerWeek: 4, track: 'powerbuilding', experience: 'intermediate',
+    timeMode: 'unlimited', muscleFocus: {}, maxes: {}, goalArchetype: 'lean-asap' });
+  // Powerbuilding ignores the archetype: phases stay the type-derived defaults.
+  assert.strictEqual(pb.blocks[0].phase, 'lean-gain');
+  assert.strictEqual(pb.blocks[3].phase, 'maintenance');
+});

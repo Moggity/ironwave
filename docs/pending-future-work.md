@@ -392,9 +392,17 @@ model + timeline v2)**.
   the schedule could pre-select it), rest-pause/partials in the schedule, and a
   peak-phase suppression once peak blocks actually program hypertrophy. Builds on
   the shipped Cluster B technique set structure.
-- **Epic G6 - Goal archetype branch.** An onboarding fork: "look lean ASAP / summer
-  body" vs "serious hypertrophy macro", picking different default macro shapes
-  (length, phase sequence, intensity). Depends on G1 + G2.
+- **Epic G6 - Goal archetype branch.** *Shipped (2026-06-24):* a bodybuilding-only
+  onboarding fork (`GOAL_ARCHETYPES`: "Serious muscle macro" vs "Look lean ASAP")
+  on the goal step. Each sets a default length and a per-block phase sequence
+  applied via `applyArchetypePhases` (cycled to the block count): serious = lean-
+  gain/gain blocks with periodic minicuts finishing on a cut; lean-asap = a short
+  12wk minicut-into-cut. The first block's phase seeds `profile.phase` so the
+  Cluster F autoregulator knows a lean-fast plan starts in a deficit, and the G5
+  markers adapt automatically (deficit blocks hold the myo). Inert on other tracks,
+  so the golden master is untouched. **Still open:** per-block phase editing beyond
+  the preset cycles (that is G4's job), and intensity/volume differences between
+  archetypes beyond the phase-driven autoreg.
 
 ```
 G1 (phase model) -- foundation --> G3, G4, G6; later feeds autoregVolume
