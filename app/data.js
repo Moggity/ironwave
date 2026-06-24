@@ -240,17 +240,42 @@ const EX_META_DEFAULT = { sfr: 2, stretch: false, head: null };
 // tracker. Athlete-facing labels, no em dashes.
 const PHASE_LABELS = {
   'lean-gain':  'Lean gain',
+  'gain':       'Gain phase',
   'maintenance': 'Maintenance',
   'cut':        'Cut',
   'minicut':    'Minicut',
+  'peak':       'Peak',
 };
 const PHASE_BLURB = {
   'lean-gain':  'Slight surplus, build muscle. The autoregulator can add volume freely.',
+  'gain':       'Bigger surplus, push muscle gain and recovery is high.',
   'maintenance': 'Around maintenance, hold weight and recover.',
   'cut':        'Deficit to lose fat. Recovery drops, so volume holds rather than climbs.',
   'minicut':    'Short sharp deficit (about 2 to 4 weeks) to shed fatigue, then back to growing.',
+  'peak':       'Final sharpening into a meet or photo date. Volume drops, freshness rises.',
 };
 const PHASE_DEFICIT = { cut: true, minicut: true };
+// [Epic G1/G3] Per-block phase colors for the macrocycle timeline. The container
+// tint groups a block by phase; the legend reuses these. Our own palette (blues
+// for building, teal for a cut, brown for maintenance, red for a peak), not a
+// reproduction of any one app's scheme.
+const PHASE_COLORS = {
+  'lean-gain':  '#4b8df8',
+  'gain':       '#3f6fe0',
+  'maintenance': '#c98a3a',
+  'cut':        '#2d9d8f',
+  'minicut':   '#2d9d8f',
+  'peak':       '#e2483d',
+};
+// [Epic G1] Default phase per block when none is stamped (legacy saves and the
+// fixed templates). Mapped from the block's training type: hypertrophy builds
+// (lean-gain), strength holds (maintenance), a peaking block sharpens (peak).
+const DEFAULT_BLOCK_PHASE = {
+  hypertrophy: 'lean-gain',
+  strength:    'maintenance',
+  peaking:     'peak',
+  bridge:      'gain',
+};
 const EX_META = {
   // Big compounds: huge stimulus, high systemic fatigue -> lower SFR.
   'comp-squat': { sfr: 1 }, 'comp-bench': { sfr: 1, head: 'chest-lower' },

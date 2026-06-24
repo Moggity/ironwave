@@ -45,6 +45,10 @@ test('migrateState backfills a legacy program to powerbuilding defaults', () => 
   assert.strictEqual(s.program.blocks[0].scheme, 'jbb-hyp');
   assert.strictEqual(s.program.blocks[1].scheme, 'jm2-wave');
   assert.ok(s.program.blocks.every(b => typeof b.mesoIdx === 'number'));
+  // [Epic G1] each block gets a default phase from its type.
+  assert.ok(s.program.blocks.every(b => typeof b.phase === 'string'));
+  assert.strictEqual(s.program.blocks[0].phase, 'lean-gain'); // hypertrophy
+  assert.strictEqual(s.program.blocks[1].phase, 'maintenance'); // strength
   assert.ok(s.program.methodology);
 
   // Defensive program fields the dashboard reads unconditionally.
