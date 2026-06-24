@@ -1,5 +1,25 @@
 # IRONWAVE — Changelog
 
+## [App version marker + iOS PWA timer sound] (2026-06-24)
+
+App-wide, no engine or prescription change, golden master untouched.
+
+- Added `APP_VERSION` (`data.js`, single source of truth), shown in the More hub
+  footer and a new Settings "About" section, with a "Check for updates" button
+  (`checkForUpdate`) that asks the service worker to fetch a newer build and
+  reloads when one installs. So the running build is now visible and verifiable.
+- Service worker: bumped `CACHE_VERSION` to `ironwave-shell-v1.1.0` (keep in step
+  with `APP_VERSION`) and switched the shell fetch from cache-first to
+  stale-while-revalidate, so an installed PWA refreshes its cached code in the
+  background instead of being pinned to a stale build between version bumps. Still
+  launches offline from cache.
+- Timer chime now sounds in the iOS standalone PWA: `primeAudio` plays a
+  one-sample silent buffer to truly unlock the Web Audio context (resume() alone
+  is not enough on iOS), and `boot` unlocks on the first touch/click so the chime
+  works regardless of which control started the timer. Note: iOS still mutes
+  synthesized audio when the hardware ringer/silent switch is on; the vibrate
+  fallback covers that case.
+
 ## [Early (autoregulated) deload timing] (2026-06-24)
 
 Cluster D / Epic 4: the deload can now be pulled in *before* the scheduled week 5
