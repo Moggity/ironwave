@@ -1,5 +1,35 @@
 # IRONWAVE — Changelog
 
+## [Realism pass: archetypes, beginner safety, peak taper] (2026-06-24)
+
+A correctness/realism pass over the new macrocycle features after simulating
+routines across tracks, experience levels, archetypes and lengths. Aligns the
+auto-generated plans with established training practice (beginners recomp rather
+than aggressively cut; intensity techniques and minicuts are intermediate/advanced
+tools; you cannot cut hard indefinitely). All bodybuilding/display-side; the
+golden master is unchanged (170 tests pass).
+
+- **New "Look good (recomp)" archetype** (`recomp`): lean-gain blocks finishing on
+  a cut (the build-then-lean middle ground from the early mockup). It is now the
+  default bodybuilding archetype, since recomposition suits most lifters and is the
+  right call for newer ones who can build and lean at once.
+- **Look lean ASAP** now interleaves a **maintenance diet break** every third block
+  (`['minicut','cut','maintenance']`), so a longer aggressive plan is no longer one
+  unbroken deficit. It also carries a prominent onboarding **warning** that it is an
+  aggressive deficit best for a leaner intermediate/advanced lifter, pointing newer
+  lifters to recomp.
+- **Beginner technique safety:** `Engine.scheduledTech` is experience-aware. A
+  beginner is never auto-scheduled myo-reps or drop sets (build a base on straight
+  sets first); an advanced lifter gets the myo from meso 0; intermediate is
+  unchanged. `scheduledTechForBlock` reads the athlete's experience.
+- **Peak taper:** a strength-ending track (powerlifting / powerbuilding) now marks
+  its final block as `peak` (`markPeakBlock`, creation-time only), so the run-in to
+  the meet reads as Peak on the timeline, matching the mockups. Migration stays
+  conservative and the plan editor still lets the athlete set phases by hand.
+- Tests: `test/timeline.test.js` gains recomp, lean-asap diet-break, beginner/
+  advanced technique gating, and peak-taper cases. Golden master + render-smoke
+  unchanged.
+
 ## [Epic G4: block plan editor] (2026-06-24)
 
 A "+" tile at the end of the macrocycle timeline opens a "Customize blocks"

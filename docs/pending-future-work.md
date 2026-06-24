@@ -410,6 +410,27 @@ model + timeline v2)**.
   the preset cycles (that is G4's job), and intensity/volume differences between
   archetypes beyond the phase-driven autoreg.
 
+- **Realism pass (2026-06-24, after simulating G1-G6 across personas).** Aligned
+  the auto-generated plans with established practice. Added a third **"Look good
+  (recomp)"** archetype (lean-gain blocks into a cut) as the default, since
+  recomposition fits most lifters and newer ones especially. **Look lean ASAP** now
+  interleaves a maintenance diet break every third block and carries a serious
+  onboarding warning (an aggressive deficit is an intermediate/advanced tool;
+  beginners should recomp). `Engine.scheduledTech` is experience-aware: beginners
+  are never auto-scheduled intensity techniques, advanced get the myo earlier.
+  Strength-ending tracks mark a final **peak** block (`markPeakBlock`). **Still
+  open:** a hard confirm (not just a banner) if a beginner insists on lean-asap;
+  archetype-specific volume/intensity beyond phase; per-block-weeks so a peak/taper
+  block can be shorter than a 5-week meso.
+  - **Deeper "Look lean ASAP" onboarding (ties to the nutrition layer, Cluster F).**
+    The current guard is a single warning banner. When we tackle the nutrition/
+    energy-balance layer, make this onboarding genuinely serious: actual dieting
+    guidance (realistic rate of loss, why an aggressive deficit costs recovery and
+    muscle, refeeds/diet breaks, who it is and is not for, a "are you already lean
+    enough for this" gut check), not just a one-paragraph caution. The aggressive-
+    deficit path should hand the athlete real expectations before they commit, and
+    pair the phase plan with the bodyweight-trend and phase tooling from Cluster F.
+
 ```
 G1 (phase model) -- foundation --> G3, G4, G6; later feeds autoregVolume
 G2 (variable length) -- with G1 --> G4, G6; date-driven default + builder override

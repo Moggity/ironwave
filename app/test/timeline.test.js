@@ -143,6 +143,49 @@ test('makeProgram: an archetype only reshapes the bodybuilding track', () => {
   assert.strictEqual(pb.blocks[3].phase, 'maintenance');
 });
 
+// ---- Realism pass ----
+
+test('recomp archetype is a build-then-cut cycle', () => {
+  const blocks = Array.from({ length: 5 }, () => ({ phase: 'x' }));
+  app.applyArchetypePhases(blocks, 'recomp');
+  assert.deepStrictEqual(blocks.map(b => b.phase),
+    ['lean-gain', 'lean-gain', 'cut', 'lean-gain', 'lean-gain']);
+});
+
+test('lean-asap gets a maintenance diet break when the plan runs long', () => {
+  const two = Array.from({ length: 2 }, () => ({ phase: 'x' }));
+  app.applyArchetypePhases(two, 'lean-asap');
+  assert.deepStrictEqual(two.map(b => b.phase), ['minicut', 'cut'], 'a short plan is pure deficit');
+  const five = Array.from({ length: 5 }, () => ({ phase: 'x' }));
+  app.applyArchetypePhases(five, 'lean-asap');
+  assert.ok(five.some(b => b.phase === 'maintenance'), 'a long plan breaks the deficit with maintenance');
+});
+
+test('scheduledTech: a beginner is never auto-scheduled an intensity technique', () => {
+  assert.strictEqual(app.Engine.scheduledTech(3, 2, { experience: 'beginner' }), null);
+  assert.strictEqual(app.Engine.scheduledTech(2, 3, { experience: 'beginner' }), null);
+});
+
+test('scheduledTech: an advanced lifter gets the myo from meso 0', () => {
+  assert.strictEqual(app.Engine.scheduledTech(2, 0, { experience: 'advanced' }), 'myo');
+  assert.strictEqual(app.Engine.scheduledTech(2, 0, { experience: 'intermediate' }), null);
+});
+
+test('markPeakBlock: a strength-ending track tapers into a peak, a hypertrophy one does not', () => {
+  const pl = [{ type: 'hypertrophy' }, { type: 'strength' }, { type: 'strength' }];
+  app.markPeakBlock(pl);
+  assert.strictEqual(pl[2].phase, 'peak');
+  const bb = [{ type: 'hypertrophy' }, { type: 'hypertrophy' }];
+  app.markPeakBlock(bb);
+  assert.notStrictEqual(bb[1].phase, 'peak', 'no forced peak on a hypertrophy-ending plan');
+});
+
+test('makeProgram: a powerlifting program ends on a peak block', () => {
+  const p = app.makeProgram({ daysPerWeek: 4, track: 'powerlifting', experience: 'advanced',
+    timeMode: 'unlimited', muscleFocus: {}, maxes: {} });
+  assert.strictEqual(p.blocks[p.blocks.length - 1].phase, 'peak');
+});
+
 // ---- Epic G4: block plan editor ----
 
 test('relabelBlocks renumbers each type in order', () => {
