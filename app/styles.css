@@ -234,7 +234,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 .lift-card h3 { font-size: 1.45rem; font-weight: 800; margin-bottom: 2px; padding-right: 64px; }
 .lift-card .lastset { color: var(--text-dim); font-size: .85rem; margin-bottom: 6px; }
-.lift-card .head-actions { position: absolute; top: 18px; right: 14px; display: flex; gap: 14px; color: var(--text-dim); }
+.lift-card .head-actions { position: absolute; top: 18px; right: 14px; display: flex; gap: 16px; color: var(--text-dim); }
+.lift-card .head-actions button { background: none; border: none; color: inherit; font-size: 1.15rem; line-height: 1; padding: 0; cursor: pointer; }
+.lift-card .head-actions button:active { color: var(--blue); }
 .lift-card .scheme { font-size: 1.05rem; margin: 10px 0 6px; font-weight: 600; }
 .warmup-btn {
   display: flex; align-items: center; gap: 8px; margin: 8px auto;

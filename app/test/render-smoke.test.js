@@ -76,6 +76,26 @@ for (const track of ['powerbuilding', 'bodybuilding']) {
     assert.ok(/section|card|set/i.test(html), 'session view rendered without content');
   });
 
+  test(`${track}: a mid-session swap rebuilds the live entry`, () => {
+    const ctx = fresh();
+    withProgram(ctx, track);
+    ctx.app.startCheckin(0);
+    ctx.app.beginSession();
+    const dr = ctx.app.V.draft;
+    // Pick a swappable (accessory) entry and a different exercise in its movement.
+    const ei = dr.entries.findIndex(e => !e.isMain && !e.isSecondary);
+    assert.ok(ei >= 0, 'expected a swappable accessory entry');
+    const entry = dr.entries[ei];
+    const slot = ctx.app.S.program.days[dr.d].slots[entry.si];
+    const cat = slot.cat || (ctx.app.exById(slot.ex || slot.def || slot.lift) || {}).movement;
+    const alt = ctx.app.allExercises().find(x => x.movement === cat && x.id !== entry.exId);
+    assert.ok(alt, 'expected an alternative exercise in the same movement');
+    ctx.app.doSwap(dr.d, entry.si, alt.id);
+    const rebuilt = ctx.app.V.draft.entries.find(e => e.si === entry.si);
+    assert.strictEqual(rebuilt.exId, alt.id, 'the live entry now shows the swapped exercise');
+    assert.ok(rebuilt.sets.every(s => !s.done), 'swapped entry sets reset to not done');
+  });
+
   test(`${track}: the check-in view renders`, () => {
     const ctx = fresh();
     withProgram(ctx, track);
