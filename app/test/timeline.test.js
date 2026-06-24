@@ -142,3 +142,36 @@ test('makeProgram: an archetype only reshapes the bodybuilding track', () => {
   assert.strictEqual(pb.blocks[0].phase, 'lean-gain');
   assert.strictEqual(pb.blocks[3].phase, 'maintenance');
 });
+
+// ---- Epic G4: block plan editor ----
+
+test('relabelBlocks renumbers each type in order', () => {
+  const blocks = [{ type: 'hypertrophy' }, { type: 'strength' }, { type: 'hypertrophy' }];
+  app.relabelBlocks(blocks);
+  assert.deepStrictEqual(blocks.map(b => b.label),
+    ['Hypertrophy 1', 'Strength 1', 'Hypertrophy 2']);
+});
+
+test('commitPlan keeps locked blocks, appends the draft, restamps and recomputes the date', () => {
+  const program = { startDate: 0, weeksPerBlock: 5,
+    blocks: [{ type: 'hypertrophy', scheme: 'jbb-hyp', wave: '8s', phase: 'lean-gain' }] };
+  const locked = program.blocks.slice(0, 1);
+  const draft = [
+    { type: 'strength', scheme: 'jm2-wave', wave: '5s', phase: 'maintenance' },
+    { type: 'hypertrophy', scheme: 'jbb-hyp', wave: '8s', phase: 'cut' },
+  ];
+  const { blocks, testDate } = app.commitPlan(program, locked, draft);
+  assert.strictEqual(blocks.length, 3);
+  assert.deepStrictEqual(blocks.map(b => b.label), ['Hypertrophy 1', 'Strength 1', 'Hypertrophy 2']);
+  assert.deepStrictEqual(blocks.map(b => b.phase), ['lean-gain', 'maintenance', 'cut']);
+  // mesoIdx restamped per scheme across the whole list.
+  assert.deepStrictEqual(blocks.filter(b => b.scheme === 'jbb-hyp').map(b => b.mesoIdx), [0, 1]);
+  assert.strictEqual(testDate, 3 * 5 * 7 * 864e5, 'test date follows the new block count');
+});
+
+test('commitPlan does not mutate the locked source blocks', () => {
+  const locked = [{ type: 'hypertrophy', scheme: 'jbb-hyp', wave: '8s', phase: 'lean-gain', label: 'Hypertrophy 1' }];
+  const snapshot = JSON.parse(JSON.stringify(locked));
+  app.commitPlan({ startDate: 0, weeksPerBlock: 5 }, locked, [app.newPlanBlock()]);
+  assert.deepStrictEqual(locked, snapshot, 'locked blocks are cloned, not mutated');
+});

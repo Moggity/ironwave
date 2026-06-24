@@ -140,6 +140,24 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .tl-finisher { margin: 0 0 10px; padding: 7px 10px; border-radius: 8px; font-size: .82rem;
   color: var(--text); background: rgba(240,217,138,0.12);
   border: 1px solid rgba(240,217,138,0.3); }
+/* Epic G4: the "+" tile that opens the block-plan editor. */
+.tl-add { flex: 0 0 auto; width: 34px; align-self: stretch; border-radius: 10px;
+  border: 1px dashed var(--line); background: transparent; color: var(--text-dim);
+  font-size: 1.4rem; font-weight: 600; cursor: pointer; }
+.tl-add:active { background: var(--card-2); }
+/* Epic G4: block-plan editor rows. */
+.plan-row { display: flex; align-items: center; gap: 8px; padding: 8px 0;
+  border-bottom: 1px solid var(--line); }
+.plan-row.locked { color: var(--text-dim); }
+.plan-lock { font-size: .8rem; }
+.plan-name { font-weight: 600; }
+.plan-main { display: flex; gap: 6px; flex: 1; flex-wrap: wrap; }
+.plan-main select { flex: 1; min-width: 84px; }
+.plan-ops { display: flex; gap: 4px; }
+.plan-ops button { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line);
+  background: transparent; color: var(--text); cursor: pointer; }
+.plan-ops button:disabled { opacity: .35; cursor: default; }
+.plan-ops .plan-del { color: var(--red); }
 .tl-bars i.done { opacity: .42; }
 .tl-bars i.current { outline: 2px solid #fff; outline-offset: 1px;
   box-shadow: 0 0 8px 1px rgba(255,255,255,0.35); }

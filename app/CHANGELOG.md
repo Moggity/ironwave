@@ -1,5 +1,24 @@
 # IRONWAVE — Changelog
 
+## [Epic G4: block plan editor] (2026-06-24)
+
+A "+" tile at the end of the macrocycle timeline opens a "Customize blocks"
+editor, so the athlete can plan the future of their macro by hand. Edits only the
+future, so training history is preserved; display/plan only, no prescription-math
+change, golden master unchanged (164 tests pass).
+
+- `lockedPlanCount` finds the leading blocks that have been trained (past blocks,
+  plus the current one once any week/day in it is logged); those are shown locked.
+- The editor (`openPlanEditor`/`renderPlanEditor`) holds a draft of the editable
+  blocks in `V.planDraft`. Each row edits type (Hypertrophy/Strength, which sets
+  the scheme + valid waves), wave, and phase; rows reorder (↑/↓), remove (✕), and a
+  "+ Add block" appends. A live "N blocks, ~W weeks total" summary updates as you go.
+- `commitPlan` keeps the locked blocks verbatim, appends the draft (deep-cloned),
+  re-stamps mesoIdx + phase + labels (`relabelBlocks`), and recomputes `testDate`
+  from the new block count (startDate preserved).
+- Tests: `test/timeline.test.js` gains relabelBlocks, commitPlan (keep/append/
+  restamp/date) and a no-mutate-source case. Golden master + render-smoke unchanged.
+
 ## [Epic G6: hypertrophy goal archetypes] (2026-06-24)
 
 A bodybuilding-only onboarding fork that shapes the macrocycle to the athlete's

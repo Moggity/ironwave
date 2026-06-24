@@ -309,13 +309,33 @@ function extendBlocks(tplBlocks, targetCount) {
   for (let i = 0; i < targetCount; i++) {
     out.push(JSON.parse(JSON.stringify(tplBlocks[i % tplBlocks.length])));
   }
+  return relabelBlocks(out);
+}
+// [Epic G2/G4] Renumber per-type block labels so they read 1..N in order.
+function relabelBlocks(blocks) {
   const counts = {};
-  out.forEach(b => {
+  blocks.forEach(b => {
     const base = b.type === 'hypertrophy' ? 'Hypertrophy' : b.type === 'strength' ? 'Strength' : (b.label || b.type);
     counts[base] = (counts[base] || 0) + 1;
     b.label = base + ' ' + counts[base];
   });
-  return out;
+  return blocks;
+}
+// [Epic G4] A fresh block for the plan editor (athlete then sets type/wave/phase).
+function newPlanBlock() {
+  return { type: 'hypertrophy', scheme: 'jbb-hyp', wave: '8s', label: 'Hypertrophy', phase: 'lean-gain' };
+}
+// [Epic G4] Recompute a program's blocks after the plan editor edits the future:
+// the locked (already started) blocks are kept verbatim, the edited draft is
+// appended, then mesoIdx/phase/labels are re-stamped across the whole list and the
+// test date is recomputed from the new block count (startDate preserved).
+function commitPlan(program, lockedBlocks, draftBlocks) {
+  const blocks = lockedBlocks.concat(draftBlocks).map(b => JSON.parse(JSON.stringify(b)));
+  stampMesoIdx(blocks);
+  stampBlockPhase(blocks); // fills any missing phase; explicit ones are kept
+  relabelBlocks(blocks);
+  const testDate = program.startDate + blocks.length * program.weeksPerBlock * 7 * 864e5;
+  return { blocks, testDate };
 }
 // [Epic G2] How many fixed-length blocks best fit a target macrocycle length in
 // weeks, clamped to a sane range (a short cut up to a long planned macro).
@@ -1441,7 +1461,9 @@ function timelineHTML() {
   if (emphases.peak) leg.push(`<span><i style="background:${BLOCK_COLORS.peaking}"></i>Peak</span>`);
   if (techs.myo) leg.push(`<span><b class="tl-mark-leg">${TECH_MARK.myo}</b>Myo-reps</span>`);
   if (techs.drop) leg.push(`<span><b class="tl-mark-leg">${TECH_MARK.drop}</b>Drop set</span>`);
-  return `<div class="timeline-v2">${groups}</div>
+  // [Epic G4] A "+" tile opens the block-plan editor (customize the macrocycle).
+  const add = `<button class="tl-add" onclick="openPlanEditor()" aria-label="Customize blocks">+</button>`;
+  return `<div class="timeline-v2">${groups}${add}</div>
     <div class="legend">${leg.join('')}<span class="faint">tap a week to preview</span></div>`;
 }
 function openWeekPreview(bi, wi) {
@@ -1483,6 +1505,103 @@ function openWeekPreview(bi, wi) {
     $modal.innerHTML = modalShell(anim, `${esc(b.label)} · Week ${bi * p.weeksPerBlock + wi + 1}`,
       `<p class="subtle" style="margin-bottom:10px">${weekLabelFor(b, wi)} · projected with current working maxes</p>${techNote}${days}`);
   });
+}
+
+// ------------------------------------------------------------
+// [Epic G4] Block plan editor: customize the macrocycle's future blocks.
+// Already-trained blocks are locked (history is preserved); the athlete edits,
+// reorders, adds and removes the blocks from the current one onward. Saving
+// re-stamps mesoIdx/phase/labels and recomputes the test date.
+// ------------------------------------------------------------
+const PLAN_TYPES = [['hypertrophy', 'jbb-hyp', 'Hypertrophy'], ['strength', 'jm2-wave', 'Strength']];
+const PLAN_WAVES = { 'jbb-hyp': ['10s', '8s'], 'jm2-wave': ['5s', '3s'] };
+// How many leading blocks are locked because training has started in them.
+function lockedPlanCount() {
+  const p = P();
+  let n = p.pointer.block;
+  const started = p.pointer.week > 0 ||
+    Object.keys(p.completedDays || {}).some(k => k.startsWith(p.pointer.block + '-'));
+  if (started) n = p.pointer.block + 1;
+  return Math.min(n, p.blocks.length);
+}
+function openPlanEditor() {
+  const p = P();
+  if (!p) return;
+  const locked = lockedPlanCount();
+  // Draft = the editable (future) portion, deep-cloned so Cancel is lossless.
+  V.planDraft = p.blocks.slice(locked).map(b => JSON.parse(JSON.stringify(b)));
+  V.planLocked = locked;
+  showModal(anim => renderPlanEditor(anim));
+}
+function renderPlanEditor(anim) {
+  const p = P();
+  const locked = V.planLocked;
+  const lockedRows = p.blocks.slice(0, locked).map((b, i) =>
+    `<div class="plan-row locked"><span class="plan-lock">🔒</span>
+      <span class="plan-name">${esc(b.label)}</span>
+      <span class="faint">${esc(PHASE_LABELS[blockPhase(b)] || '')} · trained</span></div>`).join('');
+  const draft = V.planDraft;
+  const rows = draft.map((b, i) => {
+    const waves = PLAN_WAVES[blockScheme(b)] || ['8s'];
+    return `<div class="plan-row">
+      <div class="plan-main">
+        <select onchange="planSetType(${i}, this.value)">
+          ${PLAN_TYPES.map(([ty, , lbl]) => `<option value="${ty}" ${b.type === ty ? 'selected' : ''}>${lbl}</option>`).join('')}
+        </select>
+        <select onchange="planSetWave(${i}, this.value)">
+          ${waves.map(w => `<option value="${w}" ${b.wave === w ? 'selected' : ''}>${w} wave</option>`).join('')}
+        </select>
+        <select onchange="planSetPhase(${i}, this.value)">
+          ${Object.keys(PHASE_LABELS).map(ph => `<option value="${ph}" ${blockPhase(b) === ph ? 'selected' : ''}>${PHASE_LABELS[ph]}</option>`).join('')}
+        </select>
+      </div>
+      <div class="plan-ops">
+        <button onclick="planMove(${i},-1)" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button>
+        <button onclick="planMove(${i},1)" ${i === draft.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
+        <button onclick="planRemove(${i})" ${draft.length + locked <= 1 ? 'disabled' : ''} aria-label="Remove" class="plan-del">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+  const weeks = (locked + draft.length) * p.weeksPerBlock;
+  const body = `
+    <p class="subtle">Edit the blocks from here to your goal date. Trained blocks are locked. Saving updates your test date.</p>
+    ${lockedRows}
+    ${rows}
+    <button class="btn btn-outline mt8" onclick="planAdd()">+ Add block</button>
+    <div class="focus-time mt8">${locked + draft.length} blocks, about ${weeks} weeks total.</div>
+    <div class="row mt16" style="gap:10px">
+      <button class="btn btn-outline" style="flex:1" onclick="closeAllModals()">Cancel</button>
+      <button class="btn btn-green" style="flex:1" onclick="planSave()" ${draft.length ? '' : 'disabled'}>Save plan</button>
+    </div>`;
+  $modal.innerHTML = modalShell(anim, 'Customize blocks', body);
+}
+function planSetType(i, ty) {
+  const row = PLAN_TYPES.find(t => t[0] === ty); if (!row) return;
+  const b = V.planDraft[i];
+  b.type = ty; b.scheme = row[1];
+  if (!(PLAN_WAVES[b.scheme] || []).includes(b.wave)) b.wave = PLAN_WAVES[b.scheme][0];
+  rerenderTop();
+}
+function planSetWave(i, w) { V.planDraft[i].wave = w; }
+function planSetPhase(i, ph) { V.planDraft[i].phase = ph; }
+function planMove(i, dir) {
+  const d = V.planDraft, j = i + dir;
+  if (j < 0 || j >= d.length) return;
+  const t = d[i]; d[i] = d[j]; d[j] = t;
+  rerenderTop();
+}
+function planRemove(i) {
+  if (V.planDraft.length + V.planLocked <= 1) return;
+  V.planDraft.splice(i, 1); rerenderTop();
+}
+function planAdd() { V.planDraft.push(newPlanBlock()); rerenderTop(); }
+function planSave() {
+  const p = P();
+  const locked = p.blocks.slice(0, V.planLocked);
+  const { blocks, testDate } = commitPlan(p, locked, V.planDraft);
+  p.blocks = blocks; p.testDate = testDate;
+  V.planDraft = null; V.planLocked = null;
+  save(); closeAllModals(); toast('Plan updated, ' + blocks.length * p.weeksPerBlock + ' weeks to test day'); render();
 }
 
 // Explainer for the "Waiting for calibration" state. Stacks over the preview,

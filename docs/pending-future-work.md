@@ -378,9 +378,15 @@ model + timeline v2)**.
   weeks hatched, current week glowing, richer legend. Depends on G1 (phase data)
   and reads G5's technique schedule for markers. *First branch ships G1 + the
   phase-coloring/labels half of G3; markers follow with G5.*
-- **Epic G4 - Block builder ("+").** Pick, arrange, and edit blocks to plan a
-  macrocycle from scratch (the year-planner power-user flow behind the "+" in the
-  mockups). Biggest new epic; depends on G1 + G2.
+- **Epic G4 - Block builder ("+").** *Shipped (2026-06-24):* a "+" tile at the end
+  of the timeline opens a "Customize blocks" editor. Already-trained blocks are
+  locked (`lockedPlanCount`); the athlete edits type/wave/phase per block, reorders,
+  removes and adds future blocks. `commitPlan` keeps the locked blocks, appends the
+  edited draft, re-stamps mesoIdx/phase/labels (`relabelBlocks`) and recomputes the
+  test date from the new block count. **Still open:** drag-to-reorder (today it is
+  ↑/↓ buttons), editing the per-block week count (waits on G2's per-block-weeks
+  slice), saved/named plan templates, and guard copy when an edit shortens a plan
+  past the athlete's goal date.
 - **Epic G5 - Technique periodization + markers.** *Schedule + markers shipped
   (2026-06-24):* `Engine.scheduledTech(weekIdx, mesoIdx, {deficit})` places a drop
   set on every meso's realization week and adds a myo-rep week in intensification
