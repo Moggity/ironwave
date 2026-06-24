@@ -58,6 +58,7 @@ const EXPORTS = `return {
   stampBlockPhase, blockPhase, barColorFor,
   extendBlocks, blocksForWeeks, scheduledTechForBlock, TECH_MARK,
   GOAL_ARCHETYPES, applyArchetypePhases,
+  relabelBlocks, newPlanBlock, commitPlan,
   VOLUME_LANDMARKS, EXPERIENCE_FACTOR, DEFAULT_PLATES,
   DEFAULT_ACC, SPLIT_FREQ, FOCUS_FACTOR, MOVEMENT_SLIDER,
   UPPER_MUSCLES, LOWER_MUSCLES, FOCUS_KEYS,
