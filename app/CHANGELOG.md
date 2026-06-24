@@ -1,5 +1,21 @@
 # IRONWAVE — Changelog
 
+## [Perf-modal RIR stepper fix + timer chime] (2026-06-24)
+
+- Fixed the performance modal's RIR stepper "jumping" mid-tap. The effort
+  description under the RIR +/- buttons (`RPE_DESCRIPTIONS`) wrapped to a
+  different number of lines as the value changed; since the modal is
+  bottom-anchored and grows upward, that height change shifted the buttons out
+  from under the athlete's finger, so rapid taps landed on neighbouring controls
+  (or fell through to the screen behind the modal) and appeared to refuse further
+  steps. `.rpe-desc` now reserves two lines (`min-height`), so the layout is
+  stable while stepping RIR.
+- Added a brief, gentle two-tone chime when the rest timer (and the technique
+  mini-rest / pause) finishes, alongside the existing vibrate. Synthesized via
+  Web Audio (`playChime`), so no audio asset ships; primed on a user gesture
+  (`primeAudio` when a timer starts) so mobile browsers allow it. Silent where
+  audio is unavailable.
+
 ## [Installable offline PWA] (2026-06-24)
 
 IRONWAVE is now a Progressive Web App that installs to the iPhone home screen and

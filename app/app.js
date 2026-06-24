@@ -2741,9 +2741,42 @@ function sessionTight() {
   const tc = P() && P().trainingConfig;
   return !!(tc && tc.timeMode === 'custom' && tc.timeCapMin);
 }
+// A brief, gentle two-tone chime when a timer finishes. Synthesized with Web
+// Audio so there is no asset file to ship (matches the no-build ethos): two
+// soft sine notes at low volume with a quick fade, so it stays tolerable.
+// Silent where audio is unavailable or blocked. Pairs with the existing vibrate.
+let AUDIO_CTX = null;
+function audioCtx() {
+  if (AUDIO_CTX) return AUDIO_CTX;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  try { AUDIO_CTX = new AC(); } catch (_) { return null; }
+  return AUDIO_CTX;
+}
+// Call inside the user gesture that starts a timer so the later chime is allowed
+// to play (mobile browsers only let audio start after a gesture).
+function primeAudio() { const c = audioCtx(); if (c && c.state === 'suspended') { try { c.resume(); } catch (_) {} } }
+function playChime() {
+  const c = audioCtx();
+  if (!c) return;
+  try {
+    if (c.state === 'suspended') c.resume();
+    const now = c.currentTime;
+    [{ f: 880, t: 0 }, { f: 1320, t: 0.16 }].forEach(({ f, t }) => { // two soft ascending notes
+      const osc = c.createOscillator(), gain = c.createGain(), start = now + t;
+      osc.type = 'sine'; osc.frequency.value = f;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.linearRampToValueAtTime(0.12, start + 0.02);            // gentle attack, low volume
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);     // quick fade
+      osc.connect(gain).connect(c.destination);
+      osc.start(start); osc.stop(start + 0.24);
+    });
+  } catch (_) {}
+}
 function startRestTimer(kind, exId) {
   const dur = Engine.restSecFor(kind, sessionTight(), TIME_MODEL);
   V.restTimer = { endTs: Date.now() + dur * 1000, durSec: dur, exId, rung: false };
+  primeAudio();
   stopRestTick();
   REST_TICK = setInterval(restTick, 250);
 }
@@ -2765,6 +2798,7 @@ function restTick() {
     if (!V.restTimer.rung) {
       V.restTimer.rung = true;
       bar.classList.add('done');
+      playChime();
       if (navigator.vibrate) { try { navigator.vibrate(200); } catch (_) {} }
     }
     stopRestTick();
@@ -2962,6 +2996,7 @@ function pmDropReps(i, d) {
 let MINI_TICK = null;
 function startMiniRest() {
   if (!PM) return;
+  primeAudio();
   stopMiniRest();
   const word = PM.tech === 'restpause' ? 'Pause' : 'Mini-rest';
   const end = Date.now() + Engine.techTransitionSec(PM.tech, TIME_MODEL) * 1000;
@@ -2970,7 +3005,7 @@ function startMiniRest() {
     if (!el) { stopMiniRest(); return; }
     const left = Math.max(0, Math.round((end - Date.now()) / 1000));
     el.textContent = left > 0 ? `${word} ${fmtClock(left)}` : 'Go again';
-    if (left <= 0) { stopMiniRest(); if (navigator.vibrate) { try { navigator.vibrate(150); } catch (_) {} } }
+    if (left <= 0) { stopMiniRest(); playChime(); if (navigator.vibrate) { try { navigator.vibrate(150); } catch (_) {} } }
   };
   MINI_TICK = setInterval(tick, 250); tick();
 }
