@@ -1312,29 +1312,37 @@ function timelineHTML() {
   let maxV = 1;
   p.blocks.forEach(b => { for (let w = 0; w < p.weeksPerBlock; w++) maxV = Math.max(maxV, weekVolume(b, w)); });
   const emphases = {}; // which legend swatches this program actually uses
-  const groups = p.blocks.map((b, bi) => {
-    const phase = blockPhase(b);
-    const pc = PHASE_COLORS[phase] || BLOCK_COLORS[b.type] || 'var(--blue)';
-    const barC = barColorFor(b);
-    if (blockScheme(b) === 'jm2-wave') emphases.strength = 1;
-    else if (phase === 'peak') emphases.peak = 1;
-    else if (PHASE_DEFICIT[phase]) emphases.cut = 1;
-    else emphases.hypertrophy = 1;
+  const bar = (b, bi, w) => {
+    const passed = bi < p.pointer.block || (bi === p.pointer.block && w < p.pointer.week);
+    const cur = bi === p.pointer.block && w === p.pointer.week;
+    const deload = Engine.weekType(w) === 'deload';
+    const h = Math.max(10, weekVolume(b, w) / maxV * 100);
+    return `<i class="${passed ? 'done' : ''}${cur ? ' current' : ''}${deload ? ' deload' : ''}"
+      onclick="openWeekPreview(${bi},${w})"
+      style="height:${h.toFixed(0)}%;background:${barColorFor(b)}"></i>`;
+  };
+  // Group consecutive blocks that share a phase under one labeled, tinted
+  // container (two back-to-back lean-gain blocks read as one phase, not two).
+  const out = [];
+  for (let bi = 0; bi < p.blocks.length;) {
+    const phase = blockPhase(p.blocks[bi]);
     const bars = [];
-    for (let w = 0; w < p.weeksPerBlock; w++) {
-      const passed = bi < p.pointer.block || (bi === p.pointer.block && w < p.pointer.week);
-      const cur = bi === p.pointer.block && w === p.pointer.week;
-      const deload = Engine.weekType(w) === 'deload';
-      const h = Math.max(10, weekVolume(b, w) / maxV * 100);
-      bars.push(`<i class="${passed ? 'done' : ''}${cur ? ' current' : ''}${deload ? ' deload' : ''}"
-        onclick="openWeekPreview(${bi},${w})"
-        style="height:${h.toFixed(0)}%;background:${barC}"></i>`);
-    }
-    return `<div class="tl-block" style="--phase:${pc}">
+    do {
+      const b = p.blocks[bi];
+      if (blockScheme(b) === 'jm2-wave') emphases.strength = 1;
+      else if (phase === 'peak') emphases.peak = 1;
+      else if (PHASE_DEFICIT[phase]) emphases.cut = 1;
+      else emphases.hypertrophy = 1;
+      for (let w = 0; w < p.weeksPerBlock; w++) bars.push(bar(b, bi, w));
+      bi++;
+    } while (bi < p.blocks.length && blockPhase(p.blocks[bi]) === phase);
+    const pc = PHASE_COLORS[phase] || 'var(--blue)';
+    out.push(`<div class="tl-block" style="--phase:${pc}">
       <span class="tl-phase">${esc(PHASE_LABELS[phase] || phase)}</span>
       <div class="tl-bars">${bars.join('')}</div>
-    </div>`;
-  }).join('');
+    </div>`);
+  }
+  const groups = out.join('');
   const leg = [];
   if (emphases.hypertrophy) leg.push(`<span><i style="background:${BLOCK_COLORS.hypertrophy}"></i>Hypertrophy</span>`);
   if (emphases.strength) leg.push(`<span><i style="background:${BLOCK_COLORS.strength}"></i>Strength</span>`);
