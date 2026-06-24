@@ -376,6 +376,14 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .vol-status.k-maint { color: #4b8df8; } .vol-fill.k-maint, .dot.k-maint { background: #4b8df8; }
 .vol-status.k-productive { color: #36c98a; } .vol-fill.k-productive, .dot.k-productive { background: #36c98a; }
 .vol-status.k-over { color: #e2557b; } .vol-fill.k-over, .dot.k-over { background: #e2557b; }
+/* [Cluster D] Deload-week texture on a muscle bar: the colored fill keeps its
+   status color and gains a diagonal weave, so a deload week reads as "pulled back"
+   at a glance. The amber variant marks an early (autoregulated) deload, matching
+   the timeline. deload-early is listed after deload-tex so it wins when both apply. */
+.vol-fill.deload-tex { background-image: repeating-linear-gradient(45deg,
+    rgba(255,255,255,0.32) 0 3px, transparent 3px 6px); }
+.vol-fill.deload-early { background-image: repeating-linear-gradient(45deg,
+    rgba(245,176,65,0.65) 0 2px, rgba(255,255,255,0.10) 2px 4px); }
 .vol-rec { font-size: .78rem; font-weight: 600; margin-top: 5px; }
 .vol-rec.k-rec-add { color: #36c98a; }
 .vol-rec.k-rec-cut { color: #e2557b; }

@@ -1938,6 +1938,12 @@ function volumeDashboardHTML() {
   const autoreg = tc && tc.track === 'bodybuilding'; // hypertrophy-focused guidance
   const headTally = autoreg ? weeklyVolumeByHead() : {};
   const phase = currentPhase();
+  // [Cluster D] On a deload week, texture every muscle bar so the athlete sees at a
+  // glance that volume is pulled back this week. An early (autoregulated) deload
+  // uses the same denser amber weave as its timeline marker; a scheduled deload
+  // uses the lighter weave. Empty (no texture) on any work week or other track.
+  const deloadTex = isEarlyDeloadActive() ? ' deload-tex deload-early'
+    : (autoreg && Engine.weekType(P().pointer.week) === 'deload' ? ' deload-tex' : '');
   const statuses = [];
   const rows = VOL_ORDER.filter(mv => lm[mv] || VOLUME_LANDMARKS[mv]).map(mv => {
     const L = lm[mv] || VOLUME_LANDMARKS[mv];
@@ -1967,7 +1973,7 @@ function volumeDashboardHTML() {
     return `<div class="vol-row">
       <div class="vol-head"><span>${MOVEMENTS[mv]?.label || mv}</span>
         <span class="vol-status k-${st.key}">${st.label} · ${kg(sets)} sets</span></div>
-      <div class="vol-track"><div class="vol-fill k-${st.key}" style="width:${st.pct}%"></div>
+      <div class="vol-track"><div class="vol-fill k-${st.key}${deloadTex}" style="width:${st.pct}%"></div>
         <div class="vol-mark" style="left:${mevPct}%"></div></div>
       <div class="vol-scale faint"><span>MEV ${L.mev}</span><span>MRV ${L.mrv}</span></div>
       ${heads}
