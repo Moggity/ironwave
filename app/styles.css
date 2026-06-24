@@ -130,8 +130,15 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   max-width: calc(100% - 12px); }
 .tl-bars { display: flex; align-items: flex-end; gap: 2px; height: 72px; }
-.tl-bars i { flex: 1 1 0; min-width: 3px; border-radius: 2px 2px 0 0; min-height: 8px; opacity: .92;
-  cursor: pointer; }
+.tl-bars i { position: relative; flex: 1 1 0; min-width: 3px; border-radius: 2px 2px 0 0;
+  min-height: 8px; opacity: .92; cursor: pointer; }
+/* Epic G5: scheduled-technique marker sits just above the bar top. */
+.tl-mark { position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+  font-size: .68rem; line-height: 1; color: #f0d98a; font-style: normal; pointer-events: none; }
+.tl-mark-leg { color: #f0d98a; font-style: normal; }
+.tl-finisher { margin: 0 0 10px; padding: 7px 10px; border-radius: 8px; font-size: .82rem;
+  color: var(--text); background: rgba(240,217,138,0.12);
+  border: 1px solid rgba(240,217,138,0.3); }
 .tl-bars i.done { opacity: .42; }
 .tl-bars i.current { outline: 2px solid #fff; outline-offset: 1px;
   box-shadow: 0 0 8px 1px rgba(255,255,255,0.35); }
@@ -423,6 +430,7 @@ input[type=range] { width: 100%; accent-color: var(--blue); height: 30px; }
 
 /* ---------- onboarding ---------- */
 .ob-title { font-size: 2rem; font-weight: 800; margin: 26px 0 6px; }
+.ob-sub { font-size: 1.05rem; font-weight: 700; margin: 4px 0; }
 .field { margin: 16px 0; }
 .field label { display: block; color: var(--text-dim); font-size: .85rem; margin-bottom: 6px; }
 .field input, .field select {

@@ -63,6 +63,25 @@ const Engine = {
             'Week 4 · Realization', 'Week 5 · Deload'][weekIdx] || '';
   },
 
+  // ---------- technique periodization (Epic G5) ----------
+  // When in a meso an intensity technique (myo-reps / drop set) is scheduled.
+  // Our own simple mapping, not a clone of any product's protocol: intensifiers
+  // live in the back half of a meso (intensification + realization), never on the
+  // calibration/intro or deload week. They escalate across the macrocycle, so an
+  // early meso (mesoIdx 0) only carries the realization drop set, while later
+  // mesos (the athlete has adapted) add a myo-rep week. A deficit holds the added
+  // myo back, since recovery is lower. Returns a technique id or null. Pure and
+  // display-first: it drives the timeline markers and the weekly recommendation,
+  // not the prescription itself (the athlete still opts a finisher in).
+  scheduledTech(weekIdx, mesoIdx, opts) {
+    opts = opts || {};
+    const type = this.weekType(weekIdx);
+    if (type === 'intro' || type === 'accumulation' || type === 'deload') return null;
+    if (type === 'realization') return 'drop';
+    if (type === 'intensification' && (mesoIdx || 0) >= 1 && !opts.deficit) return 'myo';
+    return null;
+  },
+
   // ---------- CALIBRATION RAMP ----------
   // Three ascending feeler sets, weightless (the athlete eyeballs the load),
   // used when there is no working max / e1RM yet. We read the working weight from

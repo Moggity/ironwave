@@ -1,5 +1,29 @@
 # IRONWAVE — Changelog
 
+## [Epic G2 + G5: variable macrocycle length + technique periodization] (2026-06-24)
+
+Two more slices of the gym-side planning epic group. Both keep non-default tracks
+no-ops on the default path, so the golden master is unchanged (157 tests pass).
+
+- **Variable macrocycle length (G2, block-count slice).** A "Program length"
+  choice on the onboarding goal step (`ob.macroWeeks`: Standard / 12 / 18 / 24 /
+  36 wk). When set, `makeProgram` rebuilds the block list with `extendBlocks`
+  (cycle the template pattern to `blocksForWeeks` blocks, renumber per-type labels,
+  re-stamp mesoIdx + phase); `testDate`/`daysOut`/the timeline all derive from it.
+  No choice keeps the template verbatim, so the default program is byte-identical.
+  Variable per-block week count stays future work (a scheme-level change).
+- **Technique periodization + markers (G5).** `Engine.scheduledTech(weekIdx,
+  mesoIdx, {deficit})`: our own simple schedule placing a drop set on each meso's
+  realization week and a myo-rep week in intensification once adapted
+  (mesoIdx >= 1), held back in a deficit, none on intro/accumulation/deload.
+  `scheduledTechForBlock` gates it to bodybuilding hypertrophy blocks. Surfaced as
+  ◆ (myo) / » (drop) markers on the timeline bars (with a legend) and a "Finisher
+  this week" note in the week preview. Display-first: it does NOT change
+  prescription; the athlete still opts a finisher in per session.
+- Tests: `test/timeline.test.js` gains G2 (blocksForWeeks/extendBlocks/makeProgram
+  length) and G5 (scheduledTech rules, bb-only gating) cases. Golden master and
+  render-smoke unchanged.
+
 ## [Epic G1 + G3: per-block phase model + macrocycle timeline v2] (2026-06-24)
 
 First slice of the "gym side final state" planning epic group (see
