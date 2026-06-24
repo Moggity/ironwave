@@ -187,10 +187,20 @@ and the product moat are the same move.
   deload week and resets `P().volAdj` to MEV on block end; `resolveSlot` deepens
   or lightens a bodybuilding accessory's deload accordingly (bb-only, deload-week
   only). Per-head volume also shipped (`weeklyVolumeByHead`, see Cluster C).
-  **Still open in this cluster (own slices):** the early-deload TIMING trigger
-  (deload before week 5 on mid-block MRV saturation, a block-engine change), a
-  fatigue trend chart, MRV-hit / overreach detection beyond the deload sizing,
-  and the absorbed zero-sum budget + specialization phase.
+  **Early-deload TIMING trigger shipped (2026-06-24):** `Engine.earlyDeloadAdvised`
+  decides mid-block (saturated, or 2+ muscles near MRV with readiness sliding); a
+  dashboard banner offers it on a work week, accepting marks `P().earlyDeload`
+  (transient) and `resolveSlot` remaps that one week to the deload slot
+  (`effectiveWeekIdx`), with `advanceWeek` ending the block early and resensitizing
+  via a shared `endBlock`. Denser amber hatch on the timeline + skipped-week
+  dimming, and a volume-screen note. Bodybuilding-only, golden master untouched
+  (`test/early-deload.test.js`). **Still open in this cluster (own slices):** a
+  fatigue trend chart, MRV-hit / overreach detection beyond the deload sizing, and
+  the absorbed zero-sum budget + specialization phase. **Per-muscle early deload
+  (own epic, the bigger version):** today the early deload converts the whole
+  session/block; deloading only the saturated muscle(s) while the rest keep
+  climbing would make deload per-muscle state (not a week property) and is where
+  the hatched per-muscle volume bars pay off. Reuses this trigger.
 - **Deload-depth refinements (found while building the deload, own small
   branch):**
   - *Suppress autoreg adds on the deload week.* `autoregForAccessory` (E) still

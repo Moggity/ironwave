@@ -630,3 +630,20 @@ Engine.deloadDepth = function (statuses, trendDown) {
   }
   return { level: 'standard', setDelta: 0, over: sat.over, reason: 'Standard deload' };
 };
+
+// [Cluster D] Early-deload TIMING trigger. Mid-block, decide whether accumulated
+// fatigue warrants pulling the deload in BEFORE the scheduled week-5 deload. Same
+// fatigue read as the deload DEPTH sizing (fatigueSaturated + readiness trend):
+// advise when the athlete is truly saturated, or several muscles sit near MRV
+// while readiness is sliding. Pure; the caller gates eligibility to mid-block work
+// weeks and the bodybuilding track, so other tracks and the default never trigger.
+Engine.earlyDeloadAdvised = function (statuses, trendDown) {
+  const sat = Engine.fatigueSaturated(statuses);
+  const advised = sat.saturated || (sat.over >= 2 && !!trendDown);
+  return {
+    advised, over: sat.over,
+    reason: advised
+      ? `${sat.over} muscles are at or near MRV${trendDown ? ' and readiness is sliding' : ''}`
+      : '',
+  };
+};
