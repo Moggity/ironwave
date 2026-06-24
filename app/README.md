@@ -19,20 +19,42 @@ The server (`server.js`) serves the static files *and* exposes two endpoints the
 
 All training data lives in `database.json` next to `server.js`.
 
-## Use it on your iPhone (Brave)
+## Use it on your iPhone (installable PWA, works offline)
+
+IRONWAVE is a Progressive Web App: install it once at home, and it runs as a
+standalone app with **no network at all** afterward (e.g. a gym with no signal).
+Training data is stored **on the phone**, so the server does not need to be
+running once it is installed.
 
 1. Make sure your iPhone and computer are on the **same Wi-Fi network**.
 2. Find your computer's LAN IP:
    - macOS: `ipconfig getifaddr en0`
    - Linux: `hostname -I`
    - Windows: `ipconfig` → IPv4 Address
-3. Start the server as above, then in Brave on the iPhone open:
-   `http://YOUR_LAN_IP:3000` (e.g. `http://192.168.1.42:3000`)
-4. Optional: Share → **Add to Home Screen** for a full-screen, app-like launch (dark status bar, no browser chrome).
+3. Start the server as above, then in **Safari** on the iPhone open
+   `http://YOUR_LAN_IP:3000` (e.g. `http://192.168.1.42:3000`).
+   (Installable PWAs on iOS require Safari for the install step; you can use
+   any browser afterward.)
+4. Share → **Add to Home Screen**. You get a full-screen, app-like launch with
+   the IRONWAVE icon, a dark status bar, and no browser chrome. The service
+   worker caches the app shell so it launches with no connection.
+5. From then on the app works **fully offline** — you can leave Wi-Fi and the
+   server can be off. All your training data is saved on the phone.
+
+### How storage works (phone is the source of truth)
+
+State lives in the phone's local storage and is read/written on-device, so it
+survives with no server and no signal. When a server *is* reachable (back home
+on Wi-Fi), the app also mirrors each save to `database.json` as a convenience,
+but it is never required. A failed mirror while offline is silent and is **not**
+data loss.
 
 ### Backing up your data
 
-Your training data now lives in `database.json` on the machine running the server, not in the browser, so iOS storage eviction no longer threatens it. Back up by copying `database.json`, or use **More → Settings & Data → Export JSON** in the app. **Import JSON** restores a backup (it overwrites server state via `POST /api/state`).
+Use **More → Settings & Data → Export JSON** in the app to save a backup file
+(via the iOS share sheet / Files), and **Import JSON** to restore one. This is
+the recommended backup path now that data lives on the device; on a desktop with
+the server running you can also copy `database.json`.
 
 ## What's inside
 

@@ -9,8 +9,6 @@
 // ------------------------------------------------------------
 // STATE
 // ------------------------------------------------------------
-const LS_KEY = 'ironwave_v1';
-
 // S (state) and V (view) are populated by boot() once the server state
 // has loaded. They start as null so a stray synchronous access throws a
 // clear error instead of silently reading off a pending Promise.
@@ -47,15 +45,44 @@ function defaultState() {
     lastOrderTs: null,
   };
 }
+// On-device persistence. The phone is the source of truth: state lives in
+// localStorage so the installed PWA works fully offline (a gym with no signal).
+// A reachable server (/api/state) is only a best-effort convenience for first
+// install and desktop use; it is never required.
+const LS_KEY = 'ironwave-state';
+function localLoad() {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { console.warn('local load failed', e); return null; }
+}
+function localSave(s) {
+  try {
+    if (typeof localStorage === 'undefined') return false;
+    localStorage.setItem(LS_KEY, JSON.stringify(s));
+    return true;
+  } catch (e) { console.warn('local save failed', e); return false; }
+}
 async function loadState() {
+  // 1) On-device store wins (offline-first, phone is source of truth).
+  const local = localLoad();
+  if (local) {
+    const s = Object.assign(defaultState(), local);
+    migrateState(s);
+    return s;
+  }
+  // 2) First run on this device: seed from the server if one is reachable.
   try {
     const res = await fetch('/api/state');
     if (res.ok) {
       const s = Object.assign(defaultState(), await res.json());
       migrateState(s);
+      localSave(s); // adopt it locally so future loads are offline-capable
       return s;
     }
   } catch (e) { console.warn('state load failed', e); }
+  // 3) Nothing anywhere: a fresh default.
   return defaultState();
 }
 // [Juggernaut + Bodybuilding] migration: programs saved before the
@@ -104,6 +131,13 @@ function migrateState(s) {
 // and reports a real failure to the user instead of only console.warn.
 let _saveChain = Promise.resolve();
 function save() {
+  // On-device write first: this is the durable store, and it is synchronous so
+  // it succeeds with no network. Only a genuine local-write failure (e.g. quota)
+  // is real data loss worth surfacing.
+  const persisted = localSave(S);
+  if (!persisted && typeof toast === 'function') toast('Save failed, data not persisted', true);
+  // Best-effort mirror to the server when one is reachable. Failure here is
+  // expected offline and is NOT data loss, so it stays silent.
   _saveChain = _saveChain.then(async () => {
     try {
       const res = await fetch('/api/state', {
@@ -113,8 +147,7 @@ function save() {
       });
       if (!res.ok) throw new Error('HTTP ' + res.status);
     } catch (e) {
-      console.warn('state save failed', e);
-      if (typeof toast === 'function') toast('Save failed, data not persisted', true);
+      console.warn('server mirror failed (using local store)', e);
     }
   });
   return _saveChain;

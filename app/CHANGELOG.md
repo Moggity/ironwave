@@ -1,5 +1,28 @@
 # IRONWAVE — Changelog
 
+## [Installable offline PWA] (2026-06-24)
+
+IRONWAVE is now a Progressive Web App that installs to the iPhone home screen and
+runs fully offline, so it is usable at a gym with no internet. The phone is the
+source of truth for data.
+
+- `manifest.json` (standalone display, theme colors, icon set) and `sw.js`, a
+  cache-first service worker that precaches the app shell (`index.html`, the
+  three scripts, `styles.css`, icons) so the app launches with no network. The
+  worker never intercepts `/api/state`, so a reachable server still works.
+- `index.html` links the manifest + `apple-touch-icon` and registers the service
+  worker (guarded to `http(s)` and supported browsers).
+- Branded wave icons (`icons/icon-192.png`, `icon-512.png`, `apple-touch-icon.png`)
+  generated on-theme (blue/amber waves on the dark navy background).
+- Persistence is now on-device first: `save()` writes state to `localStorage`
+  (durable, synchronous, offline) and only mirrors to the server best-effort; a
+  failed mirror while offline is silent and is not data loss. `loadState()` reads
+  `localStorage` first, falling back to the server only to seed a fresh device,
+  then adopts that copy locally. Removed the dead pre-server `LS_KEY` constant.
+- Backups still use the in-app **Export / Import JSON** (now the recommended path
+  since data lives on the device). No engine or prescription math changed; the
+  golden master and full suite stay green.
+
 ## [Mid-session exercise swap] (2026-06-24)
 
 A swap button on each in-session exercise card, so an athlete can change a lift
