@@ -290,6 +290,14 @@ function stampMesoIdx(blocks) {
 function stampBlockPhase(blocks) {
   blocks.forEach(b => { if (b.phase == null) b.phase = DEFAULT_BLOCK_PHASE[b.type] || 'lean-gain'; });
 }
+// [Epic G6] Overwrite each block's phase from a goal archetype's phase cycle
+// (cycled across however many blocks there are). Bodybuilding-only at the call
+// site, so the default/powerbuilding golden master is untouched.
+function applyArchetypePhases(blocks, archetypeId) {
+  const arch = GOAL_ARCHETYPES[archetypeId];
+  if (!arch || !arch.phaseCycle || !arch.phaseCycle.length) return;
+  blocks.forEach((b, i) => { b.phase = arch.phaseCycle[i % arch.phaseCycle.length]; });
+}
 // [Epic G2] Build a block list of `targetCount` blocks by cycling the template's
 // block pattern, then renumber the per-type labels so they read 1..N. Used only
 // when the athlete picks a custom macrocycle length; the default path passes the
@@ -327,6 +335,9 @@ function makeProgram(ob) {
     : JSON.parse(JSON.stringify(tpl.blocks));
   stampMesoIdx(blocks);
   stampBlockPhase(blocks);
+  // [Epic G6] A bodybuilding goal archetype overrides the default per-block phases
+  // with its own sequence (lean-fast vs serious macro). Inert on other tracks.
+  if (track === 'bodybuilding' && ob.goalArchetype) applyArchetypePhases(blocks, ob.goalArchetype);
   const totalWeeks = blocks.length * tpl.weeksPerBlock;
   const start = Date.now();
   const wm = {};
@@ -1054,6 +1065,7 @@ function obDefaults() {
   return { name: '', bodyweight: '', daysPerWeek: 4, track: 'powerbuilding',
            experience: 'intermediate', timeMode: 'unlimited', timeCapMin: '',
            macroWeeks: null, // [Epic G2] null = standard template length
+           goalArchetype: 'serious-macro', // [Epic G6] bodybuilding only
            muscleFocus: { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
            maxes: {} };
 }
@@ -1148,6 +1160,12 @@ function vOnboarding() {
       ${OB_TRACKS.map(([id, label, desc]) => `
         <button class="pick-card ${ob.track===id?'on':''}" onclick="obTrack('${id}')">
           <b>${label}</b><span class="faint">${desc}</span></button>`).join('')}
+      ${ob.track === 'bodybuilding' ? `
+        <div class="ob-sub mt16">What is your goal?</div>
+        <p class="faint">This shapes your phases. Look lean fast for a near date, or build muscle over a longer plan.</p>
+        ${Object.entries(GOAL_ARCHETYPES).map(([id, a]) => `
+          <button class="pick-card ${ob.goalArchetype===id?'on':''}" onclick="obArchetype('${id}')">
+            <b>${a.label}</b><span class="faint">${a.desc}</span></button>`).join('')}` : ''}
       <div class="ob-sub mt16">Program length</div>
       <p class="faint">How long until your goal date? Standard uses this track's default block count. A shorter plan trims blocks, a longer one adds them.</p>
       <div class="seg mt8">
@@ -1204,6 +1222,14 @@ function vOnboarding() {
 function obDays(n) { V.ob.daysPerWeek = n; render(); }
 function obTrack(id) { V.ob.track = id; render(); }
 function obMacro(weeks) { V.ob.macroWeeks = weeks; render(); }
+// [Epic G6] Picking a goal archetype also seeds its default length (the athlete
+// can still override the length presets afterward).
+function obArchetype(id) {
+  V.ob.goalArchetype = id;
+  const a = GOAL_ARCHETYPES[id];
+  if (a) V.ob.macroWeeks = a.weeks;
+  render();
+}
 // [Epic G2] One-line summary of the macrocycle the current length choice builds.
 function obMacroLine(ob) {
   const tpl = PROGRAM_TEMPLATES[ob.track] || PROGRAM_TEMPLATES.powerbuilding;
@@ -1267,6 +1293,9 @@ function obNext(step) {
         S.profile.landmarks = Engine.seedLandmarks(ob.experience);
       }
       S.program = makeProgram(ob);
+      // [Epic G6] Seed the current training phase from the first block so the
+      // autoregulator (Cluster F) knows a lean-fast plan starts in a deficit.
+      if (S.program.blocks[0] && S.program.blocks[0].phase) S.profile.phase = S.program.blocks[0].phase;
       logReadiness(computeReadiness());
       save().then(() => {
         V.tab = 'dashboard';
