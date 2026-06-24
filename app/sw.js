@@ -7,8 +7,9 @@
    simply falls back to local storage.
 
    Bump CACHE_VERSION whenever a shell file changes so clients fetch the new
-   build instead of serving stale assets from cache. */
-const CACHE_VERSION = 'ironwave-shell-v1';
+   build instead of serving stale assets from cache. Keep the version suffix in
+   step with APP_VERSION in data.js. */
+const CACHE_VERSION = 'ironwave-shell-v1.1.0';
 const SHELL = [
   './',
   './index.html',
@@ -42,20 +43,23 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.pathname.startsWith('/api/')) return;      // let API hit the network (or fail) untouched
 
-  // Cache-first for the shell: instant offline launch, network only fills gaps.
+  // Stale-while-revalidate for the shell: serve the cached copy instantly (so
+  // the app still launches with no signal), but in the background re-fetch and
+  // refresh the cache so the next launch runs the newest code. This is what
+  // stops an installed PWA from being pinned to a stale build between version
+  // bumps; cache-first alone never re-fetched an already-cached app.js.
   event.respondWith(
     caches.match(req).then((hit) => {
-      if (hit) return hit;
-      return fetch(req)
+      const fetched = fetch(req)
         .then((res) => {
-          // Cache same-origin successful GETs we did not preload (defensive).
           if (res && res.ok && url.origin === self.location.origin) {
             const copy = res.clone();
             caches.open(CACHE_VERSION).then((cache) => cache.put(req, copy));
           }
           return res;
         })
-        .catch(() => caches.match('./index.html')); // offline navigation fallback
+        .catch(() => hit || caches.match('./index.html')); // offline: fall back to cache
+      return hit || fetched;
     })
   );
 });

@@ -2882,9 +2882,24 @@ function audioCtx() {
   try { AUDIO_CTX = new AC(); } catch (_) { return null; }
   return AUDIO_CTX;
 }
-// Call inside the user gesture that starts a timer so the later chime is allowed
-// to play (mobile browsers only let audio start after a gesture).
-function primeAudio() { const c = audioCtx(); if (c && c.state === 'suspended') { try { c.resume(); } catch (_) {} } }
+// Call inside a user gesture so the later chime is allowed to play. iOS (and the
+// standalone PWA in particular) needs more than resume(): the context only truly
+// unlocks once an audio node has actually played inside a gesture, so we also
+// start a one-sample silent buffer. Cheap and idempotent, so it is safe to call
+// on every timer start and from the first-tap listener wired in boot().
+let AUDIO_UNLOCKED = false;
+function primeAudio() {
+  const c = audioCtx();
+  if (!c) return;
+  try {
+    if (c.state === 'suspended') c.resume();
+    const src = c.createBufferSource();
+    src.buffer = c.createBuffer(1, 1, 22050);
+    src.connect(c.destination);
+    src.start(0);
+    AUDIO_UNLOCKED = true;
+  } catch (_) {}
+}
 function playChime() {
   const c = audioCtx();
   if (!c) return;
@@ -3857,6 +3872,7 @@ function vMore() {
     ${link('Phase & Bodyweight', '🍽', 'openPhase()')}
     ${link('Exercises', '🏋', "nav('exercises')")}
     ${link('Settings & Data', '⚙', "nav('settings')")}
+    <p class="faint" style="margin-top:18px;text-align:center;font-size:12px">Version ${esc(APP_VERSION)}</p>
   </div>${tabbar()}`;
 }
 
@@ -3943,7 +3959,31 @@ function vSettings() {
     </div>
     <input type="file" id="import-file" accept=".json,application/json" style="display:none" onchange="importData(this)">
     <button class="btn btn-outline mt16" style="color:var(--red);border-color:var(--red)" onclick="fullReset()">Erase everything</button>
+    <div class="section-title">About</div>
+    <p class="faint" style="margin-bottom:10px">IRONWAVE version ${esc(APP_VERSION)}. If a feature you expect is missing, the installed app may be caching an older build. Check for updates, then relaunch.</p>
+    <button class="btn btn-outline" onclick="checkForUpdate()">Check for updates</button>
   </div>${tabbar()}`;
+}
+// Force the service worker to look for a newer build and, if one installs, take
+// over and reload so the athlete is on the latest code. Without this an installed
+// PWA only updates on its own schedule, which is why a fix can seem "not there yet".
+async function checkForUpdate() {
+  if (!('serviceWorker' in navigator)) { toast('Updates are managed by your browser here'); return; }
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) { toast('No installed app to update'); return; }
+    toast('Checking for updates...');
+    await reg.update();
+    const incoming = reg.installing || reg.waiting;
+    if (incoming) {
+      incoming.addEventListener('statechange', () => {
+        if (incoming.state === 'installed' || incoming.state === 'activated') location.reload();
+      });
+      if (incoming.state === 'installed' || incoming.state === 'activated') location.reload();
+    } else {
+      toast(`You are on the latest (v${APP_VERSION})`);
+    }
+  } catch (_) { toast('Could not check for updates'); }
 }
 function saveSettings() {
   S.profile.name = document.getElementById('st-name').value.trim();
@@ -4030,11 +4070,22 @@ function doFullReset() {
 // reads undefined off it.
 // ------------------------------------------------------------
 async function boot() {
-  console.log('IRONWAVE build 2026-06-18b (server-storage, async-boot fix)');
+  console.log(`IRONWAVE v${APP_VERSION}`);
   S = await loadState();
   V = { view: S.program ? 'dashboard' : 'onboarding', tab: 'dashboard',
         dayIdx: null, checkinStep: 0, checkinData: null, draft: null,
         libTab: 'alpha', libSearch: '', obStep: 0, ob: null };
+  // Unlock audio on the very first interaction so the timer chime can sound even
+  // when the timer was started by something other than a tap (or on iOS, where a
+  // standalone PWA will not play synthesized audio until a gesture unlocks it).
+  const unlock = () => { primeAudio(); if (AUDIO_UNLOCKED) {
+    document.removeEventListener('touchend', unlock);
+    document.removeEventListener('pointerup', unlock);
+    document.removeEventListener('click', unlock);
+  } };
+  document.addEventListener('touchend', unlock, { passive: true });
+  document.addEventListener('pointerup', unlock, { passive: true });
+  document.addEventListener('click', unlock);
   render();
 }
 boot();
