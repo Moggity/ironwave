@@ -116,17 +116,21 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 
 /* ---------- macrocycle timeline v2 (Epic G3) ---------- */
 /* Blocks grouped into phase-tinted containers; --phase is the block's phase color. */
-.timeline-v2 { display: flex; align-items: stretch; gap: 6px; margin: 10px 0 8px;
+/* Bars flex to fill the width: a short macro gets wide bars, a long one (30+
+   weeks) squeezes them. Horizontal scroll only kicks in past the squeeze floor,
+   acting as the hint to slide. */
+.timeline-v2 { display: flex; align-items: stretch; gap: 5px; margin: 10px 0 8px;
   overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; }
-.tl-block { position: relative; flex: 1 0 auto; min-width: 56px; padding: 22px 6px 6px;
+.tl-block { position: relative; flex: 1 1 0; min-width: 0; padding: 22px 5px 6px;
   border-radius: 10px; border: 1px solid color-mix(in srgb, var(--phase) 32%, transparent);
   background: linear-gradient(180deg,
     color-mix(in srgb, var(--phase) 16%, transparent) 0%,
     color-mix(in srgb, var(--phase) 5%, transparent) 100%); }
 .tl-phase { position: absolute; top: 6px; left: 8px; font-size: .7rem; font-weight: 600;
-  color: var(--text-dim); white-space: nowrap; }
+  color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: calc(100% - 12px); }
 .tl-bars { display: flex; align-items: flex-end; gap: 2px; height: 72px; }
-.tl-bars i { flex: 1; min-width: 7px; border-radius: 2px 2px 0 0; min-height: 8px; opacity: .92;
+.tl-bars i { flex: 1 1 0; min-width: 3px; border-radius: 2px 2px 0 0; min-height: 8px; opacity: .92;
   cursor: pointer; }
 .tl-bars i.done { opacity: .42; }
 .tl-bars i.current { outline: 2px solid #fff; outline-offset: 1px;

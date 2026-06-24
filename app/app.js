@@ -1337,7 +1337,9 @@ function timelineHTML() {
       bi++;
     } while (bi < p.blocks.length && blockPhase(p.blocks[bi]) === phase);
     const pc = PHASE_COLORS[phase] || 'var(--blue)';
-    out.push(`<div class="tl-block" style="--phase:${pc}">
+    // flex-grow tracks the week count so bars stay equal width across phases of
+    // different lengths; the whole row shrinks to fit (no scroll until very long).
+    out.push(`<div class="tl-block" style="--phase:${pc};flex-grow:${bars.length}">
       <span class="tl-phase">${esc(PHASE_LABELS[phase] || phase)}</span>
       <div class="tl-bars">${bars.join('')}</div>
     </div>`);
