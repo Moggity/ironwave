@@ -3032,21 +3032,23 @@ function primeAudio() {
     AUDIO_UNLOCKED = true;
   } catch (_) {}
 }
+// The installed PWA (iOS especially) silences synthesized Web Audio, because that
+// rides the ringer channel the hardware mute switch cuts, but it plays an <audio>
+// element on the media channel. The athlete confirmed the WAV/<audio> path is
+// audible there (Settings > Debug), so the timer chime uses it, falling back to
+// the soft Web Audio two-tone if the media element is unavailable.
 function playChime() {
-  const c = audioCtx();
-  if (!c) return;
+  if (!playHtmlAudio([880, 1320], 0.18, 0.5)) playWebAudioTones([880, 1320], 'sine', 0.12);
+}
+// Unlock the media channel from inside a user gesture, with a near-silent <audio>
+// play, so the chime (which fires later, outside any gesture, when the timer ends)
+// is allowed to sound on iOS. Cheap and idempotent; safe to call on every gesture.
+function primeHtmlAudio() {
   try {
-    if (c.state === 'suspended') c.resume();
-    const now = c.currentTime;
-    [{ f: 880, t: 0 }, { f: 1320, t: 0.16 }].forEach(({ f, t }) => { // two soft ascending notes
-      const osc = c.createOscillator(), gain = c.createGain(), start = now + t;
-      osc.type = 'sine'; osc.frequency.value = f;
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.linearRampToValueAtTime(0.12, start + 0.02);            // gentle attack, low volume
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);     // quick fade
-      osc.connect(gain).connect(c.destination);
-      osc.start(start); osc.stop(start + 0.24);
-    });
+    const url = buildBeepWavUrl([440], 0.05, 0);       // silent, tiny
+    const a = new Audio(url); a.volume = 0;
+    const p = a.play();
+    if (p && p.then) p.then(() => { a.pause(); URL.revokeObjectURL(url); }).catch(() => URL.revokeObjectURL(url));
   } catch (_) {}
 }
 // ----- Chime debug harness -------------------------------------------------
@@ -3137,7 +3139,7 @@ function playTestChime(id) {
 function startRestTimer(kind, exId) {
   const dur = Engine.restSecFor(kind, sessionTight(), TIME_MODEL);
   V.restTimer = { endTs: Date.now() + dur * 1000, durSec: dur, exId, rung: false };
-  primeAudio();
+  primeAudio(); primeHtmlAudio();
   stopRestTick();
   REST_TICK = setInterval(restTick, 250);
 }
@@ -3357,7 +3359,7 @@ function pmDropReps(i, d) {
 let MINI_TICK = null;
 function startMiniRest() {
   if (!PM) return;
-  primeAudio();
+  primeAudio(); primeHtmlAudio();
   stopMiniRest();
   const word = PM.tech === 'restpause' ? 'Pause' : 'Mini-rest';
   const end = Date.now() + Engine.techTransitionSec(PM.tech, TIME_MODEL) * 1000;
@@ -4336,7 +4338,7 @@ async function boot() {
   // Unlock audio on the very first interaction so the timer chime can sound even
   // when the timer was started by something other than a tap (or on iOS, where a
   // standalone PWA will not play synthesized audio until a gesture unlocks it).
-  const unlock = () => { primeAudio(); if (AUDIO_UNLOCKED) {
+  const unlock = () => { primeAudio(); primeHtmlAudio(); if (AUDIO_UNLOCKED) {
     document.removeEventListener('touchend', unlock);
     document.removeEventListener('pointerup', unlock);
     document.removeEventListener('click', unlock);
