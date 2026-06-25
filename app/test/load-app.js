@@ -41,7 +41,8 @@ function elStub() {
 const EXPORTS = `return {
   defaultState, makeProgram, resolveSlot, migrateState, resolveDayEntries,
   estimateSessionSec, candidateCostMin, accessoryCostMin,
-  supersetLayout, toggleSuperset, accessorySiOrder,
+  supersetLayout, toggleSuperset, accessorySiOrder, moveSupersetMember,
+  supersetRoundComplete, supersetNextInRound,
   exById, exName, loadingFor,
   focusForAccessory, bbLiftRemoval, generateBodybuildingDays, spaceSameMuscle, carryoverOptionalDrops,
   pickAccessory, accHead, muscleOfAcc, advanceWeek, DEFAULT_ACC, dayHeadsCovered,

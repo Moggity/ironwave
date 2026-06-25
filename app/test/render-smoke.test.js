@@ -122,6 +122,9 @@ test('bodybuilding: a superset group renders an alternating session card', () =>
   const accSlots = s.program.days[0].slots.filter(sl => sl.type === 'acc');
   assert.ok(accSlots.length >= 2, 'day has at least two accessories to superset');
   accSlots[0].superset = true;
+  // The overview renders the link badge + in-group reorder controls without throwing.
+  const overview = renderView(ctx, 'workout');
+  assert.ok(/moveSupersetMember/.test(overview), 'in-group reorder controls rendered');
   ctx.app.startCheckin(0);
   ctx.app.beginSession();
   const html = ctx.document.getElementById('app').innerHTML;

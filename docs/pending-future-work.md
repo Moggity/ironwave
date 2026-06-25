@@ -132,11 +132,15 @@ and the product moat are the same move.
   the session as one combined card with a per-member controls strip and the work
   logged ROUND by round (`supersetGroupCardHTML`; `liftCardHTML` / `setRowHTML`
   extracted), each cell opening the same perf modal; and the time cap treats a
-  group as one unit so a pair / giant set is kept or dropped whole. **Still open
-  (nice-to-have):** a per-round shared rest-timer cue (the timer is still
-  per-set), and reordering exercises within a group. With this, **Cluster B /
-  Epic 2 is functionally complete** (drop / myo / rest-pause / partials + supersets
-  / giant sets).
+  group as one unit so a pair / giant set is kept or dropped whole. **Polish
+  shipped (2026-06-25):** the rest timer is now per ROUND, not per set
+  (`supersetRoundComplete` / `supersetNextInRound` gate `donePerf` so the full
+  rest arms only once every member has logged the round, with a toast cueing the
+  next exercise to alternate to), and grouped accessories get up/down controls on
+  the overview (`moveSupersetMember`) that reorder a member within its group while
+  keeping the run intact. **Cluster B / Epic 2 is COMPLETE** (drop / myo /
+  rest-pause / partials finishers + supersets / giant sets with an alternating
+  round-based logger, shared per-round rest, and in-group reordering).
 - **Dependencies:** Cluster A's `technique` field + logging; `estimateSessionSec`
   must learn each technique's time cost; how a drop set counts toward weekly sets
   feeds Epic 4.

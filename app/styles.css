@@ -577,6 +577,7 @@ input[type=range] { width: 100%; accent-color: var(--blue); height: 30px; }
   font-size: .66rem; font-weight: 700; letter-spacing: .02em; vertical-align: middle;
 }
 .ex-card.superset, .lift-card.superset { border-left: 3px solid var(--blue); }
+.icon-btn.ss-move { min-width: 0; padding: 4px 6px; color: var(--blue); }
 /* [Cluster B] Combined superset / giant-set session card: a member controls
    strip, then the work logged round by round. */
 .lift-card.superset-group { border-left: 3px solid var(--blue); }

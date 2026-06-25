@@ -1,5 +1,25 @@
 # IRONWAVE — Changelog
 
+## [Epic 2 finish: per-round superset rest + in-group reorder] (2026-06-25)
+
+The two remaining superset nice-to-haves, completing Cluster B / Epic 2.
+Bodybuilding-track-only, additive; golden master untouched. Bumped
+`APP_VERSION`/`CACHE_VERSION` to `1.1.8`.
+
+- **Per-round shared rest timer.** Logging a supersetted set now arms the full
+  rest only once every member has logged that round's set (`supersetRoundComplete`
+  / `supersetNextInRound`, pure helpers used by `donePerf`). Before the round is
+  done, no long rest arms and a toast cues the next exercise to alternate to, so
+  the timer matches how a superset is actually run (one rest per round).
+- **Reorder within a group.** Grouped accessories get compact up/down controls on
+  the overview (`moveSupersetMember`) that swap a member with its in-group
+  neighbor and relink the run, so the group stays intact and contiguous (disabled
+  at the group's ends). The general drag-reorder is unchanged.
+
+With this, **Cluster B / Epic 2 is complete**: drop / myo / rest-pause / partials
+finishers, plus supersets / giant sets with an alternating round-based logger,
+shared per-round rest, and in-group reordering.
+
 ## [Cluster B: giant sets + alternating session UI] (2026-06-25)
 
 Completes the supersets feature. Bodybuilding-track-only and additive

@@ -1052,7 +1052,7 @@ function supersetLayout(di, bi, wi) {
   const accOrder = items.filter(x => !x.rs.isMain && !x.rs.isSecondary).map(x => x.si);
   const byId = {};
   for (const x of items) {
-    if (x.rs.superset) byId[x.si] = { role: x.rs.supersetRole, size: x.rs.supersetSize, others: x.rs.supersetPartner, names: x.rs.supersetNames };
+    if (x.rs.superset) byId[x.si] = { role: x.rs.supersetRole, index: x.rs.supersetIndex, size: x.rs.supersetSize, others: x.rs.supersetPartner, names: x.rs.supersetNames };
   }
   const eligible = new Set();
   for (let k = 0; k < accOrder.length - 1; k++) eligible.add(accOrder[k]);
@@ -1075,6 +1075,25 @@ function toggleSuperset(di, si) {
   }
   save(); render();
   toast(slot.superset ? 'Linked into a superset' : 'Superset link removed');
+}
+// [Cluster B] Reorder an exercise within its superset group (dir -1 up / +1 down)
+// while keeping the group intact. Swaps the two members' slots, then relinks every
+// group position to the next (the last position is the tail), so the group stays a
+// contiguous run regardless of which member moved. Bodybuilding-only via the flag.
+function moveSupersetMember(di, si, dir) {
+  const p = P();
+  const built = resolveDayEntries(di, p.pointer.block, p.pointer.week);
+  const me = built.items.find(x => x.si === si && x.rs.superset);
+  if (!me) return;
+  const groupSis = built.items.filter(x => x.rs.supersetGroup === me.rs.supersetGroup).map(x => x.si);
+  const pos = groupSis.indexOf(si);
+  const tgt = pos + dir;
+  if (tgt < 0 || tgt >= groupSis.length) return;       // already at a group end
+  const slots = p.days[di].slots;
+  const a = groupSis[pos], b = groupSis[tgt];
+  const tmp = slots[a]; slots[a] = slots[b]; slots[b] = tmp; // swap the two members
+  groupSis.forEach((s, i) => { slots[s].superset = i < groupSis.length - 1; }); // relink the run
+  save(); render();
 }
 // Heads-up banner in the workout view for athletes with a time cap.
 function timeBannerHTML(di) {
@@ -2561,6 +2580,9 @@ function vWorkout() {
     const ssBtn = (!rs.isMain && !rs.isSecondary && bbTrack && ss.eligible.has(si))
       ? `<button class="icon-btn" onclick="toggleSuperset(${di},${si})"><span class="ic">⛓</span>${slot.superset ? 'Unlink' : 'Superset'}</button>`
       : '';
+    // [Cluster B] Within a group, compact up/down controls reorder the member while
+    // keeping the group intact (disabled at the group's ends).
+    const ssMove = ssInfo ? `${ssInfo.index > 0 ? `<button class="icon-btn ss-move" onclick="moveSupersetMember(${di},${si},-1)" aria-label="Move up in superset"><span class="ic">▲</span></button>` : ''}${ssInfo.index < ssInfo.size - 1 ? `<button class="icon-btn ss-move" onclick="moveSupersetMember(${di},${si},1)" aria-label="Move down in superset"><span class="ic">▼</span></button>` : ''}` : '';
     // Main and secondary lifts anchor the program (and the working max), so they
     // are swap-only. Accessories and anything the athlete added can be removed by
     // swiping the card left to reveal a Remove action.
@@ -2569,7 +2591,7 @@ function vWorkout() {
       <span class="name">${esc(rs.name)}${opt ? ' <span class="opt-tag">optional</span>' : ''}${ssTag}</span>
       <span class="actions">
         <button class="icon-btn" onclick="openExDetail('${rs.exId}')"><span class="ic">ⓘ</span>Info</button>
-        ${ssBtn}
+        ${ssMove}${ssBtn}
         <button class="icon-btn" onclick="openSwap(${di},${si})"><span class="ic">⇄</span>Swap</button>
       </span>
     </div>`;
@@ -3040,6 +3062,21 @@ function vSession() {
       ${cards}
       <button class="btn btn-green mt16" onclick="openSessionRating()">Finish Workout</button>
     </div>`;
+}
+// [Cluster B] Members of a draft entry's superset group, in order.
+function supersetGroupMembers(entries, e) {
+  return entries.filter(x => x.superset && x.supersetGroup === e.supersetGroup);
+}
+// [Cluster B] True once every member of the group has logged its set for round r
+// (a member with no set at r counts as done), so the shared per-round rest can
+// arm. Pure (operates on draft entries), so it unit-tests without the perf modal.
+function supersetRoundComplete(entries, e, r) {
+  return supersetGroupMembers(entries, e).every(m => r >= m.sets.length || m.sets[r].done);
+}
+// [Cluster B] The next member still owing a set in round r (the one to alternate
+// to), or undefined when the round is complete.
+function supersetNextInRound(entries, e, r) {
+  return supersetGroupMembers(entries, e).find(m => r < m.sets.length && !m.sets[r].done);
 }
 // [Cluster B] Build the session cards, grouping consecutive superset members into
 // one alternating round-based card. Non-grouped entries render as the standard
@@ -3594,7 +3631,19 @@ function donePerf() {
   // own short rest and the warmup modal, so they do not arm the timer).
   if (!st.ramp) {
     const kind = e.isMain ? 'main' : e.isSecondary ? 'secondary' : 'accessory';
-    startRestTimer(kind, e.exId);
+    if (e.superset) {
+      // [Cluster B] A superset shares one rest per ROUND: arm the full rest only
+      // once every member has logged this round's set; before that, cue the next
+      // exercise to alternate (no long rest between members of a round).
+      if (supersetRoundComplete(V.draft.entries, e, PM.si)) startRestTimer(kind, e.exId);
+      else {
+        clearRestTimer();
+        const next = supersetNextInRound(V.draft.entries, e, PM.si);
+        if (next) toast(`Next: ${next.name} — superset, rest after the round`);
+      }
+    } else {
+      startRestTimer(kind, e.exId);
+    }
   }
   save();
   closePerf(); render();
