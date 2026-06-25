@@ -1,5 +1,21 @@
 # IRONWAVE — Changelog
 
+## [Cluster B: supersets (first slice)] (2026-06-25)
+
+Bodybuilding-track-only and additive (`slot.superset` absent by default), so the
+Powerbuilding golden master is byte-identical. Bumped `APP_VERSION`/`CACHE_VERSION`
+to `1.1.6`.
+
+- Pair an accessory with the NEXT accessory on a day (alternating, one shared rest
+  per round). `resolveDayEntries` tags both resolved entries head/tail with the
+  partner name; `estimateSessionSec` charges a shared rest (half per supersetted
+  set) so a supersetted day estimates shorter and fits more under a time cap. The
+  workout overview gains a per-accessory **Superset / Unlink** toggle
+  (`supersetLayout` / `toggleSuperset`), and both the overview and session cards
+  show a link badge. Pairs only in this slice (a consumed tail cannot start a new
+  pair, so no giant-set chains); the full alternating session-logging UI and giant
+  sets remain follow-ups.
+
 ## [Timer chime uses the WAV/media-channel path] (2026-06-25)
 
 App/UI only, no engine change, golden master untouched. Bumped

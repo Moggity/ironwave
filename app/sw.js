@@ -9,7 +9,7 @@
    Bump CACHE_VERSION whenever a shell file changes so clients fetch the new
    build instead of serving stale assets from cache. Keep the version suffix in
    step with APP_VERSION in data.js. */
-const CACHE_VERSION = 'ironwave-shell-v1.1.5';
+const CACHE_VERSION = 'ironwave-shell-v1.1.6';
 const SHELL = [
   './',
   './index.html',

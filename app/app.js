@@ -919,8 +919,11 @@ function estimateSessionSec(resolved, tight) {
     const kind = rs.isMain ? 'main' : rs.isSecondary ? 'secondary' : 'accessory';
     const equip = (exById(rs.exId) || {}).equipment;
     t += TM.setupSec[equip] != null ? TM.setupSec[equip] : TM.setupSecDefault; // per-exercise setup
+    // [Cluster B] A supersetted accessory shares one rest per round with its
+    // partner, so each of its sets carries roughly half the usual rest.
+    const restSec = rs.superset ? Math.round(rest[kind] / 2) : rest[kind];
     for (const st of rs.sets) {
-      t += Engine.setTimeSec(st, TM, kind, rest[kind]); // exec + rest, drop-aware
+      t += Engine.setTimeSec(st, TM, kind, restSec); // exec + rest, drop-aware
     }
     if (kind === 'main' && loadingFor(rs.exId).showPlates) {
       const work = rs.sets.filter(s => s.weight);
@@ -965,6 +968,21 @@ function resolveDayEntries(di, bi, wi) {
     .map((slot, si) => ({ si, rs: resolveSlot(slot, bi, wi) }))
     .filter(x => !x.rs.isSelect && !x.rs.isRemoved && x.rs.sets.length);
   const tc = p.trainingConfig;
+  // [Cluster B] Superset pairing: an accessory flagged `superset` is performed
+  // paired with the NEXT accessory on the day (alternating, one shared rest per
+  // round). Tag both resolved entries so the time estimate charges a shared rest
+  // and the UI can show the link. Bodybuilding-only and absent by default; no
+  // giant sets in this slice (a consumed partner cannot also start a pair).
+  if (tc && tc.track === 'bodybuilding') {
+    const accs = items.filter(x => !x.rs.isMain && !x.rs.isSecondary);
+    for (let k = 0; k < accs.length - 1; k++) {
+      const slot = p.days[di].slots[accs[k].si];
+      if (slot && slot.superset && !accs[k].rs.superset && !accs[k + 1].rs.superset) {
+        accs[k].rs.superset = true; accs[k].rs.supersetRole = 'head'; accs[k].rs.supersetPartner = accs[k + 1].rs.name;
+        accs[k + 1].rs.superset = true; accs[k + 1].rs.supersetRole = 'tail'; accs[k + 1].rs.supersetPartner = accs[k].rs.name;
+      }
+    }
+  }
   const capMin = (tc && tc.timeMode === 'custom' && tc.timeCapMin) ? tc.timeCapMin : null;
   if (capMin) {
     const mains = items.filter(x => x.rs.isMain).map(x => (exById(x.rs.exId) || {}).movement);
@@ -990,6 +1008,56 @@ function resolveDayEntries(di, bi, wi) {
     fullMin: Math.round(estimateSessionSec(items.map(x => x.rs), false) / 60),
     optionalNames: optItems.map(x => x.rs.name),
   };
+}
+// [Cluster B] Ordered accessory slot indices on a day (resolved + trainable), the
+// sequence supersets pair along.
+function accessorySiOrder(di, bi, wi) {
+  return resolveDayEntries(di, bi, wi).items
+    .filter(x => !x.rs.isMain && !x.rs.isSecondary)
+    .map(x => x.si);
+}
+// [Cluster B] Superset layout for a day: which accessory slots are paired and the
+// role/partner of each, plus the set of slots that can START a superset (an
+// accessory with a free next accessory). Mirrors the resolveDayEntries pairing so
+// the overview controls and the time estimate agree.
+function supersetLayout(di, bi, wi) {
+  const order = accessorySiOrder(di, bi, wi);
+  const slots = P().days[di].slots;
+  const byId = {};
+  for (let k = 0; k < order.length - 1; k++) {
+    const si = order[k], psi = order[k + 1];
+    if (byId[si] || byId[psi]) continue;            // already paired
+    if (slots[si] && slots[si].superset) {
+      const nm = s => exName(slots[s].ex || slots[s].def);
+      byId[si] = { role: 'head', partnerSi: psi, partnerName: nm(psi) };
+      byId[psi] = { role: 'tail', partnerSi: si, partnerName: nm(si) };
+    }
+  }
+  // A non-tail accessory that has a following accessory can start a superset.
+  const eligible = new Set();
+  for (let k = 0; k < order.length - 1; k++) if (!byId[order[k]] || byId[order[k]].role === 'head') eligible.add(order[k]);
+  return { byId, eligible };
+}
+// [Cluster B] Toggle a superset between this accessory and the next on the day.
+// Clears the partner's own flag when turning on, so this slice stays pairs-only
+// (no giant-set chains). Bodybuilding-only via the slot flag never being set
+// elsewhere.
+function toggleSuperset(di, si) {
+  const p = P();
+  const slots = p.days[di].slots;
+  const slot = slots[si];
+  if (!slot) return;
+  if (slot.superset) { slot.superset = false; }
+  else {
+    const order = accessorySiOrder(di, p.pointer.block, p.pointer.week);
+    const pos = order.indexOf(si);
+    if (pos < 0 || pos >= order.length - 1) { toast('Add an exercise after this one to superset it', true); return; }
+    slot.superset = true;
+    const next = slots[order[pos + 1]];
+    if (next) next.superset = false;                // no chains in this slice
+  }
+  save(); render();
+  toast(slot.superset ? 'Superset on' : 'Superset off');
 }
 // Heads-up banner in the workout view for athletes with a time cap.
 function timeBannerHTML(di) {
@@ -2447,6 +2515,10 @@ function vWorkout() {
   const dayBuilt = resolveDayEntries(di, p.pointer.block, w);
   const emptyDay = !locked && dayBuilt.items.length === 0;
   const optSi = new Set(dayBuilt.optItems.map(x => x.si));
+  // [Cluster B] Superset layout for the day (bodybuilding only); drives the link
+  // badge and the toggle on each accessory card.
+  const bbTrack = p.trainingConfig && p.trainingConfig.track === 'bodybuilding';
+  const ss = bbTrack ? supersetLayout(di, p.pointer.block, w) : { byId: {}, eligible: new Set() };
 
   const cards = day.slots.map((slot, si) => {
     const rs = resolveSlot(slot, p.pointer.block, w);
@@ -2464,14 +2536,22 @@ function vWorkout() {
       </div>`;
     }
     const opt = optSi.has(si);
+    // [Cluster B] Superset link badge + toggle (accessories only). A tail shows the
+    // badge but not the toggle; the head owns the pair.
+    const ssInfo = ss.byId[si];
+    const ssTag = ssInfo ? ` <span class="ss-tag">⛓ ${ssInfo.role === 'head' ? 'superset with ' : 'with '}${esc(ssInfo.partnerName)}</span>` : '';
+    const ssBtn = (!rs.isMain && !rs.isSecondary && bbTrack && ss.eligible.has(si))
+      ? `<button class="icon-btn" onclick="toggleSuperset(${di},${si})"><span class="ic">⛓</span>${ssInfo ? 'Unlink' : 'Superset'}</button>`
+      : '';
     // Main and secondary lifts anchor the program (and the working max), so they
     // are swap-only. Accessories and anything the athlete added can be removed by
     // swiping the card left to reveal a Remove action.
-    const card = `<div class="ex-card ${opt ? 'optional' : ''}" data-si="${si}">
+    const card = `<div class="ex-card ${opt ? 'optional' : ''}${ssInfo ? ' superset' : ''}" data-si="${si}">
       ${grip}
-      <span class="name">${esc(rs.name)}${opt ? ' <span class="opt-tag">optional</span>' : ''}</span>
+      <span class="name">${esc(rs.name)}${opt ? ' <span class="opt-tag">optional</span>' : ''}${ssTag}</span>
       <span class="actions">
         <button class="icon-btn" onclick="openExDetail('${rs.exId}')"><span class="ic">ⓘ</span>Info</button>
+        ${ssBtn}
         <button class="icon-btn" onclick="openSwap(${di},${si})"><span class="ic">⇄</span>Swap</button>
       </span>
     </div>`;
@@ -2796,6 +2876,7 @@ function sessionEntryFrom(x) {
     si: x.si, exId: x.rs.exId, name: x.rs.name,
     isMain: !!x.rs.isMain, isSecondary: !!x.rs.isSecondary, wmKey: x.rs.wmKey || null,
     optional: !!x.rs.optional,
+    superset: !!x.rs.superset, supersetRole: x.rs.supersetRole || null, supersetPartner: x.rs.supersetPartner || null,
     notes: '', notesOpen: false,
     sets: x.rs.sets.map(t => ({
       targetWeight: t.weight ?? null, targetReps: t.reps, targetRpe: t.rpe ?? null,
@@ -2941,8 +3022,9 @@ function vSession() {
     const schemeTxt = schemeWork.length
       ? `${schemeWork.length} sets x ${schemeWork[0].targetReps} reps` : '';
     const top = topWorkWeight(e);
-    return `<div class="lift-card ${e.optional ? 'optional' : ''}">
-      <h3>${esc(e.name)}${e.optional ? ' <span class="opt-tag">optional</span>' : ''}</h3>
+    return `<div class="lift-card ${e.optional ? 'optional' : ''}${e.superset ? ' superset' : ''}">
+      <h3>${esc(e.name)}${e.optional ? ' <span class="opt-tag">optional</span>' : ''}${e.superset ? ` <span class="ss-tag">⛓ ${e.supersetRole === 'head' ? 'superset with ' : 'with '}${esc(e.supersetPartner)}</span>` : ''}</h3>
+      ${e.superset ? '<p class="faint" style="margin:-4px 0 6px">Alternate sets with the linked exercise, resting once after each pair.</p>' : ''}
       ${e.optional ? '<p class="faint" style="margin:-4px 0 6px">Over your time limit. Do it if you have time, otherwise skip it.</p>' : ''}
       ${lastSetInfo(e.exId)}
       <div class="head-actions">

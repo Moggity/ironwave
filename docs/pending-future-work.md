@@ -117,7 +117,18 @@ and the product moat are the same move.
   charge the small slowdown; and partials ride the working weight
   (`SAME_WEIGHT_TECHS`) but carry NO timed rest cue (a new `TIMED_REST_TECHS`
   gates the perf-modal mini-rest button, since partials flow straight out of the
-  set). Next: supersets / giant sets (the structural one, its own branch).
+  set). **Supersets (first slice) shipped (2026-06-25):** an accessory can be
+  paired with the NEXT accessory on a day (`slot.superset`); `resolveDayEntries`
+  tags both resolved entries head/tail, `estimateSessionSec` charges a shared rest
+  (half per supersetted set, one rest per round) so a supersetted day estimates
+  shorter, and the workout overview gets a per-accessory Superset/Unlink toggle
+  (`supersetLayout` / `toggleSuperset`) plus a link badge on the overview and
+  session cards. Bodybuilding-only, additive (`slot.superset` absent by default),
+  golden master untouched. **Still open:** giant sets (3+; this slice is pairs
+  only, a consumed tail cannot start a new pair), the full alternating/grouped
+  session-logging UI (today the paired exercises still log as separate cards with
+  a link badge), and the cap/optional interaction (a pair can be split across the
+  core/optional tiers).
 - **Dependencies:** Cluster A's `technique` field + logging; `estimateSessionSec`
   must learn each technique's time cost; how a drop set counts toward weekly sets
   feeds Epic 4.
