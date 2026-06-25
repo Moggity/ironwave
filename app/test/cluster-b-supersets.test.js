@@ -136,3 +136,42 @@ test('toggleSuperset links and unlinks, allowing chains (no auto-clear)', () => 
   app.toggleSuperset(0, 0);                       // unlink the first link
   assert.strictEqual(p.days[0].slots[0].superset, false);
 });
+
+// ---------------------------------------------------------------------------
+// Per-round shared rest (Epic 2 polish)
+// ---------------------------------------------------------------------------
+test('supersetRoundComplete arms only once every member logged the round', () => {
+  const p = bbDay();
+  p.days[0].slots[0].superset = true;            // fly + pushdown, one pair
+  const built = app.resolveDayEntries(0, 0, 0);
+  const entries = built.items.filter(x => x.rs.superset).map(x => ({
+    exId: x.rs.exId, name: x.rs.name, superset: true, supersetGroup: x.rs.supersetGroup,
+    sets: x.rs.sets.map(s => ({ done: false })),
+  }));
+  const fly = entries[0], push = entries[1];
+  // Round 0: log the first member only -> not complete; the other is next up.
+  fly.sets[0].done = true;
+  assert.strictEqual(app.supersetRoundComplete(entries, fly, 0), false);
+  assert.strictEqual(app.supersetNextInRound(entries, fly, 0).exId, push.exId);
+  // Log the second member -> the round is complete (rest may arm).
+  push.sets[0].done = true;
+  assert.strictEqual(app.supersetRoundComplete(entries, push, 0), true);
+  assert.strictEqual(app.supersetNextInRound(entries, push, 0), undefined);
+});
+
+// ---------------------------------------------------------------------------
+// Reorder within a group (Epic 2 polish)
+// ---------------------------------------------------------------------------
+test('moveSupersetMember reorders within the group and keeps it intact', () => {
+  const p = bbDay();
+  p.days[0].slots[0].superset = true;
+  p.days[0].slots[1].superset = true;            // giant set: fly, pushdown, lateral
+  const order = () => app.resolveDayEntries(0, 0, 0).items
+    .filter(x => x.rs.superset).sort((a, b) => a.rs.supersetIndex - b.rs.supersetIndex).map(x => x.rs.exId);
+  assert.deepStrictEqual(order(), ['cable-fly', 'triceps-pushdown', 'lateral-raise']);
+  // Move the last member up one place; the group stays a size-3 run, reordered.
+  app.moveSupersetMember(0, 2, -1);
+  assert.deepStrictEqual(order(), ['cable-fly', 'lateral-raise', 'triceps-pushdown']);
+  assert.ok(app.resolveDayEntries(0, 0, 0).items.filter(x => x.rs.superset).every(x => x.rs.supersetSize === 3),
+    'still one group of three after the move');
+});
