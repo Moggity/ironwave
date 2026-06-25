@@ -1,5 +1,26 @@
 # IRONWAVE — Changelog
 
+## [Cluster B: giant sets + alternating session UI] (2026-06-25)
+
+Completes the supersets feature. Bodybuilding-track-only and additive
+(`slot.superset` absent by default), so the Powerbuilding golden master is
+byte-identical. Bumped `APP_VERSION`/`CACHE_VERSION` to `1.1.7`.
+
+- **Giant sets (3+).** A maximal run of consecutive accessories linked by the
+  `superset` flag is one group; `resolveDayEntries` tags every member with its
+  group head, index, size and member names. `estimateSessionSec` charges 1/size
+  the rest per supersetted set (half for a pair, a third for a triple). The
+  overview toggle now allows chains (link/unlink each accessory to the next); the
+  link badge reads "superset" or "giant set".
+- **Alternating session UI.** A superset group renders as one combined card with a
+  per-member controls strip (swap / info / finisher / notes) and the work logged
+  ROUND by round (one set of each member, then rest). Each cell opens the same
+  perf modal, so logging is unchanged underneath. Non-grouped exercises render as
+  before (`liftCardHTML` / `setRowHTML` extracted, `supersetGroupCardHTML` added).
+- **Cap keeps a group together.** The time-cap core/optional split now treats a
+  superset group as one unit (scored by its strongest member), so a pair / giant
+  set is kept or dropped as a whole instead of being split across the tiers.
+
 ## [Cluster B: supersets (first slice)] (2026-06-25)
 
 Bodybuilding-track-only and additive (`slot.superset` absent by default), so the
