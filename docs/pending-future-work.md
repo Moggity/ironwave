@@ -633,6 +633,78 @@ real DOM.
   test`, but CI on the PR is the real gate.
 
 
+## iOS App Store build (far future)
+
+Paving the way to ship IRONWAVE as a real iOS app. The app is a no-build PWA, so
+the realistic path is to **wrap the existing PWA in a thin native shell** (Capacitor
+or PWABuilder generate an Xcode/WKWebView project around `app/`) and submit that,
+rather than a native rewrite. The engineering for that wrapper is its own future
+branch; THIS section is the checklist of things the OWNER must do that are
+**outside coding scope** - accounts, subscriptions, purchases, legal, and assets.
+None of it can be done from this repo. Rough order:
+
+### Accounts & subscriptions (do first, some have lead time)
+- [ ] **Apple Account (Apple ID)** for the business, with **two-factor auth** on.
+      Use a dedicated email you control long-term, not a personal throwaway.
+- [ ] **Apple Developer Program membership - paid, ~US$99/year** (the gate for
+      App Store distribution, TestFlight, signing, and App Store Connect). Renews
+      annually; lapsing pulls the app from sale.
+- [ ] **Decide the seller identity: individual vs organization.** Individual shows
+      your personal/legal name as the seller; organization shows a company name but
+      **requires a D-U-N-S number** (free from Dun & Bradstreet, allow ~5-30 days)
+      and a legal entity. Pick before enrolling - changing later is painful.
+- [ ] **A Mac with Xcode**, OR a **cloud-Mac / CI build service** (e.g. Xcode
+      Cloud, Codemagic, MacStadium, MacinCloud). Xcode only runs on macOS and is
+      required to archive/sign/upload. This is a real hardware-or-subscription cost
+      if you do not own a Mac.
+
+### Legal & business
+- [ ] **Privacy Policy** (a public URL is **required** by App Store Connect even if
+      you collect nothing). Must describe local storage + any self-hosted server.
+- [ ] **Terms of Use / EULA** - Apple's standard EULA is fine unless you need
+      custom terms.
+- [ ] **Health/fitness disclaimer** - the app prescribes training loads; add a
+      "not medical advice, train at your own risk, consult a professional" notice
+      (helps with App Review guideline 1.4.1 and limits liability).
+- [ ] **Name / trademark clearance for "IRONWAVE"** - confirm the App Store name is
+      available and the mark is not already taken in the fitness category. Have a
+      backup name ready (App Store names must be unique).
+- [ ] **Tax & banking in App Store Connect** - accept the (free) **Apps
+      Agreement**; if you ever charge or add in-app purchases, also the **Paid Apps
+      Agreement** plus tax forms (W-9 / W-8BEN) and bank details. A free app still
+      needs the free agreement accepted.
+- [ ] **Export compliance** - the app uses standard HTTPS encryption, which is
+      normally **exempt**; you still answer the encryption questions per release
+      (usually self-classified exempt, no extra paperwork).
+
+### App Store Connect setup & assets (mostly clickwork + design)
+- [ ] **App record + bundle identifier** (e.g. `com.<you>.ironwave`) in App Store
+      Connect / the Developer portal. Pick the bundle ID once; it is permanent.
+- [ ] **App icon 1024x1024** (no alpha/transparency) and the in-app icon set.
+- [ ] **Screenshots** for the required iPhone sizes (and iPad if you ship iPad).
+      Capture from the wrapped app on a simulator/device.
+- [ ] **Store listing copy**: name, subtitle, description, keywords, **support
+      URL**, optional marketing URL.
+- [ ] **Age rating questionnaire** and **App Privacy "nutrition label"** answers
+      (declare local-only storage / any server sync; likely "data not collected"
+      or "not linked to you").
+- [ ] **App Review notes + demo path** - if a server login is involved, provide a
+      **demo account / test instructions**; reviewers must reach full functionality.
+
+### Known review risk to plan around (coding-adjacent, flagged here so it is not a surprise)
+- Apple **guideline 4.2 "minimum functionality"** can reject a pure website
+  wrapper. To pass, the shell should add native value - e.g. local **push
+  notifications** for the rest timer, real offline behavior, and proper
+  home-screen / status-bar integration - not just load a web page. Budget that
+  into the wrapper branch. (Push notifications also need an **APNs key** generated
+  in the Developer portal - another portal checkbox, not code.)
+
+### Nice-to-haves once live
+- [ ] **TestFlight** beta group (included with the Developer Program) before public
+      release.
+- [ ] Decide on **analytics/crash reporting** (and disclose it in App Privacy if added).
+
+
 ## Resolved (2026-06-22, split-generator tuning)
 
 The three **Split-generator tuning** items, landed together on
