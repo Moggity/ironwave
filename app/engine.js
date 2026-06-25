@@ -325,12 +325,28 @@ const Engine = {
     return Object.assign({}, set, { technique: 'restpause', drops });
   },
 
+  // Lengthened partials: keep the working set, then `sets` burst(s) of partial-ROM
+  // reps at the SAME weight (no strip), in the stretched position. Shares the
+  // `drops` child-set field so logging / tonnage / time accounting treat it the
+  // same; the `technique` tag is what marks it. Weightless set returned unchanged.
+  buildPartials(set, opts = {}) {
+    const o = (typeof PARTIAL_DEFAULTS !== 'undefined') ? PARTIAL_DEFAULTS : { sets: 1, partialReps: 6 };
+    const n = opts.sets ?? o.sets;
+    const reps = opts.partialReps ?? o.partialReps;
+    if (!set || !(set.weight > 0) || n < 1) return set;
+    const drops = [];
+    for (let i = 0; i < n; i++) drops.push({ weight: set.weight, reps: Math.max(1, reps) });
+    return Object.assign({}, set, { technique: 'partials', drops });
+  },
+
   // The intrinsic intra-set rest (seconds) charged between a technique's child
-  // mini-sets: a myo mini-rest, a rest-pause pause, or a drop's strip transition.
-  // Single source of truth for both the time estimate and the in-modal cue.
+  // mini-sets: a myo mini-rest, a rest-pause pause, a partials slowdown, or a
+  // drop's strip transition. Single source of truth for the time estimate and the
+  // in-modal cue.
   techTransitionSec(tech, TM) {
     if (tech === 'myo') return TM.myoRestSec;
     if (tech === 'restpause') return TM.restPauseSec;
+    if (tech === 'partials') return TM.partialsSec;
     return TM.dropTransitionSec;
   },
 
@@ -558,6 +574,23 @@ Engine.volumeStatus = function (sets, lm) {
   return { key, label, pct: mrv > 0 ? Math.min(100, Math.round(sets / mrv * 100)) : 0, mv, mev, mrv };
 };
 
+// [Cluster C] Per-HEAD landmark, derived from the whole-muscle landmark by an even
+// split across the muscle's heads (our own simple model, deliberately not a
+// product's per-head table). A muscle split into N heads needs roughly its volume
+// spread across them: each head gets a share of MEV (floored so a head still needs
+// real direct work to grow) and of MRV (floored above its MEV, and never above the
+// whole-muscle MRV). A single-head or unsplit muscle keeps the whole-muscle
+// landmark unchanged, so this is inert where heads do not differ. Pure.
+Engine.headLandmark = function (lm, nHeads) {
+  if (!lm) return null;
+  const n = nHeads || 1;
+  if (n <= 1) return { mv: lm.mv, mev: lm.mev, mrv: lm.mrv };
+  const mev = Math.max(2, Math.round(lm.mev / n));
+  const mrv = Math.min(lm.mrv, Math.max(mev + 2, Math.round(lm.mrv / n)));
+  const mv = Math.min(mev, Math.max(0, Math.round(lm.mv / n)));
+  return { mv, mev, mrv };
+};
+
 // [Cluster E] Per-muscle volume autoregulation (our OWN simple model, not a clone
 // of any product's signal set/scale/mapping). Given a small feedback signal and
 // the muscle's current weekly sets vs its landmarks, recommend whether to add,
@@ -619,16 +652,18 @@ Engine.fatigueSaturated = function (statuses, threshold = 3) {
 Engine.deloadDepth = function (statuses, trendDown) {
   const sat = Engine.fatigueSaturated(statuses);
   if (sat.saturated || (sat.over >= 2 && trendDown)) {
-    return { level: 'deep', setDelta: -1, over: sat.over,
+    // A deeper deload pulls back BOTH volume (a set) and intensity (one more rep
+    // in reserve), so a fried athlete sheds fatigue on two axes, not just one.
+    return { level: 'deep', setDelta: -1, rpeDelta: -1, over: sat.over,
       reason: `High fatigue this block (${sat.over} muscles near MRV), taking a deeper deload` };
   }
   // "Light" needs positive evidence of low fatigue (trained muscles, none near
   // MRV), not just an absence of data; no statuses falls through to standard.
   if (statuses && statuses.length && sat.over === 0 && !trendDown) {
-    return { level: 'light', setDelta: 1, over: 0,
+    return { level: 'light', setDelta: 1, rpeDelta: 0, over: 0,
       reason: 'Low fatigue this block, a lighter deload to keep momentum' };
   }
-  return { level: 'standard', setDelta: 0, over: sat.over, reason: 'Standard deload' };
+  return { level: 'standard', setDelta: 0, rpeDelta: 0, over: sat.over, reason: 'Standard deload' };
 };
 
 // [Cluster D] Early-deload TIMING trigger. Mid-block, decide whether accumulated

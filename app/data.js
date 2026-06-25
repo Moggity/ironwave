@@ -9,7 +9,7 @@
 // repo, and it must be kept in step with CACHE_VERSION in sw.js (the service
 // worker only ships new code to installed PWAs when that cache name changes).
 // Bump this on any shell change (data/engine/app/styles/index/sw).
-const APP_VERSION = '1.1.2';
+const APP_VERSION = '1.1.3';
 
 // Movement categories (used for "Select X Exercise" slots & swaps)
 const MOVEMENTS = {
@@ -1134,6 +1134,12 @@ const TIME_MODEL = {
   // a few breaths) and squeeze out another small burst at the same weight, a few
   // times. The pause is intrinsic to the prescription, so the timer surfaces it.
   restPauseSec: 20,
+  // [Cluster B] Lengthened partials: after the last full rep, keep going with
+  // partial-ROM reps in the stretched position at the SAME weight. They flow
+  // straight out of the set with no real pause, so the per-partial-burst
+  // transition is small (just the slowdown), and there is no intrinsic rest cue
+  // to time (unlike myo / rest-pause).
+  partialsSec: 6,
 };
 
 // [Cluster B] Drop-set construction defaults. A working set carries N child
@@ -1150,6 +1156,11 @@ const MYO_DEFAULTS = { minis: 3, miniReps: 5 };
 // couple of short bursts at the SAME weight, each only a few reps as fatigue
 // climbs. Fewer, smaller bursts than myo-reps; our own numbers.
 const RESTPAUSE_DEFAULTS = { bursts: 2, burstReps: 3 };
+
+// [Cluster B] Lengthened-partials defaults: after the working set, one burst of
+// partial-ROM reps in the stretched position at the SAME weight. One burst keeps
+// it simple and distinct from rest-pause (which is multiple same-weight bursts).
+const PARTIAL_DEFAULTS = { sets: 1, partialReps: 6 };
 
 // Bodybuilding muscle-focus slider (0..6) -> accessory set-count multiplier vs
 // the scheme baseline (slider 3 = 1.0 = unchanged). 0 removes the exercise.

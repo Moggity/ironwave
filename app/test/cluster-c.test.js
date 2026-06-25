@@ -15,7 +15,7 @@ const assert = require('node:assert');
 const { loadApp } = require('./load-app');
 
 const app = loadApp();
-const { EXERCISES, SFR_LABELS, HEAD_LABELS } = app;
+const { EXERCISES, SFR_LABELS, HEAD_LABELS, Engine, muscleHeads, headLandmarkFor, headVolumeOverMrv, VOLUME_LANDMARKS } = app;
 
 // ---------------------------------------------------------------------------
 // Shape + defaults
@@ -49,6 +49,44 @@ test('authored metadata lands on the right exercises', () => {
   // Incline bench is upper chest; pushdown is the lateral head of the triceps.
   assert.strictEqual(by('incline-bench').head, 'chest-upper');
   assert.strictEqual(by('triceps-pushdown').head, 'tri-lateral');
+});
+
+// ---------------------------------------------------------------------------
+// Per-head landmarks (this branch)
+// ---------------------------------------------------------------------------
+test('Engine.headLandmark splits the muscle landmark across heads with floors', () => {
+  const lm = { mv: 8, mev: 10, mrv: 20 };
+  const two = Engine.headLandmark(lm, 2);
+  assert.ok(two.mv <= two.mev && two.mev <= two.mrv, 'ordering mv <= mev <= mrv holds');
+  assert.ok(two.mrv <= lm.mrv, 'a head never exceeds the whole-muscle MRV');
+  assert.ok(two.mev < lm.mev, 'a head needs less than the whole muscle');
+  // A small landmark still floors a head at a trainable MEV.
+  assert.strictEqual(Engine.headLandmark({ mv: 0, mev: 2, mrv: 4 }, 3).mev, 2);
+  // A single (or unsplit) muscle keeps the whole-muscle landmark.
+  assert.deepStrictEqual(Engine.headLandmark(lm, 1), { mv: 8, mev: 10, mrv: 20 });
+  assert.strictEqual(Engine.headLandmark(null, 2), null);
+});
+
+test('muscleHeads reports a landmark-movement\'s heads; triceps splits into long and lateral', () => {
+  app.S = app.defaultState();
+  const heads = muscleHeads('tricep');
+  assert.ok(heads.includes('tri-long') && heads.includes('tri-lateral'), 'triceps has both heads');
+  // Every reported head has a label (data integrity for the surfaced split).
+  for (const h of heads) assert.ok(HEAD_LABELS[h], `${h} has a label`);
+  // A single-head landmark-movement does not split (whole-muscle landmark stands).
+  const chest = headLandmarkFor('chest');
+  assert.deepStrictEqual(chest, Engine.headLandmark(VOLUME_LANDMARKS.chest, muscleHeads('chest').length));
+});
+
+test('headVolumeOverMrv flags a region piled past its per-head MRV', () => {
+  app.S = app.defaultState();
+  const hlm = headLandmarkFor('tricep');
+  assert.ok(hlm && hlm.mrv > 0, 'triceps has a derived per-head landmark');
+  assert.ok(hlm.mrv < VOLUME_LANDMARKS.tricep.mrv, 'a head MRV is below the whole-muscle MRV');
+  // All the triceps volume dumped on one head trips the flag; a light head does not.
+  assert.strictEqual(headVolumeOverMrv('tricep', 'tri-long', { tricep: { 'tri-long': hlm.mrv } }), true);
+  assert.strictEqual(headVolumeOverMrv('tricep', 'tri-long', { tricep: { 'tri-long': hlm.mrv - 1 } }), false);
+  assert.strictEqual(headVolumeOverMrv('tricep', null, {}), false);
 });
 
 // ---------------------------------------------------------------------------

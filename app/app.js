@@ -171,11 +171,12 @@ const techniqueBadge = t => (t && t !== 'straight' ? ` <small class="faint">${es
 // [Cluster B] "70kg×8, 56kg×8" rendering of a set's child mini-sets (drop or myo).
 const dropDetail = (exId, drops) => (drops || []).map(d => `${fmtW(exId, d.weight)}×${d.reps}`).join(', ');
 // Label for the logged child mini-sets, by technique.
-const childWord = tech => (tech === 'myo' ? 'myo' : tech === 'restpause' ? 'rest-pause' : 'drops');
+const childWord = tech => (tech === 'myo' ? 'myo' : tech === 'restpause' ? 'rest-pause' : tech === 'partials' ? 'partials' : 'drops');
 // Heading for the perf-modal child-set section, by technique.
 const childSectionLabel = tech =>
   tech === 'myo' ? 'Mini-sets <small class="faint">same weight, short mini-rests, log reps</small>'
   : tech === 'restpause' ? 'Bursts <small class="faint">same weight, pause then go again, log reps</small>'
+  : tech === 'partials' ? 'Partials <small class="faint">same weight, partial reps in the stretch, log reps</small>'
   : 'Drops <small class="faint">strip and go, log reps</small>';
 // [Cluster C] Compact picker badges: muscle region (head), a loaded-stretch flag,
 // and a non-default SFR so the high-value and high-cost picks stand out at a glance.
@@ -711,13 +712,15 @@ function resolveSlot(slot, blockIdx, wIdx) {
   }
   const r = loadingFor(exId).totalInc;
   let sets = sch.accessory(block, eIdx, recordsFor(exId), r, S.profile.experience);
-  const dld = deloadDepthDelta(blockIdx, eIdx); // [Cluster D] autoregulated deload depth
+  const dld = deloadDepthDelta(blockIdx, eIdx); // [Cluster D] autoregulated deload depth (sets)
   if (dld) sets = applySetDelta(sets, dld);
+  const rpd = deloadIntensityDelta(blockIdx, eIdx); // [Cluster D] deeper deload also eases effort
+  if (rpd) sets = applyDeloadIntensity(sets, rpd);
   if (mod) sets = applySetDelta(sets, mod.accSetDelta || 0);
   const focus = focusForAccessory(exId, sets);
   if (focus.removed) return { exId, name: exName(exId), sets: [], cat: slot.cat, isRemoved: true };
   if (focus.delta) sets = applySetDelta(sets, focus.delta);
-  const adj = autoregForAccessory(exId, sets);
+  const adj = autoregForAccessory(exId, sets, eIdx);
   if (adj) sets = applySetDelta(sets, adj);
   sets = applyTechnique(exId, sets, r);
   return { exId, name: exName(exId), sets, cat: slot.cat };
@@ -733,6 +736,26 @@ function deloadDepthDelta(blockIdx, wIdx) {
   if (!tc || tc.track !== 'bodybuilding') return 0;
   if (Engine.weekType(wIdx) !== 'deload') return 0;
   return (p.deloadPlan && p.deloadPlan.setDelta) || 0;
+}
+// [Cluster D] Intensity half of the autoregulated deload: a DEEPER deload also
+// eases effort (the plan's rpeDelta, negative = more reps in reserve), not just
+// set count. Same gates as the depth delta (bodybuilding, deload week, a plan), so
+// the default routine is byte-identical. 0 for a standard/light deload.
+function deloadIntensityDelta(blockIdx, wIdx) {
+  const p = P();
+  const tc = p && p.trainingConfig;
+  if (!tc || tc.track !== 'bodybuilding') return 0;
+  if (Engine.weekType(wIdx) !== 'deload') return 0;
+  return (p.deloadPlan && p.deloadPlan.rpeDelta) || 0;
+}
+// Apply an RPE delta to the plain working sets only (never an amrap, ramp, or
+// calibration set, nor a weightless/RPE-less set), clamped to a sane range so a
+// deload set stays light but real. Returns a new array; never mutates inputs.
+function applyDeloadIntensity(sets, rpeDelta) {
+  if (!rpeDelta) return sets;
+  return sets.map(s => (s.amrap || s.ramp || s.calib || s.rpe == null)
+    ? s
+    : Object.assign({}, s, { rpe: Math.max(5, Math.min(10, s.rpe + rpeDelta)) }));
 }
 // [Cluster D] Early-deload state (transient on the program, like deloadPlan, so no
 // migration). `earlyDeload = { block, week }` marks the one work week the athlete
@@ -831,12 +854,17 @@ function earlyDeloadBannerHTML() {
 // bounded by the same per-session landmark cap focus uses. Bodybuilding-only and
 // inert when there is no offset, so other tracks and a fresh program (no logged
 // feedback) stay byte-identical to the pre-autoreg routine (golden master safe).
-function autoregForAccessory(exId, sets) {
+function autoregForAccessory(exId, sets, wIdx) {
   const tc = P() && P().trainingConfig;
   if (!tc || tc.track !== 'bodybuilding') return 0;
   const e = exById(exId);
   const offset = e && P().volAdj && P().volAdj[e.movement];
   if (!offset) return 0;
+  // [Cluster D] Never ADD volume on the deload week: the accumulated autoreg
+  // offset would fight the deload-depth pullback (volAdj only resets at block end,
+  // after the deload is trained). A negative offset is allowed through, since it
+  // only reinforces the deload.
+  if (offset > 0 && wIdx != null && Engine.weekType(wIdx) === 'deload') return 0;
   const plain = sets.filter(s => !s.amrap && !s.ramp && !s.calib).length;
   if (!plain) return 0;
   const lm = (S.profile.landmarks && S.profile.landmarks[e.movement]) || VOLUME_LANDMARKS[e.movement];
@@ -863,12 +891,17 @@ function applyTechnique(exId, sets, rounding) {
   }
   return sets;
 }
-// The three opt-in finishers and which keep the working weight (drop strips it).
-const FINISHER_TECHS = ['drop', 'myo', 'restpause'];
-const SAME_WEIGHT_TECHS = ['myo', 'restpause'];
+// The opt-in finishers and which keep the working weight (only drop strips it).
+const FINISHER_TECHS = ['drop', 'myo', 'restpause', 'partials'];
+const SAME_WEIGHT_TECHS = ['myo', 'restpause', 'partials'];
+// Finishers whose child sets carry an intrinsic intra-set REST that gets a timed
+// in-modal cue. Partials flow straight out of the set with no real rest, so they
+// keep the working weight (above) but get no mini-rest button.
+const TIMED_REST_TECHS = ['myo', 'restpause'];
 function buildTechnique(tech, set, rounding) {
   if (tech === 'myo') return Engine.buildMyoReps(set);
   if (tech === 'restpause') return Engine.buildRestPause(set);
+  if (tech === 'partials') return Engine.buildPartials(set);
   return Engine.buildDropSet(set, { rounding });
 }
 
@@ -1923,6 +1956,50 @@ function weeklyVolumeByHead() {
   for (const mv in tally) for (const h in tally[mv]) tally[mv][h] = Math.round(tally[mv][h] * 2) / 2;
   return tally;
 }
+// [Cluster C] The distinct muscle heads a movement is split into (from the
+// exercise taxonomy), so a per-head landmark can divide the muscle landmark
+// across them. Cached: the exercise set is static within a session.
+let _MUSCLE_HEADS = null;
+function muscleHeads(movement) {
+  if (!_MUSCLE_HEADS) {
+    _MUSCLE_HEADS = {};
+    for (const e of allExercises()) {
+      if (!e.head || !VOLUME_LANDMARKS[e.movement]) continue;
+      (_MUSCLE_HEADS[e.movement] || (_MUSCLE_HEADS[e.movement] = new Set())).add(e.head);
+    }
+  }
+  const s = _MUSCLE_HEADS[movement];
+  return s ? [...s] : [];
+}
+// [Cluster C] Per-head landmark for a movement: the athlete's whole-muscle
+// landmark (seeded/evolved, falling back to the default) split across the
+// movement's heads via Engine.headLandmark. Null when the movement has no
+// landmark. Used for the per-head over-MRV signal on the volume screen and pickers.
+function headLandmarkFor(movement) {
+  const lm = (S.profile && S.profile.landmarks && S.profile.landmarks[movement]) || VOLUME_LANDMARKS[movement];
+  if (!lm) return null;
+  return Engine.headLandmark(lm, muscleHeads(movement).length);
+}
+// [Cluster C] Is this muscle head already at or over its per-head MRV this week?
+// Drives the "region maxed" hint in the swap/add pickers and the volume-screen
+// flag. Bodybuilding-surfaced and read-only.
+function headVolumeOverMrv(movement, head, headTally) {
+  if (!head) return false;
+  const hlm = headLandmarkFor(movement);
+  if (!hlm || !hlm.mrv) return false;
+  const ht = headTally || weeklyVolumeByHead();
+  const cur = (ht[movement] && ht[movement][head]) || 0;
+  return cur >= hlm.mrv;
+}
+// [Cluster C] Flat set of every head at or over its per-head MRV this week, across
+// all muscles (head keys are globally unique). Resolves the week once; the pickers
+// stash it so each candidate card is a cheap lookup.
+function overMrvHeadSet() {
+  const ht = weeklyVolumeByHead();
+  const over = new Set();
+  for (const mv in ht) for (const h in ht[mv]) if (headVolumeOverMrv(mv, h, ht)) over.add(h);
+  return over;
+}
 const VOL_ORDER = ['chest', 'shoulder', 'tricep', 'bicep', 'upperback', 'vpull', 'hpull',
                    'quad', 'ham', 'glute', 'calf', 'abs', 'lowback'];
 // [Cluster E] Map a movement to its broad check-in group (same grouping the
@@ -1996,8 +2073,15 @@ function volumeDashboardHTML() {
     let heads = '';
     const hd = headTally[mv];
     if (hd) {
-      const parts = Object.keys(hd).sort((a, b) => hd[b] - hd[a])
-        .map(h => `${HEAD_LABELS[h] || h} ${kg(hd[h])}`);
+      // [Cluster C] Flag a head sitting over its per-head MRV (e.g. all the chest
+      // volume piled on one region): an even split of the muscle landmark gives
+      // each head its target, so an over-stuffed region stands out in amber.
+      const hlm = headLandmarkFor(mv);
+      const parts = Object.keys(hd).sort((a, b) => hd[b] - hd[a]).map(h => {
+        const over = hlm && hd[h] > hlm.mrv;
+        const txt = `${HEAD_LABELS[h] || h} ${kg(hd[h])}`;
+        return over ? `<b style="color:var(--amber)">${txt} ⚠</b>` : txt;
+      });
       if (parts.length) heads = `<div class="vol-heads faint">Regions: ${parts.join(' · ')}</div>`;
     }
     return `<div class="vol-row">
@@ -2774,6 +2858,7 @@ const FINISHER_UI = {
   drop:      { icon: '🔥', label: 'Drop set',   how: 'Drop set added. Hit your last set, then strip and go' },
   myo:       { icon: '🔁', label: 'Myo-reps',   how: 'Myo-reps added. Hit the activation set, then short mini-rests and mini-sets' },
   restpause: { icon: '⏸', label: 'Rest-pause', how: 'Rest-pause added. Hit failure, then pause and squeeze out a few more' },
+  partials:  { icon: '📐', label: 'Partials',   how: 'Lengthened partials added. After your last full rep, keep going with partial reps in the stretch' },
 };
 function techChipHTML(e, ei) {
   if (!canDropEntry(e)) return '';
@@ -3186,7 +3271,7 @@ function renderPerfModal(anim) {
             <span class="val sm" id="pm-drop-${i}">${d.reps}</span>
             <button class="pm sm" onclick="pmDropReps(${i},1)">＋</button>
           </div>`).join('')}
-          ${SAME_WEIGHT_TECHS.includes(pm.tech) ? `<button class="btn btn-outline mt8" id="pm-minirest" onclick="startMiniRest()">${pm.tech === 'restpause' ? 'Pause' : 'Mini-rest'} ${fmtClock(Engine.techTransitionSec(pm.tech, TIME_MODEL))}</button>` : ''}
+          ${TIMED_REST_TECHS.includes(pm.tech) ? `<button class="btn btn-outline mt8" id="pm-minirest" onclick="startMiniRest()">${pm.tech === 'restpause' ? 'Pause' : 'Mini-rest'} ${fmtClock(Engine.techTransitionSec(pm.tech, TIME_MODEL))}</button>` : ''}
         </div>` : ''}
         <div class="btn-row">
           <button class="btn btn-outline" onclick="clearPerf()">CLEAR</button>
@@ -3543,6 +3628,11 @@ function swapBodyHTML() {
   // For a swap, per-candidate time is the NET change vs the current exercise, not
   // the full additive cost (the slot's time is already in the day). Computed once.
   SW.curCost = (replacing && timeCapMin()) ? candidateCostMin(SW.current) : null;
+  // [Cluster C] Heads already at or over their per-head MRV this week, so a
+  // candidate that piles onto a maxed region gets a "region maxed" hint. Computed
+  // once per render (it resolves every day). Accessory slots, bodybuilding only.
+  const bbTrack = P() && P().trainingConfig && P().trainingConfig.track === 'bodybuilding';
+  SW.overHeads = (sfrBias && bbTrack) ? overMrvHeadSet() : new Set();
   const sortFn = (a, b) => (used.has(b.id) - used.has(a.id))
     || (sfrBias ? (fillsGap(b) - fillsGap(a)) : 0)
     || (sfrBias ? ((b.sfr || 2) - (a.sfr || 2)) : 0)
@@ -3598,8 +3688,13 @@ function swapCardHTML(e, showGroup, gap) {
   }
   // [Cluster C] When this exercise covers a head the day is missing, say so.
   const gapTag = (gap && e.head && HEAD_LABELS[e.head]) ? ` <span class="ex-tag gap">Adds ${HEAD_LABELS[e.head]}</span>` : '';
+  // [Cluster C] Conversely, warn when its region is already at/over its per-head
+  // MRV this week, so piling on is the wrong pick. Suppressed when the candidate
+  // also fills a gap (it cannot both max a region and fill a missing one).
+  const overTag = (!gap && e.head && SW.overHeads && SW.overHeads.has(e.head) && HEAD_LABELS[e.head])
+    ? ` <span class="ex-tag over">${HEAD_LABELS[e.head]} maxed</span>` : '';
   return `<div class="ex-card">
-      <span class="name">${esc(e.name)}${costTag}${gapTag}${showGroup ? `<span class="sub">${MOVEMENTS[e.movement]?.label || ''}</span>` : ''}${exTagsHTML(e)}</span>
+      <span class="name">${esc(e.name)}${costTag}${gapTag}${overTag}${showGroup ? `<span class="sub">${MOVEMENTS[e.movement]?.label || ''}</span>` : ''}${exTagsHTML(e)}</span>
       <span class="actions">
         <button class="icon-btn" onclick="openExDetail('${e.id}')"><span class="ic">ⓘ</span>Info</button>
         <button class="icon-btn" onclick="doSwap(${SW.di},${SW.si},'${e.id}')"><span class="ic">☐</span>Select</button>
@@ -3641,12 +3736,16 @@ function addBodyHTML() {
   const equips = [...new Set(allExercises().map(e => e.equipment))].sort((a, b) => EQUIP_ORDER.indexOf(a) - EQUIP_ORDER.indexOf(b));
   const list = allExercises().filter(e => matchEquip(e) && matchText(e)).slice(0, 60);
   const capped = timeCapMin();
+  // [Cluster C] Heads already at/over per-head MRV this week, so adding more direct
+  // work there gets a "region maxed" hint. Bodybuilding-surfaced (empty otherwise).
+  const overHeads = (P() && P().trainingConfig && P().trainingConfig.track === 'bodybuilding') ? overMrvHeadSet() : new Set();
   const items = list.length
     ? list.map(e => {
       const cost = capped ? candidateCostMin(e.id) : null;
       const costTxt = cost ? ` · ~${cost} min` : '';
+      const overTag = (e.head && overHeads.has(e.head) && HEAD_LABELS[e.head]) ? ` <span class="ex-tag over">${HEAD_LABELS[e.head]} maxed</span>` : '';
       return `<button class="lib-item" onclick="doAddExercise('${e.id}')">
-      <span>${esc(e.name)}<span class="sub">${MOVEMENTS[e.movement]?.label || ''} · ${EQUIP_LABEL[e.equipment] || ''}${costTxt}</span>${exTagsHTML(e)}</span><span>＋</span>
+      <span>${esc(e.name)}<span class="sub">${MOVEMENTS[e.movement]?.label || ''} · ${EQUIP_LABEL[e.equipment] || ''}${costTxt}</span>${exTagsHTML(e)}${overTag}</span><span>＋</span>
     </button>`;
     }).join('')
     : '<p class="faint mt8">No matches.</p>';
