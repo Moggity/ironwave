@@ -73,9 +73,26 @@ test('muscleHeads reports a landmark-movement\'s heads; triceps splits into long
   assert.ok(heads.includes('tri-long') && heads.includes('tri-lateral'), 'triceps has both heads');
   // Every reported head has a label (data integrity for the surfaced split).
   for (const h of heads) assert.ok(HEAD_LABELS[h], `${h} has a label`);
-  // A single-head landmark-movement does not split (whole-muscle landmark stands).
-  const chest = headLandmarkFor('chest');
-  assert.deepStrictEqual(chest, Engine.headLandmark(VOLUME_LANDMARKS.chest, muscleHeads('chest').length));
+});
+
+test('pattern-movement heads roll up to the muscle they name, at the coverage fraction', () => {
+  app.S = app.defaultState();
+  const { exHeadAttribution, HEAD_MUSCLE, EXERCISES, SYNERGIST_COVERAGE } = app;
+  // A landmark-movement head counts in full against its own muscle.
+  const latRaise = EXERCISES.find(e => e.id === 'lateral-raise');
+  assert.deepStrictEqual(exHeadAttribution(latRaise), { muscle: 'shoulder', head: 'delt-side', frac: 1 });
+  // Incline bench lives on the bench PATTERN (no landmark); its upper-chest work
+  // rolls up to Chest at the bench->chest coverage fraction.
+  const incline = EXERCISES.find(e => e.id === 'incline-bench');
+  assert.deepStrictEqual(exHeadAttribution(incline),
+    { muscle: 'chest', head: 'chest-upper', frac: SYNERGIST_COVERAGE.bench.chest });
+  // So Chest now splits into both regions (upper chest used to be invisible).
+  assert.ok(muscleHeads('chest').includes('chest-upper') && muscleHeads('chest').includes('chest-lower'),
+    'chest gains its upper region from the bench pattern');
+  // A headless exercise contributes no attribution.
+  assert.strictEqual(exHeadAttribution(EXERCISES.find(e => e.id === 'pec-deck')), null);
+  // Every rollup target is a real landmark muscle.
+  for (const h in HEAD_MUSCLE) assert.ok(VOLUME_LANDMARKS[HEAD_MUSCLE[h]], `${h} -> a landmark muscle`);
 });
 
 test('headVolumeOverMrv flags a region piled past its per-head MRV', () => {

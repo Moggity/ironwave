@@ -164,12 +164,18 @@ and the product moat are the same move.
   over its per-head MRV in amber, and the swap/add pickers show a "<region> maxed"
   hint on a candidate whose head is already at/over its per-head MRV this week
   (`headLandmarkFor` / `headVolumeOverMrv` / `overMrvHeadSet`, bodybuilding-only).
-  **Still open (own branch):** the split is meaningful only for landmark-movements
-  with multiple heads (triceps / biceps / delts / hamstrings); upper-chest and
-  front-delt heads ride the pressing PATTERN movements (`bench` / `press`), which
-  have no landmark, so `weeklyVolumeByHead` does not yet attribute them. Capturing
-  pattern-movement heads (map bench->chest-upper, press->delt-front into the head
-  tally) is the next slice.
+  **Pattern-movement heads shipped (2026-06-25):** `HEAD_MUSCLE` rolls each head up
+  to the muscle it builds, and `exHeadAttribution` attributes a head on a PATTERN
+  movement (`bench` / `press` / `deadlift`, which carry no landmark) to that muscle
+  at the same `SYNERGIST_COVERAGE` fraction the muscle bar uses, so the head split
+  is complete and stays consistent with the muscle bar. Chest now splits into
+  upper / mid-lower (upper used to be invisible), shoulders gain front-delt from
+  the press pattern, hamstrings gain hip-flexion from the deadlift pattern.
+  `weeklyVolumeByHead` and `muscleHeads` share the one rollup, so the per-head
+  landmarks track it. **Still open:** per-head landmark *tuning* (the even split is
+  a first cut; some heads tolerate more than an even share), and a deeper
+  delt-rear-vs-shoulders grouping (rear delts currently roll up to Upper back,
+  matching where those exercises already sit).
   *Note (found while building rotation):* "cross-meso rotation for athlete-picked
   (select) slots" is near-empty as scoped: `generateBodybuildingDays` assigns a
   `def` to every accessory slot, so def-less select slots do not occur on a

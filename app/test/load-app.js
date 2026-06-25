@@ -52,7 +52,7 @@ const EXPORTS = `return {
   FINISHER_TECHS, SAME_WEIGHT_TECHS, TIMED_REST_TECHS,
   EXERCISES, SFR_LABELS, HEAD_LABELS, EX_META,
   weeklyVolumeByMuscle, weeklyVolumeByHead, SYNERGIST_COVERAGE,
-  muscleHeads, headLandmarkFor, headVolumeOverMrv,
+  muscleHeads, headLandmarkFor, headVolumeOverMrv, exHeadAttribution, HEAD_MUSCLE,
   muscleSignal, checkinGroupForMovement,
   autoregForAccessory, updateAutoreg, currentPhase,
   PHASE_LABELS, PHASE_DEFICIT, PHASE_COLORS, DEFAULT_BLOCK_PHASE, BLOCK_COLORS,

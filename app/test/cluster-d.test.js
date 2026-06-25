@@ -107,10 +107,16 @@ test('weeklyVolumeByHead nests head-tagged sets under the muscle, consistent wit
   assert.ok(!('null' in heads.chest) && heads.chest[null] === undefined, 'a headless exercise adds no head bucket');
 });
 
-test('weeklyVolumeByHead ignores headed compounds (movement is not a landmark key)', () => {
+test('weeklyVolumeByHead attributes a pattern-movement head to the muscle it names, by coverage', () => {
   const prog = bbProgram();
   prog.days = [{ name: 'Push', slots: [{ type: 'main', lift: 'comp-bench' }] }]; // head chest-lower, movement bench
   prog.wm['comp-bench'] = 100;
   const heads = app.weeklyVolumeByHead();
-  assert.deepStrictEqual(heads, {}, 'a compound bench does not produce a head split');
+  const benchSets = app.resolveSlot(prog.days[0].slots[0], 0, 0).sets.filter(s => !s.ramp).length;
+  // bench -> chest at SYNERGIST_COVERAGE 1.0, so the chest-lower head now gets the
+  // full working sets (it used to be skipped entirely, leaving upper chest blind).
+  assert.ok(heads.chest && heads.chest['chest-lower'] != null, 'the bench pattern now feeds the chest head split');
+  assert.strictEqual(heads.chest['chest-lower'], Math.round(benchSets * app.SYNERGIST_COVERAGE.bench.chest * 2) / 2);
+  // The head numbers stay consistent with the (fractionally attributed) muscle bar.
+  assert.strictEqual(app.weeklyVolumeByMuscle().chest, heads.chest['chest-lower']);
 });
