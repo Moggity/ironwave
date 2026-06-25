@@ -1172,13 +1172,40 @@ function computeWeekMod(value, upBi, upWi, curBi, curWi) {
 // RENDER DISPATCH
 // ------------------------------------------------------------
 function render() {
-  const views = {
-    onboarding: vOnboarding, dashboard: vDashboard, workout: vWorkout,
-    checkin: vCheckin, session: vSession, history: vHistory, summary: vSummary,
-    more: vMore, exercises: vExercises, program: vProgram, settings: vSettings,
-  };
-  $app.innerHTML = (views[V.view] || vDashboard)();
-  bindRangeLabels();
+  // Error boundary: a thrown view function used to leave $app empty, which on a
+  // standalone PWA shows as a blank (black) screen with no way out. Catch it and
+  // paint a recovery screen with the actual error instead, so the app is never a
+  // dead black rectangle and we get the message needed to diagnose.
+  try {
+    const views = {
+      onboarding: vOnboarding, dashboard: vDashboard, workout: vWorkout,
+      checkin: vCheckin, session: vSession, history: vHistory, summary: vSummary,
+      more: vMore, exercises: vExercises, program: vProgram, settings: vSettings,
+    };
+    $app.innerHTML = (views[V.view] || vDashboard)();
+    bindRangeLabels();
+  } catch (e) {
+    console.error('render failed', e);
+    try { renderErrorScreen(e); }
+    catch (_) { $app.innerHTML = '<div class="view"><p>Something went wrong drawing the screen. Reload the app.</p></div>'; }
+  }
+}
+// Recovery UI shown when render (or boot) throws. Keeps the athlete's data safe
+// on-device and offers the three useful escapes: reload, export a backup, and
+// force an update (a stale cached build is a common cause after a version bump).
+function renderErrorScreen(err) {
+  const detail = esc((err && (err.stack || err.message)) || String(err));
+  $app.innerHTML = `<div class="view">
+    <div class="section-title">Something went wrong</div>
+    <p class="faint" style="margin-bottom:10px">The app hit an error while drawing the screen. Your data is still saved on this device. Try reloading. If it keeps happening, export a backup, then check for updates.</p>
+    <div class="btn-row">
+      <button class="btn btn-blue" onclick="location.reload()">Reload</button>
+      <button class="btn btn-outline" onclick="exportData()">Export backup</button>
+    </div>
+    <button class="btn btn-outline mt8" onclick="checkForUpdate()">Check for updates</button>
+    <div class="section-title">Error detail</div>
+    <pre class="faint" style="white-space:pre-wrap;word-break:break-word;font-size:.72rem;overflow:auto">${detail}</pre>
+  </div>`;
 }
 function tabbar() {
   const t = (id, ic, label) => `
@@ -2917,6 +2944,91 @@ function playChime() {
     });
   } catch (_) {}
 }
+// ----- Chime debug harness -------------------------------------------------
+// The synthesized Web Audio chime is silent in some standalone PWAs (notably
+// iOS, which routes Web Audio through the ringer channel that the hardware mute
+// switch silences, while <audio> media playback uses a separate channel). To
+// find what actually sounds on a given device, Settings > Debug exposes a button
+// per config below; the athlete taps each and reports which one rings.
+const CHIME_CONFIGS = [
+  { id: 'webaudio', label: 'Web Audio sine (current)',
+    desc: 'The chime used today. Two soft sine notes.' },
+  { id: 'webaudio-loud', label: 'Web Audio square, loud',
+    desc: 'Same path, louder and harsher (square wave).' },
+  { id: 'htmlaudio', label: 'Audio file (WAV)',
+    desc: 'Plays a generated beep through an <audio> element (media channel).' },
+  { id: 'htmlaudio-loud', label: 'Audio file, loud + long',
+    desc: 'Same media path, louder and longer.' },
+  { id: 'vibrate', label: 'Vibrate only',
+    desc: 'No sound. Confirms haptics fire (a baseline sanity check).' },
+];
+// Build a one-shot WAV blob URL for a sequence of tones, so we can play it via an
+// HTMLAudioElement (a different audio path than Web Audio). Caller revokes.
+function buildBeepWavUrl(freqs, noteSec, vol) {
+  const rate = 44100, per = Math.floor(noteSec * rate), n = per * freqs.length;
+  const buf = new ArrayBuffer(44 + n * 2), view = new DataView(buf);
+  const txt = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+  txt(0, 'RIFF'); view.setUint32(4, 36 + n * 2, true); txt(8, 'WAVE');
+  txt(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true);
+  view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  txt(36, 'data'); view.setUint32(40, n * 2, true);
+  let off = 44;
+  freqs.forEach((f, k) => {
+    for (let i = 0; i < per; i++) {
+      const t = i / per;
+      const env = Math.min(1, t / 0.04) * Math.min(1, (1 - t) / 0.3); // attack + fade
+      const s = Math.sin(2 * Math.PI * f * (i / rate)) * vol * env;
+      view.setInt16(off, Math.max(-1, Math.min(1, s)) * 0x7fff, true);
+      off += 2;
+    }
+  });
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+}
+// Web Audio tones with a configurable waveform and gain (generalizes playChime).
+function playWebAudioTones(freqs, type, peak) {
+  const c = audioCtx();
+  if (!c) return false;
+  try {
+    if (c.state === 'suspended') c.resume();
+    const now = c.currentTime;
+    freqs.forEach((f, k) => {
+      const osc = c.createOscillator(), gain = c.createGain(), start = now + k * 0.16;
+      osc.type = type; osc.frequency.value = f;
+      gain.gain.setValueAtTime(0.0001, start);
+      gain.gain.linearRampToValueAtTime(peak, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);
+      osc.connect(gain).connect(c.destination);
+      osc.start(start); osc.stop(start + 0.24);
+    });
+    return true;
+  } catch (_) { return false; }
+}
+// Play a generated WAV through an <audio> element (the media channel path).
+function playHtmlAudio(freqs, noteSec, vol) {
+  try {
+    const url = buildBeepWavUrl(freqs, noteSec, vol);
+    const a = new Audio(url);
+    a.volume = 1;
+    a.addEventListener('ended', () => URL.revokeObjectURL(url));
+    const p = a.play();
+    if (p && p.catch) p.catch(e => { console.warn('html audio play blocked', e); URL.revokeObjectURL(url); });
+    return true;
+  } catch (e) { console.warn('html audio failed', e); return false; }
+}
+function playTestChime(id) {
+  primeAudio(); // we are inside the button tap, so this unlock counts
+  switch (id) {
+    case 'webaudio':      playWebAudioTones([880, 1320], 'sine', 0.12); break;
+    case 'webaudio-loud': playWebAudioTones([880, 1320], 'square', 0.4); break;
+    case 'htmlaudio':     playHtmlAudio([880, 1320], 0.18, 0.5); break;
+    case 'htmlaudio-loud':playHtmlAudio([784, 1175], 0.32, 0.9); break;
+    case 'vibrate': break;
+  }
+  if (navigator.vibrate) { try { navigator.vibrate(150); } catch (_) {} }
+  const cfg = CHIME_CONFIGS.find(c => c.id === id);
+  toast('Played: ' + (cfg ? cfg.label : id));
+}
 function startRestTimer(kind, exId) {
   const dur = Engine.restSecFor(kind, sessionTight(), TIME_MODEL);
   V.restTimer = { endTs: Date.now() + dur * 1000, durSec: dur, exId, rung: false };
@@ -3962,6 +4074,11 @@ function vSettings() {
     <div class="section-title">About</div>
     <p class="faint" style="margin-bottom:10px">IRONWAVE version ${esc(APP_VERSION)}. If a feature you expect is missing, the installed app may be caching an older build. Check for updates, then relaunch.</p>
     <button class="btn btn-outline" onclick="checkForUpdate()">Check for updates</button>
+    <div class="section-title">Debug: timer chime</div>
+    <p class="faint" style="margin-bottom:10px">The rest-timer chime can be silent on some installed (PWA) devices even when it works in a browser. Tap each option below and note which one you actually hear, then tell me. On iPhone, also check your ring/silent switch is on.</p>
+    ${CHIME_CONFIGS.map(c => `
+      <button class="btn btn-outline mt8" onclick="playTestChime('${c.id}')">${esc(c.label)}</button>
+      <p class="faint" style="margin:4px 0 0">${esc(c.desc)}</p>`).join('')}
   </div>${tabbar()}`;
 }
 // Force the service worker to look for a newer build and, if one installs, take
@@ -4088,4 +4205,9 @@ async function boot() {
   document.addEventListener('click', unlock);
   render();
 }
-boot();
+// Last-resort net for anything that throws before/around the first render (load,
+// migration, boot): show the recovery screen instead of a black PWA window.
+boot().catch(e => {
+  console.error('boot failed', e);
+  try { renderErrorScreen(e); } catch (_) {}
+});
