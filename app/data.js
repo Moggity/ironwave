@@ -9,7 +9,7 @@
 // repo, and it must be kept in step with CACHE_VERSION in sw.js (the service
 // worker only ships new code to installed PWAs when that cache name changes).
 // Bump this on any shell change (data/engine/app/styles/index/sw).
-const APP_VERSION = '1.1.3';
+const APP_VERSION = '1.1.4';
 
 // Movement categories (used for "Select X Exercise" slots & swaps)
 const MOVEMENTS = {
@@ -238,6 +238,21 @@ const HEAD_LABELS = {
   'back-lat': 'Lats', 'back-upper': 'Upper back',
   'ham-hip': 'Hip flexion', 'ham-knee': 'Knee flexion',
   'bi-long': 'Long head', 'bi-short': 'Short head',
+};
+// [Cluster C] Which muscle (the volume-screen row / landmark movement) each head
+// rolls up to. Used to attribute heads that live on PATTERN movements (bench /
+// press / deadlift carry no landmark of their own) to the muscle they build, so
+// the per-head split is complete (e.g. an incline bench's upper-chest work shows
+// under Chest). delt-rear rolls up to Upper back, matching where the rear-delt
+// exercises already sit. The attribution is weighted by SYNERGIST_COVERAGE so the
+// head numbers stay consistent with the (fractionally attributed) muscle bar.
+const HEAD_MUSCLE = {
+  'chest-upper': 'chest', 'chest-lower': 'chest',
+  'delt-front': 'shoulder', 'delt-side': 'shoulder', 'delt-rear': 'upperback',
+  'tri-long': 'tricep', 'tri-lateral': 'tricep',
+  'bi-long': 'bicep', 'bi-short': 'bicep',
+  'back-lat': 'vpull', 'back-upper': 'hpull',
+  'ham-hip': 'ham', 'ham-knee': 'ham',
 };
 const EX_META_DEFAULT = { sfr: 2, stretch: false, head: null };
 

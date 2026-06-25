@@ -1,5 +1,22 @@
 # IRONWAVE — Changelog
 
+## [Cluster C: pattern-movement head attribution] (2026-06-25)
+
+Bodybuilding-track-only, read-only (not on the prescription path), so the
+Powerbuilding golden master is byte-identical. Bumped `APP_VERSION`/`CACHE_VERSION`
+to `1.1.4`.
+
+- Completes the per-head volume split: heads tagged on PATTERN movements (`bench`
+  / `press` / `deadlift`, which carry no landmark of their own) are now attributed
+  to the muscle they build instead of being skipped. New `HEAD_MUSCLE` rollup map
+  + a shared `exHeadAttribution` helper apply the same `SYNERGIST_COVERAGE`
+  fraction the muscle bar uses, so the head numbers stay consistent with the
+  (fractionally attributed) muscle bar. Chest now splits into upper / mid-lower
+  (upper chest used to be invisible because incline work rides the bench pattern);
+  shoulders pick up front-delt from the press pattern; hamstrings pick up
+  hip-flexion from the deadlift pattern. `weeklyVolumeByHead` and `muscleHeads`
+  share the one rollup, so the per-head landmarks and the over-MRV hints track it.
+
 ## [Hypertrophy B/C/D slices: partials, per-head landmarks, deload refinements] (2026-06-25)
 
 Three bodybuilding-track-only slices in one branch; all inert off the track and on

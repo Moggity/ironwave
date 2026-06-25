@@ -1933,39 +1933,56 @@ function weeklyVolumeByMuscle() {
   for (const mv in tally) tally[mv] = Math.round(tally[mv] * 2) / 2; // nearest half set
   return tally;
 }
-// [Cluster C/D] Per-head working-set split, nested under each muscle. Counts only
-// direct head-tagged accessories (movement is a landmark key), using the same
-// set count those exercises contribute to weeklyVolumeByMuscle, so the head
-// numbers stay consistent with the muscle bar. Headed compounds (attributed
-// fractionally by coverage) are not split. Read-only; bodybuilding-surfaced.
+// [Cluster C] How one exercise's head-tagged work rolls up to a muscle row, with
+// the weight to apply: { muscle, head, frac } or null. A head on a landmark
+// movement (e.g. a lateral raise on `shoulder`) counts in full against that
+// muscle. A head on a PATTERN movement (bench / press / deadlift carry no
+// landmark) rolls up to the muscle the head names (HEAD_MUSCLE) at the same
+// SYNERGIST_COVERAGE fraction the muscle bar uses, so the head numbers stay
+// consistent with the (fractionally attributed) muscle bar. Shared by the head
+// tally and muscleHeads so the split and its landmarks agree. Pure given globals.
+function exHeadAttribution(ex) {
+  if (!ex || !ex.head) return null;
+  if (VOLUME_LANDMARKS[ex.movement]) return { muscle: ex.movement, head: ex.head, frac: 1 };
+  const muscle = HEAD_MUSCLE[ex.head];
+  if (!muscle || !VOLUME_LANDMARKS[muscle]) return null;
+  const frac = (SYNERGIST_COVERAGE[ex.movement] || {})[muscle] || 0;
+  return frac > 0 ? { muscle, head: ex.head, frac } : null;
+}
+// [Cluster C/D] Per-head working-set split, nested under each muscle. Uses the
+// same set count and (for pattern movements) the same coverage fraction those
+// exercises contribute to weeklyVolumeByMuscle, so the head numbers stay
+// consistent with the muscle bar. Read-only; bodybuilding-surfaced.
 function weeklyVolumeByHead() {
   const p = P();
   if (!p) return {};
   const bi = p.pointer.block, wi = p.pointer.week;
-  const tally = {}; // { movement: { head: sets } }
+  const tally = {}; // { muscle: { head: sets } }
   for (let di = 0; di < p.days.length; di++) {
     for (const x of resolveDayEntries(di, bi, wi).items) {
-      const ex = exById(x.rs.exId);
-      if (!ex || !ex.head || !VOLUME_LANDMARKS[ex.movement]) continue;
+      const a = exHeadAttribution(exById(x.rs.exId));
+      if (!a) continue;
       const sets = x.rs.sets.filter(s => !s.ramp).length;
       if (!sets) continue;
-      (tally[ex.movement] || (tally[ex.movement] = {}));
-      tally[ex.movement][ex.head] = (tally[ex.movement][ex.head] || 0) + sets;
+      (tally[a.muscle] || (tally[a.muscle] = {}));
+      tally[a.muscle][a.head] = (tally[a.muscle][a.head] || 0) + sets * a.frac;
     }
   }
   for (const mv in tally) for (const h in tally[mv]) tally[mv][h] = Math.round(tally[mv][h] * 2) / 2;
   return tally;
 }
-// [Cluster C] The distinct muscle heads a movement is split into (from the
-// exercise taxonomy), so a per-head landmark can divide the muscle landmark
-// across them. Cached: the exercise set is static within a session.
+// [Cluster C] The distinct muscle heads a muscle row is split into (via the same
+// rollup the tally uses, so e.g. Chest includes the upper-chest work that lives on
+// the bench pattern). Lets a per-head landmark divide the muscle landmark across
+// them. Cached: the exercise set is static within a session.
 let _MUSCLE_HEADS = null;
 function muscleHeads(movement) {
   if (!_MUSCLE_HEADS) {
     _MUSCLE_HEADS = {};
     for (const e of allExercises()) {
-      if (!e.head || !VOLUME_LANDMARKS[e.movement]) continue;
-      (_MUSCLE_HEADS[e.movement] || (_MUSCLE_HEADS[e.movement] = new Set())).add(e.head);
+      const a = exHeadAttribution(e);
+      if (!a) continue;
+      (_MUSCLE_HEADS[a.muscle] || (_MUSCLE_HEADS[a.muscle] = new Set())).add(a.head);
     }
   }
   const s = _MUSCLE_HEADS[movement];
