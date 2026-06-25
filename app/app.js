@@ -937,8 +937,11 @@ function resolveDayEntries(di, bi, wi) {
     const mains = items.filter(x => x.rs.isMain).map(x => (exById(x.rs.exId) || {}).movement);
     const core = items.filter(x => x.rs.isMain || x.rs.isSecondary); // always core
     const accs = items.filter(x => !x.rs.isMain && !x.rs.isSecondary)
-      .map(x => ({ x, score: prunePriority(x.rs, mains, tc) }))
-      .sort((a, b) => a.score - b.score); // keep highest-priority (lowest score) first
+      .map(x => ({ x, added: !!p.days[di].slots[x.si].added, score: prunePriority(x.rs, mains, tc) }))
+      // An exercise the athlete explicitly added is the discretionary extra, so it
+      // falls to the optional tail first: it never demotes a pre-existing default
+      // accessory below itself. Otherwise keep highest-priority (lowest score) first.
+      .sort((a, b) => (a.added - b.added) || (a.score - b.score));
     let full = false;
     for (const a of accs) {
       if (!full && estimateSessionSec(core.concat([a.x]).map(t => t.rs), false) <= capMin * 60) {
@@ -1867,7 +1870,7 @@ function vDashboard() {
     ${timelineHTML()}
     ${weekSection}
     ${done ? '' : `<button class="btn btn-outline mt16" onclick="openVolumeDashboard()">📊 Weekly volume per muscle</button>`}
-    ${done ? '' : `<button class="phase-chip mt8" onclick="openPhase()">🍽 Phase: ${PHASE_LABELS[currentPhase()] || currentPhase()}</button>`}
+    ${(done || (p.trainingConfig && p.trainingConfig.track === 'bodybuilding')) ? '' : `<button class="phase-chip mt8" onclick="openPhase()">🍽 Phase: ${PHASE_LABELS[currentPhase()] || currentPhase()}</button>`}
   </div>${tabbar()}`;
 }
 // [Cluster D] Estimated direct working sets per muscle for the current week,
@@ -3529,7 +3532,17 @@ function swapBodyHTML() {
   // variations, so neither bias applies there.
   const sfrBias = !SW.isMain;
   const dayHeads = sfrBias ? dayHeadsCovered(SW.di, SW.si, SW.cat) : new Set();
+  // A swap replaces the current exercise rather than adding one, so the head it
+  // already covers is not a gap a candidate "adds". Count the outgoing exercise's
+  // head as covered: a like-for-like swap (e.g. one mid/lower chest move for
+  // another) then reads as a swap, not "Adds Mid/lower chest". Select slots have
+  // no current exercise, so they keep the additive framing.
+  const replacing = sfrBias && SW.current ? exById(SW.current) : null;
+  if (replacing && replacing.head) dayHeads.add(replacing.head);
   const fillsGap = e => !!(e.head && !dayHeads.has(e.head));
+  // For a swap, per-candidate time is the NET change vs the current exercise, not
+  // the full additive cost (the slot's time is already in the day). Computed once.
+  SW.curCost = (replacing && timeCapMin()) ? candidateCostMin(SW.current) : null;
   const sortFn = (a, b) => (used.has(b.id) - used.has(a.id))
     || (sfrBias ? (fillsGap(b) - fillsGap(a)) : 0)
     || (sfrBias ? ((b.sfr || 2) - (a.sfr || 2)) : 0)
@@ -3570,7 +3583,19 @@ function swapCardHTML(e, showGroup, gap) {
   // accessory slots (main/secondary variations all run the same wave math, so
   // their cost is identical and would just be noise).
   const cost = (!SW.isMain && timeCapMin()) ? candidateCostMin(e.id) : null;
-  const costTag = cost ? ` <span class="cost-tag">+${cost} min</span>` : '';
+  // On a swap, show the net minutes vs the exercise being replaced ("same time",
+  // "+2 min", "−1 min"); on a select/add slot, show the full additive cost.
+  let costTag = '';
+  if (cost != null) {
+    if (SW.curCost != null) {
+      const net = cost - SW.curCost;
+      costTag = net === 0
+        ? ` <span class="cost-tag">same time</span>`
+        : ` <span class="cost-tag">${net > 0 ? '+' : '−'}${Math.abs(net)} min</span>`;
+    } else {
+      costTag = ` <span class="cost-tag">+${cost} min</span>`;
+    }
+  }
   // [Cluster C] When this exercise covers a head the day is missing, say so.
   const gapTag = (gap && e.head && HEAD_LABELS[e.head]) ? ` <span class="ex-tag gap">Adds ${HEAD_LABELS[e.head]}</span>` : '';
   return `<div class="ex-card">
