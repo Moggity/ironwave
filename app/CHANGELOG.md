@@ -1,5 +1,25 @@
 # IRONWAVE — Changelog
 
+## [Add/swap time tiers + dashboard phase chip] (2026-06-25)
+
+App/UI only, no engine or prescription change, golden master untouched. Bumped
+`APP_VERSION`/`CACHE_VERSION` to `1.1.2`.
+
+- Time tiers: an exercise the athlete explicitly adds (`slot.added`) now falls to
+  the optional tail before any pre-existing default accessory. Previously adding
+  an exercise to a time-capped day could push a default synergist accessory to
+  optional instead of the discretionary add. `resolveDayEntries` sorts added
+  accessories last; covered by a new focus-generator test.
+- Swap picker now reads as a swap, not an add. On a swap (replacing an existing
+  exercise) the per-candidate time tag shows the NET change vs the outgoing
+  exercise ("same time", "+2 min", "−1 min") instead of the full additive cost,
+  and the outgoing exercise's muscle head counts as covered so a like-for-like
+  swap no longer shows a misleading "Adds <region>" badge. Select (placeholder)
+  slots keep the additive framing, since those genuinely add work.
+- Dashboard: removed the redundant "Phase" chip on the bodybuilding track, where
+  the Weekly-volume overview already shows the phase with a change link. Other
+  tracks keep the chip (their only access point).
+
 ## [Render error boundary + chime debug] (2026-06-25)
 
 App-wide, no engine or prescription change, golden master untouched. Bumped

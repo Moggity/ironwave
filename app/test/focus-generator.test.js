@@ -197,6 +197,25 @@ test('time tiers: a tight cap pushes accessories optional, mains stay core', () 
   assert.strictEqual(rd.optionalNames.length, rd.optItems.length);
 });
 
+test('time tiers: an explicitly added accessory is the first pushed optional, never a default', () => {
+  installProgram({ timeMode: 'custom', timeCapMin: 999, maxes: CAL_MAXES });
+  // Controlled day: one calibrated main + two identical accessories. They score
+  // and cost the same, so only the `added` flag can decide which runs over the
+  // cap. si 1 is a pre-existing default, si 2 is the one the athlete added.
+  app.S.program.days = [{ name: 'D1', slots: [
+    { type: 'main', lift: 'comp-bench' },
+    { type: 'acc', cat: 'chest', def: 'cable-fly' },
+    { type: 'acc', cat: 'chest', def: 'cable-fly', added: true },
+  ] }];
+  const full = app.resolveDayEntries(0, 0, 0); // huge cap: everything is core
+  assert.strictEqual(full.optItems.length, 0);
+  // Tighten the cap to just under the full day so exactly one accessory drops.
+  app.S.program.trainingConfig.timeCapMin = full.fullMin - 1;
+  const rd = app.resolveDayEntries(0, 0, 0);
+  assert.strictEqual(rd.optItems.length, 1, 'exactly one accessory runs over');
+  assert.strictEqual(rd.optItems[0].si, 2, 'the added accessory is the optional one, not the default');
+});
+
 // ---------------------------------------------------------------------------
 // Block-end carryover
 // ---------------------------------------------------------------------------
