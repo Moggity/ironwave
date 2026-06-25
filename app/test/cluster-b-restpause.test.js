@@ -76,13 +76,15 @@ test('tonnage includes the logged rest-pause bursts', () => {
 // ---------------------------------------------------------------------------
 // Routing + the shared finisher constants
 // ---------------------------------------------------------------------------
-test('the three finishers are registered, and only myo/rest-pause keep the weight', () => {
-  assert.deepStrictEqual(FINISHER_TECHS, ['drop', 'myo', 'restpause']);
-  assert.deepStrictEqual(SAME_WEIGHT_TECHS, ['myo', 'restpause']);
+test('the finishers are registered, and only drop strips the weight', () => {
+  assert.deepStrictEqual(FINISHER_TECHS, ['drop', 'myo', 'restpause', 'partials']);
+  // Drop is the only finisher that strips the load; the rest ride the working weight.
+  assert.deepStrictEqual(SAME_WEIGHT_TECHS, ['myo', 'restpause', 'partials']);
   // buildTechnique dispatches each tag.
   assert.strictEqual(app.buildTechnique('restpause', { weight: 80, reps: 8 }, 2.5).technique, 'restpause');
   assert.strictEqual(app.buildTechnique('myo', { weight: 80, reps: 8 }, 2.5).technique, 'myo');
   assert.strictEqual(app.buildTechnique('drop', { weight: 80, reps: 8 }, 2.5).technique, 'drop');
+  assert.strictEqual(app.buildTechnique('partials', { weight: 80, reps: 8 }, 2.5).technique, 'partials');
 });
 
 function bbProgramWithRecords(exId) {

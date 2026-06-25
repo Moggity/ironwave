@@ -1,5 +1,33 @@
 # IRONWAVE — Changelog
 
+## [Hypertrophy B/C/D slices: partials, per-head landmarks, deload refinements] (2026-06-25)
+
+Three bodybuilding-track-only slices in one branch; all inert off the track and on
+a fresh program, so the Powerbuilding golden master is byte-identical. Bumped
+`APP_VERSION`/`CACHE_VERSION` to `1.1.3`.
+
+- **Cluster B / Epic 2 - lengthened partials.** A fourth finisher, end-to-end:
+  `Engine.buildPartials` (one same-weight partial burst in the stretch) reuses the
+  shared child-set plumbing; a `partials` chip joins the "Add a finisher" row;
+  `TIME_MODEL.partialsSec` / `techTransitionSec` charge the small slowdown.
+  Partials ride the working weight (`SAME_WEIGHT_TECHS`) but get no timed rest cue
+  (a new `TIMED_REST_TECHS` gates the perf-modal mini-rest button, since partials
+  flow straight out of the set). New `test/cluster-b-partials.test.js`.
+- **Cluster C / Epic 3 - per-head MEV/MRV landmarks.** `Engine.headLandmark`
+  derives a per-head target by an even split of the muscle landmark across its
+  heads (floored, capped at the whole-muscle MRV; single-head movements are a
+  no-op). The Weekly-volume "Regions" line flags a head over its per-head MRV in
+  amber, and the swap/add pickers show a "<region> maxed" hint on a candidate whose
+  head is already at/over its per-head MRV this week. Meaningful for the
+  multi-head landmark muscles (triceps / biceps / delts / hamstrings); pressing-
+  pattern heads (upper chest, front delt) remain a documented follow-up.
+- **Cluster D / Epic 4 - deload-depth refinements.** (1) `autoregForAccessory` no
+  longer ADDS volume on the deload week (a positive `volAdj` offset is suppressed
+  so it stops fighting the deload pullback; a negative offset still passes). (2)
+  `Engine.deloadDepth` now carries an `rpeDelta`: a deeper deload eases effort by
+  one RIR as well as a set (`deloadIntensityDelta` / `applyDeloadIntensity`,
+  clamped to >= RPE 5), so a deep deload pulls back volume and intensity.
+
 ## [Add/swap time tiers + dashboard phase chip] (2026-06-25)
 
 App/UI only, no engine or prescription change, golden master untouched. Bumped

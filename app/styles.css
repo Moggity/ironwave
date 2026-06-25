@@ -361,6 +361,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .ex-tag.sfr.s3 { border-color: #2f9e6f; color: #36c98a; }
 .ex-tag.sfr.s1 { border-color: #b06a2c; color: #e0903f; }
 .ex-tag.gap { border-color: var(--blue); color: var(--blue); background: rgba(75,141,248,.1); }
+.ex-tag.over { border-color: var(--amber); color: var(--amber); background: rgba(232,160,60,.1); }
 .vol-row { margin: 14px 0; }
 .vol-head { display: flex; justify-content: space-between; align-items: baseline; font-weight: 600; margin-bottom: 5px; }
 .vol-status { font-size: .8rem; font-weight: 700; }

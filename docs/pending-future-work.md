@@ -110,8 +110,14 @@ and the product moat are the same move.
   `Engine.buildRestPause` (same-weight bursts), `Engine.techTransitionSec` as the
   one source for each technique's intrinsic intra-set rest, and a consolidated
   "Add a finisher" chip row (drop / myo / rest-pause, mutually exclusive) with a
-  technique-aware perf modal + pause cue. Next: partials, then supersets / giant
-  sets.
+  technique-aware perf modal + pause cue. **Lengthened partials shipped
+  (2026-06-25):** `Engine.buildPartials` reuses the same-weight child-set plumbing
+  (one partial burst in the stretch); a `partials` finisher chip joins the row
+  (now four, mutually exclusive); `TIME_MODEL.partialsSec` / `techTransitionSec`
+  charge the small slowdown; and partials ride the working weight
+  (`SAME_WEIGHT_TECHS`) but carry NO timed rest cue (a new `TIMED_REST_TECHS`
+  gates the perf-modal mini-rest button, since partials flow straight out of the
+  set). Next: supersets / giant sets (the structural one, its own branch).
 - **Dependencies:** Cluster A's `technique` field + logging; `estimateSessionSec`
   must learn each technique's time cost; how a drop set counts toward weekly sets
   feeds Epic 4.
@@ -151,9 +157,19 @@ and the product moat are the same move.
   fills-a-gap sort tier and an "Adds <head>" hint surface a candidate that covers
   a region the day is missing. **Per-head volume shipped (2026-06-23):**
   `weeklyVolumeByHead` plus a "Regions" line on the Weekly volume screen split a
-  muscle's direct work by head. **Still open (own branch):** per-head MEV/MRV
-  landmarks (today the head split is informational against the whole-muscle
-  landmark, not per-head targets), and a per-head over-MRV warning in the picker.
+  muscle's direct work by head. **Per-head landmarks shipped (2026-06-25):**
+  `Engine.headLandmark` derives a per-head target by an even split of the muscle
+  landmark across its heads (floored, capped at the whole-muscle MRV; a single-head
+  movement is a no-op). The Weekly-volume "Regions" line now flags a head sitting
+  over its per-head MRV in amber, and the swap/add pickers show a "<region> maxed"
+  hint on a candidate whose head is already at/over its per-head MRV this week
+  (`headLandmarkFor` / `headVolumeOverMrv` / `overMrvHeadSet`, bodybuilding-only).
+  **Still open (own branch):** the split is meaningful only for landmark-movements
+  with multiple heads (triceps / biceps / delts / hamstrings); upper-chest and
+  front-delt heads ride the pressing PATTERN movements (`bench` / `press`), which
+  have no landmark, so `weeklyVolumeByHead` does not yet attribute them. Capturing
+  pattern-movement heads (map bench->chest-upper, press->delt-front into the head
+  tally) is the next slice.
   *Note (found while building rotation):* "cross-meso rotation for athlete-picked
   (select) slots" is near-empty as scoped: `generateBodybuildingDays` assigns a
   `def` to every accessory slot, so def-less select slots do not occur on a
@@ -203,17 +219,19 @@ and the product moat are the same move.
   the hatched per-muscle volume bars pay off. Reuses this trigger.
 - **Deload-depth refinements (found while building the deload, own small
   branch):**
-  - *Suppress autoreg adds on the deload week.* `autoregForAccessory` (E) still
-    reads `volAdj` on the deload week, so it can add a set even as `deloadDepth`
-    pulls volume back; `volAdj` only resets on block end (after the deload is
-    trained). Consider gating the autoreg add to non-deload weeks so the two do
-    not fight.
-  - *Modulate intensity, not just sets.* `deloadDepth` changes the deload set
-    count only; a deeper deload could also drop load/RPE (the deload sets carry a
-    fixed `accRpe`). Add an intensity component to the plan.
+  - ~~*Suppress autoreg adds on the deload week.*~~ DONE (2026-06-25):
+    `autoregForAccessory` now takes the effective week and returns 0 for a positive
+    `volAdj` offset on the deload week, so the accumulated autoreg add no longer
+    fights the `deloadDepth` pullback. A negative offset still passes through (it
+    only reinforces the deload).
+  - ~~*Modulate intensity, not just sets.*~~ DONE (2026-06-25): `deloadDepth` now
+    carries an `rpeDelta` (a deeper deload is `-1`, i.e. one more rep in reserve);
+    `deloadIntensityDelta` / `applyDeloadIntensity` ease the plain working sets'
+    RPE on the deload week (clamped to >= 5), so a deeper deload pulls back both
+    volume and intensity. Standard/light deloads are `rpeDelta: 0` (unchanged).
   - *Extend depth to secondary/main.* Today the plan applies to bodybuilding
     accessories only; the secondary volume and the main `DELOAD_SETS` are not
-    autoregulated. Low priority (mains are already minimal on a deload).
+    autoregulated. Low priority (mains are already minimal on a deload). Still open.
 - **Dependencies:** Cluster A logging + (ideally) Cluster C granularity for
   accurate counts. Reuses `seedLandmarks`/`recalibrateLandmarks` and readiness.
   The specialization phase depends on the zero-sum budget (below) so non-priority
@@ -339,7 +357,9 @@ Phase   (F) -- needs D --> modulates E and the deload; starts light
 - **Tempo as a prescribable field** on any exercise, not only the named
   `tempo-*` variants. [polish]
 - **Stretch-focused badge** in the picker; **over-MRV warning** when sliders push
-  a muscle past its landmark (needs Epic 3 tags / landmarks). [polish]
+  a muscle past its landmark (needs Epic 3 tags / landmarks). A per-HEAD over-MRV
+  hint in the swap/add pickers shipped (2026-06-25, Cluster C); a whole-muscle,
+  slider-driven over-MRV warning is still open. [polish]
 
 ### Roadmap notes
 

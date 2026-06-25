@@ -113,3 +113,43 @@ test('advancing into the deload week stores a plan for a bodybuilding athlete', 
   assert.strictEqual(Engine.weekType(p.pointer.week), 'deload');
   assert.ok(p.deloadPlan && typeof p.deloadPlan.setDelta === 'number', 'a deload plan was computed');
 });
+
+// ---------------------------------------------------------------------------
+// Deload-depth refinements (this branch): intensity modulation + autoreg gating
+// ---------------------------------------------------------------------------
+test('deloadDepth: a deeper deload also eases effort (rpeDelta), lighter/standard do not', () => {
+  assert.strictEqual(Engine.deloadDepth([st('over'), st('over'), st('over')], false).rpeDelta, -1);
+  assert.strictEqual(Engine.deloadDepth([st('productive'), st('maint')], false).rpeDelta, 0);
+  assert.strictEqual(Engine.deloadDepth([], false).rpeDelta, 0);
+});
+
+function plainRpes(slot, wIdx) {
+  return app.resolveSlot(slot, 0, wIdx).sets.filter(s => !s.amrap && !s.ramp && !s.calib).map(s => s.rpe);
+}
+test('a deep deload eases accessory RPE on the deload week only', () => {
+  const p = freshBB();
+  p.deloadPlan = null;
+  const baseRpes = plainRpes(accSlot, 4);
+  assert.ok(baseRpes.length && baseRpes.every(r => r != null), 'deload sets carry an RPE');
+  p.deloadPlan = { level: 'deep', setDelta: 0, rpeDelta: -1 };
+  const easedRpes = plainRpes(accSlot, 4);
+  easedRpes.forEach((r, i) => assert.strictEqual(r, Math.max(5, baseRpes[i] - 1), 'each working set is one RIR easier'));
+  // A work week ignores the intensity delta entirely.
+  const workBefore = plainRpes(accSlot, 1);
+  assert.deepStrictEqual(plainRpes(accSlot, 1), workBefore, 'rpeDelta never touches a work week');
+});
+
+test('autoreg never ADDS volume on the deload week, but still adds on a work week', () => {
+  const p = freshBB();
+  p.deloadPlan = null;
+  // A positive per-muscle offset would add a set where autoreg applies.
+  p.volAdj = { chest: 2 };
+  const workCount = app.resolveSlot(accSlot, 0, 1).sets.filter(s => !s.amrap && !s.ramp && !s.calib).length;
+  const workBaseline = (() => { p.volAdj = {}; const n = app.resolveSlot(accSlot, 0, 1).sets.filter(s => !s.amrap && !s.ramp && !s.calib).length; p.volAdj = { chest: 2 }; return n; })();
+  assert.ok(workCount > workBaseline, 'a positive offset adds volume on a work week');
+  // On the deload week the same positive offset is suppressed.
+  const deloadCount = app.resolveSlot(accSlot, 0, 4).sets.filter(s => !s.amrap && !s.ramp && !s.calib).length;
+  p.volAdj = {};
+  const deloadBaseline = app.resolveSlot(accSlot, 0, 4).sets.filter(s => !s.amrap && !s.ramp && !s.calib).length;
+  assert.strictEqual(deloadCount, deloadBaseline, 'the offset does not add volume on the deload week');
+});
