@@ -124,11 +124,19 @@ and the product moat are the same move.
   shorter, and the workout overview gets a per-accessory Superset/Unlink toggle
   (`supersetLayout` / `toggleSuperset`) plus a link badge on the overview and
   session cards. Bodybuilding-only, additive (`slot.superset` absent by default),
-  golden master untouched. **Still open:** giant sets (3+; this slice is pairs
-  only, a consumed tail cannot start a new pair), the full alternating/grouped
-  session-logging UI (today the paired exercises still log as separate cards with
-  a link badge), and the cap/optional interaction (a pair can be split across the
-  core/optional tiers).
+  golden master untouched. **Giant sets + alternating UI + cap unit shipped
+  (2026-06-25):** a maximal run of accessories linked by the flag is one group;
+  `resolveDayEntries` tags every member (group head / index / size / names) and
+  `estimateSessionSec` charges 1/size the rest per supersetted set; the overview
+  toggle allows chains (the badge reads superset / giant set); a group renders in
+  the session as one combined card with a per-member controls strip and the work
+  logged ROUND by round (`supersetGroupCardHTML`; `liftCardHTML` / `setRowHTML`
+  extracted), each cell opening the same perf modal; and the time cap treats a
+  group as one unit so a pair / giant set is kept or dropped whole. **Still open
+  (nice-to-have):** a per-round shared rest-timer cue (the timer is still
+  per-set), and reordering exercises within a group. With this, **Cluster B /
+  Epic 2 is functionally complete** (drop / myo / rest-pause / partials + supersets
+  / giant sets).
 - **Dependencies:** Cluster A's `technique` field + logging; `estimateSessionSec`
   must learn each technique's time cost; how a drop set counts toward weekly sets
   feeds Epic 4.

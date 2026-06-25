@@ -115,6 +115,20 @@ for (const track of ['powerbuilding', 'bodybuilding']) {
   });
 }
 
+test('bodybuilding: a superset group renders an alternating session card', () => {
+  const ctx = fresh();
+  const s = withProgram(ctx, 'bodybuilding');
+  // Link the first two accessories on day 0 into a superset, then start a session.
+  const accSlots = s.program.days[0].slots.filter(sl => sl.type === 'acc');
+  assert.ok(accSlots.length >= 2, 'day has at least two accessories to superset');
+  accSlots[0].superset = true;
+  ctx.app.startCheckin(0);
+  ctx.app.beginSession();
+  const html = ctx.document.getElementById('app').innerHTML;
+  assert.ok(/superset-group/.test(html), 'the combined superset card rendered');
+  assert.ok(/Round 1/.test(html), 'the round-by-round layout rendered');
+});
+
 test('onboarding renders for a brand-new user (no program)', () => {
   const ctx = fresh();
   ctx.app.S = ctx.app.defaultState(); // program is null

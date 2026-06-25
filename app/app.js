@@ -919,9 +919,10 @@ function estimateSessionSec(resolved, tight) {
     const kind = rs.isMain ? 'main' : rs.isSecondary ? 'secondary' : 'accessory';
     const equip = (exById(rs.exId) || {}).equipment;
     t += TM.setupSec[equip] != null ? TM.setupSec[equip] : TM.setupSecDefault; // per-exercise setup
-    // [Cluster B] A supersetted accessory shares one rest per round with its
-    // partner, so each of its sets carries roughly half the usual rest.
-    const restSec = rs.superset ? Math.round(rest[kind] / 2) : rest[kind];
+    // [Cluster B] A supersetted accessory shares one rest per round with the other
+    // members of its group, so each of its sets carries roughly 1/size the rest
+    // (half for a pair, a third for a triple, ...).
+    const restSec = rs.superset ? Math.round(rest[kind] / (rs.supersetSize || 2)) : rest[kind];
     for (const st of rs.sets) {
       t += Engine.setTimeSec(st, TM, kind, restSec); // exec + rest, drop-aware
     }
@@ -968,36 +969,62 @@ function resolveDayEntries(di, bi, wi) {
     .map((slot, si) => ({ si, rs: resolveSlot(slot, bi, wi) }))
     .filter(x => !x.rs.isSelect && !x.rs.isRemoved && x.rs.sets.length);
   const tc = p.trainingConfig;
-  // [Cluster B] Superset pairing: an accessory flagged `superset` is performed
-  // paired with the NEXT accessory on the day (alternating, one shared rest per
-  // round). Tag both resolved entries so the time estimate charges a shared rest
-  // and the UI can show the link. Bodybuilding-only and absent by default; no
-  // giant sets in this slice (a consumed partner cannot also start a pair).
+  // [Cluster B] Superset / giant-set grouping: a maximal run of consecutive
+  // accessories linked by the `superset` flag (each member except the last links
+  // to the next) is performed as one alternating group, sharing one rest per
+  // round. Tag every member with its group head, index, size and the member
+  // names, so the time estimate charges a shared rest, the cap keeps the group
+  // together, and the session UI can render the rounds. Bodybuilding-only and
+  // absent by default (golden master holds).
   if (tc && tc.track === 'bodybuilding') {
     const accs = items.filter(x => !x.rs.isMain && !x.rs.isSecondary);
-    for (let k = 0; k < accs.length - 1; k++) {
-      const slot = p.days[di].slots[accs[k].si];
-      if (slot && slot.superset && !accs[k].rs.superset && !accs[k + 1].rs.superset) {
-        accs[k].rs.superset = true; accs[k].rs.supersetRole = 'head'; accs[k].rs.supersetPartner = accs[k + 1].rs.name;
-        accs[k + 1].rs.superset = true; accs[k + 1].rs.supersetRole = 'tail'; accs[k + 1].rs.supersetPartner = accs[k].rs.name;
-      }
+    const slots = p.days[di].slots;
+    let k = 0;
+    while (k < accs.length) {
+      if (k + 1 < accs.length && slots[accs[k].si] && slots[accs[k].si].superset) {
+        let j = k;
+        while (j + 1 < accs.length && slots[accs[j].si] && slots[accs[j].si].superset) j++;
+        const members = accs.slice(k, j + 1);
+        const names = members.map(m => m.rs.name);
+        const headSi = accs[k].si;
+        members.forEach((m, idx) => {
+          m.rs.superset = true;
+          m.rs.supersetGroup = headSi;
+          m.rs.supersetIndex = idx;
+          m.rs.supersetSize = members.length;
+          m.rs.supersetNames = names;
+          m.rs.supersetRole = idx === 0 ? 'head' : 'member';
+          m.rs.supersetPartner = names.filter((_, i) => i !== idx).join(', ');
+        });
+        k = j + 1;
+      } else k++;
     }
   }
   const capMin = (tc && tc.timeMode === 'custom' && tc.timeCapMin) ? tc.timeCapMin : null;
   if (capMin) {
     const mains = items.filter(x => x.rs.isMain).map(x => (exById(x.rs.exId) || {}).movement);
     const core = items.filter(x => x.rs.isMain || x.rs.isSecondary); // always core
-    const accs = items.filter(x => !x.rs.isMain && !x.rs.isSecondary)
-      .map(x => ({ x, added: !!p.days[di].slots[x.si].added, score: prunePriority(x.rs, mains, tc) }))
-      // An exercise the athlete explicitly added is the discretionary extra, so it
-      // falls to the optional tail first: it never demotes a pre-existing default
-      // accessory below itself. Otherwise keep highest-priority (lowest score) first.
-      .sort((a, b) => (a.added - b.added) || (a.score - b.score));
+    const accs = items.filter(x => !x.rs.isMain && !x.rs.isSecondary);
+    // Group consecutive superset members into one cap UNIT so a pair / giant set is
+    // kept together (added or dropped as a whole); a standalone accessory is its
+    // own unit. Score a unit by its strongest (lowest) member and treat it as
+    // "added" only if every member was an explicit add (so it falls to the tail).
+    const units = []; const seen = new Set();
+    for (const x of accs) {
+      const gid = x.rs.supersetGroup;
+      if (gid != null) { if (seen.has(gid)) continue; seen.add(gid); units.push(accs.filter(a => a.rs.supersetGroup === gid)); }
+      else units.push([x]);
+    }
+    const scored = units.map(u => ({
+      u,
+      added: u.every(m => !!p.days[di].slots[m.si].added),
+      score: Math.min(...u.map(m => prunePriority(m.rs, mains, tc))),
+    })).sort((a, b) => (a.added - b.added) || (a.score - b.score));
     let full = false;
-    for (const a of accs) {
-      if (!full && estimateSessionSec(core.concat([a.x]).map(t => t.rs), false) <= capMin * 60) {
-        core.push(a.x);
-      } else { a.x.rs.optional = true; full = true; }
+    for (const s of scored) {
+      if (!full && estimateSessionSec(core.concat(s.u).map(t => t.rs), false) <= capMin * 60) {
+        core.push(...s.u);
+      } else { s.u.forEach(m => { m.rs.optional = true; }); full = true; }
     }
   }
   const coreItems = items.filter(x => !x.rs.optional);
@@ -1016,32 +1043,24 @@ function accessorySiOrder(di, bi, wi) {
     .filter(x => !x.rs.isMain && !x.rs.isSecondary)
     .map(x => x.si);
 }
-// [Cluster B] Superset layout for a day: which accessory slots are paired and the
-// role/partner of each, plus the set of slots that can START a superset (an
-// accessory with a free next accessory). Mirrors the resolveDayEntries pairing so
-// the overview controls and the time estimate agree.
+// [Cluster B] Superset layout for a day, read from the one resolveDayEntries
+// grouping so the overview controls, the time estimate and the cap all agree. Per
+// grouped accessory si: { role, size, others, names }. `eligible` is every
+// accessory that has a following accessory (so it can link into a group).
 function supersetLayout(di, bi, wi) {
-  const order = accessorySiOrder(di, bi, wi);
-  const slots = P().days[di].slots;
+  const items = resolveDayEntries(di, bi, wi).items;
+  const accOrder = items.filter(x => !x.rs.isMain && !x.rs.isSecondary).map(x => x.si);
   const byId = {};
-  for (let k = 0; k < order.length - 1; k++) {
-    const si = order[k], psi = order[k + 1];
-    if (byId[si] || byId[psi]) continue;            // already paired
-    if (slots[si] && slots[si].superset) {
-      const nm = s => exName(slots[s].ex || slots[s].def);
-      byId[si] = { role: 'head', partnerSi: psi, partnerName: nm(psi) };
-      byId[psi] = { role: 'tail', partnerSi: si, partnerName: nm(si) };
-    }
+  for (const x of items) {
+    if (x.rs.superset) byId[x.si] = { role: x.rs.supersetRole, size: x.rs.supersetSize, others: x.rs.supersetPartner, names: x.rs.supersetNames };
   }
-  // A non-tail accessory that has a following accessory can start a superset.
   const eligible = new Set();
-  for (let k = 0; k < order.length - 1; k++) if (!byId[order[k]] || byId[order[k]].role === 'head') eligible.add(order[k]);
+  for (let k = 0; k < accOrder.length - 1; k++) eligible.add(accOrder[k]);
   return { byId, eligible };
 }
-// [Cluster B] Toggle a superset between this accessory and the next on the day.
-// Clears the partner's own flag when turning on, so this slice stays pairs-only
-// (no giant-set chains). Bodybuilding-only via the slot flag never being set
-// elsewhere.
+// [Cluster B] Toggle whether this accessory links to the NEXT accessory on the
+// day. Consecutive links form a giant set (3+); breaking a middle link splits one
+// group into two. Bodybuilding-only via the slot flag never being set elsewhere.
 function toggleSuperset(di, si) {
   const p = P();
   const slots = p.days[di].slots;
@@ -1052,12 +1071,10 @@ function toggleSuperset(di, si) {
     const order = accessorySiOrder(di, p.pointer.block, p.pointer.week);
     const pos = order.indexOf(si);
     if (pos < 0 || pos >= order.length - 1) { toast('Add an exercise after this one to superset it', true); return; }
-    slot.superset = true;
-    const next = slots[order[pos + 1]];
-    if (next) next.superset = false;                // no chains in this slice
+    slot.superset = true;                            // links to the next; chains form giant sets
   }
   save(); render();
-  toast(slot.superset ? 'Superset on' : 'Superset off');
+  toast(slot.superset ? 'Linked into a superset' : 'Superset link removed');
 }
 // Heads-up banner in the workout view for athletes with a time cap.
 function timeBannerHTML(di) {
@@ -2536,12 +2553,13 @@ function vWorkout() {
       </div>`;
     }
     const opt = optSi.has(si);
-    // [Cluster B] Superset link badge + toggle (accessories only). A tail shows the
-    // badge but not the toggle; the head owns the pair.
+    // [Cluster B] Superset / giant-set link badge + toggle (accessories only). The
+    // toggle reflects whether THIS slot links to the next; chaining links forms a
+    // giant set. Every accessory with a following accessory can link.
     const ssInfo = ss.byId[si];
-    const ssTag = ssInfo ? ` <span class="ss-tag">⛓ ${ssInfo.role === 'head' ? 'superset with ' : 'with '}${esc(ssInfo.partnerName)}</span>` : '';
+    const ssTag = ssInfo ? ` <span class="ss-tag">⛓ ${ssInfo.size > 2 ? 'giant set' : 'superset'} with ${esc(ssInfo.others)}</span>` : '';
     const ssBtn = (!rs.isMain && !rs.isSecondary && bbTrack && ss.eligible.has(si))
-      ? `<button class="icon-btn" onclick="toggleSuperset(${di},${si})"><span class="ic">⛓</span>${ssInfo ? 'Unlink' : 'Superset'}</button>`
+      ? `<button class="icon-btn" onclick="toggleSuperset(${di},${si})"><span class="ic">⛓</span>${slot.superset ? 'Unlink' : 'Superset'}</button>`
       : '';
     // Main and secondary lifts anchor the program (and the working max), so they
     // are swap-only. Accessories and anything the athlete added can be removed by
@@ -2877,6 +2895,9 @@ function sessionEntryFrom(x) {
     isMain: !!x.rs.isMain, isSecondary: !!x.rs.isSecondary, wmKey: x.rs.wmKey || null,
     optional: !!x.rs.optional,
     superset: !!x.rs.superset, supersetRole: x.rs.supersetRole || null, supersetPartner: x.rs.supersetPartner || null,
+    supersetGroup: x.rs.supersetGroup != null ? x.rs.supersetGroup : null,
+    supersetIndex: x.rs.supersetIndex != null ? x.rs.supersetIndex : null,
+    supersetSize: x.rs.supersetSize || null, supersetNames: x.rs.supersetNames || null,
     notes: '', notesOpen: false,
     sets: x.rs.sets.map(t => ({
       targetWeight: t.weight ?? null, targetReps: t.reps, targetRpe: t.rpe ?? null,
@@ -3003,42 +3024,7 @@ function vSession() {
   if (!dr) return vWorkout();
   const block = blockOf(dr.b);
   const shortSleep = dr.sleepHours < 6;
-  const cards = dr.entries.map((e, ei) => {
-    const setRows = e.sets.map((st, si2) => {
-      const perfLabel = st.done
-        ? `${fmtW(e.exId, st.weight)} x ${st.reps} · ${fmtRir(st.rpe)}`
-        : 'Performance';
-      const fatigueFlag = shortSleep && !st.ramp && si2 >= e.sets.length - 1 && !e.isMain
-        ? `<div class="flag">⚠ optional today, short sleep</div>` : '';
-      const loggedDrops = (st.done && st.drops && st.drops.length)
-        ? `<small class="faint">${childWord(st.technique)} ${dropDetail(e.exId, st.drops)}</small>` : '';
-      return `<div class="set-row ${st.done ? 'done' : ''} ${st.amrap ? 'amrap' : ''}">
-          <span class="num">${si2 + 1}</span>
-          <span class="target">${setTargetLabel(st, e.exId)}${st.note ? `<small>${esc(st.note)}</small>` : ''}${loggedDrops}</span>
-          <button class="perf ${st.done ? 'filled' : ''}" onclick="openPerf(${ei},${si2})">${perfLabel}</button>
-        </div>${fatigueFlag}`;
-    }).join('');
-    const schemeWork = e.sets.filter(s => !s.ramp);
-    const schemeTxt = schemeWork.length
-      ? `${schemeWork.length} sets x ${schemeWork[0].targetReps} reps` : '';
-    const top = topWorkWeight(e);
-    return `<div class="lift-card ${e.optional ? 'optional' : ''}${e.superset ? ' superset' : ''}">
-      <h3>${esc(e.name)}${e.optional ? ' <span class="opt-tag">optional</span>' : ''}${e.superset ? ` <span class="ss-tag">⛓ ${e.supersetRole === 'head' ? 'superset with ' : 'with '}${esc(e.supersetPartner)}</span>` : ''}</h3>
-      ${e.superset ? '<p class="faint" style="margin:-4px 0 6px">Alternate sets with the linked exercise, resting once after each pair.</p>' : ''}
-      ${e.optional ? '<p class="faint" style="margin:-4px 0 6px">Over your time limit. Do it if you have time, otherwise skip it.</p>' : ''}
-      ${lastSetInfo(e.exId)}
-      <div class="head-actions">
-        <button onclick="openSwap(${dr.d},${e.si})" aria-label="Swap exercise">⇄</button>
-        <button onclick="openExDetail('${e.exId}')">ⓘ</button>
-      </div>
-      ${top && loadingFor(e.exId).showPlates ? `<button class="warmup-btn" onclick="openWarmup(${top},'${e.exId}')"><b>＋</b> Warmup</button>` : ''}
-      <div class="scheme">${schemeTxt}</div>
-      ${techChipHTML(e, ei)}
-      ${setRows}
-      <button class="notes-link" onclick="toggleNotes(${ei})">Notes ✎</button>
-      ${e.notesOpen ? `<textarea class="notes-area" oninput="setNotes(${ei}, this.value)" placeholder="Session notes…">${esc(e.notes)}</textarea>` : ''}
-    </div>`;
-  }).join('');
+  const cards = sessionCardsHTML(dr, shortSleep);
 
   return `<header class="topbar">
       <button class="btn-ghost" onclick="abandonSession()">‹</button>
@@ -3053,6 +3039,108 @@ function vSession() {
       ${ratingsStripHTML(dr.sliders)}
       ${cards}
       <button class="btn btn-green mt16" onclick="openSessionRating()">Finish Workout</button>
+    </div>`;
+}
+// [Cluster B] Build the session cards, grouping consecutive superset members into
+// one alternating round-based card. Non-grouped entries render as the standard
+// single-exercise card. Group members are contiguous in dr.entries (slot order).
+function sessionCardsHTML(dr, shortSleep) {
+  const out = [];
+  for (let ei = 0; ei < dr.entries.length; ei++) {
+    const e = dr.entries[ei];
+    if (e.superset && e.supersetRole === 'head') {
+      const members = [];
+      let j = ei;
+      while (j < dr.entries.length && dr.entries[j].superset && dr.entries[j].supersetGroup === e.supersetGroup) {
+        members.push({ e: dr.entries[j], ei: j }); j++;
+      }
+      out.push(supersetGroupCardHTML(members, dr));
+      ei = j - 1;
+    } else {
+      out.push(liftCardHTML(e, ei, dr, shortSleep));
+    }
+  }
+  return out.join('');
+}
+// One logged set row (shared by the single card and, in compact form, the
+// superset round cells).
+function setRowHTML(e, ei, st, si2, shortSleep) {
+  const perfLabel = st.done ? `${fmtW(e.exId, st.weight)} x ${st.reps} · ${fmtRir(st.rpe)}` : 'Performance';
+  const fatigueFlag = shortSleep && !st.ramp && si2 >= e.sets.length - 1 && !e.isMain
+    ? `<div class="flag">⚠ optional today, short sleep</div>` : '';
+  const loggedDrops = (st.done && st.drops && st.drops.length)
+    ? `<small class="faint">${childWord(st.technique)} ${dropDetail(e.exId, st.drops)}</small>` : '';
+  return `<div class="set-row ${st.done ? 'done' : ''} ${st.amrap ? 'amrap' : ''}">
+      <span class="num">${si2 + 1}</span>
+      <span class="target">${setTargetLabel(st, e.exId)}${st.note ? `<small>${esc(st.note)}</small>` : ''}${loggedDrops}</span>
+      <button class="perf ${st.done ? 'filled' : ''}" onclick="openPerf(${ei},${si2})">${perfLabel}</button>
+    </div>${fatigueFlag}`;
+}
+// The standard single-exercise session card.
+function liftCardHTML(e, ei, dr, shortSleep) {
+  const setRows = e.sets.map((st, si2) => setRowHTML(e, ei, st, si2, shortSleep)).join('');
+  const schemeWork = e.sets.filter(s => !s.ramp);
+  const schemeTxt = schemeWork.length ? `${schemeWork.length} sets x ${schemeWork[0].targetReps} reps` : '';
+  const top = topWorkWeight(e);
+  return `<div class="lift-card ${e.optional ? 'optional' : ''}">
+      <h3>${esc(e.name)}${e.optional ? ' <span class="opt-tag">optional</span>' : ''}</h3>
+      ${e.optional ? '<p class="faint" style="margin:-4px 0 6px">Over your time limit. Do it if you have time, otherwise skip it.</p>' : ''}
+      ${lastSetInfo(e.exId)}
+      <div class="head-actions">
+        <button onclick="openSwap(${dr.d},${e.si})" aria-label="Swap exercise">⇄</button>
+        <button onclick="openExDetail('${e.exId}')">ⓘ</button>
+      </div>
+      ${top && loadingFor(e.exId).showPlates ? `<button class="warmup-btn" onclick="openWarmup(${top},'${e.exId}')"><b>＋</b> Warmup</button>` : ''}
+      <div class="scheme">${schemeTxt}</div>
+      ${techChipHTML(e, ei)}
+      ${setRows}
+      <button class="notes-link" onclick="toggleNotes(${ei})">Notes ✎</button>
+      ${e.notesOpen ? `<textarea class="notes-area" oninput="setNotes(${ei}, this.value)" placeholder="Session notes…">${esc(e.notes)}</textarea>` : ''}
+    </div>`;
+}
+// [Cluster B] The combined superset / giant-set card: a compact controls row per
+// member (swap / info / finisher / notes), then the work logged ROUND by round
+// (one set of each member, then rest). Each cell opens the same perf modal as a
+// normal set, so logging is unchanged underneath.
+function supersetGroupCardHTML(members, dr) {
+  const title = members.length > 2 ? 'Giant set' : 'Superset';
+  const anyOptional = members.some(m => m.e.optional);
+  const maxRounds = Math.max(...members.map(m => m.e.sets.length));
+  const controls = members.map(({ e, ei }) => `
+      <div class="ss-member">
+        <div class="ss-member-row">
+          <span class="ss-member-name">${esc(e.name)}</span>
+          <span class="head-actions">
+            <button onclick="openSwap(${dr.d},${e.si})" aria-label="Swap exercise">⇄</button>
+            <button onclick="openExDetail('${e.exId}')">ⓘ</button>
+            <button onclick="toggleNotes(${ei})" aria-label="Notes">✎</button>
+          </span>
+        </div>
+        ${techChipHTML(e, ei)}
+        ${e.notesOpen ? `<textarea class="notes-area" oninput="setNotes(${ei}, this.value)" placeholder="Session notes…">${esc(e.notes)}</textarea>` : ''}
+      </div>`).join('');
+  const rounds = [];
+  for (let r = 0; r < maxRounds; r++) {
+    const cells = members.map(({ e, ei }) => {
+      if (r >= e.sets.length) return `<div class="ss-set-row empty"><span class="ss-set-ex faint">${esc(e.name)}</span><span class="faint">done</span></div>`;
+      const st = e.sets[r];
+      const perfLabel = st.done ? `${fmtW(e.exId, st.weight)} x ${st.reps} · ${fmtRir(st.rpe)}` : 'Log';
+      const loggedDrops = (st.done && st.drops && st.drops.length)
+        ? ` <small class="faint">${childWord(st.technique)} ${dropDetail(e.exId, st.drops)}</small>` : '';
+      return `<div class="ss-set-row ${st.done ? 'done' : ''}">
+          <span class="ss-set-ex">${esc(e.name)}</span>
+          <span class="target">${setTargetLabel(st, e.exId)}${loggedDrops}</span>
+          <button class="perf ${st.done ? 'filled' : ''}" onclick="openPerf(${ei},${r})">${perfLabel}</button>
+        </div>`;
+    }).join('');
+    rounds.push(`<div class="ss-round"><div class="ss-round-n">Round ${r + 1}</div>${cells}</div>`);
+  }
+  return `<div class="lift-card superset-group ${anyOptional ? 'optional' : ''}">
+      <h3>⛓ ${title} <span class="ss-tag">${members.map(m => esc(m.e.name)).join(' + ')}</span></h3>
+      <p class="faint" style="margin:-2px 0 8px">One set of each in order, then rest. Repeat each round.</p>
+      ${anyOptional ? '<p class="faint" style="margin:-4px 0 6px">Over your time limit. Do it if you have time, otherwise skip it.</p>' : ''}
+      <div class="ss-members">${controls}</div>
+      <div class="ss-rounds">${rounds.join('')}</div>
     </div>`;
 }
 function topWorkWeight(e) {
