@@ -1,5 +1,21 @@
 # IRONWAVE — Changelog
 
+## [Timer chime uses the WAV/media-channel path] (2026-06-25)
+
+App/UI only, no engine change, golden master untouched. Bumped
+`APP_VERSION`/`CACHE_VERSION` to `1.1.5`.
+
+- The rest-timer chime now plays through the `<audio>`-element WAV path
+  (`playHtmlAudio`) instead of synthesized Web Audio. On the installed iOS PWA the
+  Web Audio chime was silent (it rides the ringer channel the hardware mute switch
+  cuts) while the media-channel `<audio>` element is audible, confirmed via the
+  Settings > Debug chime tester. Web Audio remains a fallback where the media
+  element is unavailable.
+- Added `primeHtmlAudio`: a near-silent `<audio>` play on the first gesture and on
+  starting a rest/mini-rest timer, so the media channel is unlocked and the chime
+  (which fires later, outside any gesture) is allowed to sound on iOS.
+- The Settings > Debug chime tester is kept, for trying other sounds later.
+
 ## [Cluster C: pattern-movement head attribution] (2026-06-25)
 
 Bodybuilding-track-only, read-only (not on the prescription path), so the
