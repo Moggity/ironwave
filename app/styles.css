@@ -569,6 +569,14 @@ input[type=range] { width: 100%; accent-color: var(--blue); height: 30px; }
   font-size: .66rem; font-weight: 700; letter-spacing: .04em; vertical-align: middle;
   text-transform: uppercase;
 }
+/* [Cluster B] Superset link: a tinted badge on the paired exercises plus a left
+   accent on the cards so the pairing reads at a glance. */
+.ss-tag {
+  display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 8px;
+  background: rgba(75,141,248,.14); color: var(--blue);
+  font-size: .66rem; font-weight: 700; letter-spacing: .02em; vertical-align: middle;
+}
+.ex-card.superset, .lift-card.superset { border-left: 3px solid var(--blue); }
 
 /* ---------- readiness line chart ---------- */
 .spark-line { width: 100%; height: 62px; margin-top: 8px; display: block; }
