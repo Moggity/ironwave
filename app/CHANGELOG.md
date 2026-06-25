@@ -1,5 +1,23 @@
 # IRONWAVE — Changelog
 
+## [Render error boundary + chime debug] (2026-06-25)
+
+App-wide, no engine or prescription change, golden master untouched. Bumped
+`APP_VERSION`/`CACHE_VERSION` to `1.1.1` so installed PWAs fetch this build.
+
+- Render error boundary: `render()` and `boot()` now catch a thrown view and
+  paint a recovery screen (`renderErrorScreen`) with the actual error, a Reload,
+  an Export backup, and a Check for updates button. Previously a throw left
+  `#app` empty, which on a standalone PWA shows as a blank/black screen with no
+  way out. The screen now self-reports the cause for diagnosis, and a stale
+  cached build (a common cause) is fixable in place.
+- Settings > Debug: a "timer chime" section with one button per config
+  (`CHIME_CONFIGS` / `playTestChime`) so a device that hears nothing in the PWA
+  can be tested live. Covers the current Web Audio sine, a louder square, an
+  `<audio>`-element WAV path (`buildBeepWavUrl`, media channel rather than the
+  ringer-muted Web Audio channel), a louder/longer WAV, and a vibrate-only
+  baseline. Diagnostic aid for the iOS standalone silent-chime case.
+
 ## [App version marker + iOS PWA timer sound] (2026-06-24)
 
 App-wide, no engine or prescription change, golden master untouched.
