@@ -1,5 +1,24 @@
 # IRONWAVE — Changelog
 
+## [GitHub Pages deploy for offline PWA install] (2026-06-26)
+
+Infra + a one-line shell change. Bumped `APP_VERSION`/`CACHE_VERSION` to `1.1.10`
+(index.html changed).
+
+- Added `.github/workflows/pages.yml`: publishes the static PWA shell (`app/`,
+  minus server/tests/packaging) to GitHub Pages over HTTPS on every push to
+  `main`. This gives an always-on HTTPS origin so the installed home-screen app
+  can register a service worker and **launch offline** - the LAN `http://` server
+  could not (service workers require a secure context, so no shell was ever
+  cached there).
+- Soft privacy: the app deploys into an obscure `PAGES_DIR` subdirectory (an
+  Actions variable, kept out of source), the site root is a blank `noindex`
+  placeholder, and every page now carries `<meta name="robots" content="noindex,
+  nofollow">`. The hosted shell is data-free; training data stays on-device /
+  in the self-hosted `database.json`.
+- README: documented the Pages path alongside the existing Cloudflare-tunnel
+  option.
+
 ## [Fix: timer chime silent at timer end on iOS PWA] (2026-06-25)
 
 App/UI only, no engine change, golden master untouched. Bumped

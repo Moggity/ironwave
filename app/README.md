@@ -60,6 +60,24 @@ be up for that first install; you can close it once installed.
 > A PWA is a website, not a file: you are sending yourself the *link*, not the
 > app. The phone installs it by loading that URL once.
 
+#### Always-on HTTPS via GitHub Pages
+
+The Cloudflare tunnel only needs to be up for the first install, but it (and the
+LAN server) must be reachable each time the app *cold-launches* unless the shell
+is cached. For an install that **launches offline forever**, host the static shell
+on an always-on HTTPS host. This repo ships a GitHub Pages deploy
+(`.github/workflows/pages.yml`) that publishes `app/` (server, tests and packaging
+excluded) on every push to `main`.
+
+One-time setup (repo admin): **Settings → Pages → Source = "GitHub Actions"**, and
+optionally set an Actions **variable** `PAGES_DIR` to a random string for a
+not-guessable path (kept out of source, so it stays obscure even on a public repo).
+The app then lives at `https://<owner>.github.io/<repo>/<PAGES_DIR>/`. Soft privacy
+only: every page is `noindex` and the site root is blank, but anyone with the URL
+can load the (data-free) app shell — your training data never leaves the device /
+your own `database.json`. Open that `https://…` URL in Safari, Add to Home Screen,
+and it launches offline; the LAN server stays optional (multi-device sync only).
+
 ### How storage works (phone is the source of truth)
 
 State lives in the phone's local storage and is read/written on-device, so it
