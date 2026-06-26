@@ -694,7 +694,14 @@ function resolveSlot(slot, blockIdx, wIdx) {
     const rm = bbLiftRemoval(exId);
     if (rm) return { exId, name: exName(exId), sets: [], isSecondary: true, wmKey, isRemoved: true, removedReason: rm };
     const r = loadingFor(exId).totalInc;
-    const sets = sch.secondary(block, eIdx, P().wm[wmKey], r, (slot.pctMod || 1) * modPct, S.profile.experience);
+    let sets = sch.secondary(block, eIdx, P().wm[wmKey], r, (slot.pctMod || 1) * modPct, S.profile.experience);
+    // [Cluster D] Extend the autoregulated deload depth/intensity to the secondary
+    // on the deload week (it previously only reached accessories). Inert off the
+    // bodybuilding track / off the deload week, so the golden master is unchanged.
+    const sdld = deloadDepthDelta(blockIdx, eIdx);
+    if (sdld) sets = applySetDelta(sets, sdld);
+    const srpd = deloadIntensityDelta(blockIdx, eIdx);
+    if (srpd) sets = applyDeloadIntensity(sets, srpd);
     return { exId, name: exName(exId), sets, isSecondary: true, wmKey };
   }
   const exId = slot.ex || slot.def || null; // select slots may be unfilled
@@ -722,7 +729,15 @@ function resolveSlot(slot, blockIdx, wIdx) {
   if (focus.delta) sets = applySetDelta(sets, focus.delta);
   const adj = autoregForAccessory(exId, sets, eIdx);
   if (adj) sets = applySetDelta(sets, adj);
-  sets = applyTechnique(exId, sets, r);
+  // [Cluster D] Per-muscle early deload: pull this muscle back on any work week
+  // until cleared or block end. A deloaded muscle skips its finisher technique (a
+  // finisher would fight the deload). Redundant on the actual deload week, so it
+  // only applies off it. Inert off the bodybuilding track and with no deload list.
+  if (Engine.weekType(eIdx) !== 'deload' && isAccessoryMuscleDeloaded(exId)) {
+    sets = applyMuscleDeload(sets);
+  } else {
+    sets = applyTechnique(exId, sets, r);
+  }
   return { exId, name: exName(exId), sets, cat: slot.cat };
 }
 // [Cluster D] Autoregulated deload depth applied to a bodybuilding accessory on
@@ -756,6 +771,49 @@ function applyDeloadIntensity(sets, rpeDelta) {
   return sets.map(s => (s.amrap || s.ramp || s.calib || s.rpe == null)
     ? s
     : Object.assign({}, s, { rpe: Math.max(5, Math.min(10, s.rpe + rpeDelta)) }));
+}
+// [Cluster D] Per-muscle early deload: the athlete (or the overreach prompt) can
+// pull back a single fatigued muscle for the rest of the block WITHOUT deloading
+// everything. Transient on the program (`program.muscleDeload`, a list of muscle
+// keys), cleared at block end, so no migration. Bodybuilding-only.
+function muscleDeloadList() { const p = P(); return (p && p.muscleDeload) || []; }
+function isMuscleDeloaded(mv) {
+  const tc = P() && P().trainingConfig;
+  return !!(tc && tc.track === 'bodybuilding' && muscleDeloadList().indexOf(mv) >= 0);
+}
+// The single landmark muscle an accessory belongs to: its own movement when that
+// is a landmark, otherwise the muscle it covers most (so e.g. an incline bench
+// rolls up to chest). Used to decide whether a per-muscle deload touches it.
+function accessoryPrimaryMuscle(exId) {
+  const e = exById(exId);
+  if (!e) return null;
+  if (VOLUME_LANDMARKS[e.movement]) return e.movement;
+  const cov = SYNERGIST_COVERAGE[e.movement];
+  if (!cov) return null;
+  return Object.keys(cov).reduce((best, m) => (cov[m] > ((best && cov[best]) || 0) ? m : best), null);
+}
+function isAccessoryMuscleDeloaded(exId) {
+  const mv = accessoryPrimaryMuscle(exId);
+  return mv != null && isMuscleDeloaded(mv);
+}
+// Pull a deloaded muscle's accessory back: halve the plain working sets (floor at
+// one) and ease effort by one RIR. Applied on any work week until cleared or block
+// end. Returns a new array; never mutates inputs.
+function applyMuscleDeload(sets) {
+  const plain = sets.filter(s => !s.amrap && !s.ramp && !s.calib).length;
+  let out = sets;
+  if (plain > 1) out = applySetDelta(out, -Math.floor(plain / 2));
+  return applyDeloadIntensity(out, -1);
+}
+// Toggle a muscle's per-block deload from the volume screen.
+function toggleMuscleDeload(mv) {
+  const p = P();
+  if (!p.muscleDeload) p.muscleDeload = [];
+  const i = p.muscleDeload.indexOf(mv);
+  const label = MOVEMENTS[mv] ? MOVEMENTS[mv].label : mv;
+  if (i >= 0) { p.muscleDeload.splice(i, 1); toast(`${label}: back to full volume`); }
+  else { p.muscleDeload.push(mv); toast(`${label}: deloaded for the rest of this block`); }
+  save(); render();
 }
 // [Cluster D] Early-deload state (transient on the program, like deloadPlan, so no
 // migration). `earlyDeload = { block, week }` marks the one work week the athlete
@@ -2205,16 +2263,50 @@ function volumeDashboardHTML() {
       });
       if (parts.length) heads = `<div class="vol-heads faint">Regions: ${parts.join(' · ')}</div>`;
     }
+    // [Cluster D] Per-muscle early deload: a deloaded muscle's bar is textured and
+    // offers Resume; an over-MRV muscle offers to deload just that muscle (pull it
+    // back for the rest of the block without deloading everything).
+    const deloaded = autoreg && isMuscleDeloaded(mv);
+    const rowTex = deloadTex || (deloaded ? ' deload-tex' : '');
+    let mdCtl = '';
+    if (autoreg) {
+      if (deloaded) mdCtl = `<span class="vol-md faint">Muscle deload on · <button class="link-btn" onclick="toggleMuscleDeload('${mv}')">resume ›</button></span>`;
+      else if (st.key === 'over') mdCtl = `<button class="link-btn vol-md" onclick="toggleMuscleDeload('${mv}')">deload this muscle ›</button>`;
+    }
     return `<div class="vol-row">
       <div class="vol-head"><span>${MOVEMENTS[mv]?.label || mv}</span>
         <span class="vol-status k-${st.key}">${st.label} · ${kg(sets)} sets</span></div>
-      <div class="vol-track"><div class="vol-fill k-${st.key}${deloadTex}" style="width:${st.pct}%"></div>
+      <div class="vol-track"><div class="vol-fill k-${st.key}${rowTex}" style="width:${st.pct}%"></div>
         <div class="vol-mark" style="left:${mevPct}%"></div></div>
       <div class="vol-scale faint"><span>MEV ${L.mev}</span><span>MRV ${L.mrv}</span></div>
       ${heads}
       ${rec}
+      ${mdCtl}
     </div>`;
   }).join('');
+  // [Cluster D] Overreach warning: strictly over MRV (past recoverable volume),
+  // sharper than the minicut nudge. Points at the per-muscle deload links or the
+  // whole-block early deload on the dashboard.
+  let overreach = '';
+  if (autoreg) {
+    const ovr = Engine.overreaching(statuses, readinessTrendingDown());
+    if (ovr.overreaching) {
+      overreach = `<div class="card accent" style="border-left:3px solid var(--red)">
+        <div style="font-weight:700">⚠ Overreaching</div>
+        <p class="faint mt8">${esc(ovr.reason)} - past what you can recover from. Ease the worst muscles back with the deload links below, or pull the whole block's deload in early from the dashboard.</p></div>`;
+    }
+  }
+  // [Cluster D] Recovery / fatigue trend: the readiness series the deload logic
+  // already reads. A downward slope means fatigue is outpacing recovery.
+  let trend = '';
+  if (autoreg) {
+    const pts = (S.readinessLog || []).slice(-14).map(r => ({ ts: r.ts, value: r.score }));
+    if (pts.length >= 2) {
+      trend = `<div class="section-title" style="font-size:1rem">Recovery trend</div>
+        <p class="faint" style="margin:-2px 0 6px">Your readiness over recent sessions. A downward slope means fatigue is outpacing recovery, and it pulls your deload in deeper.</p>
+        ${trendChartHTML(pts, '#4b8df8', v => v.toFixed(1))}`;
+    }
+  }
   // [Cluster F] Minicut suggestion when fatigue saturates and we are not already cutting.
   let minicut = '';
   if (autoreg) {
@@ -2241,8 +2333,10 @@ function volumeDashboardHTML() {
   }
   return `<p class="subtle">Estimated direct working sets per muscle this week, against your own volume landmarks. The big compounds count toward the muscles they train.</p>
     ${autoreg ? `<div class="vol-phase faint">Phase: <b>${PHASE_LABELS[phase] || phase}</b>${PHASE_DEFICIT[phase] ? ' · recovery is lower, volume holds' : ''} <button class="link-btn" onclick="openPhase()">change ›</button></div>` : ''}
+    ${overreach}
     ${deloadNote}
     ${minicut}
+    ${trend}
     <div class="vol-legend faint">
       <span><i class="dot k-maint"></i>Maintenance</span>
       <span><i class="dot k-productive"></i>Productive</span>
@@ -2387,6 +2481,7 @@ function endBlock(finishedBlock, bb) {
   if (bb && p.volAdj) for (const mv in p.volAdj) p.volAdj[mv] = 0;
   p.deloadPlan = null;
   p.earlyDeload = null; // spent with the block
+  p.muscleDeload = []; // [Cluster D] per-muscle deloads end with the block (resensitize)
   p.pointer.week = 0;
   p.pointer.block++;
   if (p.pointer.block < p.blocks.length) {

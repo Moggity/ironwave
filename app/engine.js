@@ -641,6 +641,22 @@ Engine.fatigueSaturated = function (statuses, threshold = 3) {
   return { over, saturated: over >= threshold, threshold };
 };
 
+// [Cluster D] Overreach detection (sharper than fatigueSaturated, which counts
+// near-MRV for the minicut nudge): how many muscles are STRICTLY over their MRV,
+// i.e. past recoverable volume. Overreaching when two-plus muscles are over, or
+// one is over while recovery is sliding. Pure; drives the volume-screen warning
+// and the per-muscle deload suggestion, distinct from sizing the block deload.
+Engine.overreaching = function (statuses, trendDown) {
+  const over = (statuses || []).filter(s => s && s.key === 'over').length;
+  const overreaching = over >= 2 || (over >= 1 && !!trendDown);
+  return {
+    over, overreaching,
+    reason: overreaching
+      ? `${over} muscle${over === 1 ? '' : 's'} over MRV${trendDown ? ' and recovery is sliding' : ''}`
+      : '',
+  };
+};
+
 // [Cluster D] Autoregulated deload depth. Sizes the deload to accumulated
 // fatigue: a fried athlete (many muscles at/near MRV, or readiness trending down)
 // deloads DEEPER (one fewer set on top of the scheme's already-halved deload); a
