@@ -239,13 +239,19 @@ and the product moat are the same move.
   (`effectiveWeekIdx`), with `advanceWeek` ending the block early and resensitizing
   via a shared `endBlock`. Denser amber hatch on the timeline + skipped-week
   dimming, and a volume-screen note. Bodybuilding-only, golden master untouched
-  (`test/early-deload.test.js`). **Still open in this cluster (own slices):** a
-  fatigue trend chart, MRV-hit / overreach detection beyond the deload sizing, and
-  the absorbed zero-sum budget + specialization phase. **Per-muscle early deload
-  (own epic, the bigger version):** today the early deload converts the whole
-  session/block; deloading only the saturated muscle(s) while the rest keep
-  climbing would make deload per-muscle state (not a week property) and is where
-  the hatched per-muscle volume bars pay off. Reuses this trigger.
+  (`test/early-deload.test.js`). **Fatigue dashboard + per-muscle deload shipped
+  (2026-06-26):** a recovery/fatigue **trend chart** on the volume screen
+  (`trendChartHTML` over the readiness series); **`Engine.overreaching`** (strictly
+  over MRV, sharper than the minicut's near-MRV saturation) drives an **overreach
+  warning** banner; and **per-muscle early deload** lands as the lighter version of
+  the "own epic" idea - `program.muscleDeload` (transient, cleared at block end)
+  lets the athlete (or the over-MRV prompt) pull a single muscle back: `resolveSlot`
+  halves that muscle's accessory sets and eases one RIR on any work week (skipping
+  its finisher), keyed by each accessory's primary muscle (`accessoryPrimaryMuscle`,
+  so an incline bench rolls up to chest). **Still open in this cluster:** the
+  absorbed zero-sum budget + specialization phase (left to its own epic; overlaps
+  Cluster E). A fuller per-muscle deload that also reshapes mains/secondaries
+  beyond the deload week could extend this.
 - **Deload-depth refinements (found while building the deload, own small
   branch):**
   - ~~*Suppress autoreg adds on the deload week.*~~ DONE (2026-06-25):
@@ -258,9 +264,10 @@ and the product moat are the same move.
     `deloadIntensityDelta` / `applyDeloadIntensity` ease the plain working sets'
     RPE on the deload week (clamped to >= 5), so a deeper deload pulls back both
     volume and intensity. Standard/light deloads are `rpeDelta: 0` (unchanged).
-  - *Extend depth to secondary/main.* Today the plan applies to bodybuilding
-    accessories only; the secondary volume and the main `DELOAD_SETS` are not
-    autoregulated. Low priority (mains are already minimal on a deload). Still open.
+  - ~~*Extend depth to secondary.*~~ DONE (2026-06-26): `resolveSlot` now applies
+    `deloadDepthDelta` / `deloadIntensityDelta` to the secondary lift on the deload
+    week too. The main `DELOAD_SETS` is still left alone (already minimal on a
+    deload); reshaping it is low priority and open.
 - **Dependencies:** Cluster A logging + (ideally) Cluster C granularity for
   accurate counts. Reuses `seedLandmarks`/`recalibrateLandmarks` and readiness.
   The specialization phase depends on the zero-sum budget (below) so non-priority

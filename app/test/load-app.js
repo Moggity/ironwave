@@ -56,6 +56,7 @@ const EXPORTS = `return {
   weeklyVolumeByMuscle, weeklyVolumeByHead, SYNERGIST_COVERAGE,
   muscleHeads, headLandmarkFor, headVolumeOverMrv, exHeadAttribution, HEAD_MUSCLE,
   muscleSignal, checkinGroupForMovement,
+  toggleMuscleDeload, isMuscleDeloaded, accessoryPrimaryMuscle, isAccessoryMuscleDeloaded, fatigueStatuses,
   autoregForAccessory, updateAutoreg, currentPhase,
   PHASE_LABELS, PHASE_DEFICIT, PHASE_COLORS, DEFAULT_BLOCK_PHASE, BLOCK_COLORS,
   stampBlockPhase, blockPhase, barColorFor,

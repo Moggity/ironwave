@@ -132,6 +132,26 @@ test('bodybuilding: a superset group renders an alternating session card', () =>
   assert.ok(/Round 1/.test(html), 'the round-by-round layout rendered');
 });
 
+test('bodybuilding: the volume dashboard renders the Cluster D controls', () => {
+  const ctx = fresh();
+  const s = withProgram(ctx, 'bodybuilding');
+  // Two readiness entries so the recovery-trend chart draws.
+  s.readinessLog = [{ ts: Date.now() - 864e5, score: 20 }, { ts: Date.now(), score: 14 }];
+  // Force every trained muscle over MRV (tiny landmarks) so the overreach banner
+  // + per-muscle deload controls all show. (A fresh defaultState has no landmarks
+  // until migration, so set them explicitly.)
+  s.profile.landmarks = {};
+  for (const k of ['chest', 'shoulder', 'tricep', 'bicep', 'upperback', 'vpull', 'hpull', 'quad', 'ham', 'glute', 'calf', 'abs', 'lowback']) {
+    s.profile.landmarks[k] = { mv: 1, mev: 1, mrv: 1 };
+  }
+  ctx.app.openVolumeDashboard();
+  const html = ctx.document.getElementById('modal-root').innerHTML;
+  assert.ok(html && html.length > 0, 'volume dashboard rendered empty');
+  assert.ok(/Recovery trend/.test(html), 'fatigue/recovery trend chart rendered');
+  assert.ok(/Overreaching/.test(html), 'overreach warning rendered');
+  assert.ok(/deload this muscle/.test(html), 'per-muscle deload control rendered');
+});
+
 test('onboarding renders for a brand-new user (no program)', () => {
   const ctx = fresh();
   ctx.app.S = ctx.app.defaultState(); // program is null

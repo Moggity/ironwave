@@ -153,3 +153,71 @@ test('autoreg never ADDS volume on the deload week, but still adds on a work wee
   const deloadBaseline = app.resolveSlot(accSlot, 0, 4).sets.filter(s => !s.amrap && !s.ramp && !s.calib).length;
   assert.strictEqual(deloadCount, deloadBaseline, 'the offset does not add volume on the deload week');
 });
+
+// ---------------------------------------------------------------------------
+// Cluster D finish: overreach detection, per-muscle deload, secondary depth
+// ---------------------------------------------------------------------------
+test('Engine.overreaching flags strictly-over-MRV muscles, sharper than saturation', () => {
+  assert.strictEqual(Engine.overreaching([st('over'), st('over')], false).overreaching, true);
+  assert.strictEqual(Engine.overreaching([st('over')], true).overreaching, true);
+  assert.strictEqual(Engine.overreaching([st('over')], false).overreaching, false, 'one over, no downtrend');
+  assert.strictEqual(Engine.overreaching([st('productive'), st('maint')], true).overreaching, false, 'nothing over MRV');
+  assert.strictEqual(Engine.overreaching([], false).over, 0);
+});
+
+test('accessoryPrimaryMuscle maps direct and pattern accessories to one muscle', () => {
+  app.S = app.defaultState();
+  assert.strictEqual(app.accessoryPrimaryMuscle('cable-fly'), 'chest');     // direct landmark movement
+  assert.strictEqual(app.accessoryPrimaryMuscle('incline-bench'), 'chest'); // bench pattern -> chest (argmax coverage)
+});
+
+test('a per-muscle deload halves and eases that muscle on a work week, inert otherwise', () => {
+  const p = freshBB();
+  p.deloadPlan = null;
+  const baseCount = bbAccessoryCount(p, accSlot, 1);
+  const baseRpes = plainRpes(accSlot, 1);
+  assert.ok(baseCount >= 2, 'need a couple of sets to halve');
+  p.muscleDeload = ['chest'];                       // cable-fly is a chest accessory
+  assert.strictEqual(app.isAccessoryMuscleDeloaded('cable-fly'), true);
+  const dCount = bbAccessoryCount(p, accSlot, 1);
+  const dRpes = plainRpes(accSlot, 1);
+  assert.strictEqual(dCount, baseCount - Math.floor(baseCount / 2), 'plain sets halved');
+  dRpes.forEach((r, i) => assert.strictEqual(r, Math.max(5, baseRpes[i] - 1), 'each set is one RIR easier'));
+  // A deload of a different muscle leaves chest alone.
+  p.muscleDeload = ['back'];
+  assert.strictEqual(bbAccessoryCount(p, accSlot, 1), baseCount, 'unrelated deload is inert');
+});
+
+test('per-muscle deload is inert off the bodybuilding track', () => {
+  app.S = app.defaultState();
+  app.V = {};
+  app.S.program = app.makeProgram({
+    daysPerWeek: 4, track: 'powerbuilding', timeMode: 'unlimited', muscleFocus: { ...DEFAULT_FOCUS }, maxes: {},
+  });
+  app.S.records['cable-fly'] = [{ ts: Date.now(), weight: 20, reps: 12, rpe: 8 }];
+  const p = app.S.program;
+  const before = bbAccessoryCount(p, accSlot, 1);
+  p.muscleDeload = ['chest'];
+  assert.strictEqual(bbAccessoryCount(p, accSlot, 1), before, 'no per-muscle deload off-track');
+});
+
+test('per-muscle deloads clear when the block ends (resensitize)', () => {
+  const p = freshBB();
+  p.muscleDeload = ['chest'];
+  for (let i = 0; i < p.weeksPerBlock; i++) app.advanceWeek();
+  assert.ok(p.pointer.block >= 1, 'rolled into the next block');
+  assert.deepStrictEqual(p.muscleDeload, [], 'deload list cleared with the block');
+});
+
+test('the deload plan now reaches the secondary lift on the deload week only', () => {
+  const p = freshBB();
+  p.wm['comp-bench'] = 100;
+  const secSlot = { type: 'secondary', lift: 'comp-bench', baseLift: 'comp-bench' };
+  const plain = (wIdx) => app.resolveSlot(secSlot, 0, wIdx).sets.filter(s => !s.amrap && !s.ramp && !s.calib).length;
+  p.deloadPlan = null;
+  const base = plain(4);
+  const workNoPlan = plain(1);
+  p.deloadPlan = { level: 'deep', setDelta: -1, rpeDelta: -1 };
+  assert.strictEqual(plain(4), base - 1, 'a deeper deload removes a secondary set too');
+  assert.strictEqual(plain(1), workNoPlan, 'the plan never touches a work week');
+});

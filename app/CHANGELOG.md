@@ -1,5 +1,27 @@
 # IRONWAVE — Changelog
 
+## [Cluster D finish: fatigue dashboard + per-muscle deload] (2026-06-26)
+
+Bodybuilding-track-only and additive, so the Powerbuilding golden master is
+byte-identical. Bumped `APP_VERSION`/`CACHE_VERSION` to `1.1.11`.
+
+- **Fatigue/recovery trend chart** on the volume screen: the readiness series the
+  deload logic already reads, drawn with `trendChartHTML`. A downward slope means
+  fatigue is outpacing recovery (and pulls the deload in deeper).
+- **Overreach warning**: a new `Engine.overreaching` (strictly over MRV - sharper
+  than the near-MRV minicut nudge) drives a banner when two-plus muscles are over,
+  or one is over while recovery slides. Points at the per-muscle deload links or
+  the whole-block early deload.
+- **Per-muscle early deload**: deload a single fatigued muscle for the rest of the
+  block without deloading everything (`program.muscleDeload`, transient, cleared
+  at block end). `resolveSlot` halves that muscle's accessory working sets and
+  eases effort by one RIR on any work week (and skips its finisher); a deloaded
+  muscle's bar is textured, and over-MRV muscles offer a one-tap "deload this
+  muscle" on the volume screen. Keyed by each accessory's primary muscle, so an
+  incline bench rolls up to chest.
+- **Deload depth reaches the secondary** lift on the deload week (it previously
+  only reached accessories).
+
 ## [GitHub Pages deploy for offline PWA install] (2026-06-26)
 
 Infra + a one-line shell change. Bumped `APP_VERSION`/`CACHE_VERSION` to `1.1.10`

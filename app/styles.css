@@ -389,6 +389,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .vol-rec.k-rec-add { color: #36c98a; }
 .vol-rec.k-rec-cut { color: #e2557b; }
 .vol-rec.k-rec-hold { color: var(--text-dim); }
+.vol-md { display: inline-block; font-size: .78rem; margin-top: 5px; }
 .vol-phase { margin: 4px 0 10px; }
 .link-btn { background: none; border: none; color: var(--blue); font-weight: 600; cursor: pointer; padding: 0 4px; }
 .phase-chip { display: block; width: 100%; text-align: center; padding: 11px; border-radius: 10px;
