@@ -1,0 +1,69 @@
+name: Deploy app to GitHub Pages
+
+# Publishes the static PWA shell (app/, minus the server, tests and packaging) to
+# GitHub Pages over HTTPS, so the installed home-screen app can register a service
+# worker and launch offline. Soft privacy: the app is deployed into an obscure
+# subdirectory (the PAGES_DIR repo variable - set it to a random string so the path
+# is not in source), the site root is a blank noindex placeholder, and every page
+# carries a noindex meta. The self-hosted server.js path is unaffected.
+#
+# Setup (one time, repo admin): Settings > Pages > Source = "GitHub Actions", and
+# optionally set an Actions variable PAGES_DIR to a random slug. The app then lives
+# at https://<owner>.github.io/<repo>/<PAGES_DIR>/.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; let a newer push supersede an in-flight run.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble static site
+        env:
+          PAGES_DIR: ${{ vars.PAGES_DIR || 'app' }}
+        run: |
+          set -e
+          mkdir -p "_site/${PAGES_DIR}"
+          # The PWA shell only. Copy app/, then drop the non-static parts so the
+          # server, tests and packaging are never published.
+          cp -r app/. "_site/${PAGES_DIR}/"
+          rm -rf "_site/${PAGES_DIR}/test" \
+                 "_site/${PAGES_DIR}/node_modules" \
+                 "_site/${PAGES_DIR}/server.js" \
+                 "_site/${PAGES_DIR}/package.json" \
+                 "_site/${PAGES_DIR}/package-lock.json"
+          rm -f "_site/${PAGES_DIR}"/*.bat
+          # Blank, noindex root so the site root reveals nothing about the app path.
+          printf '%s\n' '<!doctype html><meta name="robots" content="noindex,nofollow"><title>.</title>' > _site/index.html
+          # robots.txt is best-effort (crawlers honor it at the host root, which a
+          # project page does not own); the per-page noindex meta is the real control.
+          printf 'User-agent: *\nDisallow: /\n' > _site/robots.txt
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
