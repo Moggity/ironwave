@@ -1,5 +1,22 @@
 # IRONWAVE — Changelog
 
+## [Fix: timer chime silent at timer end on iOS PWA] (2026-06-25)
+
+App/UI only, no engine change, golden master untouched. Bumped
+`APP_VERSION`/`CACHE_VERSION` to `1.1.9`.
+
+- The WAV chime worked in the Settings > Debug tester (played inside a tap) but
+  was silent when the rest timer actually ended. iOS unlocks `<audio>` playback
+  **per element**, and the previous code created a fresh `new Audio()` for every
+  chime, so the timer-end element was never unlocked. Now a single persistent
+  element (`CHIME_EL`) is unlocked once on a user gesture (`primeHtmlAudio` plays
+  it muted, then resets) and replayed at timer end (`playChime`), which is the
+  element iOS actually allows. Web Audio remains a fallback if the media element
+  is blocked or unavailable.
+- Settings > Debug: corrected the stale "(current)" marker. It now sits on
+  "Audio file (WAV, current)" (what the timer uses) instead of "Web Audio sine",
+  which is relabelled "(old)".
+
 ## [Epic 2 finish: per-round superset rest + in-group reorder] (2026-06-25)
 
 The two remaining superset nice-to-haves, completing Cluster B / Epic 2.
