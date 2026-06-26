@@ -3242,21 +3242,49 @@ function primeAudio() {
 // The installed PWA (iOS especially) silences synthesized Web Audio, because that
 // rides the ringer channel the hardware mute switch cuts, but it plays an <audio>
 // element on the media channel. The athlete confirmed the WAV/<audio> path is
-// audible there (Settings > Debug), so the timer chime uses it, falling back to
-// the soft Web Audio two-tone if the media element is unavailable.
-function playChime() {
-  if (!playHtmlAudio([880, 1320], 0.18, 0.5)) playWebAudioTones([880, 1320], 'sine', 0.12);
-}
-// Unlock the media channel from inside a user gesture, with a near-silent <audio>
-// play, so the chime (which fires later, outside any gesture, when the timer ends)
-// is allowed to sound on iOS. Cheap and idempotent; safe to call on every gesture.
-function primeHtmlAudio() {
+// audible there (Settings > Debug), so the timer chime uses it.
+//
+// CRUCIAL for iOS: the unlock is PER ELEMENT, so the same <audio> instance that was
+// played inside a user gesture must be the one replayed later when the timer ends
+// (outside any gesture). A fresh `new Audio()` per chime is blocked even after a
+// gesture, which is why the debug button (played in a tap) worked but the timer did
+// not. So we keep ONE persistent element, unlock it on a gesture (primeHtmlAudio),
+// and replay it (playChime). Its blob URL is kept alive for the whole session.
+let CHIME_EL = null;
+let CHIME_UNLOCKED = false;
+function chimeEl() {
+  if (CHIME_EL) return CHIME_EL;
   try {
-    const url = buildBeepWavUrl([440], 0.05, 0);       // silent, tiny
-    const a = new Audio(url); a.volume = 0;
+    CHIME_EL = new Audio(buildBeepWavUrl([880, 1320], 0.18, 0.5)); // two soft ascending notes
+    CHIME_EL.preload = 'auto';
+  } catch (_) { CHIME_EL = null; }
+  return CHIME_EL;
+}
+// Unlock the persistent chime element from inside a user gesture by playing it
+// muted once, then resetting. Idempotent; safe to call on every gesture (it no-ops
+// after the first successful unlock).
+function primeHtmlAudio() {
+  const a = chimeEl();
+  if (!a || CHIME_UNLOCKED) return;
+  try {
+    a.muted = true;
     const p = a.play();
-    if (p && p.then) p.then(() => { a.pause(); URL.revokeObjectURL(url); }).catch(() => URL.revokeObjectURL(url));
+    if (p && p.then) p.then(() => { a.pause(); try { a.currentTime = 0; } catch (_) {} a.muted = false; CHIME_UNLOCKED = true; })
+                      .catch(() => { a.muted = false; });
   } catch (_) {}
+}
+function playChime() {
+  const a = chimeEl();
+  if (a) {
+    try {
+      a.muted = false;
+      try { a.currentTime = 0; } catch (_) {}
+      const p = a.play();
+      if (p && p.catch) p.catch(() => playWebAudioTones([880, 1320], 'sine', 0.12)); // blocked: fall back
+      return;
+    } catch (_) {}
+  }
+  playWebAudioTones([880, 1320], 'sine', 0.12);
 }
 // ----- Chime debug harness -------------------------------------------------
 // The synthesized Web Audio chime is silent in some standalone PWAs (notably
@@ -3265,12 +3293,12 @@ function primeHtmlAudio() {
 // find what actually sounds on a given device, Settings > Debug exposes a button
 // per config below; the athlete taps each and reports which one rings.
 const CHIME_CONFIGS = [
-  { id: 'webaudio', label: 'Web Audio sine (current)',
-    desc: 'The chime used today. Two soft sine notes.' },
+  { id: 'webaudio', label: 'Web Audio sine (old)',
+    desc: 'The previous chime. Two soft sine notes (silent in this PWA).' },
   { id: 'webaudio-loud', label: 'Web Audio square, loud',
     desc: 'Same path, louder and harsher (square wave).' },
-  { id: 'htmlaudio', label: 'Audio file (WAV)',
-    desc: 'Plays a generated beep through an <audio> element (media channel).' },
+  { id: 'htmlaudio', label: 'Audio file (WAV, current)',
+    desc: 'What the timer uses now: a beep through an <audio> element (media channel).' },
   { id: 'htmlaudio-loud', label: 'Audio file, loud + long',
     desc: 'Same media path, louder and longer.' },
   { id: 'vibrate', label: 'Vibrate only',
