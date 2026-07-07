@@ -1,5 +1,47 @@
 # IRONWAVE — Changelog
 
+## [User-feedback round: tap reliability, skip set, finisher clarity] (2026-07-07)
+
+Fixes and polish from athlete feedback. No prescription-math change, so the
+Powerbuilding golden master is byte-identical. Bumped `APP_VERSION` /
+`CACHE_VERSION` to `1.2.0`.
+
+- **Fast taps land** (reported: rapid +/- taps "bugged" everywhere): every
+  control now carries `touch-action: manipulation`, which removes the browser's
+  double-tap-to-zoom gesture and its click delay, so consecutive taps all fire
+  as clicks (and `user-select: none` stops taps starting a text selection).
+- **Ghost-tap hardening around modals** (the likely mechanism behind a phantom
+  record appearing on the *previous* exercise): a fast double-tap that closed a
+  modal used to leak its second tap onto whatever the modal covered, silently
+  opening or logging another set. Now: a 350 ms capture-phase guard swallows
+  clicks outside the modal layer right after a close; a double-tap on a
+  Performance button reuses the open modal instead of stacking a duplicate;
+  every perf-modal handler no-ops on stale state instead of throwing.
+- **Outlier weight net** (`Engine.weightOutlier`): logging a weight at least
+  double and 20+ kg above an exercise's best real record asks for confirmation
+  before it is saved, since one bad record inflates the e1RM and poisons every
+  future prescription. Catches the classic slip of typing your bodyweight into
+  a bodyweight lift (77 typed per hand became a 154 kg record).
+- **Bodyweight lifts say what the number means**: the perf modal now labels the
+  stepper "Added weight" with a hint that only added load counts (0 for
+  bodyweight only) on bodyweight/band loading modes.
+- **Skip a set**: a SKIP action in the perf modal parks a set with nothing
+  logged (no record, no tonnage, autoregulation just sees one less logged set).
+  Skipped sets render dimmed, never carry a finisher, and count as settled in a
+  superset round. Logging or clearing the set un-skips it. The `skipped` field
+  is optional and only written when used, per the additive-field pattern.
+- **Finisher clarity** (reported: "2 RIR or 0 RIR on the last set?"): a ⓘ on
+  the finisher chip row opens an explainer for all four finishers, settling the
+  effort question (do the set to its RIR cap, the finisher is what goes near
+  failure) and how to log partials (count full reps, judge RIR before the
+  partials, log partial reps in their own row). While a finisher is active the
+  chip row says which set it runs on and the set's number wears an amber ring.
+- **Blocks list shares the timeline's colors**: each block row on My Program is
+  tinted by training emphasis (cut teal, strength orange, peak red) with its
+  phase named, matching the macrocycle chart legend.
+- Tests: new `test/feedback-fixes.test.js` (outlier net, skip semantics,
+  ghost-tap guard, block tinting inputs).
+
 ## [Cluster D finish: fatigue dashboard + per-muscle deload] (2026-06-26)
 
 Bodybuilding-track-only and additive, so the Powerbuilding golden master is

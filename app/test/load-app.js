@@ -51,6 +51,7 @@ const EXPORTS = `return {
   ACC_SCHEMES, SECONDARY_SCHEMES, JBB_HYP, DELOAD_SETS,
   PUMP_LABELS, TECHNIQUE_LABELS, DROP_DEFAULTS, MYO_DEFAULTS, RESTPAUSE_DEFAULTS, PARTIAL_DEFAULTS,
   applyTechnique, buildTechnique, lastWorkingSetIdx, entryHasDrop, entryTech, canDropEntry,
+  armTapGuard, tapGuardActive,
   FINISHER_TECHS, SAME_WEIGHT_TECHS, TIMED_REST_TECHS,
   EXERCISES, SFR_LABELS, HEAD_LABELS, EX_META,
   weeklyVolumeByMuscle, weeklyVolumeByHead, SYNERGIST_COVERAGE,

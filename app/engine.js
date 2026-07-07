@@ -271,6 +271,19 @@ const Engine = {
     return Math.round(t);
   },
 
+  // ---------- outlier guard ----------
+  // A manually entered weight far outside an exercise's history is almost always
+  // a logging slip (the classic one: typing your bodyweight into a bodyweight
+  // lift), and one bad record poisons the e1RM that prescribes future weights.
+  // Flags a weight at least double AND 20+ kg above the best real (non-seeded)
+  // weight on record. Needs 3+ real records so early exploration is never nagged.
+  weightOutlier(records, weight) {
+    const real = (records || []).filter(r => !r.seed && r.weight > 0);
+    if (real.length < 3 || !(weight > 0)) return false;
+    const best = Math.max(...real.map(r => r.weight));
+    return weight >= best * 2 && weight - best >= 20;
+  },
+
   // ---------- INTENSITY TECHNIQUES (Cluster B) ----------
   // A technique is a prescribable set modifier: it takes a plain working set and
   // returns a richer set object carrying child mini-sets. Self-contained and

@@ -23,6 +23,12 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* Fast taps: `manipulation` drops the browser's double-tap-to-zoom gesture (and
+   its click delay) on every control, so rapid +/- taps all land as clicks
+   instead of being read as a zoom attempt. user-select keeps rapid taps from
+   starting a text selection on button labels. */
+button, input, select, textarea, label, a { touch-action: manipulation; }
+button { user-select: none; -webkit-user-select: none; }
 html { font-size: 16px; }
 body {
   background: var(--bg);
@@ -295,6 +301,13 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 .set-row .perf.filled { color: var(--text-dim); }
 .set-row.amrap .num { background: var(--red); color: #fff; }
+/* A skipped set: visibly parked, nothing logged. */
+.set-row.skipped .num { background: var(--bg-2); color: var(--text-faint); }
+.set-row.skipped .target { color: var(--text-faint); }
+.set-row.skipped .perf { color: var(--text-faint); }
+/* The set carrying the finisher: amber ring on the set number ties the finisher
+   chips to the one set they run on. A logged (done) set keeps its green. */
+.set-row.tech:not(.done) .num { background: transparent; border: 1.5px solid var(--amber); color: var(--amber); }
 .flag { color: var(--amber); font-size: .78rem; margin: 4px 0 0 58px; }
 .notes-link { color: var(--text); font-weight: 600; margin-top: 10px; display: inline-block; }
 .notes-area {
@@ -347,7 +360,8 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .pump-row { display: flex; gap: 8px; }
 .pump-row .btn { flex: 1; }
 .tech-row { margin: 2px 0 12px; }
-.tech-row-label { display: block; font-weight: 700; font-size: .85rem; margin-bottom: 6px; color: var(--text-dim); }
+.tech-row-label { display: flex; align-items: center; gap: 6px; font-weight: 700; font-size: .85rem; margin-bottom: 6px; color: var(--text-dim); }
+.tech-note { display: block; margin-top: 6px; font-size: .74rem; }
 .tech-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .tech-chip { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px;
   border-radius: 999px; font-weight: 700; font-size: .82rem; cursor: pointer;
