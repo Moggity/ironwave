@@ -55,6 +55,7 @@ const EXPORTS = `return {
   pumpBadge, PUMP_ICONS, cardHintFor, displaySetNote, suggestedWeight,
   recordsFor, pushRecord, deleteRecord, confirmResolve, setTargetLabel,
   restNotifySupported, showRestNotification, toggleRestNotify,
+  obDefaults, OB_TRACKS, timelineHTML,
   FINISHER_TECHS, SAME_WEIGHT_TECHS, TIMED_REST_TECHS,
   EXERCISES, SFR_LABELS, HEAD_LABELS, EX_META,
   weeklyVolumeByMuscle, weeklyVolumeByHead, SYNERGIST_COVERAGE,
