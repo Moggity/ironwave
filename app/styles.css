@@ -630,6 +630,16 @@ input[type=range] { width: 100%; accent-color: var(--blue); height: 30px; }
   display: inline-flex; align-items: center; gap: 5px;
   white-space: nowrap; font-size: .8rem; font-style: italic;
 }
+/* History-tab delete for a wrongly logged set */
+.rec-del {
+  margin-left: 8px; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--bg-2); color: var(--red); font-weight: 700; font-size: .8rem;
+}
+/* Maxes tab: dated milestone rows (reference-style big number + date) */
+.max-milestone { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.max-milestone .max-val { font-size: 1.9rem; font-weight: 800; line-height: 1.15; }
+.max-milestone .max-val small { font-size: .95rem; font-weight: 600; color: var(--text-dim); }
+
 .info-dot {
   flex: none; width: 18px; height: 18px; border-radius: 50%;
   border: none; background: var(--blue); color: #fff;

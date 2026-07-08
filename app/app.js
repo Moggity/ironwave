@@ -166,7 +166,9 @@ const kg = w => (w % 1 === 0 ? w : w.toFixed(1));
 // [Cluster A] RIR-first display. The athlete sees reps-in-reserve everywhere;
 // the stored intensity stays RPE (rir = 10 - rpe), so the engine is untouched.
 const fmtRir = rpe => (rpe == null ? '–' : `${kg(Engine.rpeToRir(rpe))} RIR`);
-const pumpBadge = p => (p ? ` <small class="faint">🔥 ${esc(PUMP_LABELS[p] || 'pump')}</small>` : '');
+// One icon per pump level so a glance at history tells the level apart.
+const PUMP_ICONS = { 1: '👍', 2: '💪', 3: '🔥' };
+const pumpBadge = p => (p ? ` <small class="faint">${PUMP_ICONS[p] || '🔥'} ${esc(PUMP_LABELS[p] || 'pump')}</small>` : '');
 const techniqueBadge = t => (t && t !== 'straight' ? ` <small class="faint">${esc(TECHNIQUE_LABELS[t] || t)}</small>` : '');
 // [Cluster B] "70kg×8, 56kg×8" rendering of a set's child mini-sets (drop or myo).
 const dropDetail = (exId, drops) => (drops || []).map(d => `${fmtW(exId, d.weight)}×${d.reps}`).join(', ');
@@ -3046,11 +3048,31 @@ function setTargetLabel(st, exId) {
   const tech = techniqueBadge(st.technique) +
     (st.dropTargets ? ` <small class="faint">then ${dropDetail(exId, st.dropTargets)}</small>` : '');
   if (st.amrap) return `${fmtW(exId, st.targetWeight)} × AMRAP <small>standard ${st.targetReps}</small>${tech}`;
-  if (st.calib) return `${st.targetReps} reps @ ${fmtRir(st.targetRpe)} <small>calibration, eyeball the weight</small>${tech}`;
+  // Calibration rows stay bare; the card carries the one-line explainer.
+  if (st.calib) return `${st.targetReps} reps @ ${fmtRir(st.targetRpe)}${tech}`;
   if (st.targetWeight != null && st.targetRpe != null)
     return `${fmtW(exId, st.targetWeight)} × ${st.targetReps} <small>cap at ${fmtRir(st.targetRpe)}</small>${tech}`;
   if (st.targetWeight != null) return `${fmtW(exId, st.targetWeight)} × ${st.targetReps}${tech}`;
   return `${st.targetReps} reps @ ${fmtRir(st.targetRpe)}${tech}`;
+}
+
+// De-verbose the session card (owner feedback): the same boilerplate repeated
+// on every set row reads three times as long as it needs to. The shared line
+// (calibration explainer, deload copy) hoists to ONE card-level hint; rows keep
+// only what differs per set ('build up', 'top set'). Display-only: the engine's
+// set objects and notes are untouched, so nothing prescription-side moves.
+function cardHintFor(sets) {
+  const work = sets.filter(s => !s.ramp);
+  if (!work.length) return null;
+  if (work.every(s => s.calib)) return 'Calibration: eyeball the weight and build up. What you log here sets your future weights.';
+  const notes = [...new Set(work.map(s => s.note).filter(Boolean))];
+  return (notes.length === 1 && work.every(s => s.note)) ? notes[0] : null;
+}
+function displaySetNote(st, cardHint) {
+  if (!st.note) return null;
+  if (cardHint && st.note === cardHint) return null; // hoisted to the card line
+  if (st.calib) return st.note.replace(/^Calibration(\s*·\s*)?/, '') || null;
+  return st.note;
 }
 
 // [Cluster B] One-time "we switched to RIR" note, dismissed for good once read.
@@ -3219,22 +3241,24 @@ function sessionCardsHTML(dr, shortSleep) {
 }
 // One logged set row (shared by the single card and, in compact form, the
 // superset round cells).
-function setRowHTML(e, ei, st, si2, shortSleep) {
+function setRowHTML(e, ei, st, si2, shortSleep, cardHint) {
   const perfLabel = st.done ? `${fmtW(e.exId, st.weight)} x ${st.reps} · ${fmtRir(st.rpe)}` : st.skipped ? 'Skipped' : 'Performance';
   const fatigueFlag = shortSleep && !st.ramp && si2 >= e.sets.length - 1 && !e.isMain
     ? `<div class="flag">⚠ optional today, short sleep</div>` : '';
   const loggedDrops = (st.done && st.drops && st.drops.length)
     ? `<small class="faint">${childWord(st.technique)} ${dropDetail(e.exId, st.drops)}</small>` : '';
   const hasTech = FINISHER_TECHS.includes(st.technique);
+  const note = displaySetNote(st, cardHint);
   return `<div class="set-row ${st.done ? 'done' : ''} ${st.amrap ? 'amrap' : ''} ${st.skipped ? 'skipped' : ''} ${hasTech ? 'tech' : ''}">
       <span class="num">${st.skipped ? '–' : si2 + 1}</span>
-      <span class="target">${setTargetLabel(st, e.exId)}${st.note ? `<small>${esc(st.note)}</small>` : ''}${loggedDrops}</span>
+      <span class="target">${setTargetLabel(st, e.exId)}${note ? `<small>${esc(note)}</small>` : ''}${loggedDrops}</span>
       <button class="perf ${st.done ? 'filled' : ''}" onclick="openPerf(${ei},${si2})">${perfLabel}</button>
     </div>${fatigueFlag}`;
 }
 // The standard single-exercise session card.
 function liftCardHTML(e, ei, dr, shortSleep) {
-  const setRows = e.sets.map((st, si2) => setRowHTML(e, ei, st, si2, shortSleep)).join('');
+  const cardHint = cardHintFor(e.sets);
+  const setRows = e.sets.map((st, si2) => setRowHTML(e, ei, st, si2, shortSleep, cardHint)).join('');
   const schemeWork = e.sets.filter(s => !s.ramp);
   const schemeTxt = schemeWork.length ? `${schemeWork.length} sets x ${schemeWork[0].targetReps} reps` : '';
   const top = topWorkWeight(e);
@@ -3248,6 +3272,7 @@ function liftCardHTML(e, ei, dr, shortSleep) {
       </div>
       ${top && loadingFor(e.exId).showPlates ? `<button class="warmup-btn" onclick="openWarmup(${top},'${e.exId}')"><b>＋</b> Warmup</button>` : ''}
       <div class="scheme">${schemeTxt}</div>
+      ${cardHint ? `<p class="faint" style="margin:2px 0 6px;font-size:.78rem">${esc(cardHint)}</p>` : ''}
       ${techChipHTML(e, ei)}
       ${setRows}
       <button class="notes-link" onclick="toggleNotes(${ei})">Notes ✎</button>
@@ -3557,7 +3582,7 @@ let PM = null; // {ei, si, weight, reps, rpe}
 function openPerf(ei, si) {
   const st = V.draft.entries[ei].sets[si];
   const e = V.draft.entries[ei];
-  let w = st.done ? st.weight : (st.targetWeight ?? lastWeightFor(e.exId) ?? 0);
+  let w = st.done ? st.weight : (st.targetWeight ?? suggestedWeight(e.exId, st) ?? 0);
   const dropSrc = (st.done && st.drops) ? st.drops : st.dropTargets; // logged minis, else prescribed
   const hasKids = FINISHER_TECHS.includes(st.technique) && dropSrc;
   PM = { ei, si, weight: w, reps: st.done ? st.reps : st.targetReps,
@@ -3570,9 +3595,16 @@ function openPerf(ei, si) {
   if (MSTACK[MSTACK.length - 1] === renderPerfModal) rerenderTop();
   else showModal(renderPerfModal);
 }
-function lastWeightFor(exId) {
-  const r = recordsFor(exId);
-  return r.length ? r[r.length - 1].weight : null;
+// Prefill for an unlogged set with no prescribed weight: the last weight the
+// athlete actually lifted; failing that, a weight derived from a seeded max at
+// the set's reps/effort (so a pre-calibrated lift suggests a sane number
+// instead of dumping the raw 1RM into a 12-rep calibration set).
+function suggestedWeight(exId, st) {
+  const recs = recordsFor(exId);
+  for (let i = recs.length - 1; i >= 0; i--) if (!recs[i].seed) return recs[i].weight;
+  const e1 = Engine.bestE1RM(recs);
+  if (!e1) return null;
+  return Engine.weightFor(e1, st.targetReps || 8, st.targetRpe ?? 8, loadingFor(exId).totalInc);
 }
 function plateVizHTML(weight, exId) {
   const L = loadingFor(exId);
@@ -3646,7 +3678,7 @@ function renderPerfModal(anim) {
         <div class="stepper" ${pm.drops ? '' : 'style="border-bottom:none"'}>
           <div class="lbl">Pump <small class="faint">optional</small></div>
           <div class="pump-row">
-            ${[1, 2, 3].map(n => `<button class="btn ${pm.pump === n ? 'btn-blue' : 'btn-outline'}" onclick="pmPump(${n})">${PUMP_LABELS[n]}</button>`).join('')}
+            ${[1, 2, 3].map(n => `<button class="btn ${pm.pump === n ? 'btn-blue' : 'btn-outline'}" onclick="pmPump(${n})">${PUMP_ICONS[n]} ${PUMP_LABELS[n]}</button>`).join('')}
           </div>
         </div>
         ${pm.drops ? `<div class="stepper" style="border-bottom:none">
@@ -3774,8 +3806,8 @@ function donePerf() {
   // classic: entering your bodyweight on a bodyweight lift). One bad record
   // inflates the e1RM and poisons every future prescription, so confirm first.
   if (!PM.outlierOk && Engine.weightOutlier(recordsFor(e.exId), PM.weight)) {
-    const real = recordsFor(e.exId).filter(r => !r.seed && r.weight > 0);
-    const best = Math.max(...real.map(r => r.weight));
+    const anchors = recordsFor(e.exId).filter(r => r.weight > 0);
+    const best = Math.max(...anchors.map(r => r.weight));
     confirmModal({
       title: 'Big weight jump',
       message: `You are logging ${fmtW(e.exId, PM.weight)} on ${e.name}, far above your best ${fmtW(e.exId, best)}. A common slip is typing your bodyweight into a bodyweight lift, where only added load counts. Future weights are prescribed from what you log.`,
@@ -4426,10 +4458,15 @@ function renderExDetail(anim) {
       <div class="section-title" style="font-size:1.1rem">Coaching cues</div>
       ${cues.map(c => `<div class="check-row">▸ ${c}</div>`).join('')}`;
   } else if (XD.tab === 'history') {
-    body = recs.length ? [...recs].reverse().slice(0, 40).map(r =>
-      `<div class="row" style="padding:9px 0;border-bottom:1px solid var(--line)">
-        <span class="subtle">${fmtDate(r.ts)}${r.seed ? ' · seeded' : ''}${techniqueBadge(r.technique)}${pumpBadge(r.pump)}</span>
-        <b>${fmtW(XD.id, r.weight)} × ${r.reps} · ${fmtRir(r.rpe)}</b></div>`).join('')
+    // Newest first; ✕ deletes a wrong log (a typo here poisons the e1RM that
+    // prescribes future weights, so the athlete can clean their own history).
+    body = recs.length ? ([...recs].reverse().slice(0, 40).map((r, i) => {
+      const idx = recs.length - 1 - i; // index in the stored array
+      return `<div class="row" style="padding:9px 0;border-bottom:1px solid var(--line)">
+        <span class="subtle">${fmtDate(r.ts)}${r.seed ? ' · entered max' : ''}${techniqueBadge(r.technique)}${pumpBadge(r.pump)}</span>
+        <span><b>${fmtW(XD.id, r.weight)} × ${r.reps} · ${fmtRir(r.rpe)}</b>
+          <button class="rec-del" onclick="deleteRecord('${XD.id}',${idx})" aria-label="Delete logged set">✕</button></span></div>`;
+    }).join('') + '<p class="faint mt8">Tap ✕ to remove a wrongly logged set. Prescribed weights follow your remaining history.</p>')
       : '<p class="faint mt16">No logged sets yet.</p>';
   } else if (XD.tab === 'trend') {
     const e1Series = Engine.e1rmTrend(recs);
@@ -4444,11 +4481,26 @@ function renderExDetail(anim) {
   } else if (XD.tab === 'maxes') {
     const best = Engine.bestE1RM(recs);
     const wm = P()?.wm?.[XD.id];
+    // The reference UI: estimated-max curve on top, then dated max milestones
+    // (new estimated highs and athlete-entered maxes), then the detail cards.
+    const e1Series = Engine.e1rmTrend(recs, 365);
+    const chart = e1Series.length >= 2
+      ? trendChartHTML(e1Series, '#67a3ff', v => kg(Engine.roundLoad(v, 0.5)) + ' kg')
+      : '';
+    const miles = Engine.maxMilestones(recs).slice(0, 8);
+    const milesHTML = miles.map(m => `
+      <div class="max-milestone">
+        <div class="row"><span class="subtle">${m.kind === 'entered' ? 'Max you entered' : 'New estimated max'}</span>
+          <span class="subtle">${fmtDate(m.ts)}</span></div>
+        <div class="max-val">${kg(Engine.roundLoad(m.value, 0.5))}<small> kg</small></div>
+      </div>`).join('');
     body = `
+      ${chart}
       ${wm ? `<div class="card accent"><div class="row"><span>Working Max</span><b>${kg(wm)} kg</b></div>
         <p class="faint mt8">All wave percentages run off this number (90% of your real 1RM).</p></div>` : ''}
       <div class="card"><div class="row"><span>Estimated 1RM</span><b>${best ? kg(Engine.roundLoad(best, 0.5)) + ' kg' : '—'}</b></div>
-        <p class="faint mt8">Computed from your recent logged sets (weight, reps, RIR).</p></div>
+        <p class="faint mt8">Computed from your recent logged sets (weight, reps, RIR). Know it already? Enter it under Settings.</p></div>
+      ${milesHTML}
       ${recs.length ? `<div class="section-title" style="font-size:1.05rem">Best recent sets</div>` +
         [...recs].sort((a, b) => Engine.e1rm(b.weight, b.reps, b.rpe) - Engine.e1rm(a.weight, a.reps, a.rpe)).slice(0, 5)
           .map(r => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">
@@ -4485,6 +4537,20 @@ function renderExDetail(anim) {
       <label class="check-row"><input type="checkbox" ${(S.techniques || {})[XD.id] === 'drop' ? 'checked' : ''}
         onchange="toggleDropSet('${XD.id}', this.checked)"> Finish with a drop set</label>
       <p class="faint">Adds two lighter strips after your last working set, run to the same rep target. Counts toward your session time.</p>` : '';
+    // Known maxes: seed a 1RM/10RM so the engine prescribes real weights right
+    // away (no calibration week) and the athlete can correct a bad anchor.
+    // Saving replaces the previous entry of the same type, so this reads as an
+    // editable field, not an append-only log.
+    const seed1 = [...recs].reverse().find(r => r.seed && r.reps === 1);
+    const seed10 = [...recs].reverse().find(r => r.seed && r.reps === 10);
+    const maxesUI = `
+      <div class="section-title" style="font-size:1.05rem">Known maxes</div>
+      <p class="faint">Already know your strength here? Enter one or both and weights are prescribed right away, no calibration needed.${isMainLift ? ' A 1RM also sets the working max (90% of it) if it is empty.' : ''}</p>
+      <div class="field"><label>1 rep max (kg)</label>
+        <input id="xd-1rm" type="number" inputmode="decimal" value="${seed1 ? kg(seed1.weight) : ''}" placeholder="e.g. 120"></div>
+      <div class="field"><label>10 rep max (kg, optional)</label>
+        <input id="xd-10rm" type="number" inputmode="decimal" value="${seed10 ? kg(seed10.weight) : ''}" placeholder="e.g. 90"></div>
+      <button class="btn btn-blue mt8" onclick="saveExMaxes('${e.id}')">Save maxes</button>`;
     body = `
       ${isMainLift ? `
         <div class="field"><label>Working max (kg)</label>
@@ -4493,7 +4559,8 @@ function renderExDetail(anim) {
           <input id="xd-inc" type="number" inputmode="decimal" step="0.25" value="${inc}"></div>
         <p class="faint">Book guidance: 2.5 kg/rep lower body, 1.25 kg/rep upper body. Halve it if progress stalls.</p>
         <button class="btn btn-blue mt8" onclick="saveExSettings()">Save</button>` :
-        `<p class="subtle">Accessory weights are computed from your logged history (e1RM). Log honestly, the engine follows you.</p>`}
+        `<p class="subtle">Weights are computed from your logged history (e1RM). Log honestly, the engine follows you.</p>`}
+      ${maxesUI}
       ${techUI}
       ${loadingUI}
       ${e.custom ? `<button class="btn btn-outline mt16" style="color:var(--red);border-color:var(--red)" onclick="deleteCustomEx('${e.id}')">Delete custom exercise</button>` : ''}`;
@@ -4507,6 +4574,45 @@ function saveExSettings() {
   if (wmv > 0) P().wm[XD.id] = wmv;
   if (incv > 0) P().increments[XD.id] = incv;
   save(); toast('Saved'); rerenderTop();
+}
+// Seed / edit known maxes for any exercise. Stored as seeded records (the same
+// shape custom-exercise seeding writes), so bestE1RM anchors on them and the
+// calibration ramp steps aside from the next session on. Saving replaces the
+// previous seed of the same type, which makes the field editable, and an empty
+// field clears that seed.
+function saveExMaxes(id) {
+  const r1 = parseFloat(byId('xd-1rm') && byId('xd-1rm').value);
+  const r10 = parseFloat(byId('xd-10rm') && byId('xd-10rm').value);
+  if (!(r1 > 0) && !(r10 > 0)) { toast('Enter a 1RM or a 10RM', true); return; }
+  if (r1 > 0 && r10 > 0 && r10 >= r1) { toast('Your 10RM should be below your 1RM', true); return; }
+  S.records[id] = recordsFor(id).filter(r => !r.seed); // replace, not append
+  if (r1 > 0) pushRecord(id, { ts: Date.now(), weight: r1, reps: 1, rpe: 10, seed: true });
+  if (r10 > 0) pushRecord(id, { ts: Date.now(), weight: r10, reps: 10, rpe: 10, seed: true });
+  // A main lift's wave weights hang off the working max, so an empty one is
+  // seeded too (book guidance: train off about 90 percent of your real max).
+  let wmNote = '';
+  const p = P();
+  if (p && p.wm && id in p.wm && !p.wm[id] && r1 > 0) {
+    p.wm[id] = Engine.roundLoad(r1 * 0.9, 1.25);
+    wmNote = `, working max set to ${kg(p.wm[id])} kg`;
+  }
+  save();
+  toast('Maxes saved' + wmNote + '. Weights are prescribed from your next session');
+  rerenderTop();
+}
+// Remove one wrongly logged set from an exercise's history (by stored index,
+// since two records can share a timestamp). The e1RM and every prescribed
+// weight recompute from what remains.
+function deleteRecord(id, idx) {
+  const recs = S.records[id];
+  const r = recs && recs[idx];
+  if (!r) return;
+  confirmModal({
+    title: 'Delete this set?',
+    message: `${fmtW(id, r.weight)} × ${r.reps} logged ${fmtDate(r.ts)} will be removed from this exercise's history. Prescribed weights follow the remaining sets.`,
+    confirmLabel: 'Delete set',
+    danger: true,
+  }, () => { recs.splice(idx, 1); save(); toast('Set deleted'); rerenderTop(); });
 }
 function toggleDropSet(id, on) {
   S.techniques = S.techniques || {};

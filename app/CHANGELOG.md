@@ -1,5 +1,38 @@
 # IRONWAVE — Changelog
 
+## [User-feedback round 2: known maxes, history repair, quieter cards] (2026-07-08)
+
+Athlete feedback round two. Display and data-entry layer only, so the
+Powerbuilding golden master is byte-identical. Bumped `APP_VERSION` /
+`CACHE_VERSION` to `1.3.0`.
+
+- **Per-level pump icons**: 👍 Light / 💪 Solid / 🔥 Skin splitting, in the perf
+  modal buttons and every logged badge (session, history, summary), so the pump
+  level reads at a glance instead of one 🔥 for all.
+- **Quieter session cards**: boilerplate repeated on every set row now hoists to
+  ONE card-level line. A calibration card says "eyeball the weight and build up"
+  once and its rows read bare ("12 reps @ 4 RIR", plus only the per-set suffix
+  like "top set"); a deload card states the deload copy once. Display-only
+  (`cardHintFor` / `displaySetNote`), engine set objects untouched.
+- **Known maxes are editable** (Settings tab of every exercise): enter a 1RM
+  and/or 10RM and weights are prescribed immediately, no calibration week. Saved
+  as seeded records (the same shape custom-exercise seeding used), re-saving
+  replaces the previous entry so it behaves like an editable field, and a 1RM on
+  a main lift also fills an empty working max at 90 percent. The outlier guard
+  now treats a seeded max as a legitimate anchor, and the perf-modal prefill
+  derives a sane suggestion from the seed at the set's reps instead of dumping
+  the raw 1RM.
+- **History repair**: every row in an exercise's History tab has a ✕ that
+  deletes that logged set (with a confirm), so a corrupted record (the 160 kg
+  class of bug) can be removed and every future prescription recomputes from the
+  remaining history.
+- **Maxes tab, reference-style**: an estimated-1RM curve over the last year on
+  top (`e1rmTrend`), then dated milestones via new `Engine.maxMilestones`
+  ("New estimated max" each all-time high, "Max you entered" for seeds), then
+  working max / e1RM cards and best recent sets.
+- Tests: new `test/feedback-round2.test.js`; the round-1 outlier test updated
+  for the seed-anchor semantics.
+
 ## [User-feedback round: tap reliability, skip set, finisher clarity] (2026-07-07)
 
 Fixes and polish from athlete feedback. No prescription-math change, so the
