@@ -3070,7 +3070,7 @@ function dismissRir() { S.flags = S.flags || {}; S.flags.rirSeen = true; save();
 function lastWorkingSetIdx(sets) {
   for (let i = sets.length - 1; i >= 0; i--) {
     const s = sets[i];
-    if (s.amrap || s.ramp || s.calib) continue;
+    if (s.amrap || s.ramp || s.calib || s.skipped) continue;
     if ((s.done ? s.weight : s.targetWeight) > 0) return i;
   }
   return -1;
@@ -3103,10 +3103,33 @@ function techChipHTML(e, ei) {
     const u = FINISHER_UI[tech];
     return `<button class="tech-chip ${cur === tech ? 'on' : ''}" onclick="toggleTechInSession(${ei},'${tech}')">${u.icon} ${u.label}${cur === tech ? ' ✓' : ''}</button>`;
   };
+  // Tie the chips to the one set they run on, and settle the effort question
+  // right where it comes up: the set stops at its RIR cap, the finisher is the
+  // part that goes near failure.
+  const onIdx = e.sets.findIndex(s => FINISHER_TECHS.includes(s.technique));
+  const note = cur
+    ? `<small class="faint tech-note">Runs on set ${onIdx + 1}: do the set to its RIR cap as written, the ${(TECHNIQUE_LABELS[cur] || cur).toLowerCase()} after it is what goes near failure.</small>`
+    : '';
   return `<div class="tech-row">
-    <span class="tech-row-label">Add a finisher <small class="faint">optional, last set</small></span>
+    <span class="tech-row-label">Add a finisher <small class="faint">optional, last set</small>
+      <button class="info-dot" onclick="openFinisherInfo()" aria-label="What is a finisher?">ⓘ</button></span>
     <div class="tech-chips">${FINISHER_TECHS.map(chip).join('')}</div>
+    ${note}
   </div>`;
+}
+// What finishers are and how to run/log each one. Opened from the ⓘ on the
+// finisher chip row; the athlete question it settles: "cap the set at its RIR,
+// or take it to failure before the finisher?" (Answer: cap the set.)
+function openFinisherInfo() {
+  showModal(anim => {
+    $modal.innerHTML = modalShell(anim, 'Finishers', `
+      <p class="subtle">A finisher extends your <b>last working set</b> of an exercise. Do that set exactly as written and stop at its RIR cap, do not take it to failure. The finisher after it is what pushes the muscle near failure, at a fraction of the fatigue of extra straight sets.</p>
+      <div class="card"><b>🔥 Drop set</b><p class="faint mt8">Finish the set, strip to the lighter weight shown, and go again with no rest. Log the reps of each strip in its own mini-set row.</p></div>
+      <div class="card"><b>🔁 Myo-reps</b><p class="faint mt8">Finish the set, rest about 20 seconds, then hit short mini-sets at the same weight. Repeat until the mini-set reps drop off. Log each mini-set's reps.</p></div>
+      <div class="card"><b>⏸ Rest-pause</b><p class="faint mt8">Finish the set, pause about 15 seconds, then squeeze out a few more reps at the same weight. Log the extra reps in the mini-set rows.</p></div>
+      <div class="card"><b>📐 Partials</b><p class="faint mt8">After your last full rep, keep going with partial reps in the stretched half of the movement. Count only full reps in the set's rep count, judge your RIR on full reps before the partials start, and log the partial reps in their own row.</p></div>
+      <p class="faint">Logging: enter the set's weight, reps and RIR first, as if you had stopped there. The mini-set rows below are for the finisher's reps.</p>`);
+  });
 }
 function clearEntryTechnique(e) {
   e.sets.forEach(s => {
@@ -3166,12 +3189,12 @@ function supersetGroupMembers(entries, e) {
 // (a member with no set at r counts as done), so the shared per-round rest can
 // arm. Pure (operates on draft entries), so it unit-tests without the perf modal.
 function supersetRoundComplete(entries, e, r) {
-  return supersetGroupMembers(entries, e).every(m => r >= m.sets.length || m.sets[r].done);
+  return supersetGroupMembers(entries, e).every(m => r >= m.sets.length || m.sets[r].done || m.sets[r].skipped);
 }
 // [Cluster B] The next member still owing a set in round r (the one to alternate
 // to), or undefined when the round is complete.
 function supersetNextInRound(entries, e, r) {
-  return supersetGroupMembers(entries, e).find(m => r < m.sets.length && !m.sets[r].done);
+  return supersetGroupMembers(entries, e).find(m => r < m.sets.length && !m.sets[r].done && !m.sets[r].skipped);
 }
 // [Cluster B] Build the session cards, grouping consecutive superset members into
 // one alternating round-based card. Non-grouped entries render as the standard
@@ -3197,13 +3220,14 @@ function sessionCardsHTML(dr, shortSleep) {
 // One logged set row (shared by the single card and, in compact form, the
 // superset round cells).
 function setRowHTML(e, ei, st, si2, shortSleep) {
-  const perfLabel = st.done ? `${fmtW(e.exId, st.weight)} x ${st.reps} · ${fmtRir(st.rpe)}` : 'Performance';
+  const perfLabel = st.done ? `${fmtW(e.exId, st.weight)} x ${st.reps} · ${fmtRir(st.rpe)}` : st.skipped ? 'Skipped' : 'Performance';
   const fatigueFlag = shortSleep && !st.ramp && si2 >= e.sets.length - 1 && !e.isMain
     ? `<div class="flag">⚠ optional today, short sleep</div>` : '';
   const loggedDrops = (st.done && st.drops && st.drops.length)
     ? `<small class="faint">${childWord(st.technique)} ${dropDetail(e.exId, st.drops)}</small>` : '';
-  return `<div class="set-row ${st.done ? 'done' : ''} ${st.amrap ? 'amrap' : ''}">
-      <span class="num">${si2 + 1}</span>
+  const hasTech = FINISHER_TECHS.includes(st.technique);
+  return `<div class="set-row ${st.done ? 'done' : ''} ${st.amrap ? 'amrap' : ''} ${st.skipped ? 'skipped' : ''} ${hasTech ? 'tech' : ''}">
+      <span class="num">${st.skipped ? '–' : si2 + 1}</span>
       <span class="target">${setTargetLabel(st, e.exId)}${st.note ? `<small>${esc(st.note)}</small>` : ''}${loggedDrops}</span>
       <button class="perf ${st.done ? 'filled' : ''}" onclick="openPerf(${ei},${si2})">${perfLabel}</button>
     </div>${fatigueFlag}`;
@@ -3256,10 +3280,10 @@ function supersetGroupCardHTML(members, dr) {
     const cells = members.map(({ e, ei }) => {
       if (r >= e.sets.length) return `<div class="ss-set-row empty"><span class="ss-set-ex faint">${esc(e.name)}</span><span class="faint">done</span></div>`;
       const st = e.sets[r];
-      const perfLabel = st.done ? `${fmtW(e.exId, st.weight)} x ${st.reps} · ${fmtRir(st.rpe)}` : 'Log';
+      const perfLabel = st.done ? `${fmtW(e.exId, st.weight)} x ${st.reps} · ${fmtRir(st.rpe)}` : st.skipped ? 'Skipped' : 'Log';
       const loggedDrops = (st.done && st.drops && st.drops.length)
         ? ` <small class="faint">${childWord(st.technique)} ${dropDetail(e.exId, st.drops)}</small>` : '';
-      return `<div class="ss-set-row ${st.done ? 'done' : ''}">
+      return `<div class="ss-set-row ${st.done ? 'done' : ''} ${st.skipped ? 'skipped' : ''}">
           <span class="ss-set-ex">${esc(e.name)}</span>
           <span class="target">${setTargetLabel(st, e.exId)}${loggedDrops}</span>
           <button class="perf ${st.done ? 'filled' : ''}" onclick="openPerf(${ei},${r})">${perfLabel}</button>
@@ -3540,7 +3564,11 @@ function openPerf(ei, si) {
          rpe: st.done ? st.rpe : (st.targetRpe ?? 8),
          pump: st.done ? (st.pump ?? null) : null, tech: st.technique || null,
          drops: hasKids ? dropSrc.map(d => ({ weight: d.weight, reps: d.reps })) : null };
-  showModal(renderPerfModal);
+  // A double-tap on a Performance button lands here twice: reuse the open modal
+  // instead of stacking a second one (a stacked duplicate re-renders against a
+  // cleared PM after DONE and wedges the modal stack).
+  if (MSTACK[MSTACK.length - 1] === renderPerfModal) rerenderTop();
+  else showModal(renderPerfModal);
 }
 function lastWeightFor(exId) {
   const r = recordsFor(exId);
@@ -3570,14 +3598,22 @@ function plateVizHTML(weight, exId) {
 }
 function renderPerfModal(anim) {
   const pm = PM;
+  // Stale re-render after the state was cleared (e.g. a ghost duplicate on the
+  // modal stack): fold this layer away instead of throwing mid-render.
+  if (!pm) { closeModal(); return; }
   const exId = V.draft.entries[pm.ei].exId;
   const L = loadingFor(exId);
   const disp = displayWeight(exId, pm.weight);
   const unitLabel = disp.unit === 'kg per hand' ? 'kg/hand' : 'kg';
   const { viz, note } = plateVizHTML(pm.weight, exId);
+  // On a bodyweight/band lift the number is ADDED load, and athletes who miss
+  // that type in their own bodyweight, which wrecks the e1RM. Say it in place.
+  const bwMode = L.mode === 'bodyweight' || L.mode === 'band';
+  const bwNote = bwMode
+    ? `<div class="faint" style="font-size:.78rem;margin-top:2px">Bodyweight lift. Count only weight you add (vest, belt, dumbbell). Leave 0 for bodyweight only.</div>` : '';
   $modal.innerHTML = modalShell(anim, 'Performance', `
         <div class="stepper">
-          <div class="lbl">Weight</div>
+          <div class="lbl">${bwMode ? 'Added weight' : 'Weight'}</div>
           <div class="ctr">
             <button class="pm" onclick="pmW(-1)">−</button>
             <span class="val"><input id="pm-weight" type="number" inputmode="decimal"
@@ -3585,6 +3621,7 @@ function renderPerfModal(anim) {
             <button class="pm" onclick="pmW(1)">＋</button>
           </div>
           <div class="plate-viz" id="pm-plateviz">${viz}</div>
+          ${bwNote}
           <div class="plate-math-note" id="pm-platenote">${note}</div>
           ${L.showPlates ? `<button class="btn-ghost" onclick="openPlateConfig()">Configure Plates ›</button>` : ''}
         </div>
@@ -3624,8 +3661,10 @@ function renderPerfModal(anim) {
         </div>` : ''}
         <div class="btn-row">
           <button class="btn btn-outline" onclick="clearPerf()">CLEAR</button>
+          <button class="btn btn-outline" onclick="skipSet()">SKIP</button>
           <button class="btn btn-green" onclick="donePerf()">DONE</button>
-        </div>`, 'closePerf()');
+        </div>
+        <p class="faint" style="font-size:.74rem;margin-top:2px">Skip parks the set with nothing logged. Cardio, a tweak, no gas today, all fine reasons.</p>`, 'closePerf()');
 }
 // Targeted updates — the modal itself never rebuilds, only the numbers move
 function nudge(el, dir) {
@@ -3635,6 +3674,7 @@ function nudge(el, dir) {
   el.classList.add(dir > 0 ? 'nudge-up' : 'nudge-down');
 }
 function perfUpdateWeight(dir) {
+  if (!PM) return;
   const exId = V.draft.entries[PM.ei].exId;
   const disp = displayWeight(exId, PM.weight);
   const inp = byId('pm-weight');
@@ -3651,11 +3691,13 @@ function perfUpdateWeight(dir) {
   }
 }
 function pmW(dir) {
+  if (!PM) return;
   const exId = V.draft.entries[PM.ei].exId;
   PM.weight = Math.max(0, PM.weight + dir * loadingFor(exId).totalInc);
   perfUpdateWeight(dir);
 }
 function pmWSet(v) {
+  if (!PM) return;
   const exId = V.draft.entries[PM.ei].exId;
   const L = loadingFor(exId);
   const parsed = Math.max(0, parseFloat(v) || 0);
@@ -3663,22 +3705,24 @@ function pmWSet(v) {
   perfUpdateWeight(0);
 }
 function pmR(d) {
+  if (!PM) return;
   PM.reps = Math.max(0, PM.reps + d);
-  const el = byId('pm-reps'); el.textContent = PM.reps; nudge(el, d);
+  const el = byId('pm-reps'); if (el) { el.textContent = PM.reps; nudge(el, d); }
 }
 // RIR stepper: the athlete edits reps-in-reserve, we store the inverse RPE.
 // Adding RIR (easier) lowers RPE and vice versa, clamped to RPE 5..10 (RIR 0..5).
 function pmRir(d) {
+  if (!PM) return;
   PM.rpe = Math.min(10, Math.max(5, PM.rpe - d));
-  const el = byId('pm-rir'); el.textContent = kg(Engine.rpeToRir(PM.rpe));
-  byId('pm-rpe-desc').textContent = RPE_DESCRIPTIONS[PM.rpe] || '';
+  const el = byId('pm-rir'); if (el) el.textContent = kg(Engine.rpeToRir(PM.rpe));
+  const desc = byId('pm-rpe-desc'); if (desc) desc.textContent = RPE_DESCRIPTIONS[PM.rpe] || '';
   nudge(el, d);
 }
 // Optional pump quick-tap: tapping the active level clears it (stays optional).
-function pmPump(n) { PM.pump = PM.pump === n ? null : n; rerenderTop(); }
+function pmPump(n) { if (!PM) return; PM.pump = PM.pump === n ? null : n; rerenderTop(); }
 // Drop-set mini-set reps: weight stays the prescribed strip, the athlete logs reps.
 function pmDropReps(i, d) {
-  if (!PM.drops || !PM.drops[i]) return;
+  if (!PM || !PM.drops || !PM.drops[i]) return;
   PM.drops[i].reps = Math.max(0, PM.drops[i].reps + d);
   const el = byId(`pm-drop-${i}`); if (el) { el.textContent = PM.drops[i].reps; nudge(el, d); }
 }
@@ -3705,14 +3749,43 @@ function startMiniRest() {
 function stopMiniRest() { if (MINI_TICK) { clearInterval(MINI_TICK); MINI_TICK = null; } }
 function closePerf() { stopMiniRest(); PM = null; closeModal(); }
 function clearPerf() {
+  if (!PM) return;
   const st = V.draft.entries[PM.ei].sets[PM.si];
   st.done = false; st.weight = st.reps = st.rpe = null; st.pump = null; st.drops = null;
+  delete st.skipped;
+  closePerf(); render();
+}
+// Skip a set the athlete cannot or should not do today (cardio gone, a tweak,
+// confidence, time). Nothing is logged: no record, no tonnage, and the volume
+// autoregulator simply sees one less logged set, which is the honest signal.
+function skipSet() {
+  if (!PM) return;
+  const st = V.draft.entries[PM.ei].sets[PM.si];
+  st.done = false; st.weight = st.reps = st.rpe = null; st.pump = null; st.drops = null;
+  st.skipped = true;
+  toast('Set skipped, nothing logged');
   closePerf(); render();
 }
 function donePerf() {
+  if (!PM) return;
   const e = V.draft.entries[PM.ei];
   const st = e.sets[PM.si];
+  // Outlier net: a weight far above this lift's history is usually a typo (the
+  // classic: entering your bodyweight on a bodyweight lift). One bad record
+  // inflates the e1RM and poisons every future prescription, so confirm first.
+  if (!PM.outlierOk && Engine.weightOutlier(recordsFor(e.exId), PM.weight)) {
+    const real = recordsFor(e.exId).filter(r => !r.seed && r.weight > 0);
+    const best = Math.max(...real.map(r => r.weight));
+    confirmModal({
+      title: 'Big weight jump',
+      message: `You are logging ${fmtW(e.exId, PM.weight)} on ${e.name}, far above your best ${fmtW(e.exId, best)}. A common slip is typing your bodyweight into a bodyweight lift, where only added load counts. Future weights are prescribed from what you log.`,
+      confirmLabel: 'Log it, it is real',
+      cancelLabel: 'Go back',
+    }, () => { if (PM) { PM.outlierOk = true; donePerf(); } });
+    return;
+  }
   st.weight = PM.weight; st.reps = PM.reps; st.rpe = PM.rpe; st.pump = PM.pump; st.done = true;
+  delete st.skipped; // logging a set un-skips it
   if (PM.drops) st.drops = PM.drops.map(d => ({ weight: d.weight, reps: d.reps }));
   // Optional Cluster A/B fields are only written when set, so a plain straight set
   // logs the same record shape as before (persistence / golden master unaffected).
@@ -3795,9 +3868,18 @@ function rerenderTop() { const t = MSTACK[MSTACK.length - 1]; if (t) t(false); }
 function closeModal() {
   MSTACK.pop();
   const t = MSTACK[MSTACK.length - 1];
-  if (t) t(false); else $modal.innerHTML = '';
+  if (t) t(false); else { $modal.innerHTML = ''; armTapGuard(); }
 }
-function closeAllModals() { MSTACK = []; $modal.innerHTML = ''; }
+function closeAllModals() { MSTACK = []; $modal.innerHTML = ''; armTapGuard(); }
+// Ghost-tap guard: when a fast double-tap closes a modal, the second tap of the
+// pair lands on whatever the closed modal was covering (a Performance button, a
+// +/- stepper) and silently acts on it. Swallow clicks outside the modal layer
+// for a beat after a close; a deliberate next tap takes longer than this.
+let TAP_GUARD_UNTIL = 0;
+function armTapGuard() { TAP_GUARD_UNTIL = Date.now() + 350; }
+function tapGuardActive(target) {
+  return Date.now() < TAP_GUARD_UNTIL && !($modal && $modal.contains && $modal.contains(target));
+}
 function modalShell(anim, title, body, oncloseJs) {
   const close = oncloseJs || 'closeModal()';
   return `<div class="modal-wrap" onclick="if(event.target===this)${close}">
@@ -4481,9 +4563,13 @@ function vProgram() {
     const startW = i * p.weeksPerBlock + 1;
     const status = i < p.pointer.block ? '✓' : i === p.pointer.block && !programDone() ? '●' : '○';
     const sch = Engine.schemeFor(b);
-    return `<div class="row" style="padding:10px 0;border-bottom:1px solid var(--line)">
-      <span><b style="color:${BLOCK_COLORS[b.type]}">${status}</b> ${esc(b.label)}
-        <span class="faint">· ${b.wave} wave · ${esc(sch.short || sch.label)}</span></span>
+    // Same emphasis color as the timeline bars (a cut block reads teal, a peak
+    // red), plus the phase word, so the list and the chart tell one story.
+    const c = barColorFor(b);
+    const ph = blockPhase(b);
+    return `<div class="row" style="padding:10px 0 10px 8px;border-bottom:1px solid var(--line);border-left:3px solid ${c}">
+      <span><b style="color:${c}">${status}</b> ${esc(b.label)}
+        <span class="faint">· ${b.wave} wave · ${esc(sch.short || sch.label)} · <span style="color:${c}">${esc(PHASE_LABELS[ph] || ph)}</span></span></span>
       <span class="subtle">W${startW}–${startW + p.weeksPerBlock - 1}</span></div>`;
   }).join('');
   return `${topbar('My Program')}<div class="view">
@@ -4688,6 +4774,11 @@ async function boot() {
   document.addEventListener('touchend', unlock, { passive: true });
   document.addEventListener('pointerup', unlock, { passive: true });
   document.addEventListener('click', unlock);
+  // Ghost-tap net (capture phase, so it runs before any inline onclick): eat the
+  // stray second click of a double-tap that closed a modal. See armTapGuard.
+  document.addEventListener('click', (e) => {
+    if (tapGuardActive(e.target)) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
   render();
 }
 // Last-resort net for anything that throws before/around the first render (load,
