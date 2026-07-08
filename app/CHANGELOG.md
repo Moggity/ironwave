@@ -1,5 +1,27 @@
 # IRONWAVE — Changelog
 
+## [Rest-done notification (opt-in)] (2026-07-08)
+
+Bumped `APP_VERSION`/`CACHE_VERSION` to `1.4.0` (app.js and sw.js changed).
+
+- **Notify me when rest ends** (Settings > Rest timer): a system notification
+  fires when the rest countdown finishes while the app is in the background, so
+  the phone can go away between sets. Local notification through the service
+  worker registration, no push server; permission is requested inside the
+  toggle tap. Foreground rings keep the in-app bar + chime only (no banner
+  noise), and tapping the banner refocuses the app (`notificationclick` in
+  sw.js). Platform honesty: Android/desktop fire in the background; iOS freezes
+  a backgrounded PWA, so there the alert lands when the app is reopened
+  (lock-screen delivery would need a push server the self-hosted/Pages
+  deployments do not have). A `visibilitychange` catch-up also rings an expired
+  timer immediately on return instead of on the next throttled tick.
+- `profile.restNotify` is additive, backfilled off in `migrateState`.
+- **Test harness fix**: both loaders stripped the trailing `boot();` with a
+  pattern that stopped matching when it became `boot().catch(...)`, so boot ran
+  asynchronously in tests and could replace an injected `S` mid-test. The strip
+  now removes the whole trailing statement, restoring the isolation the harness
+  comments promised.
+
 ## [User-feedback round 2: known maxes, history repair, quieter cards] (2026-07-08)
 
 Athlete feedback round two. Display and data-entry layer only, so the

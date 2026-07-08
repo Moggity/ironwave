@@ -54,6 +54,7 @@ const EXPORTS = `return {
   armTapGuard, tapGuardActive,
   pumpBadge, PUMP_ICONS, cardHintFor, displaySetNote, suggestedWeight,
   recordsFor, pushRecord, deleteRecord, confirmResolve, setTargetLabel,
+  restNotifySupported, showRestNotification, toggleRestNotify,
   FINISHER_TECHS, SAME_WEIGHT_TECHS, TIMED_REST_TECHS,
   EXERCISES, SFR_LABELS, HEAD_LABELS, EX_META,
   weeklyVolumeByMuscle, weeklyVolumeByHead, SYNERGIST_COVERAGE,
@@ -80,8 +81,11 @@ function loadApp() {
   const data = read('data.js');
   const engine = read('engine.js');
   // Drop the boot() invocation at the end of app.js so loading does not kick
-  // off async state loading or a render pass.
-  const app = read('app.js').replace(/\bboot\(\);\s*$/, '');
+  // off async state loading or a render pass. The file ends with
+  // `boot().catch(...)`, so the whole trailing statement is stripped; the old
+  // `boot();` pattern silently stopped matching when the catch was added, which
+  // let boot run async in tests and replace an injected S mid-test.
+  const app = read('app.js').replace(/\bboot\(\)(\.catch\([\s\S]*?\))?;\s*$/, '');
 
   // Build a wrapper IIFE by string concatenation (not a template literal) so the
   // backticks inside the app's own template strings can't terminate it early.

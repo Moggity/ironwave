@@ -111,6 +111,32 @@ test('deleteRecord removes exactly the confirmed set', () => {
 });
 
 // ------------------------------------------------------------
+// Rest-done notification (opt-in) plumbing
+// ------------------------------------------------------------
+test('migrateState backfills the restNotify opt-in as off, idempotently', () => {
+  const s = { profile: { name: 'x' }, records: {}, sessions: [], checkins: [] };
+  app.migrateState(s);
+  assert.strictEqual(s.profile.restNotify, false, 'backfilled off');
+  s.profile.restNotify = true;
+  app.migrateState(s);
+  assert.strictEqual(s.profile.restNotify, true, 'an opt-in survives re-migration');
+});
+
+test('showRestNotification is a hard no-op when off or unsupported', async () => {
+  const s = app.defaultState();
+  app.S = s;
+  // Opted out: never shows regardless of platform support.
+  s.profile.restNotify = false;
+  assert.strictEqual(await app.showRestNotification(), false);
+  // Opted in but no Notification API in this environment (the node harness):
+  // silently declines rather than throwing mid-timer.
+  s.profile.restNotify = true;
+  assert.strictEqual(typeof Notification, 'undefined', 'harness has no Notification API');
+  assert.strictEqual(await app.showRestNotification(), false);
+  assert.strictEqual(app.restNotifySupported(), false);
+});
+
+// ------------------------------------------------------------
 // Maxes tab milestones
 // ------------------------------------------------------------
 test('maxMilestones marks new estimated highs and entered maxes, newest first', () => {

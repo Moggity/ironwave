@@ -9,7 +9,7 @@
    Bump CACHE_VERSION whenever a shell file changes so clients fetch the new
    build instead of serving stale assets from cache. Keep the version suffix in
    step with APP_VERSION in data.js. */
-const CACHE_VERSION = 'ironwave-shell-v1.3.0';
+const CACHE_VERSION = 'ironwave-shell-v1.4.0';
 const SHELL = [
   './',
   './index.html',
@@ -60,6 +60,21 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => hit || caches.match('./index.html')); // offline: fall back to cache
       return hit || fetched;
+    })
+  );
+});
+
+/* Tapping the rest-done notification (app.js showRestNotification) brings the
+   athlete straight back to the session: focus an open IRONWAVE window if there
+   is one, otherwise open a fresh one. */
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const client of list) {
+        if ('focus' in client) return client.focus();
+      }
+      return self.clients.openWindow('./');
     })
   );
 });

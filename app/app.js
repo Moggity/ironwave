@@ -118,6 +118,7 @@ function migrateState(s) {
   if (!s.techniques) s.techniques = {}; // Cluster B opt-in map, additive and inert when empty
   if (!s.flags) s.flags = {};           // one-time UI flags, additive
   if (!p.phase) p.phase = 'lean-gain';  // [Cluster F] training phase
+  if (p.restNotify == null) p.restNotify = false; // rest-done notification opt-in
   if (!Array.isArray(s.bodyweight)) s.bodyweight = []; // [Cluster F] bodyweight trend
   if (s.program && !s.program.volAdj) s.program.volAdj = {}; // [Cluster E] per-muscle autoreg
   if (s.program && !s.program.trainingConfig) {
@@ -3542,11 +3543,59 @@ function restTick() {
       bar.classList.add('done');
       playChime();
       if (navigator.vibrate) { try { navigator.vibrate(200); } catch (_) {} }
+      // In another app or on the lock screen the chime is not enough (or never
+      // plays): surface a system notification. In the foreground the bar and
+      // chime already announce it, so no banner noise there.
+      if (document.hidden) showRestNotification();
     }
     stopRestTick();
   }
 }
 function stopRestTick() { if (REST_TICK) { clearInterval(REST_TICK); REST_TICK = null; } }
+// ---- Rest-done notification (opt-in, Settings > Rest timer) ----
+// A system banner when the rest countdown finishes while the athlete is in
+// another app or on the lock screen, so the phone can go away between sets.
+// This is a LOCAL notification through the service worker registration, no
+// push server: it fires as long as the page's timer still ticks in the
+// background (Android and desktop do; a backgrounded iOS PWA is frozen, so
+// there the alert lands the moment the app is reopened instead). The athlete
+// opts in from Settings, inside a tap, which is when permission is requested.
+function restNotifySupported() {
+  return typeof Notification !== 'undefined' && typeof Notification.requestPermission === 'function';
+}
+async function toggleRestNotify(on) {
+  if (!on) { S.profile.restNotify = false; save(); toast('Rest alerts off'); render(); return; }
+  if (!restNotifySupported()) {
+    S.profile.restNotify = false;
+    toast('Notifications are not available here. On iPhone, install the app first: Share, then Add to Home Screen', true);
+    render(); return;
+  }
+  let perm = Notification.permission;
+  if (perm === 'default') { try { perm = await Notification.requestPermission(); } catch (_) { perm = 'denied'; } }
+  if (perm !== 'granted') {
+    S.profile.restNotify = false;
+    toast('Notifications are blocked. Allow them for IRONWAVE in your device settings', true);
+    render(); return;
+  }
+  S.profile.restNotify = true; save(); toast('Rest alerts on'); render();
+}
+// Show the banner. Prefers the service worker registration (required on an
+// installed PWA, and its notificationclick in sw.js refocuses the app); falls
+// back to a page-level Notification where no worker is registered (plain tab).
+// The fixed tag replaces an unseen previous banner instead of stacking them.
+async function showRestNotification() {
+  if (!S || !S.profile || !S.profile.restNotify) return false;
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return false;
+  const opts = { body: 'Rest done. Next set.', tag: 'ironwave-rest',
+                 icon: 'icons/icon-192.png', badge: 'icons/icon-192.png' };
+  try {
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg && reg.showNotification) { await reg.showNotification('IRONWAVE', opts); return true; }
+    }
+  } catch (_) {}
+  try { new Notification('IRONWAVE', opts); return true; } catch (_) { return false; }
+}
 function addRest(sec) {
   if (!V.restTimer) return;
   V.restTimer.endTs = Math.max(Date.now(), V.restTimer.endTs + sec * 1000);
@@ -4748,6 +4797,9 @@ function vSettings() {
     </div>
     <input type="file" id="import-file" accept=".json,application/json" style="display:none" onchange="importData(this)">
     <button class="btn btn-outline mt16" style="color:var(--red);border-color:var(--red)" onclick="fullReset()">Erase everything</button>
+    <div class="section-title">Rest timer</div>
+    <label class="check-row"><input type="checkbox" ${p.restNotify ? 'checked' : ''} onchange="toggleRestNotify(this.checked)"> Notify me when rest ends</label>
+    <p class="faint" style="margin-bottom:10px">Shows a notification when the rest countdown finishes while you are in another app, on top of the in-app chime. On iPhone this needs the installed app (Add to Home Screen), and if iOS pauses the app in the background the alert arrives the moment you come back to it.</p>
     <div class="section-title">About</div>
     <p class="faint" style="margin-bottom:10px">IRONWAVE version ${esc(APP_VERSION)}. If a feature you expect is missing, the installed app may be caching an older build. Check for updates, then relaunch.</p>
     <button class="btn btn-outline" onclick="checkForUpdate()">Check for updates</button>
@@ -4885,6 +4937,12 @@ async function boot() {
   document.addEventListener('click', (e) => {
     if (tapGuardActive(e.target)) { e.stopPropagation(); e.preventDefault(); }
   }, true);
+  // Coming back to a frozen/throttled tab (iOS PWA especially): catch the rest
+  // timer up immediately so a countdown that expired while away rings now
+  // instead of on the next throttled tick.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && V && V.restTimer && !V.restTimer.rung) restTick();
+  });
   render();
 }
 // Last-resort net for anything that throws before/around the first render (load,
