@@ -46,7 +46,10 @@ function loadDom() {
 
   const data = read('data.js');
   const engine = read('engine.js');
-  const app = read('app.js').replace(/\bboot\(\);\s*$/, '');
+  // Strip the whole trailing `boot().catch(...)` statement (see load-app.js:
+  // the bare `boot();` pattern stopped matching when the catch was added,
+  // letting boot run async in tests and replace an injected S mid-test).
+  const app = read('app.js').replace(/\bboot\(\)(\.catch\([\s\S]*?\))?;\s*$/, '');
 
   window.eval([data, engine, app, EXPORTS].join('\n;\n'));
   return { window, document: window.document, app: window.__APP__ };

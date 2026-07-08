@@ -275,12 +275,15 @@ const Engine = {
   // A manually entered weight far outside an exercise's history is almost always
   // a logging slip (the classic one: typing your bodyweight into a bodyweight
   // lift), and one bad record poisons the e1RM that prescribes future weights.
-  // Flags a weight at least double AND 20+ kg above the best real (non-seeded)
-  // weight on record. Needs 3+ real records so early exploration is never nagged.
+  // Flags a weight at least double AND 20+ kg above the best weight on record.
+  // Needs 3+ real (non-seeded) records so early exploration is never nagged,
+  // but a seeded max DOES raise the anchor: an athlete who entered a 120 kg 1RM
+  // is not questioned for loading 100 kg over a light logged history.
   weightOutlier(records, weight) {
-    const real = (records || []).filter(r => !r.seed && r.weight > 0);
+    const all = (records || []).filter(r => r.weight > 0);
+    const real = all.filter(r => !r.seed);
     if (real.length < 3 || !(weight > 0)) return false;
-    const best = Math.max(...real.map(r => r.weight));
+    const best = Math.max(...all.map(r => r.weight));
     return weight >= best * 2 && weight - best >= 20;
   },
 
@@ -418,6 +421,27 @@ const Engine = {
   volumeLoadTrend(records, days = 120) {
     return this._recordsByDay(records, days).map(g =>
       ({ ts: g.ts, value: g.recs.reduce((a, r) => a + r.weight * r.reps, 0) }));
+  },
+
+  // Dated max milestones for the Maxes tab, newest first: every set that put
+  // the estimated 1RM at a new all-time high ('new'), and every athlete-entered
+  // max ('entered', shown as the entered weight for a true 1RM). An entered max
+  // also raises the running best, so later sets below it are not hailed as PRs.
+  maxMilestones(records) {
+    const out = [];
+    let best = 0;
+    for (const r of records || []) {
+      if (!(r.weight > 0) || !(r.reps > 0)) continue;
+      const e1 = this.e1rm(r.weight, r.reps, r.rpe ?? 10);
+      if (r.seed) {
+        out.push({ ts: r.ts, kind: 'entered', value: r.reps === 1 ? r.weight : e1 });
+        best = Math.max(best, e1);
+      } else if (e1 > best) {
+        best = e1;
+        out.push({ ts: r.ts, kind: 'new', value: e1 });
+      }
+    }
+    return out.reverse();
   },
 };
 

@@ -41,16 +41,20 @@ test('weightOutlier stays quiet on normal progression and small jumps', () => {
   assert.strictEqual(Engine.weightOutlier(light, 15), false, 'needs the 20 kg margin too');
 });
 
-test('weightOutlier needs history and ignores seeded records and junk input', () => {
+test('weightOutlier needs history, anchors on seeded maxes, rejects junk input', () => {
   assert.strictEqual(Engine.weightOutlier([], 200), false, 'no history');
   assert.strictEqual(Engine.weightOutlier([{ weight: 20, reps: 10, rpe: 7 }], 200), false, 'thin history');
-  // Seeded 1RM/10RM rows are estimates, not performances: they neither trigger
-  // nor mask the check.
-  const seeded = [
+  // A seeded max is athlete-declared capacity: it raises the anchor (a lifter
+  // who entered a 180 kg 1RM is not questioned for loading 154), but it does
+  // not count toward the 3-real-records minimum.
+  const light = [
     { weight: 10, reps: 12, rpe: 6 }, { weight: 12.5, reps: 12, rpe: 6 }, { weight: 15, reps: 10, rpe: 7 },
-    { weight: 180, reps: 1, rpe: 10, seed: true },
   ];
-  assert.strictEqual(Engine.weightOutlier(seeded, 154), true, 'seed does not mask the real max');
+  assert.strictEqual(Engine.weightOutlier(light, 154), true, 'no seed: flagged');
+  const seeded = light.concat([{ weight: 180, reps: 1, rpe: 10, seed: true }]);
+  assert.strictEqual(Engine.weightOutlier(seeded, 154), false, 'seeded 180 anchors the check');
+  assert.strictEqual(Engine.weightOutlier([{ weight: 180, reps: 1, rpe: 10, seed: true }], 500), false,
+    'seeds alone never trigger the check');
   const recs = [{ weight: 60, reps: 10, rpe: 7 }, { weight: 60, reps: 10, rpe: 7 }, { weight: 60, reps: 10, rpe: 7 }];
   assert.strictEqual(Engine.weightOutlier(recs, 0), false, 'zero weight');
   assert.strictEqual(Engine.weightOutlier(recs, NaN), false, 'NaN weight');
