@@ -9,7 +9,7 @@
 // repo, and it must be kept in step with CACHE_VERSION in sw.js (the service
 // worker only ships new code to installed PWAs when that cache name changes).
 // Bump this on any shell change (data/engine/app/styles/index/sw).
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 
 // Movement categories (used for "Select X Exercise" slots & swaps)
 const MOVEMENTS = {
@@ -304,31 +304,33 @@ const DEFAULT_BLOCK_PHASE = {
 // sequence (cycled to the block count). Our own simple shapes, athlete-facing copy
 // with no em dashes. Inert for non-bodybuilding tracks, so the default golden
 // master is untouched.
+// Copy is deliberately terse (owner feedback: nobody reads long option text);
+// one line per card, the phase plan itself does the explaining on the timeline.
 const GOAL_ARCHETYPES = {
   'serious-macro': {
-    label: 'Serious muscle macro',
-    desc: 'Build muscle over a long plan: lean-gain and gain blocks with periodic minicuts to shed fatigue, finishing with a cut.',
+    label: 'Serious bodybuilder training',
+    desc: 'A long muscle-building plan: gain blocks with periodic minicuts, ending on a cut.',
     weeks: null, // null keeps the track's standard length
     phaseCycle: ['lean-gain', 'lean-gain', 'minicut', 'gain', 'gain', 'cut'],
   },
   // [Realism] Recomp / look-good: the middle ground (matches the early mockup of
   // two lean-gain blocks then a cut). Build a little, then lean down into the date.
-  // The broadly-applicable default, and the right call for newer lifters who can
+  // The broadly-applicable pick, and the right call for newer lifters who can
   // build and lean at once.
   'recomp': {
-    label: 'Look good (recomp)',
-    desc: 'Build some size, then lean down into your date: lean-gain blocks finishing on a cut. A balanced look-good plan that suits most lifters.',
+    label: 'Look good, stay healthy',
+    desc: 'Build some muscle and lean down into your date. The balanced pick for most lifters.',
     weeks: 18,
     phaseCycle: ['lean-gain', 'lean-gain', 'cut'],
   },
   'lean-asap': {
     label: 'Look lean ASAP',
-    desc: 'Aggressive fat loss for a near date: a sharp minicut into a cut, with a maintenance diet break if the plan runs long. Holds muscle while volume stays in check.',
+    desc: 'Aggressive fat loss for a near date. Holds muscle while volume stays in check.',
     weeks: 12,
     // A maintenance diet break every third block keeps a longer run from being one
     // unbroken deficit (you cannot cut hard indefinitely).
     phaseCycle: ['minicut', 'cut', 'maintenance'],
-    warn: 'This is an aggressive deficit. It suits a leaner intermediate or advanced lifter with a near date. If you are newer or not already fairly lean, pick Look good (recomp): you can build muscle and lose fat at the same time, which is the better long game.',
+    warn: 'This is an aggressive deficit. It suits a leaner intermediate or advanced lifter with a near date. If you are newer or not already fairly lean, pick Look good, stay healthy: you can build muscle and lose fat at the same time, which is the better long game.',
   },
 };
 const EX_META = {

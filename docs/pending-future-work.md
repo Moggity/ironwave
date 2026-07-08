@@ -9,6 +9,32 @@ them into focused branches rather than one large one (see the retrospective).
 - **Sport-aware scheduling** (the long-deferred epic): a sport -> muscle-fatigue
   dataset, "pick which weekdays you train" instead of a day count, calendar
   placement so high-fatigue sessions avoid game day, and named/dated days.
+- **2 training days per week** (owner request, 2026-07-08; assessed, NOT
+  trivial). Current state, verified by probing `makeProgram`:
+  - *Bodybuilding*: `generateBodybuildingDays(focus, 2)` already returns a
+    structurally valid 2-day week, but as an upper/lower split, so every muscle
+    silently drops to 1x/week regardless of what `SPLIT_FREQ` asked for, and a
+    week's whole per-muscle volume lands in one session (can exceed the
+    per-session landmark cap, which then trims sets with no other day to catch
+    them). The right 2-day shape is **two full-body days** (this is standard
+    practice at that frequency), which the region-interleaving generator does
+    not produce today.
+  - *Powerbuilding / Powerlifting*: `DAY_TEMPLATES[2]` does not exist, so
+    `makeProgram` throws. A 2-day template must pair mains (e.g. Day A =
+    squat + bench, Day B = deadlift + press), which is a real programming
+    design: two waves in one session, two AMRAPs on realization day, secondary
+    placement, and session length all need decisions, plus the day-theme labels
+    and check-in muscle groups.
+  - *Plan*: (1) add a `fullBody` mode to `generateBodybuildingDays` used when
+    N <= 2 (interleave upper/lower within each day, honor per-session caps by
+    splitting a muscle's weekly sets across both days); (2) design and add
+    `DAY_TEMPLATES[2]` / `BB_DAY_TEMPLATES[2]` with paired mains and trimmed
+    accessory slots; (3) extend the onboarding days picker to `[2..6]` with a
+    one-line "minimum effective dose" note; (4) tests: extend
+    `focus-generator.test.js` (2-day frequencies and caps) and add a 2-day
+    program to the render smoke; the default golden master (4-day) is
+    untouched. Estimated as its own branch; the template design wants owner
+    sign-off on the main-lift pairing before implementation.
 - **e1RM-driven hypertrophy anchors.** Today a bodybuilding day's working-max
   anchor stays a barbell compound (bench/squat/press) because the wave/AMRAP
   weights are percentages of that lift's max. To let a day default to a DB or
@@ -510,6 +536,75 @@ Assets/fidelity notes: the timeline is pure CSS/inline SVG (bars, gradients,
 deload hatch, markers) - no image files needed; exact Figma hex/gradient tokens
 are a fidelity nice-to-have, not a blocker. No Figma connector in the build
 environment, so reproduce from PNGs/tokens.
+
+## Internationalization (i18n) plan (owner request, 2026-07-08)
+
+Goal: a language switch in Settings, and a translator workflow where one file is
+copied and translated without touching app code. Designed for this codebase's
+constraints: plain browser JS, no build step, PWA shell cached by sw.js.
+
+### Architecture
+
+- **One catalog file per language**: `app/i18n/en.js` is the source of truth,
+  a flat map of stable keys to strings:
+  ```js
+  const I18N_EN = {
+    'settings.title': 'Settings',
+    'rest.done': 'Rest done. Next set.',
+    'perf.rir.hint': 'RIR is how many reps you could still do. 0 is all out.',
+    'onb.days.title': 'Training days',
+    // ...
+  };
+  ```
+  A translator copies `en.js` to `es.js`, translates VALUES only, never keys.
+  Catalogs load as plain `<script>` tags before `data.js` (same pattern as the
+  three app scripts) and register into one `I18N.catalogs` map; every shipped
+  catalog is added to `SHELL` in sw.js so language switching works offline.
+- **`t(key, params)` helper** (new `i18n.js`, ~40 lines, no dependency):
+  lookup order is active language -> English -> the key itself (so a missing
+  translation degrades to readable English, and a missing key is visible in
+  dev). `{name}`-style placeholder interpolation from `params`. Plurals stay
+  deliberately simple: explicit `_one` / `_other` key pairs chosen by the
+  caller's count (no ICU engine; our strings are short and imperative).
+- **Language setting**: `S.profile.lang`, default `'auto'` (resolve from
+  `navigator.language`, fall back to English). A Settings > Language select
+  lists the registered catalogs. Additive + backfilled in `migrateState`.
+- **Dates and numbers**: the code already uses `toLocaleDateString`; pass the
+  resolved language instead of `undefined` so dates follow the app language,
+  not just the device. Weights stay numeric (kg), untouched.
+
+### Migration strategy (phased, each phase shippable)
+
+1. **Plumbing** - `i18n.js` + `en.js` + the Settings switch + `t()` exported
+   through the test harnesses. Nothing translated yet; zero visible change.
+2. **Extraction by surface**, highest athlete exposure first: session view and
+   perf modal -> onboarding -> dashboard/workout -> settings/detail modals ->
+   toasts. Mechanical `'text'` -> `t('key')` moves, reviewable per PR. Labels
+   living in data tables (`PUMP_LABELS`, `PHASE_LABELS`, `TECHNIQUE_LABELS`,
+   `FEEL_WORDS`, `RPE_DESCRIPTIONS`, day-theme names) become key lookups so
+   the tables stay logic-only. Code comments and console output stay English.
+3. **Stored-string decision (the one engine-touching step)**: prescribed set
+   NOTES (e.g. 'Calibration · top set', 'Deload, move well and recover') are
+   currently English strings baked into set objects, persisted in
+   records/sessions, and part of the golden master. Going forward the engine
+   should emit a `noteKey` (+ params) and the UI translate at render; legacy
+   saved `note` strings keep rendering verbatim (no data migration). This
+   changes `resolveSlot` output, so it is its OWN deliberate PR with a golden
+   master regeneration and review - do not fold it into the mechanical phases.
+4. **Exercise names** (optional, later): a `i18n` key per exercise id layered
+   over `EXERCISES`; untranslated ids fall back to the English name. Custom
+   exercises are user text and never translated.
+
+### Guardrails
+
+- A **catalog completeness test**: every non-English catalog's key set is
+  compared against `en.js`; missing keys are listed (warning, not failure -
+  runtime falls back to English) and unknown/extra keys fail (typo net).
+- The **no-em-dash lint** extends to catalog files (athlete-facing strings).
+- **render-smoke runs once under a non-English catalog** with a probe key, so
+  a crash on a missing key or bad interpolation is caught in CI.
+- Translator docs: one short `app/i18n/README.md` (copy `en.js`, rename,
+  translate values, keep placeholders like `{name}` intact, send the file).
 
 ## Quality of life UI improvements
 

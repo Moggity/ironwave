@@ -1428,10 +1428,12 @@ function topbar(title) {
 // ------------------------------------------------------------
 // Step indices. The muscle-focus step (5) is shown only for the bodybuilding
 // track; obNext skips it otherwise, so other tracks keep the legacy-length flow.
+// Bodybuilding leads (owner call: it is the app's primary audience) and the
+// copy stays to one short line per card; the picker does the explaining.
 const OB_TRACKS = [
-  ['powerbuilding', 'Powerbuilding', 'Balanced size and strength. The original IRONWAVE mix: 3 hypertrophy blocks, 2 strength blocks.'],
-  ['powerlifting',  'Powerlifting',  'Get as strong as possible. A hypertrophy base, then four book-wave strength blocks.'],
-  ['bodybuilding',  'Bodybuilding',  'Size and appearance. All hypertrophy, with per-muscle focus sliders you set next.'],
+  ['bodybuilding',  'Bodybuilding',  'Size and looks. All hypertrophy, tuned per muscle.'],
+  ['powerbuilding', 'Powerbuilding', 'Size and strength in one plan.'],
+  ['powerlifting',  'Powerlifting',  'As strong as possible on the big lifts.'],
 ];
 const OB_EXP = [
   ['beginner', 'Beginner', 'Under a year of serious training. Starts your volume lower.'],
@@ -1449,11 +1451,16 @@ const FOCUS_KEYS = ['arms', 'chest', 'back', 'shoulders', 'glutes', 'legs', 'cal
 const FOCUS_LABELS = { arms: 'Arms', chest: 'Chest', back: 'Back', shoulders: 'Shoulders',
                        glutes: 'Glutes', legs: 'Legs', calves: 'Calves' };
 
+// Fresh onboarding pre-selects NOTHING (owner call): every discrete choice
+// (days, track, goal, experience, time) starts empty and its step's Continue
+// stays disabled until the athlete picks. The one exception is program length,
+// which defaults to the track's standard and hides under Advanced options.
 function obDefaults() {
-  return { name: '', bodyweight: '', daysPerWeek: 4, track: 'powerbuilding',
-           experience: 'intermediate', timeMode: 'unlimited', timeCapMin: '',
+  return { name: '', bodyweight: '', daysPerWeek: null, track: null,
+           experience: null, timeMode: null, timeCapMin: '',
            macroWeeks: null, // [Epic G2] null = standard template length
-           goalArchetype: 'recomp', // [Epic G6] bodybuilding only; recomp is the safe default
+           goalArchetype: null, // [Epic G6] bodybuilding only
+           showAdvanced: false, // program-length presets tucked away
            muscleFocus: { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
            maxes: {} };
 }
@@ -1532,58 +1539,61 @@ function vOnboarding() {
   } else if (step === 1) {
     body = `
       <div class="ob-title">Training days</div>
-      <p class="subtle">How many days per week will you train? The program manages weekly fatigue around this.</p>
+      <p class="subtle">How many days per week will you train?</p>
       <div class="seg mt16">
         ${[3,4,5,6].map(n => `<button class="${ob.daysPerWeek===n?'on':''}" onclick="obDays(${n})">${n}</button>`).join('')}
       </div>
       <p class="faint mt16">${{3:'Full-body emphasis. Squat / Bench / Deadlift+Press days.',
         4:'Classic split: Bench, Squat, Press, Deadlift.',
         5:'Classic split plus a volume bench/pump day.',
-        6:'Classic split plus a secondary bench day and a secondary deadlift/squat volume day.'}[ob.daysPerWeek]}</p>
-      <button class="btn btn-green mt24" onclick="obNext(1)">Continue</button>`;
+        6:'Classic split plus a secondary bench day and a secondary deadlift/squat volume day.'}[ob.daysPerWeek] || 'Pick what you can sustain week after week.'}</p>
+      <button class="btn btn-green mt24" onclick="obNext(1)" ${ob.daysPerWeek ? '' : 'disabled'}>Continue</button>`;
   } else if (step === 2) {
+    const goalReady = ob.track && (ob.track !== 'bodybuilding' || ob.goalArchetype);
     body = `
       <div class="ob-title">Primary goal</div>
-      <p class="subtle">This sets how your blocks are periodized. You can start a fresh program later if your goal changes.</p>
+      <p class="subtle">What are you training for?</p>
       ${OB_TRACKS.map(([id, label, desc]) => `
         <button class="pick-card ${ob.track===id?'on':''}" onclick="obTrack('${id}')">
           <b>${label}</b><span class="faint">${desc}</span></button>`).join('')}
       ${ob.track === 'bodybuilding' ? `
         <div class="ob-sub mt16">What is your goal?</div>
-        <p class="faint">This shapes your phases. Look lean fast for a near date, or build muscle over a longer plan.</p>
         ${Object.entries(GOAL_ARCHETYPES).map(([id, a]) => `
           <button class="pick-card ${ob.goalArchetype===id?'on':''}" onclick="obArchetype('${id}')">
             <b>${a.label}</b><span class="faint">${a.desc}</span></button>`).join('')}
         ${GOAL_ARCHETYPES[ob.goalArchetype] && GOAL_ARCHETYPES[ob.goalArchetype].warn
           ? `<div class="banner-warn mt8">${GOAL_ARCHETYPES[ob.goalArchetype].warn}</div>` : ''}` : ''}
-      <div class="ob-sub mt16">Program length</div>
-      <p class="faint">How long until your goal date? Standard uses this track's default block count. A shorter plan trims blocks, a longer one adds them.</p>
-      <div class="seg mt8">
-        <button class="${ob.macroWeeks==null?'on':''}" onclick="obMacro(null)">Standard</button>
-        ${[12,18,24,36].map(w => `<button class="${ob.macroWeeks===w?'on':''}" onclick="obMacro(${w})">${w} wk</button>`).join('')}
-      </div>
-      <div class="focus-time">${obMacroLine(ob)}</div>
-      <button class="btn btn-green mt16" onclick="obNext(2)">Continue</button>`;
+      ${ob.track ? `
+        <button class="browse-toggle mt16" onclick="V.ob.showAdvanced=!V.ob.showAdvanced;render()">Advanced options ${ob.showAdvanced ? '▴' : '▾'}</button>
+        ${ob.showAdvanced ? `
+          <div class="ob-sub mt8">Program length</div>
+          <p class="faint">Standard fits this goal. A shorter plan trims blocks, a longer one adds them.</p>
+          <div class="seg mt8">
+            <button class="${ob.macroWeeks==null?'on':''}" onclick="obMacro(null)">Standard</button>
+            ${[12,18,24,36].map(w => `<button class="${ob.macroWeeks===w?'on':''}" onclick="obMacro(${w})">${w} wk</button>`).join('')}
+          </div>
+          <div class="focus-time">${obMacroLine(ob)}</div>` : ''}` : ''}
+      <button class="btn btn-green mt16" onclick="obNext(2)" ${goalReady ? '' : 'disabled'}>Continue</button>`;
   } else if (step === 3) {
     body = `
       <div class="ob-title">Experience</div>
-      <p class="subtle">How long have you trained seriously? This only seeds your starting volume. It adjusts to your logged performance from there.</p>
+      <p class="subtle">How long have you trained seriously? This seeds your starting volume, then your logs take over.</p>
       ${OB_EXP.map(([id, label, desc]) => `
         <button class="pick-card ${ob.experience===id?'on':''}" onclick="obExp('${id}')">
           <b>${label}</b><span class="faint">${desc}</span></button>`).join('')}
-      <button class="btn btn-green mt16" onclick="obNext(3)">Continue</button>`;
+      <button class="btn btn-green mt16" onclick="obNext(3)" ${ob.experience ? '' : 'disabled'}>Continue</button>`;
   } else if (step === 4) {
     body = `
       <div class="ob-title">Time per session</div>
-      <p class="subtle">If you set a cap, the app keeps each session inside it as volume climbs, by trimming rest and pruning accessories your main lift already covers. Your main lifts and weights are never cut.</p>
+      <p class="subtle">With a cap, sessions are kept inside it as volume climbs. Main lifts and weights are never cut.</p>
       <div class="seg mt16">
         <button class="${ob.timeMode==='unlimited'?'on':''}" onclick="obTimeMode('unlimited')">As much as necessary</button>
         <button class="${ob.timeMode==='custom'?'on':''}" onclick="obTimeMode('custom')">Enter time</button>
       </div>
       ${ob.timeMode==='custom' ? `<div class="field mt16"><label>Minutes per session</label>
         <input id="ob-time" type="number" inputmode="numeric" value="${esc(ob.timeCapMin)}" placeholder="60" oninput="obTimeInput(this.value)"></div>` : ''}
-      <div id="ob-time-est" class="focus-time">${focusTimeLine(ob)}</div>
-      <button class="btn btn-green mt24" onclick="obNext(4)">Continue</button>`;
+      <div id="ob-time-est" class="focus-time">${ob.timeMode ? focusTimeLine(ob) : ''}</div>
+      <button class="btn btn-green mt24" onclick="obNext(4)" ${ob.timeMode ? '' : 'disabled'}>Continue</button>`;
   } else if (step === 5) {
     body = `
       <div class="ob-title">Muscle focus</div>
@@ -1643,17 +1653,24 @@ function obSlider(k, v) {
 }
 function obNext(step) {
   const ob = V.ob;
+  // Belt and braces with the disabled Continue buttons: nothing advances past a
+  // choice step without an explicit pick (owner call: no silent defaults).
   if (step === 0) {
     ob.name = document.getElementById('ob-name').value.trim();
     ob.bodyweight = parseFloat(document.getElementById('ob-bw').value) || null;
     V.obStep = 1;
   } else if (step === 1) {
+    if (!ob.daysPerWeek) { toast('Pick your training days', true); return; }
     V.obStep = 2;
   } else if (step === 2) {
+    if (!ob.track) { toast('Pick a primary goal', true); return; }
+    if (ob.track === 'bodybuilding' && !ob.goalArchetype) { toast('Pick what you are training for', true); return; }
     V.obStep = 3;
   } else if (step === 3) {
+    if (!ob.experience) { toast('Pick your experience level', true); return; }
     V.obStep = 4;
   } else if (step === 4) {
+    if (!ob.timeMode) { toast('Pick how much time you have', true); return; }
     if (ob.timeMode === 'custom') {
       const el = document.getElementById('ob-time');
       ob.timeCapMin = el ? (parseInt(el.value) || '') : '';
@@ -1784,16 +1801,18 @@ function scheduledTechForBlock(block, w, bbTrack) {
 }
 // [Epic G3] Macrocycle timeline v2: blocks grouped into phase-tinted containers
 // with a phase label, week bars colored by training emphasis (deload weeks
-// hatched), the current week glowing and past weeks dimmed. Bodybuilding weeks
-// carrying a scheduled technique (Epic G5) get a marker so the athlete sees an
-// intensifier coming. Heights share one scale so blocks are comparable.
-function timelineHTML() {
+// hatched), the current week glowing and past weeks dimmed. Heights share one
+// scale so blocks are comparable. Technique markers were dropped (owner
+// feedback: the athlete may run a different finisher, so ◆/» in the bars was
+// noise); the week preview still names the scheduled finisher when tapped.
+// `editable: false` renders the read-only variant for the dashboard, without
+// the "+" plan-editor tile; editing lives on My Program only.
+function timelineHTML(opts) {
+  const editable = !opts || opts.editable !== false;
   const p = P();
-  const bbTrack = (p.trainingConfig && p.trainingConfig.track) === 'bodybuilding';
   let maxV = 1;
   p.blocks.forEach(b => { for (let w = 0; w < p.weeksPerBlock; w++) maxV = Math.max(maxV, weekVolume(b, w)); });
   const emphases = {}; // which legend swatches this program actually uses
-  const techs = {};    // which technique markers this program actually uses
   const ed = p.earlyDeload;
   const bar = (b, bi, w) => {
     const passed = bi < p.pointer.block || (bi === p.pointer.block && w < p.pointer.week);
@@ -1804,12 +1823,9 @@ function timelineHTML() {
     const skipped = !!(ed && ed.block === bi && w > ed.week);
     const deload = Engine.weekType(w) === 'deload' || early;
     const h = Math.max(10, weekVolume(b, w) / maxV * 100);
-    const tech = scheduledTechForBlock(b, w, bbTrack);
-    if (tech) techs[tech] = 1;
-    const mark = tech ? `<b class="tl-mark">${TECH_MARK[tech] || ''}</b>` : '';
     return `<i class="${passed ? 'done' : ''}${cur ? ' current' : ''}${deload ? ' deload' : ''}${early ? ' deload-early' : ''}${skipped ? ' skipped' : ''}"
       onclick="openWeekPreview(${bi},${w})"
-      style="height:${h.toFixed(0)}%;background:${barColorFor(b)}">${mark}</i>`;
+      style="height:${h.toFixed(0)}%;background:${barColorFor(b)}"></i>`;
   };
   // Group consecutive blocks that share a phase under one labeled, tinted
   // container (two back-to-back lean-gain blocks read as one phase, not two).
@@ -1840,10 +1856,9 @@ function timelineHTML() {
   if (emphases.strength) leg.push(`<span><i style="background:${BLOCK_COLORS.strength}"></i>Strength</span>`);
   if (emphases.cut) leg.push(`<span><i style="background:${BLOCK_COLORS.bridge}"></i>Cut</span>`);
   if (emphases.peak) leg.push(`<span><i style="background:${BLOCK_COLORS.peaking}"></i>Peak</span>`);
-  if (techs.myo) leg.push(`<span><b class="tl-mark-leg">${TECH_MARK.myo}</b>Myo-reps</span>`);
-  if (techs.drop) leg.push(`<span><b class="tl-mark-leg">${TECH_MARK.drop}</b>Drop set</span>`);
   // [Epic G4] A "+" tile opens the block-plan editor (customize the macrocycle).
-  const add = `<button class="tl-add" onclick="openPlanEditor()" aria-label="Customize blocks">+</button>`;
+  // Editable surface only (My Program); the dashboard shows the plan, not edits it.
+  const add = editable ? `<button class="tl-add" onclick="openPlanEditor()" aria-label="Customize blocks">+</button>` : '';
   return `<div class="timeline-v2">${groups}${add}</div>
     <div class="legend">${leg.join('')}<span class="faint">tap a week to preview</span></div>`;
 }
@@ -2065,7 +2080,7 @@ function vDashboard() {
     <div class="section-title mt24">My Program</div>
     <div style="font-size:2rem;font-weight:800">${daysOut()} Days Out</div>
     <div class="subtle">${fmtDateLong(p.testDate)}</div>
-    ${timelineHTML()}
+    ${timelineHTML({ editable: false })}
     ${weekSection}
     ${done ? '' : `<button class="btn btn-outline mt16" onclick="openVolumeDashboard()">📊 Weekly volume per muscle</button>`}
     ${(done || (p.trainingConfig && p.trainingConfig.track === 'bodybuilding')) ? '' : `<button class="phase-chip mt8" onclick="openPhase()">🍽 Phase: ${PHASE_LABELS[currentPhase()] || currentPhase()}</button>`}

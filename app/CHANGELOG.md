@@ -1,5 +1,36 @@
 # IRONWAVE — Changelog
 
+## [User-feedback round 3: quieter dashboard, honest onboarding] (2026-07-08)
+
+Display/onboarding layer only; no prescription change, golden master
+byte-identical. Bumped `APP_VERSION`/`CACHE_VERSION` to `1.5.0`.
+
+- **Dashboard timeline is read-only**: the "+" plan-editor tile now renders
+  only on My Program (`timelineHTML({ editable: false })` on the dashboard).
+  Editing the macrocycle is a More-tab activity, the dashboard just shows it.
+- **Technique markers removed from the timeline**: the ◆/» glyphs and their
+  legend entries are gone from the week bars (the athlete may run a different
+  finisher, so the markers were noise). The week preview still names the
+  scheduled finisher when a week is tapped.
+- **Onboarding preselects nothing**: training days, primary goal, bodybuilding
+  goal, experience and time mode all start unpicked, with Continue disabled
+  (and guarded) until an explicit choice. The one exception is program length,
+  which defaults to the plan's standard and now lives under a collapsed
+  "Advanced options" toggle on the goal step.
+- **Goal step reworked**: Bodybuilding is listed first; copy across the step is
+  cut to one line per card. Archetypes renamed: "Serious bodybuilder training"
+  (was Serious muscle macro) and "Look good, stay healthy" (was Look good
+  (recomp)); "Look lean ASAP" unchanged, its beginner warning intact.
+- **Docs**: `docs/pending-future-work.md` gains (1) an assessed plan for
+  2-days-per-week support (bodybuilding generates a degraded upper/lower today
+  and should get full-body days; powerbuilding/powerlifting have no 2-day
+  template and throw, so mains need pairing design) and (2) a full
+  internationalization plan (per-language catalog files translators edit
+  standalone, a `t()` helper with English fallback, `profile.lang` switch,
+  phased string extraction, and the stored-note-keys caveat that must be its
+  own golden-master PR).
+- Tests: new `test/feedback-round3.test.js`; suite at 233 passing.
+
 ## [Rest-done notification (opt-in)] (2026-07-08)
 
 Bumped `APP_VERSION`/`CACHE_VERSION` to `1.4.0` (app.js and sw.js changed).
