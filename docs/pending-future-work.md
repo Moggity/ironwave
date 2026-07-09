@@ -543,19 +543,45 @@ Goal: a language switch in Settings, and a translator workflow where one file is
 copied and translated without touching app code. Designed for this codebase's
 constraints: plain browser JS, no build step, PWA shell cached by sw.js.
 
-**Status (2026-07-09): phase 1 (plumbing) and the first phase-2 surface are
-SHIPPED**, with Spanish as the first language: `app/i18n/` (i18n.js runtime,
-en.js source of truth, es.js, translator README), `profile.lang` +
-Settings > Language, sw.js SHELL caching, harness exports, and the guardrails
-below (`test/i18n.test.js` + Spanish render-smoke passes). Extracted so far:
-session view, rest timer, performance modal, warmup modal, session rating,
-finisher UI, confirm-dialog defaults, and the full onboarding flow (with
-`OB_TRACKS` / `OB_EXP` / `GOAL_ARCHETYPES` reduced to logic-only tables).
-**Still open:** the remaining phase-2 surfaces (dashboard/workout, history,
-settings/detail modals, remaining toasts, data-table labels used outside the
-extracted surfaces such as `PHASE_LABELS` / `FEEL_WORDS` / day-theme names),
-phase 3 (stored set-note keys and generated day names, its own golden-master
-PR), and phase 4 (exercise names).
+**Status (2026-07-09): phase 1 (plumbing) and the two highest-exposure
+phase-2 surfaces are SHIPPED** (branch `claude/translation-spanish-support`),
+with Spanish as the first language: `app/i18n/` (i18n.js runtime, en.js source
+of truth, es.js, translator README), `profile.lang` + Settings > Language,
+sw.js SHELL caching, harness exports, and the guardrails below
+(`test/i18n.test.js` + Spanish render-smoke passes). Extracted so far: the
+live session view, rest timer, performance modal, warmup modal, session
+rating, finisher UI, confirm-dialog defaults, and the full onboarding flow
+(with `OB_TRACKS` / `OB_EXP` / `GOAL_ARCHETYPES` reduced to logic-only
+tables).
+
+**Queue for the next i18n branch (pick up here, in this order):**
+
+1. **Dashboard + workout overview surface**: `vDashboard`, `vWorkout`,
+   `timelineHTML` legend/labels, the week-preview modal, check-in flow
+   (`vCheckin`, `FEEL_WORDS`, soreness copy), swap/add pickers (headers,
+   time-cost lines, "Adds <head>" hints), and their toasts. The phase chip
+   uses `PHASE_LABELS`, the volume screens use muscle names: reuse the
+   shipped `muscle.*` keys and move `PHASE_LABELS` copy to `phase.*` keys
+   (table keeps ids/colors, same pattern as `GOAL_ARCHETYPES`).
+2. **History, summary, More hub, exercise detail/library, remaining settings
+   body** (Profile/Barbell/Data/About/Debug sections, plate config), and any
+   leftover toasts (grep `toast(` for bare strings).
+3. **Phase 3 (its OWN PR, golden master regenerates)**: engine-emitted set
+   NOTES become `noteKey` (+ params) translated at render; legacy stored
+   `note` strings keep rendering verbatim. Generated day NAMES
+   (`generateBodybuildingDays`, `FOCUS_LABELS`, day-theme names) are the same
+   stored-string category and go in this PR too.
+4. **Phase 4 (optional)**: exercise names as `i18n` keys layered over
+   `EXERCISES`; custom exercises are user text, never translated.
+
+Conventions the shipped code established (follow them): keys are
+`surface.snake_case` (`session.*`, `perf.*`, `ob.*`, shared `muscle.*` /
+`unit.*` / `confirm.*`); render sites use `esc(t('key'))` unless the catalog
+value deliberately carries HTML (only `tech.info_intro` today); params are
+`{name}`-interpolated; data tables keep ids + logic, copy goes to the
+catalogs; every new key lands in BOTH en.js and es.js (the completeness test
+fails on extra keys, only warns on missing); no em dashes in values (tested);
+new top-level functions go into the harness export shims.
 
 ### Architecture
 
