@@ -1433,16 +1433,10 @@ function topbar(title) {
 // track; obNext skips it otherwise, so other tracks keep the legacy-length flow.
 // Bodybuilding leads (owner call: it is the app's primary audience) and the
 // copy stays to one short line per card; the picker does the explaining.
-const OB_TRACKS = [
-  ['bodybuilding',  'Bodybuilding',  'Size and looks. All hypertrophy, tuned per muscle.'],
-  ['powerbuilding', 'Powerbuilding', 'Size and strength in one plan.'],
-  ['powerlifting',  'Powerlifting',  'As strong as possible on the big lifts.'],
-];
-const OB_EXP = [
-  ['beginner', 'Beginner', 'Under a year of serious training. Starts your volume lower.'],
-  ['intermediate', 'Intermediate', '1 to 3 years. The standard starting point.'],
-  ['advanced', 'Advanced', '3+ years. Starts your volume near the top of the range.'],
-];
+// Track and experience copy lives in the i18n catalogs ('track.<id>' /
+// 'track.<id>_desc', 'exp.<id>' / 'exp.<id>_desc'); these keep only the order.
+const OB_TRACKS = ['bodybuilding', 'powerbuilding', 'powerlifting'];
+const OB_EXP = ['beginner', 'intermediate', 'advanced'];
 // The main lifts whose 1RM onboarding collects. The bodybuilding generator
 // never programs the deadlift (see removeBigLift, "not used in hypertrophy"),
 // so obMainLifts drops it from that track and we never ask for its 1RM.
@@ -1469,14 +1463,14 @@ function obDefaults() {
 }
 // Warning copy for any slider at the extremes (0 = removed, 6 = maxed).
 function obFocusWarning(focus) {
-  const removed = FOCUS_KEYS.filter(k => focus[k] === 0).map(k => FOCUS_LABELS[k]);
-  const maxed = FOCUS_KEYS.filter(k => focus[k] === 6).map(k => FOCUS_LABELS[k]);
+  const removed = FOCUS_KEYS.filter(k => focus[k] === 0).map(k => t('muscle.' + k));
+  const maxed = FOCUS_KEYS.filter(k => focus[k] === 6).map(k => t('muscle.' + k));
   if (!removed.length && !maxed.length) return '';
   const parts = [];
-  if (removed.length) parts.push(`Removing ${removed.join(', ')} means no direct work there. Over a block you lose size and strength there, and big imbalances can stress your joints. Fine for an injury or a deliberate choice.`);
-  if (maxed.length) parts.push(`Maxing ${maxed.join(', ')} is a large jump in volume, which raises injury and overuse risk. Ease into it.`);
-  parts.push('Run a focus like this for about one block, 2 months at most, then rebalance.');
-  return `<div class="banner-warn mt8">${parts.join(' ')}</div>`;
+  if (removed.length) parts.push(t('ob.focus_removed', { list: removed.join(', ') }));
+  if (maxed.length) parts.push(t('ob.focus_maxed', { list: maxed.join(', ') }));
+  parts.push(t('ob.focus_rebalance'));
+  return `<div class="banner-warn mt8">${esc(parts.join(' '))}</div>`;
 }
 // Informative only: median training-day length for the current focus. Builds a
 // throwaway bodybuilding program from the onboarding answers and times each day
@@ -1517,10 +1511,10 @@ function focusTimeLine(ob) {
   const cap = (ob.timeMode === 'custom' && ob.timeCapMin) ? parseInt(ob.timeCapMin) : null;
   if (cap) {
     return m > cap
-      ? `Estimated median session about ${m} min, over your ${cap} min limit. Longer days will be trimmed to fit.`
-      : `Estimated median session about ${m} min, within your ${cap} min limit.`;
+      ? t('ob.est_over', { m, cap })
+      : t('ob.est_within', { m, cap });
   }
-  return `Estimated median session about ${m} min (rest and execution included).`;
+  return t('ob.est_plain', { m });
 }
 
 function vOnboarding() {
@@ -1531,94 +1525,90 @@ function vOnboarding() {
 
   if (step === 0) {
     body = `
-      <div class="ob-title">Welcome to<br>IRON<span style="color:var(--blue)">WAVE</span></div>
-      <p class="subtle">Auto-regulating training built on the Juggernaut Method 2.0 wave system.
-      A few quick questions and we build your program.</p>
-      <div class="field"><label>Your name</label>
-        <input id="ob-name" value="${esc(ob.name)}" placeholder="Lifter name"></div>
-      <div class="field"><label>Bodyweight (kg)</label>
+      <div class="ob-title">${esc(t('ob.welcome'))}<br>IRON<span style="color:var(--blue)">WAVE</span></div>
+      <p class="subtle">${esc(t('ob.welcome_sub'))}</p>
+      <div class="field"><label>${esc(t('ob.your_name'))}</label>
+        <input id="ob-name" value="${esc(ob.name)}" placeholder="${esc(t('ob.name_ph'))}"></div>
+      <div class="field"><label>${esc(t('ob.bodyweight'))}</label>
         <input id="ob-bw" type="number" inputmode="decimal" value="${esc(ob.bodyweight)}" placeholder="100"></div>
-      <button class="btn btn-green mt16" onclick="obNext(0)">Continue</button>`;
+      <button class="btn btn-green mt16" onclick="obNext(0)">${esc(t('ob.continue'))}</button>`;
   } else if (step === 1) {
     body = `
-      <div class="ob-title">Training days</div>
-      <p class="subtle">How many days per week will you train?</p>
+      <div class="ob-title">${esc(t('ob.days_title'))}</div>
+      <p class="subtle">${esc(t('ob.days_sub'))}</p>
       <div class="seg mt16">
         ${[3,4,5,6].map(n => `<button class="${ob.daysPerWeek===n?'on':''}" onclick="obDays(${n})">${n}</button>`).join('')}
       </div>
-      <p class="faint mt16">${{3:'Full-body emphasis. Squat / Bench / Deadlift+Press days.',
-        4:'Classic split: Bench, Squat, Press, Deadlift.',
-        5:'Classic split plus a volume bench/pump day.',
-        6:'Classic split plus a secondary bench day and a secondary deadlift/squat volume day.'}[ob.daysPerWeek] || 'Pick what you can sustain week after week.'}</p>
-      <button class="btn btn-green mt24" onclick="obNext(1)" ${ob.daysPerWeek ? '' : 'disabled'}>Continue</button>`;
+      <p class="faint mt16">${esc([3,4,5,6].includes(ob.daysPerWeek) ? t('ob.days_' + ob.daysPerWeek) : t('ob.days_pick'))}</p>
+      <button class="btn btn-green mt24" onclick="obNext(1)" ${ob.daysPerWeek ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
   } else if (step === 2) {
     const goalReady = ob.track && (ob.track !== 'bodybuilding' || ob.goalArchetype);
     body = `
-      <div class="ob-title">Primary goal</div>
-      <p class="subtle">What are you training for?</p>
-      ${OB_TRACKS.map(([id, label, desc]) => `
+      <div class="ob-title">${esc(t('ob.goal_title'))}</div>
+      <p class="subtle">${esc(t('ob.goal_sub'))}</p>
+      ${OB_TRACKS.map(id => `
         <button class="pick-card ${ob.track===id?'on':''}" onclick="obTrack('${id}')">
-          <b>${label}</b><span class="faint">${desc}</span></button>`).join('')}
+          <b>${esc(t('track.' + id))}</b><span class="faint">${esc(t('track.' + id + '_desc'))}</span></button>`).join('')}
       ${ob.track === 'bodybuilding' ? `
-        <div class="ob-sub mt16">What is your goal?</div>
-        ${Object.entries(GOAL_ARCHETYPES).map(([id, a]) => `
+        <div class="ob-sub mt16">${esc(t('ob.bb_goal'))}</div>
+        ${Object.keys(GOAL_ARCHETYPES).map(id => `
           <button class="pick-card ${ob.goalArchetype===id?'on':''}" onclick="obArchetype('${id}')">
-            <b>${a.label}</b><span class="faint">${a.desc}</span></button>`).join('')}
+            <b>${esc(t('goal.' + id))}</b><span class="faint">${esc(t('goal.' + id + '_desc'))}</span></button>`).join('')}
         ${GOAL_ARCHETYPES[ob.goalArchetype] && GOAL_ARCHETYPES[ob.goalArchetype].warn
-          ? `<div class="banner-warn mt8">${GOAL_ARCHETYPES[ob.goalArchetype].warn}</div>` : ''}` : ''}
+          ? `<div class="banner-warn mt8">${esc(t('goal.' + ob.goalArchetype + '_warn'))}</div>` : ''}` : ''}
       ${ob.track ? `
-        <button class="browse-toggle mt16" onclick="V.ob.showAdvanced=!V.ob.showAdvanced;render()">Advanced options ${ob.showAdvanced ? '▴' : '▾'}</button>
+        <button class="browse-toggle mt16" onclick="V.ob.showAdvanced=!V.ob.showAdvanced;render()">${esc(t('ob.advanced'))} ${ob.showAdvanced ? '▴' : '▾'}</button>
         ${ob.showAdvanced ? `
-          <div class="ob-sub mt8">Program length</div>
-          <p class="faint">Standard fits this goal. A shorter plan trims blocks, a longer one adds them.</p>
+          <div class="ob-sub mt8">${esc(t('ob.length_title'))}</div>
+          <p class="faint">${esc(t('ob.length_sub'))}</p>
           <div class="seg mt8">
-            <button class="${ob.macroWeeks==null?'on':''}" onclick="obMacro(null)">Standard</button>
-            ${[12,18,24,36].map(w => `<button class="${ob.macroWeeks===w?'on':''}" onclick="obMacro(${w})">${w} wk</button>`).join('')}
+            <button class="${ob.macroWeeks==null?'on':''}" onclick="obMacro(null)">${esc(t('ob.standard'))}</button>
+            ${[12,18,24,36].map(w => `<button class="${ob.macroWeeks===w?'on':''}" onclick="obMacro(${w})">${esc(t('ob.wk', { w }))}</button>`).join('')}
           </div>
-          <div class="focus-time">${obMacroLine(ob)}</div>` : ''}` : ''}
-      <button class="btn btn-green mt16" onclick="obNext(2)" ${goalReady ? '' : 'disabled'}>Continue</button>`;
+          <div class="focus-time">${esc(obMacroLine(ob))}</div>` : ''}` : ''}
+      <button class="btn btn-green mt16" onclick="obNext(2)" ${goalReady ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
   } else if (step === 3) {
     body = `
-      <div class="ob-title">Experience</div>
-      <p class="subtle">How long have you trained seriously? This seeds your starting volume, then your logs take over.</p>
-      ${OB_EXP.map(([id, label, desc]) => `
+      <div class="ob-title">${esc(t('ob.exp_title'))}</div>
+      <p class="subtle">${esc(t('ob.exp_sub'))}</p>
+      ${OB_EXP.map(id => `
         <button class="pick-card ${ob.experience===id?'on':''}" onclick="obExp('${id}')">
-          <b>${label}</b><span class="faint">${desc}</span></button>`).join('')}
-      <button class="btn btn-green mt16" onclick="obNext(3)" ${ob.experience ? '' : 'disabled'}>Continue</button>`;
+          <b>${esc(t('exp.' + id))}</b><span class="faint">${esc(t('exp.' + id + '_desc'))}</span></button>`).join('')}
+      <button class="btn btn-green mt16" onclick="obNext(3)" ${ob.experience ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
   } else if (step === 4) {
     body = `
-      <div class="ob-title">Time per session</div>
-      <p class="subtle">With a cap, sessions are kept inside it as volume climbs. Main lifts and weights are never cut.</p>
+      <div class="ob-title">${esc(t('ob.time_title'))}</div>
+      <p class="subtle">${esc(t('ob.time_sub'))}</p>
       <div class="seg mt16">
-        <button class="${ob.timeMode==='unlimited'?'on':''}" onclick="obTimeMode('unlimited')">As much as necessary</button>
-        <button class="${ob.timeMode==='custom'?'on':''}" onclick="obTimeMode('custom')">Enter time</button>
+        <button class="${ob.timeMode==='unlimited'?'on':''}" onclick="obTimeMode('unlimited')">${esc(t('ob.time_unlimited'))}</button>
+        <button class="${ob.timeMode==='custom'?'on':''}" onclick="obTimeMode('custom')">${esc(t('ob.time_custom'))}</button>
       </div>
-      ${ob.timeMode==='custom' ? `<div class="field mt16"><label>Minutes per session</label>
+      ${ob.timeMode==='custom' ? `<div class="field mt16"><label>${esc(t('ob.time_minutes'))}</label>
         <input id="ob-time" type="number" inputmode="numeric" value="${esc(ob.timeCapMin)}" placeholder="60" oninput="obTimeInput(this.value)"></div>` : ''}
-      <div id="ob-time-est" class="focus-time">${ob.timeMode ? focusTimeLine(ob) : ''}</div>
-      <button class="btn btn-green mt24" onclick="obNext(4)" ${ob.timeMode ? '' : 'disabled'}>Continue</button>`;
+      <div id="ob-time-est" class="focus-time">${ob.timeMode ? esc(focusTimeLine(ob)) : ''}</div>
+      <button class="btn btn-green mt24" onclick="obNext(4)" ${ob.timeMode ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
   } else if (step === 5) {
     body = `
-      <div class="ob-title">Muscle focus</div>
-      <p class="subtle">Pull what you want to grow toward 6, and what you care less about toward 0. 3 is balanced. 0 removes that muscle's direct work.</p>
+      <div class="ob-title">${esc(t('ob.focus_title'))}</div>
+      <p class="subtle">${esc(t('ob.focus_sub'))}</p>
       ${FOCUS_KEYS.map(k => `
         <div class="focus-row">
-          <div class="row"><span>${FOCUS_LABELS[k]}</span><b id="mf-val-${k}">${ob.muscleFocus[k]}</b></div>
+          <div class="row"><span>${esc(t('muscle.' + k))}</span><b id="mf-val-${k}">${ob.muscleFocus[k]}</b></div>
           <input type="range" min="0" max="6" step="1" value="${ob.muscleFocus[k]}" oninput="obSlider('${k}', this.value)">
         </div>`).join('')}
       <div id="mf-warn">${obFocusWarning(ob.muscleFocus)}</div>
-      <div id="mf-time" class="focus-time">${focusTimeLine(ob)}</div>
-      <button class="btn btn-green mt16" onclick="obNext(5)">Continue</button>`;
+      <div id="mf-time" class="focus-time">${esc(focusTimeLine(ob))}</div>
+      <button class="btn btn-green mt16" onclick="obNext(5)">${esc(t('ob.continue'))}</button>`;
   } else if (step === 6) {
     const lifts = obMainLifts(ob.track);
     body = `
-      <div class="ob-title">Your maxes</div>
-      <p class="subtle">Enter a recent, real 1RM for each main lift. The working max is set to 90% of it, and being conservative here is how you progress for months. Leave blank to calibrate in week 1 with ramping RIR sets.</p>
+      <div class="ob-title">${esc(t('ob.maxes_title'))}</div>
+      <p class="subtle">${esc(t('ob.maxes_sub'))}</p>
       ${lifts.map(([id,label]) => `
-        <div class="field"><label>${label} · 1RM (kg)</label>
+        <div class="field"><label>${esc(t('ob.rm_label', { name: label }))}</label>
           <input id="ob-max-${id}" type="number" inputmode="decimal"
-            value="${ob.maxes[id] ?? ''}" placeholder="Calibrate in week 1"></div>`).join('')}
-      <button class="btn btn-green mt16" onclick="obNext(6)">Create my program</button>`;
+            value="${ob.maxes[id] ?? ''}" placeholder="${esc(t('ob.calib_ph'))}"></div>`).join('')}
+      <button class="btn btn-green mt16" onclick="obNext(6)">${esc(t('ob.create'))}</button>`;
   }
   return `${topbar()}<div class="view">${body}</div>`;
 }
@@ -1637,7 +1627,7 @@ function obArchetype(id) {
 function obMacroLine(ob) {
   const tpl = PROGRAM_TEMPLATES[ob.track] || PROGRAM_TEMPLATES.powerbuilding;
   const blocks = ob.macroWeeks ? blocksForWeeks(ob.macroWeeks, tpl.weeksPerBlock) : tpl.blocks.length;
-  return blocks + ' blocks, about ' + (blocks * tpl.weeksPerBlock) + ' weeks to your goal date.';
+  return t('ob.macro_line', { blocks, weeks: blocks * tpl.weeksPerBlock });
 }
 function obExp(id) { V.ob.experience = id; render(); }
 function obTimeMode(mode) { V.ob.timeMode = mode; render(); }
@@ -1663,17 +1653,17 @@ function obNext(step) {
     ob.bodyweight = parseFloat(document.getElementById('ob-bw').value) || null;
     V.obStep = 1;
   } else if (step === 1) {
-    if (!ob.daysPerWeek) { toast('Pick your training days', true); return; }
+    if (!ob.daysPerWeek) { toast(t('ob.pick_days'), true); return; }
     V.obStep = 2;
   } else if (step === 2) {
-    if (!ob.track) { toast('Pick a primary goal', true); return; }
-    if (ob.track === 'bodybuilding' && !ob.goalArchetype) { toast('Pick what you are training for', true); return; }
+    if (!ob.track) { toast(t('ob.pick_goal'), true); return; }
+    if (ob.track === 'bodybuilding' && !ob.goalArchetype) { toast(t('ob.pick_bb_goal'), true); return; }
     V.obStep = 3;
   } else if (step === 3) {
-    if (!ob.experience) { toast('Pick your experience level', true); return; }
+    if (!ob.experience) { toast(t('ob.pick_exp'), true); return; }
     V.obStep = 4;
   } else if (step === 4) {
-    if (!ob.timeMode) { toast('Pick how much time you have', true); return; }
+    if (!ob.timeMode) { toast(t('ob.pick_time'), true); return; }
     if (ob.timeMode === 'custom') {
       const el = document.getElementById('ob-time');
       ob.timeCapMin = el ? (parseInt(el.value) || '') : '';
@@ -1709,14 +1699,14 @@ function obNext(step) {
       logReadiness(computeReadiness());
       save().then(() => {
         V.tab = 'dashboard';
-        toast('Program created, ' + P().blocks.length * P().weeksPerBlock + ' weeks to test day');
+        toast(t('ob.created', { weeks: P().blocks.length * P().weeksPerBlock }));
         nav('dashboard');
       }).catch(() => {
-        toast('Failed to save program', true);
+        toast(t('ob.save_failed'), true);
       });
     } catch (e) {
       console.error('create program failed', e);
-      toast('Could not create program: ' + (e && e.message || e), true);
+      toast(t('ob.create_failed', { err: (e && e.message) || e }), true);
     }
     return;
   }

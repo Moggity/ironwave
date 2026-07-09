@@ -166,6 +166,24 @@ test('i18n: the session view and navigation render under the Spanish catalog', (
   for (const view of NAV_VIEWS) renderView(ctx, view);
 });
 
+test('i18n: every onboarding step renders under the Spanish catalog', () => {
+  const ctx = fresh();
+  ctx.app.S = ctx.app.defaultState();
+  ctx.app.I18N.setLang('es');
+  const ob = Object.assign(ctx.app.obDefaults(), {
+    daysPerWeek: 4, track: 'bodybuilding', goalArchetype: 'lean-asap',
+    showAdvanced: true, experience: 'intermediate', timeMode: 'custom', timeCapMin: 60,
+  });
+  for (let step = 0; step <= 6; step++) {
+    const html = renderView(ctx, 'onboarding', { ob, obStep: step });
+    // A missing key renders as the key itself between tags ('>ob.foo<'); the
+    // looser pattern would false-positive on onclick code like 'V.ob.show...'.
+    assert.ok(!/>(ob|track|goal|exp|muscle)\.[a-z_0-9]+</.test(html), `no raw i18n keys on step ${step}`);
+  }
+  const step2 = renderView(ctx, 'onboarding', { ob, obStep: 2 });
+  assert.ok(/déficit agresivo/.test(step2), 'the lean-asap warning rendered in Spanish');
+});
+
 test('onboarding renders for a brand-new user (no program)', () => {
   const ctx = fresh();
   ctx.app.S = ctx.app.defaultState(); // program is null

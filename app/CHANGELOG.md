@@ -27,14 +27,22 @@ golden master byte-identical. Bumped `APP_VERSION`/`CACHE_VERSION` to `1.6.0`
   `SR_WORDS`, `FINISHER_UI`) now render through catalog keys; prescribed set
   NOTES stay English by design (the stored-string step is its own
   golden-master PR per the plan).
-- **Spanish** (`app/i18n/es.js`): a full translation of the extracted surface.
+- **Second extracted surface: onboarding**, all seven steps (welcome, days,
+  goal + archetypes + the lean-asap warning, experience, time, focus sliders
+  and their extreme-setting warning, maxes) plus the step-gating toasts and the
+  session-length estimate lines. The onboarding data tables are now logic-only
+  per the plan: `OB_TRACKS` / `OB_EXP` keep ids and order, `GOAL_ARCHETYPES`
+  keeps weeks/phaseCycle and a `warn` flag; their copy lives in the catalogs
+  (`track.*`, `exp.*`, `goal.*`, `muscle.*`). `FOCUS_LABELS` stays for the
+  generated day NAMES (stored in the program, phase-3 territory).
+- **Spanish** (`app/i18n/es.js`): a full translation of the extracted surfaces.
 - Fixed an em-dash violation in the superset next-exercise toast (athlete
   facing strings carry no em dashes).
 - Tests: new `test/i18n.test.js` (catalog completeness: extra keys fail,
   missing keys warn; placeholder parity; no em dashes in catalog values;
   lookup/interpolation/resolution; the migration backfill; index.html + sw.js
-  wiring), and a render-smoke pass of the session view + all navigation views
-  under the Spanish catalog. Suite at 245 passing.
+  wiring), and render-smoke passes of the session view + all navigation views
+  and every onboarding step under the Spanish catalog. Suite at 246 passing.
 
 ## [User-feedback round 3: quieter dashboard, honest onboarding] (2026-07-08)
 

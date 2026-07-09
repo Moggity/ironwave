@@ -547,13 +547,15 @@ constraints: plain browser JS, no build step, PWA shell cached by sw.js.
 SHIPPED**, with Spanish as the first language: `app/i18n/` (i18n.js runtime,
 en.js source of truth, es.js, translator README), `profile.lang` +
 Settings > Language, sw.js SHELL caching, harness exports, and the guardrails
-below (`test/i18n.test.js` + a Spanish render-smoke pass). Extracted so far:
+below (`test/i18n.test.js` + Spanish render-smoke passes). Extracted so far:
 session view, rest timer, performance modal, warmup modal, session rating,
-finisher UI, confirm-dialog defaults. **Still open:** the remaining phase-2
-surfaces (onboarding, dashboard/workout, settings/detail modals, remaining
-toasts, data-table labels used outside the session surface such as
-`PHASE_LABELS` / `FEEL_WORDS` / day-theme names), phase 3 (stored set-note
-keys, its own golden-master PR), and phase 4 (exercise names).
+finisher UI, confirm-dialog defaults, and the full onboarding flow (with
+`OB_TRACKS` / `OB_EXP` / `GOAL_ARCHETYPES` reduced to logic-only tables).
+**Still open:** the remaining phase-2 surfaces (dashboard/workout, history,
+settings/detail modals, remaining toasts, data-table labels used outside the
+extracted surfaces such as `PHASE_LABELS` / `FEEL_WORDS` / day-theme names),
+phase 3 (stored set-note keys and generated day names, its own golden-master
+PR), and phase 4 (exercise names).
 
 ### Architecture
 
