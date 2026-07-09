@@ -543,6 +543,18 @@ Goal: a language switch in Settings, and a translator workflow where one file is
 copied and translated without touching app code. Designed for this codebase's
 constraints: plain browser JS, no build step, PWA shell cached by sw.js.
 
+**Status (2026-07-09): phase 1 (plumbing) and the first phase-2 surface are
+SHIPPED**, with Spanish as the first language: `app/i18n/` (i18n.js runtime,
+en.js source of truth, es.js, translator README), `profile.lang` +
+Settings > Language, sw.js SHELL caching, harness exports, and the guardrails
+below (`test/i18n.test.js` + a Spanish render-smoke pass). Extracted so far:
+session view, rest timer, performance modal, warmup modal, session rating,
+finisher UI, confirm-dialog defaults. **Still open:** the remaining phase-2
+surfaces (onboarding, dashboard/workout, settings/detail modals, remaining
+toasts, data-table labels used outside the session surface such as
+`PHASE_LABELS` / `FEEL_WORDS` / day-theme names), phase 3 (stored set-note
+keys, its own golden-master PR), and phase 4 (exercise names).
+
 ### Architecture
 
 - **One catalog file per language**: `app/i18n/en.js` is the source of truth,
