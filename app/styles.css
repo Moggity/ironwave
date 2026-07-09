@@ -265,19 +265,32 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 .rest-timer.done .rest-timer-fill { background: var(--green-deep); opacity: .45; width: 100% !important; }
 .rest-timer-body {
-  position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  position: relative; display: flex; align-items: center; gap: 8px; padding: 8px 12px;
 }
-.rest-timer-label { color: var(--text-dim); font-weight: 600; font-size: .85rem; }
+/* The label may shrink and truncate so longer translations (es "Descanso")
+   never push the buttons past the bar's edge. */
+.rest-timer-label {
+  color: var(--text-dim); font-weight: 600; font-size: .85rem;
+  flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .rest-timer-time {
   font-variant-numeric: tabular-nums; font-weight: 800; font-size: 1.2rem;
-  color: var(--blue); min-width: 64px;
+  color: var(--blue); min-width: 64px; flex: none; white-space: nowrap;
 }
-.rest-timer.done .rest-timer-time { color: var(--green); }
+/* Done state swaps the clock for a phrase ("Rest done"), which is longer in
+   some languages: hide the now-redundant label and size the phrase to fit. */
+.rest-timer.done .rest-timer-label { display: none; }
+.rest-timer.done .rest-timer-time { color: var(--green); font-size: 1rem; min-width: 0; }
 .rest-timer-btn {
   margin-left: auto; background: var(--bg-2); border: 1px solid var(--line);
   color: var(--text-dim); border-radius: 16px; padding: 6px 12px; font-weight: 600; font-size: .82rem;
+  flex: none; white-space: nowrap;
 }
 .rest-timer-btn + .rest-timer-btn { margin-left: 6px; }
+@media (max-width: 380px) {
+  .rest-timer-btn { padding: 6px 8px; font-size: .78rem; }
+  .rest-timer-time { font-size: 1.05rem; }
+}
 .rest-timer-btn.primary { color: var(--blue); border-color: var(--blue); }
 .rest-timer.done .rest-timer-btn.primary { color: var(--green); border-color: var(--green); }
 

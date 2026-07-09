@@ -125,5 +125,6 @@ test('phase state defaults to lean-gain and is not a deficit', () => {
   assert.strictEqual(app.currentPhase(), 'lean-gain');
   assert.ok(!app.PHASE_DEFICIT['lean-gain'] && !app.PHASE_DEFICIT['maintenance']);
   assert.ok(app.PHASE_DEFICIT['cut'] && app.PHASE_DEFICIT['minicut']);
-  assert.strictEqual(app.PHASE_LABELS['minicut'], 'Minicut');
+  assert.ok(app.PHASES.includes('minicut'));
+  assert.strictEqual(app.t('phase.minicut'), 'Minicut');
 });

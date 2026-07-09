@@ -45,7 +45,7 @@ test('barColorFor: a deficit phase reads teal, a peak reads red, building reads 
 });
 
 test('every phase has a label and a timeline color', () => {
-  for (const ph of Object.keys(app.PHASE_LABELS)) {
+  for (const ph of app.PHASES) {
     assert.ok(app.PHASE_COLORS[ph], `phase ${ph} needs a timeline color`);
   }
 });

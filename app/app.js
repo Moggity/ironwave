@@ -138,7 +138,7 @@ function save() {
   // it succeeds with no network. Only a genuine local-write failure (e.g. quota)
   // is real data loss worth surfacing.
   const persisted = localSave(S);
-  if (!persisted && typeof toast === 'function') toast('Save failed, data not persisted', true);
+  if (!persisted && typeof toast === 'function') toast(t('common.save_failed'), true);
   // Best-effort mirror to the server when one is reachable. Failure here is
   // expected offline and is NOT data loss, so it stays silent.
   _saveChain = _saveChain.then(async () => {
@@ -184,30 +184,53 @@ const childSectionLabel = tech => {
   const k = ['myo', 'restpause', 'partials'].includes(tech) ? tech : 'drop';
   return `${esc(t(`tech.child_${k}_title`))} <small class="faint">${esc(t(`tech.child_${k}_hint`))}</small>`;
 };
+// Translated display label for a movement id (the MOVEMENTS table keeps the
+// English name as the fallback for anything not in a catalog).
+const mvLabel = mv => (MOVEMENTS[mv] ? t('mv.' + mv) : mv);
+// Translated display label for a training phase id.
+const phaseLabel = ph => (PHASES.includes(ph) ? t('phase.' + ph) : ph);
+// Translated display label for a muscle head / region id.
+const headLabel = h => (HEAD_LABELS[h] ? t('head.' + h) : h);
 // [Cluster C] Compact picker badges: muscle region (head), a loaded-stretch flag,
 // and a non-default SFR so the high-value and high-cost picks stand out at a glance.
 function exTagsHTML(e) {
   if (!e) return '';
   let out = '';
-  if (e.head && HEAD_LABELS[e.head]) out += `<span class="ex-tag head">${HEAD_LABELS[e.head]}</span>`;
-  if (e.stretch) out += `<span class="ex-tag stretch">Stretch</span>`;
-  if (e.sfr && e.sfr !== 2) out += `<span class="ex-tag sfr s${e.sfr}">SFR ${SFR_LABELS[e.sfr]}</span>`;
+  if (e.head && HEAD_LABELS[e.head]) out += `<span class="ex-tag head">${esc(headLabel(e.head))}</span>`;
+  if (e.stretch) out += `<span class="ex-tag stretch">${esc(t('ex.tag_stretch'))}</span>`;
+  if (e.sfr && e.sfr !== 2) out += `<span class="ex-tag sfr s${e.sfr}">${esc(t('ex.tag_sfr', { level: t('sfr.' + e.sfr) }))}</span>`;
   return out ? `<span class="ex-tags">${out}</span>` : '';
 }
 // [Cluster C] Fuller stimulus block for the exercise detail Info tab.
 function exMetaCardHTML(e) {
   if (!e) return '';
-  const rows = [`<div class="row"><span class="subtle">Stimulus to fatigue</span><b>${SFR_LABELS[e.sfr] || 'Moderate'}</b></div>`];
-  if (e.head && HEAD_LABELS[e.head]) rows.push(`<div class="row"><span class="subtle">Region bias</span><b>${HEAD_LABELS[e.head]}</b></div>`);
-  if (e.stretch) rows.push(`<div class="row"><span class="subtle">Emphasis</span><b>Loaded stretch</b></div>`);
-  return `<div class="section-title" style="font-size:1.1rem">Stimulus</div>
+  const rows = [`<div class="row"><span class="subtle">${esc(t('ex.sfr_row'))}</span><b>${esc(SFR_LABELS[e.sfr] ? t('sfr.' + e.sfr) : t('sfr.2'))}</b></div>`];
+  if (e.head && HEAD_LABELS[e.head]) rows.push(`<div class="row"><span class="subtle">${esc(t('ex.region_row'))}</span><b>${esc(headLabel(e.head))}</b></div>`);
+  if (e.stretch) rows.push(`<div class="row"><span class="subtle">${esc(t('ex.emphasis_row'))}</span><b>${esc(t('ex.loaded_stretch'))}</b></div>`);
+  return `<div class="section-title" style="font-size:1.1rem">${esc(t('ex.stimulus_title'))}</div>
     <div class="card">${rows.join('<div class="divider"></div>')}</div>
-    <p class="faint">SFR is our own read of growth stimulus per unit of fatigue. Higher means more reward for less systemic cost, handy when you are adding volume late in a block. A loaded stretch tends to grow muscle well for the fatigue it costs.</p>`;
+    <p class="faint">${esc(t('ex.sfr_footer'))}</p>`;
 }
 
 function allExercises() { return EXERCISES.concat(S.customEx); }
 function exById(id) { return allExercises().find(e => e.id === id); }
-function exName(id) { const e = exById(id); return e ? e.name : id; }
+// [i18n phase 4] Translated exercise display name: an 'exn.<id>' catalog key
+// layered over EXERCISES, falling back to the English name for any id a
+// catalog does not cover. Custom exercises are the athlete's own text and are
+// never translated. Names already stored in sessions/records stay verbatim.
+function exDisplayName(e) {
+  if (!e) return '';
+  if (e.custom) return e.name;
+  const cat = I18N.catalogs[I18N.lang];
+  return (cat && cat.strings['exn.' + e.id]) || e.name;
+}
+function exName(id) { const e = exById(id); return e ? exDisplayName(e) : id; }
+// Search matcher: a query hits the translated display name or the English one,
+// so "sentadilla" and "squat" both find the squat in a Spanish UI.
+function exMatches(e, q) {
+  if (!q) return true;
+  return e.name.toLowerCase().includes(q) || exDisplayName(e).toLowerCase().includes(q);
+}
 function recordsFor(id) { return S.records[id] || []; }
 function pushRecord(id, rec) { (S.records[id] = S.records[id] || []).push(rec); }
 
@@ -228,7 +251,7 @@ const EQUIP_ORDER = ['bb', 'db', 'mc', 'cb', 'bw', 'bd', 'kb'];
 // global handler invoked with the chosen equipment id (or 'all').
 function equipChips(equips, current, fnName) {
   const chip = (val, label) => `<button class="fchip ${current === val ? 'on' : ''}" onclick="${fnName}('${val}')">${label}</button>`;
-  return `<div class="filter-chips">${chip('all', 'All')}${equips.map(eq => chip(eq, EQUIP_LABEL[eq] || eq)).join('')}</div>`;
+  return `<div class="filter-chips">${chip('all', esc(t('equip.all')))}${equips.map(eq => chip(eq, EQUIP_LABEL[eq] ? esc(t('equip.' + eq)) : eq)).join('')}</div>`;
 }
 
 // Default loading derived from the exercise's equipment tag.
@@ -556,10 +579,15 @@ function generateBodybuildingDays(focus, N) {
       if (focus[d.primary] >= 5) { const s = accSlot(d.primary); if (s) slots.push(s); }
       let g = 0;
       while (slots.length < 3 && g++ < 6) { const s = accSlot(d.primary); if (!s) break; slots.push(s); }
-      const region = UPPER_MUSCLES.includes(d.primary) ? 'Upper' : 'Lower';
+      const upper = UPPER_MUSCLES.includes(d.primary);
+      const region = upper ? 'Upper' : 'Lower';
       // `primary` is carried for the same-muscle spacing pass below; render reads
-      // only name + slots, so the extra field is inert everywhere else.
-      return { name: `${region} · ${FOCUS_LABELS[d.primary] || d.primary}`, slots, primary: d.primary };
+      // name + slots (and now `theme`), so the extra field is inert everywhere
+      // else. [i18n phase 3] `theme` is the structured, render-translated form of
+      // the name; the English `name` string stays for back-compat and exports.
+      return { name: `${region} · ${FOCUS_LABELS[d.primary] || d.primary}`,
+               theme: { region: upper ? 'upper' : 'lower', primary: d.primary },
+               slots, primary: d.primary };
     });
   }
   const up = buildRegion(UPPER_MUSCLES, upDays);
@@ -608,7 +636,17 @@ function daysOut() { return Math.max(0, Math.ceil((P().testDate - Date.now()) / 
 function globalWeekNum() { return P().pointer.block * P().weeksPerBlock + P().pointer.week + 1; }
 // Day theme label (e.g. "Upper A", "Push") shown as a subtitle. Empty for the
 // plain "Day N" templates so we never render "Day 1 · Day 1".
-function dayTheme(d) { return (d && d.name && !/^Day \d+$/.test(d.name)) ? d.name : ''; }
+// [i18n phase 3] Day display theme. Preference order: a structured generator
+// theme (region + primary muscle, translated), a template nameKey (translated),
+// then a legacy stored name verbatim ('Day N' placeholders show nothing).
+function dayTheme(d) {
+  if (!d) return '';
+  if (d.theme && d.theme.primary) {
+    return `${t(d.theme.region === 'lower' ? 'day.lower' : 'day.upper')} · ${t('muscle.' + d.theme.primary)}`;
+  }
+  if (d.nameKey) return t('day.' + d.nameKey);
+  return (d.name && !/^Day \d+$/.test(d.name)) ? d.name : '';
+}
 
 // Resolve slot to a prescription { exId, name, sets, slotRef, isMain, isSelect }
 // All prescriptions route through the block's declared scheme — see
@@ -626,7 +664,7 @@ function applySetDelta(sets, delta) {
     if (!plainIdx.length) return sets; // nothing to clone (e.g. a ramp-to-AMRAP realization main)
     const src = sets[plainIdx[plainIdx.length - 1]];
     let at = plainIdx[plainIdx.length - 1] + 1; // insert before any trailing AMRAP
-    for (let k = 0; k < delta; k++) { sets.splice(at, 0, Object.assign({}, src, { note: null })); at++; }
+    for (let k = 0; k < delta; k++) { sets.splice(at, 0, Object.assign({}, src, { note: null, noteKey: null, noteParams: null })); at++; }
   } else {
     let toRemove = -delta;
     for (let i = sets.length - 1; i >= 0 && toRemove > 0; i--) {
@@ -816,9 +854,9 @@ function toggleMuscleDeload(mv) {
   const p = P();
   if (!p.muscleDeload) p.muscleDeload = [];
   const i = p.muscleDeload.indexOf(mv);
-  const label = MOVEMENTS[mv] ? MOVEMENTS[mv].label : mv;
-  if (i >= 0) { p.muscleDeload.splice(i, 1); toast(`${label}: back to full volume`); }
-  else { p.muscleDeload.push(mv); toast(`${label}: deloaded for the rest of this block`); }
+  const label = mvLabel(mv);
+  if (i >= 0) { p.muscleDeload.splice(i, 1); toast(t('vol.md_full_toast', { muscle: label })); }
+  else { p.muscleDeload.push(mv); toast(t('vol.md_deloaded_toast', { muscle: label })); }
   save(); render();
 }
 // [Cluster D] Early-deload state (transient on the program, like deloadPlan, so no
@@ -870,14 +908,14 @@ function acceptEarlyDeload() {
   p.deloadPlan = Engine.deloadDepth(fatigueStatuses(), readinessTrendingDown());
   p.earlyDeload = { block: p.pointer.block, week: p.pointer.week };
   save(); closeAllModals();
-  toast('Deload pulled in early. This week is now a deload, then your next block starts resensitized.');
+  toast(t('deload.accepted_toast'));
   render();
 }
 function confirmEarlyDeload() {
   confirmModal({
-    title: 'Deload now?',
-    message: 'This converts the rest of this week into a deload and ends the block early, so the remaining weeks are skipped and your next block starts fresh (resensitized). You can resume the normal block until you complete this week.',
-    confirmLabel: 'Deload now',
+    title: t('deload.confirm_title'),
+    message: t('deload.confirm_msg'),
+    confirmLabel: t('deload.deload_now'),
   }, acceptEarlyDeload);
 }
 function cancelEarlyDeload() {
@@ -899,18 +937,20 @@ function earlyDeloadBannerHTML() {
   const p = P();
   if (isEarlyDeloadActive()) {
     return `<div class="card accent mt8" style="border-left:3px solid var(--amber)">
-      <div style="font-weight:700">⚡ Early deload this week</div>
-      <p class="faint mt8">Pulled in early to shed fatigue. Finish this lighter week, then your next block starts fresh. <button class="link-btn" onclick="cancelEarlyDeload()">Resume normal block</button></p></div>`;
+      <div style="font-weight:700">${esc(t('deload.early_active_title'))}</div>
+      <p class="faint mt8">${esc(t('deload.early_active_body'))} <button class="link-btn" onclick="cancelEarlyDeload()">${esc(t('deload.resume_block'))}</button></p></div>`;
   }
   const adv = earlyDeloadAdvice();
   if (!adv || !adv.advised) return '';
   if (p.earlyDeloadDismissedWeek === globalWeekNum()) return '';
+  // Rebuild the engine's advice sentence from its parts so it translates.
+  const reason = t(readinessTrendingDown() ? 'deload.reason_near_mrv_sliding' : 'deload.reason_near_mrv', { n: adv.over });
   return `<div class="card accent mt8" style="border-left:3px solid var(--amber)">
-    <div style="font-weight:700">⚡ Fatigue says deload now</div>
-    <p class="faint mt8">${esc(adv.reason)}. You can pull this block's deload in early, recover, and start your next block resensitized instead of grinding to week 5.</p>
+    <div style="font-weight:700">${esc(t('deload.advise_title'))}</div>
+    <p class="faint mt8">${esc(t('deload.advise_body', { reason }))}</p>
     <div class="btn-row mt8">
-      <button class="btn btn-outline" onclick="dismissEarlyDeloadSuggestion()">Keep pushing</button>
-      <button class="btn btn-blue" onclick="confirmEarlyDeload()">Deload now</button>
+      <button class="btn btn-outline" onclick="dismissEarlyDeloadSuggestion()">${esc(t('deload.keep_pushing'))}</button>
+      <button class="btn btn-blue" onclick="confirmEarlyDeload()">${esc(t('deload.deload_now'))}</button>
     </div></div>`;
 }
 // [Cluster E] Per-muscle autoregulation applied to prescribed accessory volume.
@@ -1134,7 +1174,7 @@ function toggleSuperset(di, si) {
   else {
     const order = accessorySiOrder(di, p.pointer.block, p.pointer.week);
     const pos = order.indexOf(si);
-    if (pos < 0 || pos >= order.length - 1) { toast('Add an exercise after this one to superset it', true); return; }
+    if (pos < 0 || pos >= order.length - 1) { toast(t('workout.ss_need_next'), true); return; }
     slot.superset = true;                            // links to the next; chains form giant sets
   }
   save(); render();
@@ -1167,12 +1207,12 @@ function timeBannerHTML(di) {
   const built = resolveDayEntries(di, p.pointer.block, p.pointer.week);
   if (built.coreMin > tc.timeCapMin) {
     // Even the unavoidable core (mains + top priorities) runs over the limit.
-    return `<div class="banner-warn mt8">Your core work is about ${built.coreMin} min, over your ${tc.timeCapMin} min limit. Main lifts come first and are never cut, so to fit you would need to raise your time limit or ease a muscle focus.${built.optItems.length ? ' Optional extras: ' + esc(built.optionalNames.join(', ')) + '.' : ''}</div>`;
+    return `<div class="banner-warn mt8">${esc(t('time.core_over', { core: built.coreMin, cap: tc.timeCapMin }))}${built.optItems.length ? ' ' + esc(t('time.optional_extras', { list: built.optionalNames.join(', ') })) : ''}</div>`;
   }
   if (built.optItems.length) {
-    return `<div class="banner-warn mt8">Core fits your ${tc.timeCapMin} min limit (about ${built.coreMin} min). Optional, if you have time: ${esc(built.optionalNames.join(', '))} (about ${built.fullMin - built.coreMin} min more). Skip it and you stay on time. Keep skipping it all block and it gets dropped next block.</div>`;
+    return `<div class="banner-warn mt8">${esc(t('time.core_fits', { cap: tc.timeCapMin, core: built.coreMin, list: built.optionalNames.join(', '), extra: built.fullMin - built.coreMin }))}</div>`;
   }
-  return `<div class="card mt8"><span class="faint">This day is about ${built.coreMin} min, within your ${tc.timeCapMin} min limit.</span></div>`;
+  return `<div class="card mt8"><span class="faint">${esc(t('time.day_within', { core: built.coreMin, cap: tc.timeCapMin }))}</span></div>`;
 }
 // Rough marginal cost of adding one accessory to this day, in minutes. Uses the
 // day's own accessories as the sample, or a nominal 4x12 accessory if none.
@@ -1194,9 +1234,9 @@ function timeBudgetHTML(di) {
   const room = tc.timeCapMin - built.coreMin;
   const cost = accessoryCostMin(di, p.pointer.block, p.pointer.week);
   if (room <= 1) {
-    return `<p class="faint" style="margin:8px 2px 0">You are at your ${tc.timeCapMin} min limit. Anything you add is about +${cost} min and will be marked optional.</p>`;
+    return `<p class="faint" style="margin:8px 2px 0">${esc(t('time.at_limit', { cap: tc.timeCapMin, cost }))}</p>`;
   }
-  return `<p class="faint" style="margin:8px 2px 0">About ${room} min before your ${tc.timeCapMin} min limit. Each added exercise is roughly +${cost} min.</p>`;
+  return `<p class="faint" style="margin:8px 2px 0">${esc(t('time.room', { room, cap: tc.timeCapMin, cost }))}</p>`;
 }
 // The athlete's time cap in minutes, or null when they train without one. Used to
 // decide whether the swap/add pickers should show per-candidate time costs.
@@ -1234,11 +1274,11 @@ function openTimeByWeek(di) {
     const cur = wk === p.pointer.week;
     rows.push(`<div class="row" style="padding:9px 0;border-bottom:1px solid var(--line)${cur ? ';font-weight:700' : ''}">
       <span>${weekLabelFor(blockOf(bi), wk)}${cur ? ' ·' : ''}</span>
-      <span>${b.coreMin} min${b.optItems.length ? ` <span style="color:var(--amber)">+${b.fullMin - b.coreMin} opt</span>` : ''}${over ? ' <span style="color:var(--red)">over</span>' : ''}</span></div>`);
+      <span>${esc(t('unit.min', { n: b.coreMin }))}${b.optItems.length ? ` <span style="color:var(--amber)">${esc(t('time.opt_suffix', { n: b.fullMin - b.coreMin }))}</span>` : ''}${over ? ` <span style="color:var(--red)">${esc(t('time.over'))}</span>` : ''}</span></div>`);
   }
   showModal(anim => {
-    $modal.innerHTML = modalShell(anim, 'Time by week',
-      `<p class="subtle" style="margin-bottom:8px">How Day ${di + 1} changes across this block${cap ? `, against your ${cap} min limit` : ''}. Volume climbs toward the peak week, then the deload drops it.</p>${rows.join('')}`);
+    $modal.innerHTML = modalShell(anim, t('time.by_week_title'),
+      `<p class="subtle" style="margin-bottom:8px">${esc(t('time.by_week_intro', { day: di + 1 }))}${cap ? ' ' + esc(t('time.by_week_cap', { cap })) : ''} ${esc(t('time.by_week_shape'))}</p>${rows.join('')}`);
   });
 }
 
@@ -1294,13 +1334,8 @@ function logReadiness(score) {
 // readiness trend acting only as a brake on optimistic picks. None of
 // this ever writes the working max: it is a transient, single-use layer.
 // ------------------------------------------------------------
-const WEEK_FEEL_LEGEND = [
-  'Training was too tough, greatly decrease difficulty.',
-  'A bit much, ease it back.',
-  'Felt good, proceed as planned.',
-  'Felt strong, push me a little.',
-  'Too easy, push me hard.',
-];
+// Copy lives in the i18n catalogs ('week.feel_1'..'week.feel_5').
+const weekFeelLegend = v => t('week.feel_' + v);
 function nextPointer(b, w) {
   let nb = b, nw = w + 1;
   if (nw >= P().weeksPerBlock) { nw = 0; nb = b + 1; }
@@ -1400,24 +1435,24 @@ function render() {
 function renderErrorScreen(err) {
   const detail = esc((err && (err.stack || err.message)) || String(err));
   $app.innerHTML = `<div class="view">
-    <div class="section-title">Something went wrong</div>
-    <p class="faint" style="margin-bottom:10px">The app hit an error while drawing the screen. Your data is still saved on this device. Try reloading. If it keeps happening, export a backup, then check for updates.</p>
+    <div class="section-title">${esc(t('err.title'))}</div>
+    <p class="faint" style="margin-bottom:10px">${esc(t('err.body'))}</p>
     <div class="btn-row">
-      <button class="btn btn-blue" onclick="location.reload()">Reload</button>
-      <button class="btn btn-outline" onclick="exportData()">Export backup</button>
+      <button class="btn btn-blue" onclick="location.reload()">${esc(t('err.reload'))}</button>
+      <button class="btn btn-outline" onclick="exportData()">${esc(t('err.export'))}</button>
     </div>
-    <button class="btn btn-outline mt8" onclick="checkForUpdate()">Check for updates</button>
-    <div class="section-title">Error detail</div>
+    <button class="btn btn-outline mt8" onclick="checkForUpdate()">${esc(t('set.check_updates'))}</button>
+    <div class="section-title">${esc(t('err.detail'))}</div>
     <pre class="faint" style="white-space:pre-wrap;word-break:break-word;font-size:.72rem;overflow:auto">${detail}</pre>
   </div>`;
 }
 function tabbar() {
-  const t = (id, ic, label) => `
+  const tab = (id, ic) => `
     <button class="${V.tab === id ? 'on' : ''}" onclick="setTab('${id}')">
-      <span class="ic">${ic}</span>${label}</button>`;
+      <span class="ic">${ic}</span>${esc(t('tab.' + id))}</button>`;
   return `<nav class="tabbar">
-    ${t('dashboard','▥','Dashboard')}${t('workout','🏋','Workout')}
-    ${t('history','🗂','History')}${t('more','☰','More')}
+    ${tab('dashboard','▥')}${tab('workout','🏋')}
+    ${tab('history','🗂')}${tab('more','☰')}
   </nav>`;
 }
 function topbar(title) {
@@ -1604,8 +1639,8 @@ function vOnboarding() {
     body = `
       <div class="ob-title">${esc(t('ob.maxes_title'))}</div>
       <p class="subtle">${esc(t('ob.maxes_sub'))}</p>
-      ${lifts.map(([id,label]) => `
-        <div class="field"><label>${esc(t('ob.rm_label', { name: label }))}</label>
+      ${lifts.map(([id]) => `
+        <div class="field"><label>${esc(t('ob.rm_label', { name: exName(id) }))}</label>
           <input id="ob-max-${id}" type="number" inputmode="decimal"
             value="${ob.maxes[id] ?? ''}" placeholder="${esc(t('ob.calib_ph'))}"></div>`).join('')}
       <button class="btn btn-green mt16" onclick="obNext(6)">${esc(t('ob.create'))}</button>`;
@@ -1720,7 +1755,7 @@ const BLOCK_COLORS = { hypertrophy: '#5aa2f7', strength: '#e8883a', peaking: '#e
 
 function sparklineHTML() {
   const log = S.readinessLog.slice(-30);
-  if (log.length < 2) return '<div class="faint">Readiness builds as you check in and train.</div>';
+  if (log.length < 2) return `<div class="faint">${esc(t('dash.readiness_empty'))}</div>`;
   const W = 300, H = 60, pad = 6;
   const x = i => pad + i * (W - 2 * pad) / (log.length - 1);
   const y = s => H - pad - (s / 30) * (H - 2 * pad);
@@ -1763,9 +1798,11 @@ function weekLabelFor(block, w) {
   // everywhere it is labeled (dashboard, workout header, timeline preview).
   const p = P();
   const ed = p && p.earlyDeload;
-  if (ed && ed.week === w && block === blockOf(ed.block)) return 'Deload (early)';
-  const sch = Engine.schemeFor(block);
-  return sch.weekLabel ? sch.weekLabel(w) : Engine.weekTypeLabel(w);
+  if (ed && ed.week === w && block === blockOf(ed.block)) return t('week.deload_early');
+  // Translated per-scheme week labels ('week.hyp_0'.. / 'week.jm2_0'..); the
+  // engine's own weekLabel/weekTypeLabel strings stay as the untranslated source.
+  if (w >= 0 && w <= 4) return t(`week.${blockScheme(block) === 'jbb-hyp' ? 'hyp' : 'jm2'}_${w}`);
+  return '';
 }
 // [Epic G1] The block's phase (display label + tint), backfilled if a legacy
 // save predates the field.
@@ -1839,21 +1876,21 @@ function timelineHTML(opts) {
     // flex-grow tracks the week count so bars stay equal width across phases of
     // different lengths; the whole row shrinks to fit (no scroll until very long).
     out.push(`<div class="tl-block" style="--phase:${pc};flex-grow:${bars.length}">
-      <span class="tl-phase">${esc(PHASE_LABELS[phase] || phase)}</span>
+      <span class="tl-phase">${esc(phaseLabel(phase))}</span>
       <div class="tl-bars">${bars.join('')}</div>
     </div>`);
   }
   const groups = out.join('');
   const leg = [];
-  if (emphases.hypertrophy) leg.push(`<span><i style="background:${BLOCK_COLORS.hypertrophy}"></i>Hypertrophy</span>`);
-  if (emphases.strength) leg.push(`<span><i style="background:${BLOCK_COLORS.strength}"></i>Strength</span>`);
-  if (emphases.cut) leg.push(`<span><i style="background:${BLOCK_COLORS.bridge}"></i>Cut</span>`);
-  if (emphases.peak) leg.push(`<span><i style="background:${BLOCK_COLORS.peaking}"></i>Peak</span>`);
+  if (emphases.hypertrophy) leg.push(`<span><i style="background:${BLOCK_COLORS.hypertrophy}"></i>${esc(t('timeline.hypertrophy'))}</span>`);
+  if (emphases.strength) leg.push(`<span><i style="background:${BLOCK_COLORS.strength}"></i>${esc(t('timeline.strength'))}</span>`);
+  if (emphases.cut) leg.push(`<span><i style="background:${BLOCK_COLORS.bridge}"></i>${esc(t('timeline.cut'))}</span>`);
+  if (emphases.peak) leg.push(`<span><i style="background:${BLOCK_COLORS.peaking}"></i>${esc(t('timeline.peak'))}</span>`);
   // [Epic G4] A "+" tile opens the block-plan editor (customize the macrocycle).
   // Editable surface only (My Program); the dashboard shows the plan, not edits it.
-  const add = editable ? `<button class="tl-add" onclick="openPlanEditor()" aria-label="Customize blocks">+</button>` : '';
+  const add = editable ? `<button class="tl-add" onclick="openPlanEditor()" aria-label="${esc(t('plan.title'))}">+</button>` : '';
   return `<div class="timeline-v2">${groups}${add}</div>
-    <div class="legend">${leg.join('')}<span class="faint">tap a week to preview</span></div>`;
+    <div class="legend">${leg.join('')}<span class="faint">${esc(t('timeline.tap_hint'))}</span></div>`;
 }
 function openWeekPreview(bi, wi) {
   const p = P();
@@ -1864,7 +1901,7 @@ function openWeekPreview(bi, wi) {
         const rs = resolveSlot(slot, bi, wi);
         if (rs.isRemoved) return ''; // dropped by muscle focus (slider 0)
         if (rs.isSelect) return `<div class="row" style="padding:6px 0">
-          <span class="subtle">Select ${MOVEMENTS[rs.cat].label}</span><span class="faint">—</span></div>`;
+          <span class="subtle">${esc(t('preview.select_cat', { cat: mvLabel(rs.cat) }))}</span><span class="faint">—</span></div>`;
         const work = rs.sets.filter(s => !s.ramp);
         const f = work[0] || rs.sets[0];
         const am = rs.sets.some(s => s.amrap);
@@ -1875,7 +1912,7 @@ function openWeekPreview(bi, wi) {
         const uncalibrated = rs.sets.length > 0 && rs.sets.every(s => s.calib);
         let right;
         if (uncalibrated) {
-          right = `<span class="subtle calib-tag">Waiting for calibration <button class="info-dot" onclick="event.stopPropagation();openCalibrationInfo()" aria-label="What is calibration?">ⓘ</button></span>`;
+          right = `<span class="subtle calib-tag">${esc(t('calib.waiting'))} <button class="info-dot" onclick="event.stopPropagation();openCalibrationInfo()" aria-label="${esc(t('calib.what_aria'))}">ⓘ</button></span>`;
         } else {
           const scheme = f ? `${(work.length || rs.sets.length)}×${f.reps}${f.weight != null ? ' @ ' + kg(f.weight) + 'kg' : (f.rpe ? ' @ RPE ' + f.rpe : '')}` : '';
           right = `<span class="subtle">${scheme}</span>`;
@@ -1884,15 +1921,15 @@ function openWeekPreview(bi, wi) {
           <span>${esc(rs.name)}${am ? ' <b style="color:var(--red)">AMRAP</b>' : ''}</span>
           ${right}</div>`;
       }).join('');
-      return `<div class="card"><b>Day ${di + 1}</b>${dayTheme(d) ? ` <span class="faint">${esc(dayTheme(d))}</span>` : ''}${rows}</div>`;
+      return `<div class="card"><b>${esc(t('common.day_n', { n: di + 1 }))}</b>${dayTheme(d) ? ` <span class="faint">${esc(dayTheme(d))}</span>` : ''}${rows}</div>`;
     }).join('');
     const bbTrack = (p.trainingConfig && p.trainingConfig.track) === 'bodybuilding';
     const tech = scheduledTechForBlock(b, wi, bbTrack);
     const techNote = tech
-      ? `<p class="tl-finisher">${TECH_MARK[tech] || ''} Finisher this week: ${TECHNIQUE_LABELS[tech] || tech}. Add it on an accessory's last set.</p>`
+      ? `<p class="tl-finisher">${TECH_MARK[tech] || ''} ${esc(t('timeline.finisher_week', { tech: TECHNIQUE_LABELS[tech] ? t('tech.' + tech) : tech }))}</p>`
       : '';
-    $modal.innerHTML = modalShell(anim, `${esc(b.label)} · Week ${bi * p.weeksPerBlock + wi + 1}`,
-      `<p class="subtle" style="margin-bottom:10px">${weekLabelFor(b, wi)} · projected with current working maxes</p>${techNote}${days}`);
+    $modal.innerHTML = modalShell(anim, `${esc(b.label)} · ${esc(t('common.week_n', { n: bi * p.weeksPerBlock + wi + 1 }))}`,
+      `<p class="subtle" style="margin-bottom:10px">${weekLabelFor(b, wi)} · ${esc(t('preview.projected'))}</p>${techNote}${days}`);
   });
 }
 
@@ -1902,7 +1939,8 @@ function openWeekPreview(bi, wi) {
 // reorders, adds and removes the blocks from the current one onward. Saving
 // re-stamps mesoIdx/phase/labels and recomputes the test date.
 // ------------------------------------------------------------
-const PLAN_TYPES = [['hypertrophy', 'jbb-hyp', 'Hypertrophy'], ['strength', 'jm2-wave', 'Strength']];
+// Labels live in the catalogs ('plan.type_<id>'); the table keeps ids + schemes.
+const PLAN_TYPES = [['hypertrophy', 'jbb-hyp'], ['strength', 'jm2-wave']];
 const PLAN_WAVES = { 'jbb-hyp': ['10s', '8s'], 'jm2-wave': ['5s', '3s'] };
 // How many leading blocks are locked because training has started in them.
 function lockedPlanCount() {
@@ -1928,41 +1966,41 @@ function renderPlanEditor(anim) {
   const lockedRows = p.blocks.slice(0, locked).map((b, i) =>
     `<div class="plan-row locked"><span class="plan-lock">🔒</span>
       <span class="plan-name">${esc(b.label)}</span>
-      <span class="faint">${esc(PHASE_LABELS[blockPhase(b)] || '')} · trained</span></div>`).join('');
+      <span class="faint">${esc(phaseLabel(blockPhase(b)))} · ${esc(t('plan.trained'))}</span></div>`).join('');
   const draft = V.planDraft;
   const rows = draft.map((b, i) => {
     const waves = PLAN_WAVES[blockScheme(b)] || ['8s'];
     return `<div class="plan-row">
       <div class="plan-main">
         <select onchange="planSetType(${i}, this.value)">
-          ${PLAN_TYPES.map(([ty, , lbl]) => `<option value="${ty}" ${b.type === ty ? 'selected' : ''}>${lbl}</option>`).join('')}
+          ${PLAN_TYPES.map(([ty]) => `<option value="${ty}" ${b.type === ty ? 'selected' : ''}>${esc(t('plan.type_' + ty))}</option>`).join('')}
         </select>
         <select onchange="planSetWave(${i}, this.value)">
-          ${waves.map(w => `<option value="${w}" ${b.wave === w ? 'selected' : ''}>${w} wave</option>`).join('')}
+          ${waves.map(w => `<option value="${w}" ${b.wave === w ? 'selected' : ''}>${esc(t('common.wave', { w }))}</option>`).join('')}
         </select>
         <select onchange="planSetPhase(${i}, this.value)">
-          ${Object.keys(PHASE_LABELS).map(ph => `<option value="${ph}" ${blockPhase(b) === ph ? 'selected' : ''}>${PHASE_LABELS[ph]}</option>`).join('')}
+          ${PHASES.map(ph => `<option value="${ph}" ${blockPhase(b) === ph ? 'selected' : ''}>${esc(phaseLabel(ph))}</option>`).join('')}
         </select>
       </div>
       <div class="plan-ops">
-        <button onclick="planMove(${i},-1)" ${i === 0 ? 'disabled' : ''} aria-label="Move up">↑</button>
-        <button onclick="planMove(${i},1)" ${i === draft.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button>
-        <button onclick="planRemove(${i})" ${draft.length + locked <= 1 ? 'disabled' : ''} aria-label="Remove" class="plan-del">✕</button>
+        <button onclick="planMove(${i},-1)" ${i === 0 ? 'disabled' : ''} aria-label="${esc(t('a11y.move_up'))}">↑</button>
+        <button onclick="planMove(${i},1)" ${i === draft.length - 1 ? 'disabled' : ''} aria-label="${esc(t('a11y.move_down'))}">↓</button>
+        <button onclick="planRemove(${i})" ${draft.length + locked <= 1 ? 'disabled' : ''} aria-label="${esc(t('common.remove'))}" class="plan-del">✕</button>
       </div>
     </div>`;
   }).join('');
   const weeks = (locked + draft.length) * p.weeksPerBlock;
   const body = `
-    <p class="subtle">Edit the blocks from here to your goal date. Trained blocks are locked. Saving updates your test date.</p>
+    <p class="subtle">${esc(t('plan.intro'))}</p>
     ${lockedRows}
     ${rows}
-    <button class="btn btn-outline mt8" onclick="planAdd()">+ Add block</button>
-    <div class="focus-time mt8">${locked + draft.length} blocks, about ${weeks} weeks total.</div>
+    <button class="btn btn-outline mt8" onclick="planAdd()">${esc(t('plan.add_block'))}</button>
+    <div class="focus-time mt8">${esc(t('plan.total_line', { blocks: locked + draft.length, weeks }))}</div>
     <div class="row mt16" style="gap:10px">
-      <button class="btn btn-outline" style="flex:1" onclick="closeAllModals()">Cancel</button>
-      <button class="btn btn-green" style="flex:1" onclick="planSave()" ${draft.length ? '' : 'disabled'}>Save plan</button>
+      <button class="btn btn-outline" style="flex:1" onclick="closeAllModals()">${esc(t('confirm.cancel'))}</button>
+      <button class="btn btn-green" style="flex:1" onclick="planSave()" ${draft.length ? '' : 'disabled'}>${esc(t('plan.save'))}</button>
     </div>`;
-  $modal.innerHTML = modalShell(anim, 'Customize blocks', body);
+  $modal.innerHTML = modalShell(anim, t('plan.title'), body);
 }
 function planSetType(i, ty) {
   const row = PLAN_TYPES.find(t => t[0] === ty); if (!row) return;
@@ -1990,41 +2028,22 @@ function planSave() {
   const { blocks, testDate } = commitPlan(p, locked, V.planDraft);
   p.blocks = blocks; p.testDate = testDate;
   V.planDraft = null; V.planLocked = null;
-  save(); closeAllModals(); toast('Plan updated, ' + blocks.length * p.weeksPerBlock + ' weeks to test day'); render();
+  save(); closeAllModals(); toast(t('plan.updated_toast', { weeks: blocks.length * p.weeksPerBlock })); render();
 }
 
 // Explainer for the "Waiting for calibration" state. Stacks over the preview,
 // closes back to it. Plain language for the athlete, no jargon dumps.
 function openCalibrationInfo() {
   showModal(anim => {
-    $modal.innerHTML = modalShell(anim, 'Waiting for calibration', `
+    $modal.innerHTML = modalShell(anim, t('calib.waiting'), `
       <div class="card">
-        <p>This lift does not have a reference number yet, so the app cannot
-        prescribe exact weights or a target RIR for it. Until it does, you will
-        see "Waiting for calibration" instead of a set and weight scheme.</p>
-
-        <p class="mt16"><b>What calibration is.</b> The app builds every working
-        weight from an anchor. For your main lifts that anchor is the working
-        max, set to 90 percent of the 1RM you enter. For accessories the anchor
-        is your first logged set, since you do not enter a max for those.</p>
-
-        <p class="mt16"><b>How to calibrate it.</b> Train the lift in week 1 and
-        log what you actually did. The week 1 plan gives you a short ramp of
-        easy to moderate sets (leaving about 2 to 4 reps in reserve) so you can
-        find a weight that feels right without grinding. Log those sets and the
-        app reads your effort to set the anchor.</p>
-
-        <p class="mt16"><b>What happens next.</b> Once the anchor exists, this
-        lift starts showing real weights and a target RIR that tightens week to
-        week, peaking in the realization week, exactly like your calibrated
-        lifts already do. You only calibrate a lift once. After that the app
-        carries it forward and adjusts it from your logged performance.</p>
-
-        <p class="mt16 faint">Tip: be honest and a little conservative in week 1.
-        A slightly light anchor still climbs fast over the block, while an
-        inflated one makes the later weeks harder than they should be.</p>
+        <p>${esc(t('calib.info_p1'))}</p>
+        <p class="mt16"><b>${esc(t('calib.info_what_title'))}</b> ${esc(t('calib.info_what'))}</p>
+        <p class="mt16"><b>${esc(t('calib.info_how_title'))}</b> ${esc(t('calib.info_how'))}</p>
+        <p class="mt16"><b>${esc(t('calib.info_next_title'))}</b> ${esc(t('calib.info_next'))}</p>
+        <p class="mt16 faint">${esc(t('calib.info_tip'))}</p>
       </div>
-      <button class="btn btn-blue" onclick="closeModal()">Got it</button>`);
+      <button class="btn btn-blue" onclick="closeModal()">${esc(t('common.got_it'))}</button>`);
   });
 }
 function vDashboard() {
@@ -2035,9 +2054,9 @@ function vDashboard() {
   let weekSection = '';
   if (done) {
     weekSection = `<div class="card accent">
-      <h3 style="font-size:1.3rem;margin-bottom:6px">Program complete 🏆</h3>
-      <p class="subtle">Every block is in the books. Rest up, then test your maxes, or start the next cycle.</p>
-      <button class="btn btn-blue mt16" onclick="confirmNewProgram()">Plan next cycle</button>
+      <h3 style="font-size:1.3rem;margin-bottom:6px">${esc(t('dash.done_title'))}</h3>
+      <p class="subtle">${esc(t('dash.done_body'))}</p>
+      <button class="btn btn-blue mt16" onclick="confirmNewProgram()">${esc(t('dash.plan_next'))}</button>
     </div>`;
   } else {
     const block = curBlock();
@@ -2048,35 +2067,35 @@ function vDashboard() {
       const cls = st ? 'done' : '';
       const mark = st === 'skipped' ? '⤼' : st ? '✓' : '○';
       return `<button class="day-row ${cls}" onclick="openDay(${i})">
-        <span class="mark">${mark}</span> <span>Day ${i + 1}${dayTheme(d) ? ` <span class="faint">${esc(dayTheme(d))}</span>` : ''}</span> <span class="chev">›</span></button>`;
+        <span class="mark">${mark}</span> <span>${esc(t('common.day_n', { n: i + 1 }))}${dayTheme(d) ? ` <span class="faint">${esc(dayTheme(d))}</span>` : ''}</span> <span class="chev">›</span></button>`;
     }).join('');
     const allDone = p.days.every((d, i) => p.completedDays[dayKey(p.pointer.block, w, i)]);
     weekSection = `
       <div class="mt16">
-        <div style="color:${BLOCK_COLORS[block.type]};font-weight:600">${esc(block.label)} · ${block.wave} wave</div>
-        <div style="font-size:1.7rem;font-weight:800">Week ${globalWeekNum()}</div>
+        <div style="color:${BLOCK_COLORS[block.type]};font-weight:600">${esc(block.label)} · ${esc(t('common.wave', { w: block.wave }))}</div>
+        <div style="font-size:1.7rem;font-weight:800">${esc(t('common.week_n', { n: globalWeekNum() }))}</div>
         <div class="subtle">${weekLabelFor(block, w)}</div>
       </div>
       ${earlyDeloadBannerHTML()}
       ${dayRows}
-      <button class="btn ${allDone ? 'btn-blue' : 'btn-outline'} mt16" onclick="completeWeek(${allDone})">Complete Week</button>`;
+      <button class="btn ${allDone ? 'btn-blue' : 'btn-outline'} mt16" onclick="completeWeek(${allDone})">${esc(t('week.complete'))}</button>`;
   }
   return `${topbar()}
   <div class="view">
     <div class="readiness-hero">
       <div class="row">
-        <span class="label">Readiness <span class="faint">ⓘ 0–30</span></span>
+        <span class="label">${esc(t('dash.readiness'))} <span class="faint">ⓘ 0–30</span></span>
         <span class="score-sm">${readiness.toFixed(2)}</span>
       </div>
       ${sparklineHTML()}
     </div>
-    <div class="section-title mt24">My Program</div>
-    <div style="font-size:2rem;font-weight:800">${daysOut()} Days Out</div>
+    <div class="section-title mt24">${esc(t('dash.my_program'))}</div>
+    <div style="font-size:2rem;font-weight:800">${esc(t('dash.days_out', { n: daysOut() }))}</div>
     <div class="subtle">${fmtDateLong(p.testDate)}</div>
     ${timelineHTML({ editable: false })}
     ${weekSection}
-    ${done ? '' : `<button class="btn btn-outline mt16" onclick="openVolumeDashboard()">📊 Weekly volume per muscle</button>`}
-    ${(done || (p.trainingConfig && p.trainingConfig.track === 'bodybuilding')) ? '' : `<button class="phase-chip mt8" onclick="openPhase()">🍽 Phase: ${PHASE_LABELS[currentPhase()] || currentPhase()}</button>`}
+    ${done ? '' : `<button class="btn btn-outline mt16" onclick="openVolumeDashboard()">${esc(t('dash.weekly_volume_btn'))}</button>`}
+    ${(done || (p.trainingConfig && p.trainingConfig.track === 'bodybuilding')) ? '' : `<button class="phase-chip mt8" onclick="openPhase()">${esc(t('dash.phase_chip', { phase: phaseLabel(currentPhase()) }))}</button>`}
   </div>${tabbar()}`;
 }
 // [Cluster D] Estimated direct working sets per muscle for the current week,
@@ -2254,7 +2273,7 @@ function volumeDashboardHTML() {
       if (sig) {
         const r = Engine.autoregVolume(sig, sets, L, phase);
         const arrow = r.action === 'add' ? '▲' : r.action === 'cut' ? '▼' : '＝';
-        rec = `<div class="vol-rec k-rec-${r.action}">${arrow} ${esc(r.reason)}</div>`;
+        rec = `<div class="vol-rec k-rec-${r.action}">${arrow} ${esc(t('vol.rec_' + (r.reasonKey || 'on_track')))}</div>`;
       }
     }
     // [Cluster C/D] Per-head split, where this muscle has head-tagged work, so an
@@ -2269,10 +2288,10 @@ function volumeDashboardHTML() {
       const hlm = headLandmarkFor(mv);
       const parts = Object.keys(hd).sort((a, b) => hd[b] - hd[a]).map(h => {
         const over = hlm && hd[h] > hlm.mrv;
-        const txt = `${HEAD_LABELS[h] || h} ${kg(hd[h])}`;
+        const txt = `${esc(headLabel(h))} ${kg(hd[h])}`;
         return over ? `<b style="color:var(--amber)">${txt} ⚠</b>` : txt;
       });
-      if (parts.length) heads = `<div class="vol-heads faint">Regions: ${parts.join(' · ')}</div>`;
+      if (parts.length) heads = `<div class="vol-heads faint">${esc(t('vol.regions'))} ${parts.join(' · ')}</div>`;
     }
     // [Cluster D] Per-muscle early deload: a deloaded muscle's bar is textured and
     // offers Resume; an over-MRV muscle offers to deload just that muscle (pull it
@@ -2281,12 +2300,12 @@ function volumeDashboardHTML() {
     const rowTex = deloadTex || (deloaded ? ' deload-tex' : '');
     let mdCtl = '';
     if (autoreg) {
-      if (deloaded) mdCtl = `<span class="vol-md faint">Muscle deload on · <button class="link-btn" onclick="toggleMuscleDeload('${mv}')">resume ›</button></span>`;
-      else if (st.key === 'over') mdCtl = `<button class="link-btn vol-md" onclick="toggleMuscleDeload('${mv}')">deload this muscle ›</button>`;
+      if (deloaded) mdCtl = `<span class="vol-md faint">${esc(t('vol.md_on'))} · <button class="link-btn" onclick="toggleMuscleDeload('${mv}')">${esc(t('vol.md_resume'))}</button></span>`;
+      else if (st.key === 'over') mdCtl = `<button class="link-btn vol-md" onclick="toggleMuscleDeload('${mv}')">${esc(t('vol.md_deload'))}</button>`;
     }
     return `<div class="vol-row">
-      <div class="vol-head"><span>${MOVEMENTS[mv]?.label || mv}</span>
-        <span class="vol-status k-${st.key}">${st.label} · ${kg(sets)} sets</span></div>
+      <div class="vol-head"><span>${esc(mvLabel(mv))}</span>
+        <span class="vol-status k-${st.key}">${esc(t('vol.status_sets', { status: t('vol.status_' + st.key), n: kg(sets) }))}</span></div>
       <div class="vol-track"><div class="vol-fill k-${st.key}${rowTex}" style="width:${st.pct}%"></div>
         <div class="vol-mark" style="left:${mevPct}%"></div></div>
       <div class="vol-scale faint"><span>MEV ${L.mev}</span><span>MRV ${L.mrv}</span></div>
@@ -2300,11 +2319,16 @@ function volumeDashboardHTML() {
   // whole-block early deload on the dashboard.
   let overreach = '';
   if (autoreg) {
-    const ovr = Engine.overreaching(statuses, readinessTrendingDown());
+    const down = readinessTrendingDown();
+    const ovr = Engine.overreaching(statuses, down);
     if (ovr.overreaching) {
+      // Rebuild the engine's reason from its parts so it translates.
+      const rk = ovr.over === 1
+        ? (down ? 'vol.overreach_one_sliding' : 'vol.overreach_one')
+        : (down ? 'vol.overreach_many_sliding' : 'vol.overreach_many');
       overreach = `<div class="card accent" style="border-left:3px solid var(--red)">
-        <div style="font-weight:700">⚠ Overreaching</div>
-        <p class="faint mt8">${esc(ovr.reason)} - past what you can recover from. Ease the worst muscles back with the deload links below, or pull the whole block's deload in early from the dashboard.</p></div>`;
+        <div style="font-weight:700">${esc(t('vol.overreach_title'))}</div>
+        <p class="faint mt8">${esc(t('vol.overreach_body', { reason: t(rk, { n: ovr.over }) }))}</p></div>`;
     }
   }
   // [Cluster D] Recovery / fatigue trend: the readiness series the deload logic
@@ -2313,8 +2337,8 @@ function volumeDashboardHTML() {
   if (autoreg) {
     const pts = (S.readinessLog || []).slice(-14).map(r => ({ ts: r.ts, value: r.score }));
     if (pts.length >= 2) {
-      trend = `<div class="section-title" style="font-size:1rem">Recovery trend</div>
-        <p class="faint" style="margin:-2px 0 6px">Your readiness over recent sessions. A downward slope means fatigue is outpacing recovery, and it pulls your deload in deeper.</p>
+      trend = `<div class="section-title" style="font-size:1rem">${esc(t('vol.trend_title'))}</div>
+        <p class="faint" style="margin:-2px 0 6px">${esc(t('vol.trend_body'))}</p>
         ${trendChartHTML(pts, '#4b8df8', v => v.toFixed(1))}`;
     }
   }
@@ -2324,9 +2348,9 @@ function volumeDashboardHTML() {
     const sat = Engine.fatigueSaturated(statuses);
     if (sat.saturated && !PHASE_DEFICIT[phase]) {
       minicut = `<div class="card accent" style="border-left:3px solid var(--amber)">
-        <div style="font-weight:700">Fatigue is piling up</div>
-        <p class="faint mt8">${sat.over} muscles are at or near MRV. A short minicut (about 2 to 4 weeks in a deficit) would shed fatigue and resensitize you to volume.</p>
-        <button class="btn btn-outline mt8" onclick="openPhase()">Plan a minicut ›</button></div>`;
+        <div style="font-weight:700">${esc(t('vol.minicut_title'))}</div>
+        <p class="faint mt8">${esc(t('vol.minicut_body', { n: sat.over }))}</p>
+        <button class="btn btn-outline mt8" onclick="openPhase()">${esc(t('vol.minicut_cta'))}</button></div>`;
     }
   }
   // [Cluster D] On the deload week, show how the deload was sized to the block's
@@ -2334,31 +2358,31 @@ function volumeDashboardHTML() {
   let deloadNote = '';
   if (autoreg && isEarlyDeloadActive()) {
     deloadNote = `<div class="card accent" style="border-left:3px solid var(--amber)">
-      <div style="font-weight:700">Early deload this week</div>
-      <p class="faint mt8">This block's deload was pulled in early to shed fatigue. Finish this lighter week, then your next block starts resensitized from MEV. <button class="link-btn" onclick="cancelEarlyDeload()">Resume normal block</button></p></div>`;
+      <div style="font-weight:700">${esc(t('vol.early_deload_title'))}</div>
+      <p class="faint mt8">${esc(t('vol.early_deload_body'))} <button class="link-btn" onclick="cancelEarlyDeload()">${esc(t('deload.resume_block'))}</button></p></div>`;
   } else if (autoreg && Engine.weekType(P().pointer.week) === 'deload' && P().deloadPlan && P().deloadPlan.level !== 'standard') {
     const dp = P().deloadPlan;
     deloadNote = `<div class="card accent" style="border-left:3px solid ${dp.level === 'deep' ? 'var(--amber)' : 'var(--green)'}">
-      <div style="font-weight:700">${dp.level === 'deep' ? 'Deeper deload' : 'Lighter deload'}</div>
-      <p class="faint mt8">${esc(dp.reason)}. Accessory volume is ${dp.level === 'deep' ? 'pulled back further' : 'kept a touch higher'} this week, then your volume resensitizes from MEV next block.</p></div>`;
+      <div style="font-weight:700">${esc(t(dp.level === 'deep' ? 'vol.deload_deeper' : 'vol.deload_lighter'))}</div>
+      <p class="faint mt8">${esc(t(dp.level === 'deep' ? 'vol.deload_deep_body' : 'vol.deload_light_body', { n: dp.over }))}</p></div>`;
   }
-  return `<p class="subtle">Estimated direct working sets per muscle this week, against your own volume landmarks. The big compounds count toward the muscles they train.</p>
-    ${autoreg ? `<div class="vol-phase faint">Phase: <b>${PHASE_LABELS[phase] || phase}</b>${PHASE_DEFICIT[phase] ? ' · recovery is lower, volume holds' : ''} <button class="link-btn" onclick="openPhase()">change ›</button></div>` : ''}
+  return `<p class="subtle">${esc(t('vol.intro'))}</p>
+    ${autoreg ? `<div class="vol-phase faint">${esc(t('vol.phase_word'))} <b>${esc(phaseLabel(phase))}</b>${PHASE_DEFICIT[phase] ? ' · ' + esc(t('vol.deficit_note')) : ''} <button class="link-btn" onclick="openPhase()">${esc(t('vol.change'))}</button></div>` : ''}
     ${overreach}
     ${deloadNote}
     ${minicut}
     ${trend}
     <div class="vol-legend faint">
-      <span><i class="dot k-maint"></i>Maintenance</span>
-      <span><i class="dot k-productive"></i>Productive</span>
-      <span><i class="dot k-over"></i>Over MRV</span></div>
+      <span><i class="dot k-maint"></i>${esc(t('vol.status_maint'))}</span>
+      <span><i class="dot k-productive"></i>${esc(t('vol.status_productive'))}</span>
+      <span><i class="dot k-over"></i>${esc(t('vol.status_over'))}</span></div>
     ${rows}
-    ${autoreg ? '<p class="faint mt16">The ▲ ▼ ＝ notes read your recovery check-ins and last sessions to suggest adding, holding, or cutting a muscle\'s sets, and they feed next week\'s volume automatically.</p>'
-      : '<p class="faint mt16">MEV is the least that grows you, MRV the most you can recover from. A block should climb from MEV toward MRV, then deload.</p>'}`;
+    ${autoreg ? `<p class="faint mt16">${esc(t('vol.footer_autoreg'))}</p>`
+      : `<p class="faint mt16">${esc(t('vol.footer_landmarks'))}</p>`}`;
 }
 function openVolumeDashboard() {
-  if (!P()) { toast('Start a program first', true); return; }
-  showModal(anim => { $modal.innerHTML = modalShell(anim, 'Weekly volume', volumeDashboardHTML()); });
+  if (!P()) { toast(t('common.start_program_first'), true); return; }
+  showModal(anim => { $modal.innerHTML = modalShell(anim, t('vol.title'), volumeDashboardHTML()); });
 }
 // [Cluster F] Current training phase, with a safe default.
 function currentPhase() { return (S.profile && S.profile.phase) || 'lean-gain'; }
@@ -2367,7 +2391,7 @@ function currentPhase() { return (S.profile && S.profile.phase) || 'lean-gain'; 
 // macros: this is a training-coupled phase tag, not a nutrition tracker.
 function bodyweightTrendHTML() {
   const bw = (S.bodyweight || []).filter(x => x.kg > 0).slice(-30);
-  if (bw.length < 2) return '<p class="faint">Log your bodyweight a few times to see the trend.</p>';
+  if (bw.length < 2) return `<p class="faint">${esc(t('phase.bw_empty'))}</p>`;
   const pts = bw.map(x => ({ ts: x.ts, value: x.kg }));
   return trendChartHTML(pts, '#67a3ff', v => kg(v) + ' kg');
 }
@@ -2376,31 +2400,31 @@ function phaseScreenHTML() {
   const last = (S.bodyweight || []).length ? S.bodyweight[S.bodyweight.length - 1].kg : (S.profile.bodyweight || '');
   const phases = ['lean-gain', 'maintenance', 'cut', 'minicut'].map(ph =>
     `<button class="phase-opt ${cur === ph ? 'on' : ''}" onclick="setPhase('${ph}')">
-      <b>${PHASE_LABELS[ph]}</b><span class="faint">${esc(PHASE_BLURB[ph])}</span></button>`).join('');
-  return `<div class="section-title" style="font-size:1.1rem">Training phase</div>
+      <b>${esc(phaseLabel(ph))}</b><span class="faint">${esc(t('phase.' + ph + '_desc'))}</span></button>`).join('');
+  return `<div class="section-title" style="font-size:1.1rem">${esc(t('phase.section'))}</div>
     <div class="phase-opts">${phases}</div>
-    <div class="section-title" style="font-size:1.1rem">Bodyweight trend</div>
-    <div class="field"><label>Log today's bodyweight (kg)</label>
-      <input id="bw-input" type="number" inputmode="decimal" step="0.1" value="${last || ''}" placeholder="e.g. 82.5"></div>
-    <button class="btn btn-blue mt8" onclick="logBodyweight()">Log bodyweight</button>
+    <div class="section-title" style="font-size:1.1rem">${esc(t('phase.bw_section'))}</div>
+    <div class="field"><label>${esc(t('phase.bw_label'))}</label>
+      <input id="bw-input" type="number" inputmode="decimal" step="0.1" value="${last || ''}" placeholder="${esc(t('phase.bw_ph'))}"></div>
+    <button class="btn btn-blue mt8" onclick="logBodyweight()">${esc(t('phase.bw_btn'))}</button>
     <div class="mt16">${bodyweightTrendHTML()}</div>
-    <p class="faint mt16">Trend only, to inform when to switch phases. No calorie or macro tracking.</p>`;
+    <p class="faint mt16">${esc(t('phase.bw_note'))}</p>`;
 }
 function openPhase() {
-  showModal(anim => { $modal.innerHTML = modalShell(anim, 'Phase & bodyweight', phaseScreenHTML()); });
+  showModal(anim => { $modal.innerHTML = modalShell(anim, t('phase.screen_title'), phaseScreenHTML()); });
 }
 function setPhase(ph) {
-  if (!PHASE_LABELS[ph]) return;
+  if (!PHASES.includes(ph)) return;
   S.profile.phase = ph;
-  save(); toast('Phase set to ' + PHASE_LABELS[ph]); rerenderTop();
+  save(); toast(t('phase.set_toast', { phase: phaseLabel(ph) })); rerenderTop();
 }
 function logBodyweight() {
   const v = parseFloat(byId('bw-input') && byId('bw-input').value);
-  if (!(v > 0)) { toast('Enter a bodyweight', true); return; }
+  if (!(v > 0)) { toast(t('phase.bw_enter'), true); return; }
   S.bodyweight = S.bodyweight || [];
   S.bodyweight.push({ ts: Date.now(), kg: v });
   S.profile.bodyweight = v;
-  save(); toast('Bodyweight logged'); rerenderTop();
+  save(); toast(t('phase.bw_logged')); rerenderTop();
 }
 // [Cluster E] Update the per-muscle autoreg offset from the week just trained.
 // Runs each week advance for a bodybuilding athlete; phase (Cluster F) tunes how
@@ -2434,9 +2458,9 @@ function openDay(i) {
 function completeWeek(allDone) {
   if (!allDone) {
     confirmModal({
-      title: 'Complete week?',
-      message: 'Not every day is logged. You can complete the week anyway and move on.',
-      confirmLabel: 'Complete week',
+      title: t('week.complete_title'),
+      message: t('week.complete_msg'),
+      confirmLabel: t('week.complete'),
     }, doCompleteWeek);
     return;
   }
@@ -2488,7 +2512,7 @@ function endBlock(finishedBlock, bb) {
   const p = P();
   recalibrateLandmarks(finishedBlock);
   const dropped = carryoverOptionalDrops(finishedBlock);
-  if (dropped.length) toast(`Dropped from your routine: ${dropped.join(', ')} (you skipped it all block)`);
+  if (dropped.length) toast(t('week.dropped_toast', { list: dropped.join(', ') }));
   if (bb && p.volAdj) for (const mv in p.volAdj) p.volAdj[mv] = 0;
   p.deloadPlan = null;
   p.earlyDeload = null; // spent with the block
@@ -2516,7 +2540,7 @@ function endBlock(finishedBlock, bb) {
         }
       }
     }
-    toast(`New block: ${p.blocks[p.pointer.block].label}`);
+    toast(t('week.new_block_toast', { label: p.blocks[p.pointer.block].label }));
   }
   V.dayIdx = null;
   save(); render();
@@ -2600,26 +2624,26 @@ function renderWeekFeel(anim) {
   const upBlock = blockOf(up.block);
   const ctx = readinessContext();
   const ctxLine = ctx.hasBaseline
-    ? `This week averaged ${ctx.weekAvg}, your recent baseline is ${ctx.baseAvg}.`
-    : `Your recent readiness average is ${ctx.weekAvg}. A baseline builds with a few more weeks of check-ins.`;
-  $modal.innerHTML = modalShell(anim, 'Complete Week', `
+    ? t('week.ctx_baseline', { avg: ctx.weekAvg, base: ctx.baseAvg })
+    : t('week.ctx_building', { avg: ctx.weekAvg });
+  $modal.innerHTML = modalShell(anim, t('week.complete'), `
         <div class="slider-card">
-          <div class="q">Tell us how this block week felt</div>
+          <div class="q">${esc(t('week.feel_q'))}</div>
           <div class="feeling" style="font-size:2.2rem;font-weight:800" id="wf-val">${WF}</div>
-          <p class="faint" id="wf-desc" style="min-height:34px;margin-bottom:6px">${WEEK_FEEL_LEGEND[WF - 1]}</p>
+          <p class="faint" id="wf-desc" style="min-height:34px;margin-bottom:6px">${esc(weekFeelLegend(WF))}</p>
           <input type="range" min="1" max="5" step="1" value="${WF}" oninput="wfSet(this.value)">
-          <div class="range-labels"><span>1 · TOO TOUGH</span><span>3 · AS PLANNED</span><span>5 · TOO EASY</span></div>
+          <div class="range-labels"><span>${esc(t('week.feel_low'))}</span><span>${esc(t('week.feel_mid'))}</span><span>${esc(t('week.feel_high'))}</span></div>
         </div>
-        <div class="card"><span class="faint">Readiness context</span>
-          <div class="subtle mt8">${ctxLine}</div>
-          <p class="faint mt8">Next up: ${esc(upBlock.label)}, ${weekLabelFor(upBlock, up.week)}. Your answer tunes that week only and never changes your working max.</p></div>
-        <button class="btn btn-green" onclick="confirmWeekFeel()">Set next week and advance</button>
-        <button class="btn btn-outline mt8" onclick="closeModal()">Cancel</button>`, 'closeModal()');
+        <div class="card"><span class="faint">${esc(t('week.readiness_ctx'))}</span>
+          <div class="subtle mt8">${esc(ctxLine)}</div>
+          <p class="faint mt8">${esc(t('week.next_up', { block: upBlock.label, week: weekLabelFor(upBlock, up.week) }))}</p></div>
+        <button class="btn btn-green" onclick="confirmWeekFeel()">${esc(t('week.advance_btn'))}</button>
+        <button class="btn btn-outline mt8" onclick="closeModal()">${esc(t('confirm.cancel'))}</button>`, 'closeModal()');
 }
 function wfSet(v) {
   WF = parseInt(v);
   byId('wf-val').textContent = WF;
-  byId('wf-desc').textContent = WEEK_FEEL_LEGEND[WF - 1];
+  byId('wf-desc').textContent = weekFeelLegend(WF);
 }
 function confirmWeekFeel() {
   const up = V.wfUp, p = P();
@@ -2641,8 +2665,8 @@ function currentDayIdx() {
 }
 function vWorkout() {
   if (!P()) return vOnboarding();
-  if (programDone()) return `${topbar('Workout')}<div class="view">
-    <div class="card accent mt16"><b>Program complete.</b><p class="subtle mt8">Plan your next cycle from the dashboard.</p></div></div>${tabbar()}`;
+  if (programDone()) return `${topbar(t('tab.workout'))}<div class="view">
+    <div class="card accent mt16"><b>${esc(t('workout.done_title'))}</b><p class="subtle mt8">${esc(t('workout.done_body'))}</p></div></div>${tabbar()}`;
   const p = P();
   const di = currentDayIdx();
   const day = p.days[di];
@@ -2667,14 +2691,17 @@ function vWorkout() {
     const grip = `<span class="grip" onpointerdown="gripDown(event,${di},${si})">⠿</span>`;
     if (rs.isRemoved) {
       // Dropped by muscle focus (slider 0). Shown muted so it is not a mystery.
+      // resolveSlot's removedReason strings are part of its tested output, so
+      // they map to catalog keys here instead of changing at the source.
+      const reasonKey = rs.removedReason === 'not used in hypertrophy' ? 'workout.removed_hypertrophy' : 'workout.removed_focus';
       return `<div class="ex-card" data-si="${si}" style="opacity:.5">
         ${grip}<span class="name">${esc(rs.name)}</span>
-        <span class="faint" style="font-size:.78rem">${esc(rs.removedReason || 'removed by focus')}</span></div>`;
+        <span class="faint" style="font-size:.78rem">${esc(t(reasonKey))}</span></div>`;
     }
     if (rs.isSelect) {
       return `<div class="ex-card" data-si="${si}">
         ${grip}
-        <button class="name select" onclick="openSwap(${di},${si})">Select ${MOVEMENTS[rs.cat].label} Exercise ⚙</button>
+        <button class="name select" onclick="openSwap(${di},${si})">${esc(t('workout.select_cat', { cat: mvLabel(rs.cat) }))}</button>
       </div>`;
     }
     const opt = optSi.has(si);
@@ -2682,67 +2709,67 @@ function vWorkout() {
     // toggle reflects whether THIS slot links to the next; chaining links forms a
     // giant set. Every accessory with a following accessory can link.
     const ssInfo = ss.byId[si];
-    const ssTag = ssInfo ? ` <span class="ss-tag">⛓ ${ssInfo.size > 2 ? 'giant set' : 'superset'} with ${esc(ssInfo.others)}</span>` : '';
+    const ssTag = ssInfo ? ` <span class="ss-tag">⛓ ${esc(t('workout.ss_tag', { kind: t(ssInfo.size > 2 ? 'session.giant_set' : 'session.superset').toLowerCase(), names: ssInfo.others }))}</span>` : '';
     const ssBtn = (!rs.isMain && !rs.isSecondary && bbTrack && ss.eligible.has(si))
-      ? `<button class="icon-btn" onclick="toggleSuperset(${di},${si})"><span class="ic">⛓</span>${slot.superset ? 'Unlink' : 'Superset'}</button>`
+      ? `<button class="icon-btn" onclick="toggleSuperset(${di},${si})"><span class="ic">⛓</span>${esc(t(slot.superset ? 'workout.unlink' : 'session.superset'))}</button>`
       : '';
     // [Cluster B] Within a group, compact up/down controls reorder the member while
     // keeping the group intact (disabled at the group's ends).
-    const ssMove = ssInfo ? `${ssInfo.index > 0 ? `<button class="icon-btn ss-move" onclick="moveSupersetMember(${di},${si},-1)" aria-label="Move up in superset"><span class="ic">▲</span></button>` : ''}${ssInfo.index < ssInfo.size - 1 ? `<button class="icon-btn ss-move" onclick="moveSupersetMember(${di},${si},1)" aria-label="Move down in superset"><span class="ic">▼</span></button>` : ''}` : '';
+    const ssMove = ssInfo ? `${ssInfo.index > 0 ? `<button class="icon-btn ss-move" onclick="moveSupersetMember(${di},${si},-1)" aria-label="${esc(t('a11y.move_up'))}"><span class="ic">▲</span></button>` : ''}${ssInfo.index < ssInfo.size - 1 ? `<button class="icon-btn ss-move" onclick="moveSupersetMember(${di},${si},1)" aria-label="${esc(t('a11y.move_down'))}"><span class="ic">▼</span></button>` : ''}` : '';
     // Main and secondary lifts anchor the program (and the working max), so they
     // are swap-only. Accessories and anything the athlete added can be removed by
     // swiping the card left to reveal a Remove action.
     const card = `<div class="ex-card ${opt ? 'optional' : ''}${ssInfo ? ' superset' : ''}" data-si="${si}">
       ${grip}
-      <span class="name">${esc(rs.name)}${opt ? ' <span class="opt-tag">optional</span>' : ''}${ssTag}</span>
+      <span class="name">${esc(rs.name)}${opt ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}${ssTag}</span>
       <span class="actions">
-        <button class="icon-btn" onclick="openExDetail('${rs.exId}')"><span class="ic">ⓘ</span>Info</button>
+        <button class="icon-btn" onclick="openExDetail('${rs.exId}')"><span class="ic">ⓘ</span>${esc(t('common.info'))}</button>
         ${ssMove}${ssBtn}
-        <button class="icon-btn" onclick="openSwap(${di},${si})"><span class="ic">⇄</span>Swap</button>
+        <button class="icon-btn" onclick="openSwap(${di},${si})"><span class="ic">⇄</span>${esc(t('common.swap'))}</button>
       </span>
     </div>`;
     if (rs.isMain || rs.isSecondary) return card;
     return `<div class="ex-swipe" data-si="${si}" onpointerdown="exSwipeDown(event,${di},${si})">
-      <button class="ex-remove" onclick="removeSlot(${di},${si})" aria-label="Remove ${esc(rs.name)}"><span class="ic">🗑</span>Remove</button>
+      <button class="ex-remove" onclick="removeSlot(${di},${si})" aria-label="${esc(t('common.remove'))} ${esc(rs.name)}"><span class="ic">🗑</span>${esc(t('common.remove'))}</button>
       ${card}
     </div>`;
   }).join('');
 
-  return `${topbar('Workout')}
+  return `${topbar(t('tab.workout'))}
   <div class="view">
     <div class="mt8">
       <div style="color:${BLOCK_COLORS[block.type]};font-weight:600">${esc(block.label)}</div>
-      <div style="font-size:1.4rem;font-weight:700">Week ${globalWeekNum()}</div>
+      <div style="font-size:1.4rem;font-weight:700">${esc(t('common.week_n', { n: globalWeekNum() }))}</div>
       <div class="row">
-        <div style="font-size:2.4rem;font-weight:800">Day ${di + 1}</div>
+        <div style="font-size:2.4rem;font-weight:800">${esc(t('common.day_n', { n: di + 1 }))}</div>
         <div>
           <button class="day-nav" onclick="prevDay()">‹</button>
           <button class="day-nav" onclick="nextDay()">›</button>
         </div>
       </div>
-      <div class="subtle">${dayTheme(day) ? esc(dayTheme(day)) + ' · ' : ''}${weekLabelFor(block, w)}${doneState ? ' · ' + (doneState === 'skipped' ? 'Skipped' : 'Completed ✓') : ''}</div>
+      <div class="subtle">${dayTheme(day) ? esc(dayTheme(day)) + ' · ' : ''}${weekLabelFor(block, w)}${doneState ? ' · ' + esc(t(doneState === 'skipped' ? 'session.skipped' : 'workout.completed')) : ''}</div>
     </div>
     ${timeBannerHTML(di)}
-    <button class="btn-ghost" style="margin:4px 2px" onclick="openTimeByWeek(${di})">See time by week ›</button>
+    <button class="btn-ghost" style="margin:4px 2px" onclick="openTimeByWeek(${di})">${esc(t('time.by_week_btn'))}</button>
     ${locked ? `
-    <div class="card accent mt16"><b>Day complete ✓</b>
-      <p class="subtle mt8">You logged this day. Open the summary to review your sets, or use the arrows to move to another day.</p>
-      <button class="btn btn-blue mt8" onclick="openSummaryFor('${doneState}')">View summary</button>
-      <button class="btn btn-outline mt8" onclick="redoDay(${di})">Redo day</button>
+    <div class="card accent mt16"><b>${esc(t('workout.day_complete'))}</b>
+      <p class="subtle mt8">${esc(t('workout.day_complete_body'))}</p>
+      <button class="btn btn-blue mt8" onclick="openSummaryFor('${doneState}')">${esc(t('workout.view_summary'))}</button>
+      <button class="btn btn-outline mt8" onclick="redoDay(${di})">${esc(t('workout.redo_day'))}</button>
     </div>` : emptyDay ? `
-    <div class="card accent mt16"><b>No exercises for this day</b>
-      <p class="subtle mt8">Your muscle focus removed everything scheduled here. Add an exercise below, or start a new program and keep at least one muscle group above 0.</p>
-      <button class="btn btn-outline mt8" onclick="openAddExercise(${di})">＋ Add an exercise</button>
+    <div class="card accent mt16"><b>${esc(t('workout.empty_title'))}</b>
+      <p class="subtle mt8">${esc(t('workout.empty_body'))}</p>
+      <button class="btn btn-outline mt8" onclick="openAddExercise(${di})">${esc(t('workout.add_exercise'))}</button>
     </div>` : `
-    <button class="btn btn-green mt16" onclick="startCheckin(${di})">Start Training →</button>
+    <button class="btn btn-green mt16" onclick="startCheckin(${di})">${esc(t('workout.start_training'))}</button>
     <div class="btn-row">
-      <button class="btn btn-outline" onclick="skipWorkout(${di})">Skip Workout</button>
-      <button class="btn btn-outline" onclick="openPreview(${di})">Preview Workout</button>
+      <button class="btn btn-outline" onclick="skipWorkout(${di})">${esc(t('workout.skip'))}</button>
+      <button class="btn btn-outline" onclick="openPreview(${di})">${esc(t('workout.preview'))}</button>
     </div>`}
-    <div class="section-title">Overview <span class="faint">hold ⠿ to reorder</span></div>
+    <div class="section-title">${esc(t('workout.overview'))} <span class="faint">${esc(t('workout.reorder_hint'))}</span></div>
     <div id="ex-list">${cards}</div>
     ${timeBudgetHTML(di)}
-    <button class="btn btn-outline" style="border-radius:24px" onclick="openAddExercise(${di})">＋ Add Exercise</button>
+    <button class="btn btn-outline" style="border-radius:24px" onclick="openAddExercise(${di})">${esc(t('workout.add_exercise'))}</button>
   </div>${tabbar()}`;
 }
 function prevDay() { V.dayIdx = Math.max(0, currentDayIdx() - 1); render(); }
@@ -2795,7 +2822,7 @@ function commitReorder(di, order) {
   S.lastOrderTs = Date.now();
   logReadiness(computeReadiness());
   save(); render();
-  toast('Order updated. Small readiness hit for the shuffle', true);
+  toast(t('workout.order_toast'), true);
 }
 
 // --- swipe-left-to-remove (accessories + added exercises) ---
@@ -2854,11 +2881,11 @@ function removeSlot(di, si) {
   const p = P();
   const slot = p.days[di].slots[si];
   if (!slot) return;
-  const name = resolveSlot(slot, p.pointer.block, p.pointer.week).name || 'Exercise';
+  const name = resolveSlot(slot, p.pointer.block, p.pointer.week).name || t('common.exercise');
   LAST_REMOVED = { di, si, slot };
   p.days[di].slots.splice(si, 1);
   save(); render();
-  toastAction(name + ' removed', 'Undo', undoRemove);
+  toastAction(t('tech.removed', { name }), t('common.undo'), undoRemove);
 }
 function undoRemove() {
   if (!LAST_REMOVED) return;
@@ -2867,14 +2894,14 @@ function undoRemove() {
   slots.splice(Math.min(si, slots.length), 0, slot);
   LAST_REMOVED = null;
   save(); render();
-  toast('Removal undone');
+  toast(t('workout.removal_undone'));
 }
 
 function skipWorkout(di) {
   confirmModal({
-    title: 'Skip this workout?',
-    message: 'Skipping lowers your readiness, and the penalty decays over the next few days.',
-    confirmLabel: 'Skip workout',
+    title: t('workout.skip_title'),
+    message: t('workout.skip_msg'),
+    confirmLabel: t('workout.skip_confirm'),
     danger: true,
   }, () => doSkipWorkout(di));
 }
@@ -2887,7 +2914,7 @@ function doSkipWorkout(di) {
                     entries: [], skipped: true, tonnage: 0 });
   logReadiness(computeReadiness());
   save();
-  toast('Workout skipped. Readiness lowered', true);
+  toast(t('workout.skipped_toast'), true);
   V.dayIdx = null;
   render();
 }
@@ -2915,7 +2942,8 @@ function checkinGroupsForDay(day) {
   if (groups.has('squat') || groups.has('deadlift')) groups.set('lowback', CHECKIN_GROUPS.lowback);
   return [...groups.values()];
 }
-const FEEL_WORDS = ['low', 'tired', 'normal', 'great', 'extra'];
+// Copy lives in the i18n catalogs ('ci.feel_1'..'ci.feel_5').
+const feelWord = v => t('ci.feel_' + v);
 
 function startCheckin(di) {
   const day = P().days[di];
@@ -2932,49 +2960,48 @@ function vCheckin() {
   const step = V.checkinStep;
   let body = '';
   const header = `
-    <div class="checkin-step-label">◌ Step ${step + 1} of ${totalSteps}</div>
-    <div class="checkin-title">${esc(block.label)} · Week ${globalWeekNum()}, Day ${cd.di + 1}</div>`;
+    <div class="checkin-step-label">◌ ${esc(t('ci.step', { n: step + 1, total: totalSteps }))}</div>
+    <div class="checkin-title">${esc(block.label)} · ${esc(t('session.week_day', { week: globalWeekNum(), day: cd.di + 1 }))}</div>`;
 
   if (step === 0) {
     body = `${header}
       <div class="slider-card">
-        <div class="q">How many hours did you sleep last night?</div>
-        <div class="feeling"><b id="sleep-val">${cd.sleepHours}</b> hours</div>
+        <div class="q">${esc(t('ci.sleep_q'))}</div>
+        <div class="feeling">${t('ci.hours', { h: `<b id="sleep-val">${cd.sleepHours}</b>` })}</div>
         <input type="range" min="3" max="10" step="0.5" value="${cd.sleepHours}"
           oninput="cd_sleep(this.value)">
-        <div class="range-labels"><span>3H</span><span>6H</span><span>10H</span></div>
-        ${cd.sleepHours < 6 ? `<div class="banner-warn mt8">Under 6 hours. Today's session will flag extra-fatigue sets. Don't chase numbers.</div>` : ''}
+        <div class="range-labels"><span>${esc(t('ci.hours_short', { n: 3 }))}</span><span>${esc(t('ci.hours_short', { n: 6 }))}</span><span>${esc(t('ci.hours_short', { n: 10 }))}</span></div>
+        ${cd.sleepHours < 6 ? `<div class="banner-warn mt8">${esc(t('ci.short_sleep_warn'))}</div>` : ''}
       </div>
-      <button class="btn btn-blue" onclick="cd_next()">Next</button>`;
+      <button class="btn btn-blue" onclick="cd_next()">${esc(t('common.next'))}</button>`;
   } else if (step <= cd.groups.length) {
     const g = cd.groups[step - 1];
     const val = cd.sliders[g.key];
     body = `${header}
       <div class="bodymap">🫀</div>
       <div class="slider-card">
-        <div class="q">How are your ${esc(g.label)} feeling today?</div>
-        <div class="feeling">They are feeling <b>${FEEL_WORDS[val - 1]}</b></div>
+        <div class="q">${esc(t('ci.group_q', { group: t('ci.group_' + g.key) }))}</div>
+        <div class="feeling">${t('ci.feeling', { word: `<b>${esc(feelWord(val))}</b>` })}</div>
         <input type="range" min="1" max="5" step="1" value="${val}"
           oninput="cd_slider('${g.key}', this.value)">
-        <div class="range-labels"><span>LOW</span><span>TIRED</span><span>NORMAL</span><span>GREAT</span><span>EXTRA</span></div>
+        <div class="range-labels">${[1, 2, 3, 4, 5].map(v => `<span>${esc(feelWord(v).toUpperCase())}</span>`).join('')}</div>
       </div>
-      <button class="btn btn-blue" onclick="cd_next()">Next</button>`;
+      <button class="btn btn-blue" onclick="cd_next()">${esc(t('common.next'))}</button>`;
   } else {
     body = `${header}
-      <div class="subtle" style="margin-top:8px">Mindset Preparation</div>
-      <p class="faint">Time to get focused. What is something you hope to achieve today?
-      For example: today I am going to focus on consistent technique in all sets.</p>
-      <input class="checkin-input" id="ci-mindset" placeholder="Today I am going to…" value="${esc(cd.mindset)}">
+      <div class="subtle" style="margin-top:8px">${esc(t('ci.mindset_title'))}</div>
+      <p class="faint">${esc(t('ci.mindset_body'))}</p>
+      <input class="checkin-input" id="ci-mindset" placeholder="${esc(t('ci.mindset_ph'))}" value="${esc(cd.mindset)}">
       <div class="card mt16">
-        <div style="font-weight:600;margin-bottom:6px">🩹 Are you currently rehabbing any injuries?</div>
-        ${['Squat','Bench','Deadlift'].map(l => `
+        <div style="font-weight:600;margin-bottom:6px">${esc(t('ci.injury_q'))}</div>
+        ${[['squat', 'Squat'], ['bench', 'Bench'], ['deadlift', 'Deadlift']].map(([key, l]) => `
           <label class="check-row"><input type="checkbox" ${cd.injuries.includes(l) ? 'checked' : ''}
-            onchange="cd_injury('${l}', this.checked)"> ${l}</label>`).join('')}
+            onchange="cd_injury('${l}', this.checked)"> ${esc(t('lift.' + key))}</label>`).join('')}
       </div>
-      <button class="btn btn-green mt16" onclick="beginSession()">Start Workout</button>`;
+      <button class="btn btn-green mt16" onclick="beginSession()">${esc(t('ci.start_workout'))}</button>`;
   }
   return `<header class="topbar"><button class="btn-ghost" onclick="nav('workout')">‹</button>
-    <span style="font-weight:700">Workout Readiness Checkin</span><span></span></header>
+    <span style="font-weight:700">${esc(t('ci.title'))}</span><span></span></header>
     <div class="view">${body}</div>`;
 }
 function cd_sleep(v) { V.checkinData.sleepHours = parseFloat(v);
@@ -3030,6 +3057,7 @@ function sessionEntryFrom(x) {
     sets: x.rs.sets.map(t => ({
       targetWeight: t.weight ?? null, targetReps: t.reps, targetRpe: t.rpe ?? null,
       amrap: !!t.amrap, ramp: !!t.ramp, calib: !!t.calib, note: t.note || null,
+      noteKey: t.noteKey || null, noteParams: t.noteParams || null,
       technique: t.technique || null, dropTargets: t.drops || null,
       weight: null, reps: null, rpe: null, drops: null, done: false,
     })),
@@ -3070,18 +3098,31 @@ function setTargetLabel(st, exId) {
 // (calibration explainer, deload copy) hoists to ONE card-level hint; rows keep
 // only what differs per set ('build up', 'top set'). Display-only: the engine's
 // set objects and notes are untouched, so nothing prescription-side moves.
+// [i18n phase 3] Resolve a set's note to display text: a keyed note translates
+// through the catalogs ('note.<key>'); a legacy stored English `note` string
+// (pre-phase-3 sessions and drafts) renders verbatim, no migration.
+function setNoteText(st) {
+  if (st.noteKey) return t('note.' + st.noteKey, st.noteParams || undefined);
+  return st.note || null;
+}
 function cardHintFor(sets) {
   const work = sets.filter(s => !s.ramp);
   if (!work.length) return null;
   if (work.every(s => s.calib)) return t('session.calibration_hint');
-  const notes = [...new Set(work.map(s => s.note).filter(Boolean))];
-  return (notes.length === 1 && work.every(s => s.note)) ? notes[0] : null;
+  const notes = [...new Set(work.map(setNoteText).filter(Boolean))];
+  return (notes.length === 1 && work.every(s => setNoteText(s))) ? notes[0] : null;
 }
 function displaySetNote(st, cardHint) {
-  if (!st.note) return null;
-  if (cardHint && st.note === cardHint) return null; // hoisted to the card line
-  if (st.calib) return st.note.replace(/^Calibration(\s*·\s*)?/, '') || null;
-  return st.note;
+  const txt = setNoteText(st);
+  if (!txt) return null;
+  if (cardHint && txt === cardHint) return null; // hoisted to the card line
+  if (st.calib) {
+    // Keyed calibration notes have explicit short display forms; the bare
+    // middle set ('calib') shows nothing. Legacy strings strip their prefix.
+    if (st.noteKey) return st.noteKey === 'calib' ? null : t('note.' + st.noteKey + '_short');
+    return st.note.replace(/^Calibration(\s*·\s*)?/, '') || null;
+  }
+  return txt;
 }
 
 // [Cluster B] One-time "we switched to RIR" note, dismissed for good once read.
@@ -3513,7 +3554,7 @@ function playTestChime(id) {
   }
   if (navigator.vibrate) { try { navigator.vibrate(150); } catch (_) {} }
   const cfg = CHIME_CONFIGS.find(c => c.id === id);
-  toast('Played: ' + (cfg ? cfg.label : id));
+  toast(t('set.chime_played', { label: cfg ? cfg.label : id }));
 }
 function startRestTimer(kind, exId) {
   const dur = Engine.restSecFor(kind, sessionTight(), TIME_MODEL);
@@ -3885,7 +3926,7 @@ function donePerf() {
         P().wm[e.wmKey] = res.newWM;
         V.draft.wmChange = { name: e.name, from: res.newWM - res.delta, to: res.newWM, delta: res.delta, capped: res.capped };
         toast(t('perf.wm_up', { name: e.name, from: kg(res.newWM - res.delta), to: kg(res.newWM) }) + (res.capped ? ' ' + t('perf.wm_capped') : ''));
-      } else toast(res.msg, true);
+      } else toast(t(st.reps < wave.standard ? 'perf.wm_below_standard' : 'perf.wm_standard_met'), true);
     } else {
       toast(t('perf.amrap_variation'));
     }
@@ -4067,14 +4108,14 @@ function finishSession() {
 function openPreview(di) {
   const built = resolveDayEntries(di, P().pointer.block, P().pointer.week);
   const timeNote = built.capMin
-    ? `<p class="faint" style="margin-bottom:10px">Core about ${built.coreMin} min, within your ${built.capMin} min limit.${built.optItems.length ? ' Optional, if you have time: ' + esc(built.optionalNames.join(', ')) + ' (about ' + (built.fullMin - built.coreMin) + ' min more).' : ''}</p>`
+    ? `<p class="faint" style="margin-bottom:10px">${esc(t('preview.core_within', { core: built.coreMin, cap: built.capMin }))}${built.optItems.length ? ' ' + esc(t('preview.optional_note', { list: built.optionalNames.join(', '), extra: built.fullMin - built.coreMin })) : ''}</p>`
     : '';
   showModal(anim => {
-    $modal.innerHTML = modalShell(anim, 'Preview', timeNote +
+    $modal.innerHTML = modalShell(anim, t('preview.title'), timeNote +
       built.items.map(x => {
         const rs = x.rs, work = rs.sets.filter(s => !s.ramp);
-        return `<div class="lift-card ${rs.optional ? 'optional' : ''}"><h3 style="font-size:1.2rem">${esc(rs.name)}${rs.optional ? ' <span class="opt-tag">optional</span>' : ''}</h3>
-          <div class="scheme">${work.length} sets x ${work[0]?.reps ?? ''} reps</div>
+        return `<div class="lift-card ${rs.optional ? 'optional' : ''}"><h3 style="font-size:1.2rem">${esc(rs.name)}${rs.optional ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}</h3>
+          <div class="scheme">${esc(t('session.sets_x_reps', { sets: work.length, reps: work[0]?.reps ?? '' }))}</div>
           ${rs.sets.map((s, i) => `<div class="set-row"><span class="num">${i + 1}</span>
             <span class="target">${s.weight != null ? fmtW(rs.exId, s.weight) + ' × ' : ''}${s.amrap ? 'AMRAP' : s.reps}${s.rpe ? ' @ ' + s.rpe + ' RPE' : ''}</span>
           </div>`).join('')}
@@ -4103,11 +4144,11 @@ function openSwap(di, si) {
 function renderSwap(anim) {
   const slot = P().days[SW.di].slots[SW.si];
   const note = SW.isMain
-    ? `<p class="faint" style="margin-bottom:8px">Variations run the same wave percentages off the ${esc(exName(slot.baseLift || slot.lift))} working max. AMRAPs on a variation won't move that max.</p>`
+    ? `<p class="faint" style="margin-bottom:8px">${esc(t('swap.main_note', { name: exName(slot.baseLift || slot.lift) }))}</p>`
     : (timeCapMin() ? timeBudgetHTML(SW.di) : '');
-  $modal.innerHTML = modalShell(anim, slot.type === 'select' ? 'Select Exercise' : 'Swap Exercise',
+  $modal.innerHTML = modalShell(anim, t(slot.type === 'select' ? 'swap.select_title' : 'swap.title'),
     `${note}
-     <input class="search-input" placeholder="Search any exercise…" value="${esc(SW.q)}" oninput="SW.q=this.value;refreshSwapBody()">
+     <input class="search-input" placeholder="${esc(t('swap.search_ph'))}" value="${esc(SW.q)}" oninput="SW.q=this.value;refreshSwapBody()">
      <div id="swap-body">${swapBodyHTML()}</div>`);
 }
 // [Cluster C] Muscle heads already trained on a day, for the same movement group
@@ -4128,7 +4169,7 @@ function dayHeadsCovered(di, exceptSi, cat) {
 function swapBodyHTML() {
   const used = new Set(Object.keys(S.records));
   const ql = SW.q.trim().toLowerCase();
-  const matchText = e => !ql || e.name.toLowerCase().includes(ql);
+  const matchText = e => exMatches(e, ql);
   const matchEquip = e => SW.equip === 'all' || e.equipment === SW.equip;
   const all = allExercises().filter(e => e.id !== SW.current);
   // [Cluster C] On accessory slots, bias the order toward better stimulus:
@@ -4157,7 +4198,7 @@ function swapBodyHTML() {
   const sortFn = (a, b) => (used.has(b.id) - used.has(a.id))
     || (sfrBias ? (fillsGap(b) - fillsGap(a)) : 0)
     || (sfrBias ? ((b.sfr || 2) - (a.sfr || 2)) : 0)
-    || a.name.localeCompare(b.name);
+    || exDisplayName(a).localeCompare(exDisplayName(b));
 
   // Chips reflect the pool the athlete can actually browse: just the
   // recommended movement for a main slot, every exercise otherwise.
@@ -4168,7 +4209,7 @@ function swapBodyHTML() {
   const recommended = all.filter(e => e.movement === SW.cat && matchEquip(e) && matchText(e)).sort(sortFn);
   const recHTML = recommended.length
     ? recommended.map(e => swapCardHTML(e, false, fillsGap(e))).join('')
-    : `<p class="faint mt8">No matches in this group${SW.equip === 'all' ? '' : ' for ' + EQUIP_LABEL[SW.equip].toLowerCase()}.</p>`;
+    : `<p class="faint mt8">${esc(SW.equip === 'all' ? t('swap.no_matches') : t('swap.no_matches_equip', { equip: t('equip.' + SW.equip).toLowerCase() }))}</p>`;
 
   // Out-of-group browsing lets an athlete fine tune freely: a machine they
   // like, or a muscle they want to bias, regardless of the slot's category.
@@ -4179,13 +4220,13 @@ function swapBodyHTML() {
     if (ql) {
       // A name search spans everything, since the athlete may not know which
       // muscle group the machine they are looking for lives under.
-      otherSection = others.length ? `<div class="section-title" style="margin-top:14px">Other muscle groups</div>${others.map(e => swapCardHTML(e, true)).join('')}` : '';
+      otherSection = others.length ? `<div class="section-title" style="margin-top:14px">${esc(t('swap.other_groups'))}</div>${others.map(e => swapCardHTML(e, true)).join('')}` : '';
     } else {
-      otherSection = `<button class="browse-toggle" onclick="SW.showOther=!SW.showOther;refreshSwapBody()" style="margin-top:12px">${SW.showOther ? 'Hide' : 'Browse'} other muscle groups ${SW.showOther ? '▴' : '▾'}</button>`;
-      if (SW.showOther) otherSection += `<div class="section-title" style="margin-top:12px">Other muscle groups</div>${others.map(e => swapCardHTML(e, true)).join('')}`;
+      otherSection = `<button class="browse-toggle" onclick="SW.showOther=!SW.showOther;refreshSwapBody()" style="margin-top:12px">${esc(t(SW.showOther ? 'swap.hide_other' : 'swap.browse_other'))} ${SW.showOther ? '▴' : '▾'}</button>`;
+      if (SW.showOther) otherSection += `<div class="section-title" style="margin-top:12px">${esc(t('swap.other_groups'))}</div>${others.map(e => swapCardHTML(e, true)).join('')}`;
     }
   }
-  return `${chips}<div class="section-title" style="margin-top:4px">Recommended</div>${recHTML}${otherSection}`;
+  return `${chips}<div class="section-title" style="margin-top:4px">${esc(t('swap.recommended'))}</div>${recHTML}${otherSection}`;
 }
 function refreshSwapBody() { const el = byId('swap-body'); if (el) el.innerHTML = swapBodyHTML(); }
 function setSwapEquip(v) { SW.equip = v; refreshSwapBody(); }
@@ -4201,24 +4242,24 @@ function swapCardHTML(e, showGroup, gap) {
     if (SW.curCost != null) {
       const net = cost - SW.curCost;
       costTag = net === 0
-        ? ` <span class="cost-tag">same time</span>`
-        : ` <span class="cost-tag">${net > 0 ? '+' : '−'}${Math.abs(net)} min</span>`;
+        ? ` <span class="cost-tag">${esc(t('swap.same_time'))}</span>`
+        : ` <span class="cost-tag">${esc(t(net > 0 ? 'swap.plus_min' : 'swap.minus_min', { n: Math.abs(net) }))}</span>`;
     } else {
-      costTag = ` <span class="cost-tag">+${cost} min</span>`;
+      costTag = ` <span class="cost-tag">${esc(t('swap.plus_min', { n: cost }))}</span>`;
     }
   }
   // [Cluster C] When this exercise covers a head the day is missing, say so.
-  const gapTag = (gap && e.head && HEAD_LABELS[e.head]) ? ` <span class="ex-tag gap">Adds ${HEAD_LABELS[e.head]}</span>` : '';
+  const gapTag = (gap && e.head && HEAD_LABELS[e.head]) ? ` <span class="ex-tag gap">${esc(t('swap.adds_head', { head: headLabel(e.head) }))}</span>` : '';
   // [Cluster C] Conversely, warn when its region is already at/over its per-head
   // MRV this week, so piling on is the wrong pick. Suppressed when the candidate
   // also fills a gap (it cannot both max a region and fill a missing one).
   const overTag = (!gap && e.head && SW.overHeads && SW.overHeads.has(e.head) && HEAD_LABELS[e.head])
-    ? ` <span class="ex-tag over">${HEAD_LABELS[e.head]} maxed</span>` : '';
+    ? ` <span class="ex-tag over">${esc(t('swap.head_maxed', { head: headLabel(e.head) }))}</span>` : '';
   return `<div class="ex-card">
-      <span class="name">${esc(e.name)}${costTag}${gapTag}${overTag}${showGroup ? `<span class="sub">${MOVEMENTS[e.movement]?.label || ''}</span>` : ''}${exTagsHTML(e)}</span>
+      <span class="name">${esc(exDisplayName(e))}${costTag}${gapTag}${overTag}${showGroup ? `<span class="sub">${esc(mvLabel(e.movement))}</span>` : ''}${exTagsHTML(e)}</span>
       <span class="actions">
-        <button class="icon-btn" onclick="openExDetail('${e.id}')"><span class="ic">ⓘ</span>Info</button>
-        <button class="icon-btn" onclick="doSwap(${SW.di},${SW.si},'${e.id}')"><span class="ic">☐</span>Select</button>
+        <button class="icon-btn" onclick="openExDetail('${e.id}')"><span class="ic">ⓘ</span>${esc(t('common.info'))}</button>
+        <button class="icon-btn" onclick="doSwap(${SW.di},${SW.si},'${e.id}')"><span class="ic">☐</span>${esc(t('common.select'))}</button>
       </span></div>`;
 }
 function doSwap(di, si, exId) {
@@ -4237,22 +4278,22 @@ function doSwap(di, si, exId) {
     if (item && ei >= 0) dr.entries[ei] = sessionEntryFrom(item);
   }
   save(); closeAllModals(); render();
-  toast(exName(exId) + ' set for ' + P().days[di].name);
+  toast(t('swap.set_for', { name: exName(exId), day: dayTheme(P().days[di]) || t('common.day_n', { n: di + 1 }) }));
 }
 let ADDF = { equip: 'all', q: '' };
 function openAddExercise(di) {
   V.addTarget = di;
   ADDF = { equip: 'all', q: '' };
   showModal(anim => {
-    $modal.innerHTML = modalShell(anim, 'Add Exercise', `
+    $modal.innerHTML = modalShell(anim, t('add.title'), `
         ${timeCapMin() ? timeBudgetHTML(di) : ''}
-        <input class="search-input" placeholder="Search…" oninput="ADDF.q=this.value;refreshAddBody()">
+        <input class="search-input" placeholder="${esc(t('add.search_ph'))}" oninput="ADDF.q=this.value;refreshAddBody()">
         <div id="add-body">${addBodyHTML()}</div>`);
   });
 }
 function addBodyHTML() {
   const ql = ADDF.q.trim().toLowerCase();
-  const matchText = e => !ql || e.name.toLowerCase().includes(ql);
+  const matchText = e => exMatches(e, ql);
   const matchEquip = e => ADDF.equip === 'all' || e.equipment === ADDF.equip;
   const equips = [...new Set(allExercises().map(e => e.equipment))].sort((a, b) => EQUIP_ORDER.indexOf(a) - EQUIP_ORDER.indexOf(b));
   const list = allExercises().filter(e => matchEquip(e) && matchText(e)).slice(0, 60);
@@ -4263,13 +4304,13 @@ function addBodyHTML() {
   const items = list.length
     ? list.map(e => {
       const cost = capped ? candidateCostMin(e.id) : null;
-      const costTxt = cost ? ` · ~${cost} min` : '';
-      const overTag = (e.head && overHeads.has(e.head) && HEAD_LABELS[e.head]) ? ` <span class="ex-tag over">${HEAD_LABELS[e.head]} maxed</span>` : '';
+      const costTxt = cost ? ` · ${esc(t('add.cost', { n: cost }))}` : '';
+      const overTag = (e.head && overHeads.has(e.head) && HEAD_LABELS[e.head]) ? ` <span class="ex-tag over">${esc(t('swap.head_maxed', { head: headLabel(e.head) }))}</span>` : '';
       return `<button class="lib-item" onclick="doAddExercise('${e.id}')">
-      <span>${esc(e.name)}<span class="sub">${MOVEMENTS[e.movement]?.label || ''} · ${EQUIP_LABEL[e.equipment] || ''}${costTxt}</span>${exTagsHTML(e)}${overTag}</span><span>＋</span>
+      <span>${esc(exDisplayName(e))}<span class="sub">${esc(mvLabel(e.movement))} · ${EQUIP_LABEL[e.equipment] ? esc(t('equip.' + e.equipment)) : ''}${costTxt}</span>${exTagsHTML(e)}${overTag}</span><span>＋</span>
     </button>`;
     }).join('')
-    : '<p class="faint mt8">No matches.</p>';
+    : `<p class="faint mt8">${esc(t('add.no_matches'))}</p>`;
   return `${equipChips(equips, ADDF.equip, 'setAddEquip')}${items}`;
 }
 function refreshAddBody() { const el = byId('add-body'); if (el) el.innerHTML = addBodyHTML(); }
@@ -4278,7 +4319,7 @@ function doAddExercise(exId) {
   const ex = exById(exId);
   P().days[V.addTarget].slots.push({ type: 'acc', cat: ex.movement, ex: exId, added: true });
   save(); closeAllModals(); render();
-  toast(ex.name + ' added');
+  toast(t('add.added_toast', { name: ex.name }));
 }
 
 // ------------------------------------------------------------
@@ -4289,35 +4330,35 @@ function vHistory() {
   const sessions = [...S.sessions].reverse();
   let body;
   if (!sessions.length) {
-    body = `<div class="card mt16"><b>No sessions yet.</b>
-      <p class="subtle mt8">Finish your first workout and your tonnage shows up here, session by session.</p></div>`;
+    body = `<div class="card mt16"><b>${esc(t('hist.empty_title'))}</b>
+      <p class="subtle mt8">${esc(t('hist.empty_body'))}</p></div>`;
   } else {
     const maxT = Math.max(...sessions.map(s => s.tonnage || 0), 1);
     body = sessions.map(s => {
       const pct = Math.max(8, (s.tonnage || 0) / maxT * 100);
-      const label = `${blockOf(s.b)?.label || ''} · W${s.b * P().weeksPerBlock + s.w + 1} D${s.d + 1}`;
+      const label = `${blockOf(s.b)?.label || ''} · ${t('hist.wd', { w: s.b * P().weeksPerBlock + s.w + 1, d: s.d + 1 })}`;
       return `<button class="hist-row ${s.skipped ? 'skipped' : ''}" style="display:block;width:100%;text-align:left" onclick="openSessionDetail('${s.id}')">
-        <div class="meta"><span>${fmtDate(s.ts)} · ${esc(label)}</span><span>${s.skipped ? 'Skipped' : (s.rating ? 'rated ' + s.rating + '/10' : '')}</span></div>
+        <div class="meta"><span>${fmtDate(s.ts)} · ${esc(label)}</span><span>${s.skipped ? esc(t('session.skipped')) : (s.rating ? esc(t('hist.rated', { n: s.rating })) : '')}</span></div>
         <div class="bar-track"><div class="bar" style="width:${s.skipped ? 100 : pct}%">${s.skipped ? '—' : (s.tonnage || 0).toLocaleString() + ' kg'}</div></div>
       </button>`;
     }).join('');
   }
-  return `${topbar('History')}<div class="view">
-    <div class="section-title">Total Session Tonnage</div>
-    <p class="faint" style="margin-bottom:14px">Sum of weight × reps across every logged set.</p>
+  return `${topbar(t('tab.history'))}<div class="view">
+    <div class="section-title">${esc(t('hist.title'))}</div>
+    <p class="faint" style="margin-bottom:14px">${esc(t('hist.sub'))}</p>
     ${body}</div>${tabbar()}`;
 }
 // Shared per-lift rendering for the history modal and the post-workout summary.
 function sessionSetRowsHTML(e, withTarget) {
   const done = e.sets.filter(x => x.done);
-  if (!done.length) return '<p class="faint">No sets logged</p>';
+  if (!done.length) return `<p class="faint">${esc(t('sum.no_sets'))}</p>`;
   return done.map((x, i) => {
     const actual = `${fmtW(e.exId, x.weight)} × ${x.reps} · ${fmtRir(x.rpe)}`;
     let tgt = '';
     if (withTarget) {
       tgt = x.targetWeight != null
-        ? ` <small>target ${fmtW(e.exId, x.targetWeight)} × ${x.targetReps}${x.targetRpe ? ' · ' + fmtRir(x.targetRpe) : ''}</small>`
-        : (x.targetReps ? ` <small>target ${x.targetReps} reps${x.targetRpe ? ' · ' + fmtRir(x.targetRpe) : ''}</small>` : '');
+        ? ` <small>${esc(t('sum.target_w', { w: fmtW(e.exId, x.targetWeight), reps: x.targetReps }))}${x.targetRpe ? ' · ' + fmtRir(x.targetRpe) : ''}</small>`
+        : (x.targetReps ? ` <small>${esc(t('sum.target_reps', { reps: x.targetReps }))}${x.targetRpe ? ' · ' + fmtRir(x.targetRpe) : ''}</small>` : '');
     }
     const drops = (x.drops && x.drops.length) ? ` <small class="faint">${childWord(x.technique)} ${dropDetail(e.exId, x.drops)}</small>` : '';
     return `<div class="set-row"><span class="num">${i + 1}</span>
@@ -4334,9 +4375,9 @@ function openSessionDetail(id) {
   if (!s || s.skipped) return;
   showModal(anim => {
     $modal.innerHTML = modalShell(anim, fmtDate(s.ts), `
-        <div class="row" style="margin-bottom:10px"><span class="subtle">Tonnage</span><b>${(s.tonnage || 0).toLocaleString()} kg</b></div>
-        ${s.rating ? `<div class="row" style="margin-bottom:10px"><span class="subtle">Session rating</span><b>${s.rating} / 10</b></div>` : ''}
-        ${s.mindset ? `<div class="card accent"><span class="faint">Focus</span><div>${esc(s.mindset)}</div></div>` : ''}
+        <div class="row" style="margin-bottom:10px"><span class="subtle">${esc(t('sum.tonnage'))}</span><b>${(s.tonnage || 0).toLocaleString()} kg</b></div>
+        ${s.rating ? `<div class="row" style="margin-bottom:10px"><span class="subtle">${esc(t('sum.rating'))}</span><b>${s.rating} / 10</b></div>` : ''}
+        ${s.mindset ? `<div class="card accent"><span class="faint">${esc(t('sum.focus'))}</span><div>${esc(s.mindset)}</div></div>` : ''}
         ${s.entries.map(e => sessionLiftCardHTML(e, false)).join('')}`);
   });
 }
@@ -4345,7 +4386,7 @@ function openSessionDetail(id) {
 // VIEW: POST-WORKOUT SUMMARY (Change 3)
 // ------------------------------------------------------------
 function openSummaryFor(id) {
-  if (!S.sessions.some(x => x.id === id)) { toast('Summary not found', true); return; }
+  if (!S.sessions.some(x => x.id === id)) { toast(t('sum.not_found'), true); return; }
   V.summaryId = id;
   nav('summary');
 }
@@ -4355,22 +4396,22 @@ function vSummary() {
   if (!s || s.skipped) { V.view = 'dashboard'; return vDashboard(); }
   const block = blockOf(s.b);
   const wmc = s.wmChange;
-  return `${topbar('Summary')}
+  return `${topbar(t('sum.title'))}
   <div class="view">
     <div class="mt8">
       <div style="color:${BLOCK_COLORS[block?.type] || 'var(--blue)'};font-weight:600">${esc(block?.label || '')}</div>
-      <div style="font-size:1.6rem;font-weight:800">Week ${s.b * P().weeksPerBlock + s.w + 1}, Day ${s.d + 1} complete ✓</div>
+      <div style="font-size:1.6rem;font-weight:800">${esc(t('sum.day_done', { week: s.b * P().weeksPerBlock + s.w + 1, day: s.d + 1 }))}</div>
     </div>
     <div class="card accent mt8">
-      <div class="row"><span class="subtle">Total tonnage</span><b>${(s.tonnage || 0).toLocaleString()} kg</b></div>
-      <div class="row mt8"><span class="subtle">Session rating</span><b>${s.rating ? s.rating + ' / 10' : '—'}</b></div>
-      <div class="row mt8"><span class="subtle">Readiness</span><b>${s.readiness != null ? s.readiness.toFixed(2) : '—'}</b></div>
-      ${wmc ? `<div class="row mt8"><span class="subtle">${esc(wmc.name)} working max</span><b style="color:var(--blue)">${kg(wmc.from)} → ${kg(wmc.to)} kg${wmc.capped ? ' (capped)' : ''}</b></div>` : ''}
+      <div class="row"><span class="subtle">${esc(t('sum.total_tonnage'))}</span><b>${(s.tonnage || 0).toLocaleString()} kg</b></div>
+      <div class="row mt8"><span class="subtle">${esc(t('sum.rating'))}</span><b>${s.rating ? s.rating + ' / 10' : '—'}</b></div>
+      <div class="row mt8"><span class="subtle">${esc(t('dash.readiness'))}</span><b>${s.readiness != null ? s.readiness.toFixed(2) : '—'}</b></div>
+      ${wmc ? `<div class="row mt8"><span class="subtle">${esc(t('sum.wm_row', { name: wmc.name }))}</span><b style="color:var(--blue)">${kg(wmc.from)} → ${kg(wmc.to)} kg${wmc.capped ? ' ' + esc(t('sum.capped')) : ''}</b></div>` : ''}
     </div>
-    <div class="section-title" style="font-size:1.2rem">Sets logged <span class="faint">actual vs target</span></div>
+    <div class="section-title" style="font-size:1.2rem">${esc(t('sum.sets_logged'))} <span class="faint">${esc(t('sum.actual_vs_target'))}</span></div>
     ${s.entries.map(e => sessionLiftCardHTML(e, true)).join('')}
-    <button class="btn btn-green mt16" onclick="nav('dashboard')">Back to dashboard</button>
-    <button class="btn btn-outline mt8" onclick="V.tab='history';nav('history')">View history</button>
+    <button class="btn btn-green mt16" onclick="nav('dashboard')">${esc(t('sum.back_dash'))}</button>
+    <button class="btn btn-outline mt8" onclick="V.tab='history';nav('history')">${esc(t('sum.view_history'))}</button>
   </div>${tabbar()}`;
 }
 function redoDay(i) {
@@ -4379,9 +4420,9 @@ function redoDay(i) {
   const sid = p.completedDays[k];
   if (!sid || sid === 'skipped') { startCheckin(i); return; }
   confirmModal({
-    title: 'Redo this day?',
-    message: 'The logged session for this day will be removed and replaced from scratch.',
-    confirmLabel: 'Redo day',
+    title: t('workout.redo_title'),
+    message: t('workout.redo_msg'),
+    confirmLabel: t('workout.redo_day'),
     danger: true,
   }, () => {
     S.sessions = S.sessions.filter(x => x.id !== sid); // drop the prior session so nothing is orphaned
@@ -4396,13 +4437,13 @@ function redoDay(i) {
 // ------------------------------------------------------------
 function vExercises() {
   const q = V.libSearch.toLowerCase();
-  let list = allExercises().filter(e => !q || e.name.toLowerCase().includes(q));
+  let list = allExercises().filter(e => exMatches(e, q));
   let body = '';
   if (V.libTab === 'alpha') {
-    list.sort((a, b) => a.name.localeCompare(b.name));
+    list.sort((a, b) => exDisplayName(a).localeCompare(exDisplayName(b)));
     let letter = '';
     body = list.map(e => {
-      const L = e.name[0].toUpperCase();
+      const L = exDisplayName(e)[0].toUpperCase();
       const head = L !== letter ? `<div class="lib-letter">${L}</div>` : '';
       letter = L;
       return head + libItemHTML(e);
@@ -4411,55 +4452,54 @@ function vExercises() {
     body = Object.entries(MOVEMENTS).map(([mv, m]) => {
       const items = list.filter(e => e.movement === mv);
       if (!items.length) return '';
-      return `<div class="lib-letter">${m.label}</div>` +
-        items.sort((a, b) => a.name.localeCompare(b.name)).map(libItemHTML).join('');
+      return `<div class="lib-letter">${esc(mvLabel(mv))}</div>` +
+        items.sort((a, b) => exDisplayName(a).localeCompare(exDisplayName(b))).map(libItemHTML).join('');
     }).join('');
   } else {
     const used = new Set(Object.keys(S.records));
     const mine = list.filter(e => used.has(e.id) || S.customEx.some(c => c.id === e.id));
-    body = mine.length ? mine.sort((a, b) => a.name.localeCompare(b.name)).map(libItemHTML).join('')
-      : `<div class="card mt16"><b>Nothing here yet.</b><p class="subtle mt8">Exercises you've logged or created appear here.</p></div>`;
-    body += `<button class="btn btn-blue mt16" onclick="openCustomEx()">＋ Create Custom Exercise</button>`;
+    body = mine.length ? mine.sort((a, b) => exDisplayName(a).localeCompare(exDisplayName(b))).map(libItemHTML).join('')
+      : `<div class="card mt16"><b>${esc(t('lib.mine_empty_title'))}</b><p class="subtle mt8">${esc(t('lib.mine_empty_body'))}</p></div>`;
+    body += `<button class="btn btn-blue mt16" onclick="openCustomEx()">${esc(t('lib.create_custom'))}</button>`;
   }
-  return `${topbar('Exercises')}<div class="view">
+  return `${topbar(t('lib.title'))}<div class="view">
     <div class="tabs">
-      <button class="${V.libTab === 'alpha' ? 'on' : ''}" onclick="libTab('alpha')">Alphabetical</button>
-      <button class="${V.libTab === 'movements' ? 'on' : ''}" onclick="libTab('movements')">Movements</button>
-      <button class="${V.libTab === 'mine' ? 'on' : ''}" onclick="libTab('mine')">My Exercises</button>
+      <button class="${V.libTab === 'alpha' ? 'on' : ''}" onclick="libTab('alpha')">${esc(t('lib.tab_alpha'))}</button>
+      <button class="${V.libTab === 'movements' ? 'on' : ''}" onclick="libTab('movements')">${esc(t('lib.tab_movements'))}</button>
+      <button class="${V.libTab === 'mine' ? 'on' : ''}" onclick="libTab('mine')">${esc(t('lib.tab_mine'))}</button>
     </div>
-    <input class="search-input" placeholder="Search ${allExercises().length} exercises…" value="${esc(V.libSearch)}"
+    <input class="search-input" placeholder="${esc(t('lib.search_ph', { n: allExercises().length }))}" value="${esc(V.libSearch)}"
       oninput="V.libSearch=this.value;render();this.focus();this.setSelectionRange(this.value.length,this.value.length)">
     ${body}
   </div>${tabbar()}`;
 }
 function libTab(t) { V.libTab = t; render(); }
 function libItemHTML(e) {
-  const eq = { bb: 'Barbell', db: 'Dumbbell', mc: 'Machine', cb: 'Cable', bw: 'Bodyweight', bd: 'Band', kb: 'Kettlebell' }[e.equipment] || '';
+  const eq = EQUIP_LABEL[e.equipment] ? t('equip.' + e.equipment) : '';
   const best = Engine.bestE1RM(recordsFor(e.id));
   return `<button class="lib-item" onclick="openExDetail('${e.id}')">
-    <span>${esc(e.name)}${e.isMain ? ' <span style="color:var(--blue)">★</span>' : ''}
-      <span class="sub">${MOVEMENTS[e.movement]?.label || ''} · ${eq}${best ? ' · e1RM ' + kg(Engine.roundLoad(best, 0.5)) + 'kg' : ''}</span>${exTagsHTML(e)}</span>
+    <span>${esc(exDisplayName(e))}${e.isMain ? ' <span style="color:var(--blue)">★</span>' : ''}
+      <span class="sub">${esc(mvLabel(e.movement))} · ${esc(eq)}${best ? ' · e1RM ' + kg(Engine.roundLoad(best, 0.5)) + 'kg' : ''}</span>${exTagsHTML(e)}</span>
     <span>›</span></button>`;
 }
 
 // Custom exercise creation (with optional 10RM / 1RM seeding)
 function openCustomEx() {
   showModal(anim => {
-    $modal.innerHTML = modalShell(anim, 'Custom Exercise', `
-        <div class="field"><label>Name</label><input id="cx-name" placeholder="e.g. Cambered Bar Squat"></div>
-        <div class="field"><label>Movement category</label>
-          <select id="cx-mv">${Object.entries(MOVEMENTS).map(([k, m]) => `<option value="${k}">${m.label}</option>`).join('')}</select></div>
-        <div class="field"><label>Equipment</label>
-          <select id="cx-eq"><option value="bb">Barbell</option><option value="db">Dumbbell</option>
-          <option value="mc">Machine</option><option value="cb">Cable</option><option value="bw">Bodyweight</option><option value="bd">Band</option></select></div>
-        <div class="field"><label>Known 1RM (kg, optional)</label><input id="cx-1rm" type="number" inputmode="decimal" placeholder="Seeds the weight engine"></div>
-        <div class="field"><label>Known 10RM (kg, optional)</label><input id="cx-10rm" type="number" inputmode="decimal" placeholder="Also seeds the engine"></div>
-        <button class="btn btn-green" onclick="saveCustomEx()">Create</button>`);
+    $modal.innerHTML = modalShell(anim, t('cx.title'), `
+        <div class="field"><label>${esc(t('cx.name'))}</label><input id="cx-name" placeholder="${esc(t('cx.name_ph'))}"></div>
+        <div class="field"><label>${esc(t('cx.movement'))}</label>
+          <select id="cx-mv">${Object.keys(MOVEMENTS).map(k => `<option value="${k}">${esc(mvLabel(k))}</option>`).join('')}</select></div>
+        <div class="field"><label>${esc(t('cx.equipment'))}</label>
+          <select id="cx-eq">${['bb', 'db', 'mc', 'cb', 'bw', 'bd'].map(eq => `<option value="${eq}">${esc(t('equip.' + eq))}</option>`).join('')}</select></div>
+        <div class="field"><label>${esc(t('cx.rm1'))}</label><input id="cx-1rm" type="number" inputmode="decimal" placeholder="${esc(t('cx.rm1_ph'))}"></div>
+        <div class="field"><label>${esc(t('cx.rm10'))}</label><input id="cx-10rm" type="number" inputmode="decimal" placeholder="${esc(t('cx.rm10_ph'))}"></div>
+        <button class="btn btn-green" onclick="saveCustomEx()">${esc(t('cx.create'))}</button>`);
   });
 }
 function saveCustomEx() {
   const name = document.getElementById('cx-name').value.trim();
-  if (!name) { toast('Give it a name', true); return; }
+  if (!name) { toast(t('cx.need_name'), true); return; }
   const id = 'cx-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now().toString(36);
   S.customEx.push({ id, name, movement: document.getElementById('cx-mv').value,
     equipment: document.getElementById('cx-eq').value, isMain: false, custom: true });
@@ -4468,7 +4508,7 @@ function saveCustomEx() {
   if (r1 > 0) pushRecord(id, { ts: Date.now(), weight: r1, reps: 1, rpe: 10, seed: true });
   if (r10 > 0) pushRecord(id, { ts: Date.now(), weight: r10, reps: 10, rpe: 10, seed: true });
   save(); closeAllModals(); render();
-  toast(name + ' created' + (r1 || r10 ? ', weights will be prescribed from your maxes' : ''));
+  toast(t(r1 || r10 ? 'cx.created_seeded_toast' : 'cx.created_toast', { name }));
 }
 
 // ------------------------------------------------------------
@@ -4494,14 +4534,16 @@ function renderExDetail(anim) {
   if (!e) { closeModal(); return; }
   const recs = recordsFor(XD.id);
   const inc = P()?.increments?.[XD.id] ?? Engine.defaultIncrement(XD.id);
-  const tabBtn = t => `<button class="${XD.tab === t ? 'on' : ''}" onclick="XD.tab='${t}';rerenderTop()">${t[0].toUpperCase() + t.slice(1)}</button>`;
+  const tabBtn = id => `<button class="${XD.tab === id ? 'on' : ''}" onclick="XD.tab='${id}';rerenderTop()">${esc(t('xd.tab_' + id))}</button>`;
   let body = '';
   if (XD.tab === 'info') {
+    // Cue TEXT stays English for now: like exercise names, per-exercise cues are
+    // content (phase 4 of the i18n plan), not UI chrome.
     const cues = EX_CUES[e.id] || CUES[e.movement] || CUES.default;
     body = `<div class="placeholder-media">🏋</div>
-      <p class="subtle">${MOVEMENTS[e.movement]?.label || ''} · ${EQUIP_LABEL[e.equipment] || ''}${e.isMain ? ' · Main lift' : ''}</p>
+      <p class="subtle">${esc(mvLabel(e.movement))} · ${EQUIP_LABEL[e.equipment] ? esc(t('equip.' + e.equipment)) : ''}${e.isMain ? ' · ' + esc(t('xd.main_lift')) : ''}</p>
       ${exMetaCardHTML(e)}
-      <div class="section-title" style="font-size:1.1rem">Coaching cues</div>
+      <div class="section-title" style="font-size:1.1rem">${esc(t('xd.cues_title'))}</div>
       ${cues.map(c => `<div class="check-row">▸ ${c}</div>`).join('')}`;
   } else if (XD.tab === 'history') {
     // Newest first; ✕ deletes a wrong log (a typo here poisons the e1RM that
@@ -4509,21 +4551,21 @@ function renderExDetail(anim) {
     body = recs.length ? ([...recs].reverse().slice(0, 40).map((r, i) => {
       const idx = recs.length - 1 - i; // index in the stored array
       return `<div class="row" style="padding:9px 0;border-bottom:1px solid var(--line)">
-        <span class="subtle">${fmtDate(r.ts)}${r.seed ? ' · entered max' : ''}${techniqueBadge(r.technique)}${pumpBadge(r.pump)}</span>
+        <span class="subtle">${fmtDate(r.ts)}${r.seed ? ' · ' + esc(t('xd.entered_max')) : ''}${techniqueBadge(r.technique)}${pumpBadge(r.pump)}</span>
         <span><b>${fmtW(XD.id, r.weight)} × ${r.reps} · ${fmtRir(r.rpe)}</b>
-          <button class="rec-del" onclick="deleteRecord('${XD.id}',${idx})" aria-label="Delete logged set">✕</button></span></div>`;
-    }).join('') + '<p class="faint mt8">Tap ✕ to remove a wrongly logged set. Prescribed weights follow your remaining history.</p>')
-      : '<p class="faint mt16">No logged sets yet.</p>';
+          <button class="rec-del" onclick="deleteRecord('${XD.id}',${idx})" aria-label="${esc(t('xd.del_aria'))}">✕</button></span></div>`;
+    }).join('') + `<p class="faint mt8">${esc(t('xd.history_hint'))}</p>`)
+      : `<p class="faint mt16">${esc(t('xd.no_sets'))}</p>`;
   } else if (XD.tab === 'trend') {
     const e1Series = Engine.e1rmTrend(recs);
     const vlSeries = Engine.volumeLoadTrend(recs);
     body = (e1Series.length < 2 && vlSeries.length < 2)
-      ? '<p class="faint mt16">Log a few sessions to see your e1RM and volume-load trends.</p>'
-      : `<div class="section-title" style="font-size:1.05rem">Estimated 1RM</div>
+      ? `<p class="faint mt16">${esc(t('xd.trend_empty'))}</p>`
+      : `<div class="section-title" style="font-size:1.05rem">${esc(t('xd.e1rm'))}</div>
         ${trendChartHTML(e1Series, '#67a3ff', v => kg(Engine.roundLoad(v, 0.5)) + ' kg')}
-        <div class="section-title" style="font-size:1.05rem">Volume load <small class="faint">weight × reps per day</small></div>
+        <div class="section-title" style="font-size:1.05rem">${esc(t('xd.volume_load'))} <small class="faint">${esc(t('xd.vl_sub'))}</small></div>
         ${trendChartHTML(vlSeries, '#4ad6a0', v => Math.round(v).toLocaleString() + ' kg')}
-        <p class="faint">Both trends read straight from your logged sets over the last few months.</p>`;
+        <p class="faint">${esc(t('xd.trend_footer'))}</p>`;
   } else if (XD.tab === 'maxes') {
     const best = Engine.bestE1RM(recs);
     const wm = P()?.wm?.[XD.id];
@@ -4536,18 +4578,18 @@ function renderExDetail(anim) {
     const miles = Engine.maxMilestones(recs).slice(0, 8);
     const milesHTML = miles.map(m => `
       <div class="max-milestone">
-        <div class="row"><span class="subtle">${m.kind === 'entered' ? 'Max you entered' : 'New estimated max'}</span>
+        <div class="row"><span class="subtle">${esc(t(m.kind === 'entered' ? 'xd.max_entered' : 'xd.max_estimated'))}</span>
           <span class="subtle">${fmtDate(m.ts)}</span></div>
         <div class="max-val">${kg(Engine.roundLoad(m.value, 0.5))}<small> kg</small></div>
       </div>`).join('');
     body = `
       ${chart}
-      ${wm ? `<div class="card accent"><div class="row"><span>Working Max</span><b>${kg(wm)} kg</b></div>
-        <p class="faint mt8">All wave percentages run off this number (90% of your real 1RM).</p></div>` : ''}
-      <div class="card"><div class="row"><span>Estimated 1RM</span><b>${best ? kg(Engine.roundLoad(best, 0.5)) + ' kg' : '—'}</b></div>
-        <p class="faint mt8">Computed from your recent logged sets (weight, reps, RIR). Know it already? Enter it under Settings.</p></div>
+      ${wm ? `<div class="card accent"><div class="row"><span>${esc(t('xd.working_max'))}</span><b>${kg(wm)} kg</b></div>
+        <p class="faint mt8">${esc(t('xd.wm_note'))}</p></div>` : ''}
+      <div class="card"><div class="row"><span>${esc(t('xd.e1rm'))}</span><b>${best ? kg(Engine.roundLoad(best, 0.5)) + ' kg' : '—'}</b></div>
+        <p class="faint mt8">${esc(t('xd.e1rm_note'))}</p></div>
       ${milesHTML}
-      ${recs.length ? `<div class="section-title" style="font-size:1.05rem">Best recent sets</div>` +
+      ${recs.length ? `<div class="section-title" style="font-size:1.05rem">${esc(t('xd.best_sets'))}</div>` +
         [...recs].sort((a, b) => Engine.e1rm(b.weight, b.reps, b.rpe) - Engine.e1rm(a.weight, a.reps, a.rpe)).slice(0, 5)
           .map(r => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">
             <span class="subtle">${fmtDate(r.ts)}</span>
@@ -4562,27 +4604,26 @@ function renderExDetail(anim) {
       XD.load = { id: XD.id, mode: stored.mode || def.mode, count: stored.count ?? def.count ?? 2, barWeight: stored.barWeight ?? 10 };
     }
     const Ld = XD.load;
-    const modeOpts = [['barbell', 'Barbell'], ['lightbar', 'Light bar'], ['dumbbell', 'Dumbbell'],
-                      ['machine', 'Machine'], ['cable', 'Cable'], ['bodyweight', 'Bodyweight'], ['band', 'Band']];
+    const modeOpts = ['barbell', 'lightbar', 'dumbbell', 'machine', 'cable', 'bodyweight', 'band'];
     const loadingUI = `
-      <div class="section-title" style="font-size:1.05rem">Loading</div>
-      <div class="field"><label>How is this loaded?</label>
-        <select id="xd-mode" onchange="xdSetMode(this.value)">${modeOpts.map(([v, l]) => `<option value="${v}" ${Ld.mode === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-      ${Ld.mode === 'dumbbell' ? `<div class="field"><label>Dumbbells used</label>
-        <select id="xd-count">${[[2, 'Two (one per hand)'], [1, 'One (single dumbbell)']].map(([v, l]) => `<option value="${v}" ${Ld.count === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>` : ''}
-      ${Ld.mode === 'lightbar' ? `<div class="field"><label>Bar weight (kg)</label>
+      <div class="section-title" style="font-size:1.05rem">${esc(t('xd.loading_title'))}</div>
+      <div class="field"><label>${esc(t('xd.loading_q'))}</label>
+        <select id="xd-mode" onchange="xdSetMode(this.value)">${modeOpts.map(v => `<option value="${v}" ${Ld.mode === v ? 'selected' : ''}>${esc(t('load.mode_' + v))}</option>`).join('')}</select></div>
+      ${Ld.mode === 'dumbbell' ? `<div class="field"><label>${esc(t('xd.db_used'))}</label>
+        <select id="xd-count">${[[2, t('xd.db_two')], [1, t('xd.db_one')]].map(([v, l]) => `<option value="${v}" ${Ld.count === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>` : ''}
+      ${Ld.mode === 'lightbar' ? `<div class="field"><label>${esc(t('set.bar_weight'))}</label>
         <input id="xd-bar" type="number" inputmode="decimal" value="${Ld.barWeight}"></div>` : ''}
-      <p class="faint">Weights are stored as the total load moved; dumbbells display per hand. This setting persists across programs.</p>
-      <button class="btn btn-blue mt8" onclick="saveExLoading()">Save loading</button>`;
+      <p class="faint">${esc(t('xd.loading_note'))}</p>
+      <button class="btn btn-blue mt8" onclick="saveExLoading()">${esc(t('xd.save_loading'))}</button>`;
     // [Cluster B] Intensity technique opt-in. Bodybuilding accessories only, so
     // it never reaches the default/powerbuilding path. Today: a finishing drop set.
     const tcd = P() && P().trainingConfig;
     const canTech = tcd && tcd.track === 'bodybuilding' && !isMainLift;
     const techUI = canTech ? `
-      <div class="section-title" style="font-size:1.05rem">Intensity technique</div>
+      <div class="section-title" style="font-size:1.05rem">${esc(t('xd.tech_title'))}</div>
       <label class="check-row"><input type="checkbox" ${(S.techniques || {})[XD.id] === 'drop' ? 'checked' : ''}
-        onchange="toggleDropSet('${XD.id}', this.checked)"> Finish with a drop set</label>
-      <p class="faint">Adds two lighter strips after your last working set, run to the same rep target. Counts toward your session time.</p>` : '';
+        onchange="toggleDropSet('${XD.id}', this.checked)"> ${esc(t('xd.tech_check'))}</label>
+      <p class="faint">${esc(t('xd.tech_note'))}</p>` : '';
     // Known maxes: seed a 1RM/10RM so the engine prescribes real weights right
     // away (no calibration week) and the athlete can correct a bad anchor.
     // Saving replaces the previous entry of the same type, so this reads as an
@@ -4590,28 +4631,28 @@ function renderExDetail(anim) {
     const seed1 = [...recs].reverse().find(r => r.seed && r.reps === 1);
     const seed10 = [...recs].reverse().find(r => r.seed && r.reps === 10);
     const maxesUI = `
-      <div class="section-title" style="font-size:1.05rem">Known maxes</div>
-      <p class="faint">Already know your strength here? Enter one or both and weights are prescribed right away, no calibration needed.${isMainLift ? ' A 1RM also sets the working max (90% of it) if it is empty.' : ''}</p>
-      <div class="field"><label>1 rep max (kg)</label>
-        <input id="xd-1rm" type="number" inputmode="decimal" value="${seed1 ? kg(seed1.weight) : ''}" placeholder="e.g. 120"></div>
-      <div class="field"><label>10 rep max (kg, optional)</label>
-        <input id="xd-10rm" type="number" inputmode="decimal" value="${seed10 ? kg(seed10.weight) : ''}" placeholder="e.g. 90"></div>
-      <button class="btn btn-blue mt8" onclick="saveExMaxes('${e.id}')">Save maxes</button>`;
+      <div class="section-title" style="font-size:1.05rem">${esc(t('xd.known_maxes'))}</div>
+      <p class="faint">${esc(t('xd.known_maxes_note'))}${isMainLift ? ' ' + esc(t('xd.known_maxes_main')) : ''}</p>
+      <div class="field"><label>${esc(t('xd.rm1_label'))}</label>
+        <input id="xd-1rm" type="number" inputmode="decimal" value="${seed1 ? kg(seed1.weight) : ''}" placeholder="${esc(t('xd.rm1_ph'))}"></div>
+      <div class="field"><label>${esc(t('xd.rm10_label'))}</label>
+        <input id="xd-10rm" type="number" inputmode="decimal" value="${seed10 ? kg(seed10.weight) : ''}" placeholder="${esc(t('xd.rm10_ph'))}"></div>
+      <button class="btn btn-blue mt8" onclick="saveExMaxes('${e.id}')">${esc(t('xd.save_maxes'))}</button>`;
     body = `
       ${isMainLift ? `
-        <div class="field"><label>Working max (kg)</label>
-          <input id="xd-wm" type="number" inputmode="decimal" value="${P().wm[XD.id] ?? ''}" placeholder="Not set, calibrates in week 1"></div>
-        <div class="field"><label>Working-max increment per AMRAP rep (kg)</label>
+        <div class="field"><label>${esc(t('xd.wm_label'))}</label>
+          <input id="xd-wm" type="number" inputmode="decimal" value="${P().wm[XD.id] ?? ''}" placeholder="${esc(t('xd.wm_ph'))}"></div>
+        <div class="field"><label>${esc(t('xd.inc_label'))}</label>
           <input id="xd-inc" type="number" inputmode="decimal" step="0.25" value="${inc}"></div>
-        <p class="faint">Book guidance: 2.5 kg/rep lower body, 1.25 kg/rep upper body. Halve it if progress stalls.</p>
-        <button class="btn btn-blue mt8" onclick="saveExSettings()">Save</button>` :
-        `<p class="subtle">Weights are computed from your logged history (e1RM). Log honestly, the engine follows you.</p>`}
+        <p class="faint">${esc(t('xd.inc_note'))}</p>
+        <button class="btn btn-blue mt8" onclick="saveExSettings()">${esc(t('common.save'))}</button>` :
+        `<p class="subtle">${esc(t('xd.e1rm_follow'))}</p>`}
       ${maxesUI}
       ${techUI}
       ${loadingUI}
-      ${e.custom ? `<button class="btn btn-outline mt16" style="color:var(--red);border-color:var(--red)" onclick="deleteCustomEx('${e.id}')">Delete custom exercise</button>` : ''}`;
+      ${e.custom ? `<button class="btn btn-outline mt16" style="color:var(--red);border-color:var(--red)" onclick="deleteCustomEx('${e.id}')">${esc(t('xd.delete_custom'))}</button>` : ''}`;
   }
-  $modal.innerHTML = modalShell(anim, esc(e.name),
+  $modal.innerHTML = modalShell(anim, esc(exDisplayName(e)),
     `<div class="tabs">${tabBtn('info')}${tabBtn('history')}${tabBtn('trend')}${tabBtn('maxes')}${tabBtn('settings')}</div>${body}`);
 }
 function saveExSettings() {
@@ -4619,7 +4660,7 @@ function saveExSettings() {
   const incv = parseFloat(document.getElementById('xd-inc').value);
   if (wmv > 0) P().wm[XD.id] = wmv;
   if (incv > 0) P().increments[XD.id] = incv;
-  save(); toast('Saved'); rerenderTop();
+  save(); toast(t('common.saved')); rerenderTop();
 }
 // Seed / edit known maxes for any exercise. Stored as seeded records (the same
 // shape custom-exercise seeding writes), so bestE1RM anchors on them and the
@@ -4629,8 +4670,8 @@ function saveExSettings() {
 function saveExMaxes(id) {
   const r1 = parseFloat(byId('xd-1rm') && byId('xd-1rm').value);
   const r10 = parseFloat(byId('xd-10rm') && byId('xd-10rm').value);
-  if (!(r1 > 0) && !(r10 > 0)) { toast('Enter a 1RM or a 10RM', true); return; }
-  if (r1 > 0 && r10 > 0 && r10 >= r1) { toast('Your 10RM should be below your 1RM', true); return; }
+  if (!(r1 > 0) && !(r10 > 0)) { toast(t('xd.need_rm'), true); return; }
+  if (r1 > 0 && r10 > 0 && r10 >= r1) { toast(t('xd.rm_order'), true); return; }
   S.records[id] = recordsFor(id).filter(r => !r.seed); // replace, not append
   if (r1 > 0) pushRecord(id, { ts: Date.now(), weight: r1, reps: 1, rpe: 10, seed: true });
   if (r10 > 0) pushRecord(id, { ts: Date.now(), weight: r10, reps: 10, rpe: 10, seed: true });
@@ -4640,10 +4681,10 @@ function saveExMaxes(id) {
   const p = P();
   if (p && p.wm && id in p.wm && !p.wm[id] && r1 > 0) {
     p.wm[id] = Engine.roundLoad(r1 * 0.9, 1.25);
-    wmNote = `, working max set to ${kg(p.wm[id])} kg`;
+    wmNote = t('xd.wm_set_note', { w: kg(p.wm[id]) });
   }
   save();
-  toast('Maxes saved' + wmNote + '. Weights are prescribed from your next session');
+  toast(t('xd.maxes_saved', { wm: wmNote }));
   rerenderTop();
 }
 // Remove one wrongly logged set from an exercise's history (by stored index,
@@ -4654,16 +4695,16 @@ function deleteRecord(id, idx) {
   const r = recs && recs[idx];
   if (!r) return;
   confirmModal({
-    title: 'Delete this set?',
-    message: `${fmtW(id, r.weight)} × ${r.reps} logged ${fmtDate(r.ts)} will be removed from this exercise's history. Prescribed weights follow the remaining sets.`,
-    confirmLabel: 'Delete set',
+    title: t('xd.del_set_title'),
+    message: t('xd.del_set_msg', { set: `${fmtW(id, r.weight)} × ${r.reps}`, date: fmtDate(r.ts) }),
+    confirmLabel: t('xd.del_set_confirm'),
     danger: true,
-  }, () => { recs.splice(idx, 1); save(); toast('Set deleted'); rerenderTop(); });
+  }, () => { recs.splice(idx, 1); save(); toast(t('xd.set_deleted')); rerenderTop(); });
 }
 function toggleDropSet(id, on) {
   S.techniques = S.techniques || {};
   if (on) S.techniques[id] = 'drop'; else delete S.techniques[id];
-  save(); toast(on ? 'Drop set added to this exercise' : 'Drop set removed'); rerenderTop();
+  save(); toast(t(on ? 'xd.drop_on' : 'xd.drop_off')); rerenderTop();
 }
 function xdSetMode(m) { if (XD.load) XD.load.mode = m; rerenderTop(); }
 function saveExLoading() {
@@ -4674,13 +4715,13 @@ function saveExLoading() {
   S.loadingProfiles = S.loadingProfiles || {};
   S.loadingProfiles[XD.id] = prof;
   XD.load = null; // re-init from the saved profile on next render
-  save(); toast('Loading saved'); rerenderTop();
+  save(); toast(t('xd.loading_saved')); rerenderTop();
 }
 function deleteCustomEx(id) {
   confirmModal({
-    title: 'Delete exercise?',
-    message: 'This removes the custom exercise and every set logged against it. This cannot be undone.',
-    confirmLabel: 'Delete exercise',
+    title: t('xd.delete_title'),
+    message: t('xd.delete_msg'),
+    confirmLabel: t('xd.delete_confirm'),
     danger: true,
   }, () => {
     S.customEx = S.customEx.filter(e => e.id !== id);
@@ -4694,16 +4735,16 @@ function deleteCustomEx(id) {
 // ------------------------------------------------------------
 function vMore() {
   const link = (label, ic, fn) => `<button class="lib-item" onclick="${fn}">
-    <span><span style="margin-right:10px">${ic}</span>${label}</span><span>›</span></button>`;
-  return `${topbar('More')}<div class="view">
-    <div class="section-title">${esc(S.profile.name || 'Lifter')}</div>
-    <p class="faint" style="margin-bottom:14px">IRONWAVE · Juggernaut Method 2.0 engine</p>
-    ${link('My Program', '📈', "nav('program')")}
-    ${link('Weekly Volume', '📊', 'openVolumeDashboard()')}
-    ${link('Phase & Bodyweight', '🍽', 'openPhase()')}
-    ${link('Exercises', '🏋', "nav('exercises')")}
-    ${link('Settings & Data', '⚙', "nav('settings')")}
-    <p class="faint" style="margin-top:18px;text-align:center;font-size:12px">Version ${esc(APP_VERSION)}</p>
+    <span><span style="margin-right:10px">${ic}</span>${esc(label)}</span><span>›</span></button>`;
+  return `${topbar(t('tab.more'))}<div class="view">
+    <div class="section-title">${esc(S.profile.name || t('more.lifter'))}</div>
+    <p class="faint" style="margin-bottom:14px">${esc(t('more.tagline'))}</p>
+    ${link(t('dash.my_program'), '📈', "nav('program')")}
+    ${link(t('vol.title'), '📊', 'openVolumeDashboard()')}
+    ${link(t('phase.screen_title'), '🍽', 'openPhase()')}
+    ${link(t('lib.title'), '🏋', "nav('exercises')")}
+    ${link(t('more.settings'), '⚙', "nav('settings')")}
+    <p class="faint" style="margin-top:18px;text-align:center;font-size:12px">${esc(t('more.version', { v: APP_VERSION }))}</p>
   </div>${tabbar()}`;
 }
 
@@ -4721,32 +4762,33 @@ function vProgram() {
     const ph = blockPhase(b);
     return `<div class="row" style="padding:10px 0 10px 8px;border-bottom:1px solid var(--line);border-left:3px solid ${c}">
       <span><b style="color:${c}">${status}</b> ${esc(b.label)}
-        <span class="faint">· ${b.wave} wave · ${esc(sch.short || sch.label)} · <span style="color:${c}">${esc(PHASE_LABELS[ph] || ph)}</span></span></span>
-      <span class="subtle">W${startW}–${startW + p.weeksPerBlock - 1}</span></div>`;
+        <span class="faint">· ${esc(t('common.wave', { w: b.wave }))} · ${esc(sch.short || sch.label)} · <span style="color:${c}">${esc(phaseLabel(ph))}</span></span></span>
+      <span class="subtle">${esc(t('prog.week_range', { a: startW, b: startW + p.weeksPerBlock - 1 }))}</span></div>`;
   }).join('');
-  return `${topbar('My Program')}<div class="view">
-    <div class="section-title">Powerbuilding</div>
-    <p class="faint" style="margin:-4px 0 10px">Methodology: ${esc(p.methodology || 'Juggernaut + Bodybuilding')}: ascending-volume hypertrophy blocks, book-wave strength blocks. Schemes never mix.</p>
+  const track = (p.trainingConfig && p.trainingConfig.track) || 'powerbuilding';
+  return `${topbar(t('dash.my_program'))}<div class="view">
+    <div class="section-title">${esc(t('track.' + track))}</div>
+    <p class="faint" style="margin:-4px 0 10px">${esc(t('prog.methodology', { m: p.methodology || 'Juggernaut + Bodybuilding' }))}</p>
     <div class="card">
-      <div class="row"><span class="subtle">Test date</span><b>${fmtDateLong(p.testDate)}</b></div>
-      <div class="row mt8"><span class="subtle">Days out</span><b>${daysOut()}</b></div>
-      <div class="row mt8"><span class="subtle">Training days / week</span><b>${p.daysPerWeek}</b></div>
+      <div class="row"><span class="subtle">${esc(t('prog.test_date'))}</span><b>${fmtDateLong(p.testDate)}</b></div>
+      <div class="row mt8"><span class="subtle">${esc(t('prog.days_out_row'))}</span><b>${daysOut()}</b></div>
+      <div class="row mt8"><span class="subtle">${esc(t('prog.days_week'))}</span><b>${p.daysPerWeek}</b></div>
     </div>
     ${timelineHTML()}
-    <div class="section-title" style="font-size:1.15rem">Blocks</div>
+    <div class="section-title" style="font-size:1.15rem">${esc(t('prog.blocks'))}</div>
     ${blockRows}
-    <p class="faint mt8">Hypertrophy blocks build volume week over week (sets climb, reps in reserve tighten) into the deload. Strength blocks run the book's waves, volume drops as intensity rises. Both end their last work week with an AMRAP on the mains that moves your working max, exactly like the book's formula.</p>
-    <div class="section-title" style="font-size:1.15rem">Working Maxes</div>
+    <p class="faint mt8">${esc(t('prog.blocks_note'))}</p>
+    <div class="section-title" style="font-size:1.15rem">${esc(t('prog.working_maxes'))}</div>
     ${lifts.map(l => `<button class="lib-item" onclick="openExDetail('${l}','settings')">
-      <span>${exName(l)}</span><b>${p.wm[l] ? kg(p.wm[l]) + ' kg' : 'Calibrating'}</b></button>`).join('')}
-    <button class="btn btn-outline mt24" style="color:var(--red);border-color:var(--red)" onclick="confirmNewProgram()">Start New Program</button>
+      <span>${esc(exName(l))}</span><b>${p.wm[l] ? kg(p.wm[l]) + ' kg' : esc(t('prog.calibrating'))}</b></button>`).join('')}
+    <button class="btn btn-outline mt24" style="color:var(--red);border-color:var(--red)" onclick="confirmNewProgram()">${esc(t('dash.new_program_confirm'))}</button>
   </div>${tabbar()}`;
 }
 function confirmNewProgram() {
   confirmModal({
-    title: 'Start a new program?',
-    message: 'Your history, records and maxes stay. The current program pointer resets to week 1.',
-    confirmLabel: 'Start new program',
+    title: t('dash.new_program_title'),
+    message: t('dash.new_program_msg'),
+    confirmLabel: t('dash.new_program_confirm'),
   }, doNewProgram);
 }
 function doNewProgram() {
@@ -4765,7 +4807,7 @@ function doNewProgram() {
            timeCapMin: tr.timeCapMin || '',
            muscleFocus: Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 }, tr.muscleFocus || {}) };
   S.program = makeProgram(V.ob);
-  save(); toast('New cycle created. Working maxes carried over');
+  save(); toast(t('dash.new_cycle_toast'));
   V.tab = 'dashboard'; nav('dashboard');
 }
 
@@ -4774,41 +4816,41 @@ function vSettings() {
   const langOptions = [`<option value="auto" ${(p.lang || 'auto') === 'auto' ? 'selected' : ''}>${esc(t('settings.language_auto'))}</option>`]
     .concat(Object.values(I18N.catalogs).map(c =>
       `<option value="${c.code}" ${p.lang === c.code ? 'selected' : ''}>${esc(c.name)}</option>`)).join('');
-  return `${topbar('Settings')}<div class="view">
+  return `${topbar(t('set.title'))}<div class="view">
     <div class="section-title">${esc(t('settings.language'))}</div>
     <div class="field"><label>${esc(t('settings.language'))}</label>
       <select id="st-lang" onchange="setAppLang(this.value)">${langOptions}</select></div>
     <p class="faint" style="margin-bottom:10px">${esc(t('settings.language_hint'))}</p>
-    <div class="section-title">Profile</div>
-    <div class="field"><label>Name</label><input id="st-name" value="${esc(p.name)}"></div>
-    <div class="field"><label>Bodyweight (kg)</label><input id="st-bw" type="number" inputmode="decimal" value="${p.bodyweight ?? ''}"></div>
-    <div class="section-title">Barbell</div>
-    <div class="field"><label>Bar weight (kg)</label><input id="st-bar" type="number" inputmode="decimal" value="${p.barWeight}"></div>
-    <div class="field"><label>Load rounding (kg)</label>
+    <div class="section-title">${esc(t('set.profile'))}</div>
+    <div class="field"><label>${esc(t('cx.name'))}</label><input id="st-name" value="${esc(p.name)}"></div>
+    <div class="field"><label>${esc(t('ob.bodyweight'))}</label><input id="st-bw" type="number" inputmode="decimal" value="${p.bodyweight ?? ''}"></div>
+    <div class="section-title">${esc(t('equip.bb'))}</div>
+    <div class="field"><label>${esc(t('set.bar_weight'))}</label><input id="st-bar" type="number" inputmode="decimal" value="${p.barWeight}"></div>
+    <div class="field"><label>${esc(t('set.rounding'))}</label>
       <select id="st-round">${[1.25, 2.5, 5].map(r => `<option ${p.rounding === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
-    <div class="section-title">Dumbbells &amp; machines</div>
-    <div class="field"><label>Dumbbell increment (kg per hand)</label>
+    <div class="section-title">${esc(t('set.db_mc'))}</div>
+    <div class="field"><label>${esc(t('set.db_inc'))}</label>
       <select id="st-dbinc">${[1, 2, 2.5].map(r => `<option ${(p.dbIncrement ?? 2.5) === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
-    <div class="field"><label>Machine / cable step (kg)</label>
+    <div class="field"><label>${esc(t('set.mc_step'))}</label>
       <select id="st-mcstep">${[2.5, 5, 10].map(r => `<option ${(p.machineStep ?? 5) === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
-    <button class="btn btn-outline" onclick="openPlateConfig()">Configure Plates ›</button>
-    <button class="btn btn-blue mt8" onclick="saveSettings()">Save Settings</button>
-    <div class="section-title">Data</div>
-    <p class="faint" style="margin-bottom:10px">iOS can evict browser storage after ~7 days of not visiting the site. Export a backup regularly.</p>
+    <button class="btn btn-outline" onclick="openPlateConfig()">${esc(t('plates.configure'))}</button>
+    <button class="btn btn-blue mt8" onclick="saveSettings()">${esc(t('set.save'))}</button>
+    <div class="section-title">${esc(t('set.data'))}</div>
+    <p class="faint" style="margin-bottom:10px">${esc(t('set.data_note'))}</p>
     <div class="btn-row">
-      <button class="btn btn-outline" onclick="exportData()">Export JSON</button>
-      <button class="btn btn-outline" onclick="document.getElementById('import-file').click()">Import JSON</button>
+      <button class="btn btn-outline" onclick="exportData()">${esc(t('set.export'))}</button>
+      <button class="btn btn-outline" onclick="document.getElementById('import-file').click()">${esc(t('set.import'))}</button>
     </div>
     <input type="file" id="import-file" accept=".json,application/json" style="display:none" onchange="importData(this)">
-    <button class="btn btn-outline mt16" style="color:var(--red);border-color:var(--red)" onclick="fullReset()">Erase everything</button>
-    <div class="section-title">Rest timer</div>
-    <label class="check-row"><input type="checkbox" ${p.restNotify ? 'checked' : ''} onchange="toggleRestNotify(this.checked)"> Notify me when rest ends</label>
-    <p class="faint" style="margin-bottom:10px">Shows a notification when the rest countdown finishes while you are in another app, on top of the in-app chime. On iPhone this needs the installed app (Add to Home Screen), and if iOS pauses the app in the background the alert arrives the moment you come back to it.</p>
-    <div class="section-title">About</div>
-    <p class="faint" style="margin-bottom:10px">IRONWAVE version ${esc(APP_VERSION)}. If a feature you expect is missing, the installed app may be caching an older build. Check for updates, then relaunch.</p>
-    <button class="btn btn-outline" onclick="checkForUpdate()">Check for updates</button>
-    <div class="section-title">Debug: timer chime</div>
-    <p class="faint" style="margin-bottom:10px">The rest-timer chime can be silent on some installed (PWA) devices even when it works in a browser. Tap each option below and note which one you actually hear, then tell me. On iPhone, also check your ring/silent switch is on.</p>
+    <button class="btn btn-outline mt16" style="color:var(--red);border-color:var(--red)" onclick="fullReset()">${esc(t('set.erase'))}</button>
+    <div class="section-title">${esc(t('set.rest_timer'))}</div>
+    <label class="check-row"><input type="checkbox" ${p.restNotify ? 'checked' : ''} onchange="toggleRestNotify(this.checked)"> ${esc(t('set.rest_notify'))}</label>
+    <p class="faint" style="margin-bottom:10px">${esc(t('set.rest_notify_note'))}</p>
+    <div class="section-title">${esc(t('set.about'))}</div>
+    <p class="faint" style="margin-bottom:10px">${esc(t('set.about_note', { v: APP_VERSION }))}</p>
+    <button class="btn btn-outline" onclick="checkForUpdate()">${esc(t('set.check_updates'))}</button>
+    <div class="section-title">${esc(t('set.debug_chime'))}</div>
+    <p class="faint" style="margin-bottom:10px">${esc(t('set.debug_chime_note'))}</p>
     ${CHIME_CONFIGS.map(c => `
       <button class="btn btn-outline mt8" onclick="playTestChime('${c.id}')">${esc(c.label)}</button>
       <p class="faint" style="margin:4px 0 0">${esc(c.desc)}</p>`).join('')}
@@ -4818,11 +4860,11 @@ function vSettings() {
 // over and reload so the athlete is on the latest code. Without this an installed
 // PWA only updates on its own schedule, which is why a fix can seem "not there yet".
 async function checkForUpdate() {
-  if (!('serviceWorker' in navigator)) { toast('Updates are managed by your browser here'); return; }
+  if (!('serviceWorker' in navigator)) { toast(t('set.upd_browser')); return; }
   try {
     const reg = await navigator.serviceWorker.getRegistration();
-    if (!reg) { toast('No installed app to update'); return; }
-    toast('Checking for updates...');
+    if (!reg) { toast(t('set.upd_none')); return; }
+    toast(t('set.upd_checking'));
     await reg.update();
     const incoming = reg.installing || reg.waiting;
     if (incoming) {
@@ -4831,9 +4873,9 @@ async function checkForUpdate() {
       });
       if (incoming.state === 'installed' || incoming.state === 'activated') location.reload();
     } else {
-      toast(`You are on the latest (v${APP_VERSION})`);
+      toast(t('set.upd_latest', { v: APP_VERSION }));
     }
-  } catch (_) { toast('Could not check for updates'); }
+  } catch (_) { toast(t('set.upd_failed')); }
 }
 // [i18n] Language switch: store the preference, re-resolve the active catalog,
 // and re-render so the whole UI follows immediately.
@@ -4851,7 +4893,7 @@ function saveSettings() {
   S.profile.rounding = parseFloat(document.getElementById('st-round').value) || 2.5;
   S.profile.dbIncrement = parseFloat(document.getElementById('st-dbinc').value) || 2.5;
   S.profile.machineStep = parseFloat(document.getElementById('st-mcstep').value) || 5;
-  save(); toast('Settings saved');
+  save(); toast(t('set.saved_toast'));
 }
 function openPlateConfig() { showModal(renderPlateConfig); }
 function renderPlateConfig(anim) {
@@ -4863,8 +4905,8 @@ function renderPlateConfig(anim) {
         <b id="pc-count-${i}">${pl.count}</b>
         <button class="pm btn-ghost" style="font-size:1.4rem" onclick="plateCount(${i},2)">＋</button>
       </span></div>`).join('');
-  $modal.innerHTML = modalShell(anim, 'Configure Plates',
-    `<p class="faint" style="margin-bottom:10px">Total plates you own per weight (pairs are used per side). The plate-math visual only suggests loads you can actually build.</p>${rows}`);
+  $modal.innerHTML = modalShell(anim, t('plates.title'),
+    `<p class="faint" style="margin-bottom:10px">${esc(t('plates.config_note'))}</p>${rows}`);
 }
 function plateCount(i, d) {
   S.profile.plates[i].count = Math.max(0, S.profile.plates[i].count + d);
@@ -4879,7 +4921,7 @@ function exportData() {
   a.download = `ironwave-backup-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
-  toast('Backup exported');
+  toast(t('set.backup_exported'));
 }
 function importData(input) {
   const f = input.files[0];
@@ -4891,11 +4933,11 @@ function importData(input) {
       if (!data || data.v !== 1) throw new Error('not an IRONWAVE backup');
       S = Object.assign(defaultState(), data);
       save();
-      toast('Backup restored');
+      toast(t('set.backup_restored'));
       V = { view: S.program ? 'dashboard' : 'onboarding', tab: 'dashboard', dayIdx: null,
             libTab: 'alpha', libSearch: '', obStep: 0, ob: null, draft: null };
       render();
-    } catch (e) { toast('Import failed: ' + e.message, true); }
+    } catch (e) { toast(t('set.import_failed', { err: e.message }), true); }
   };
   reader.readAsText(f);
   input.value = '';
@@ -4903,14 +4945,14 @@ function importData(input) {
 function fullReset() {
   // Two-stage confirm for the most destructive action in the app.
   confirmModal({
-    title: 'Erase everything?',
-    message: 'This erases all of your data: program, history and records. This cannot be undone.',
-    confirmLabel: 'Continue',
+    title: t('set.erase_title'),
+    message: t('set.erase_msg'),
+    confirmLabel: t('set.continue'),
     danger: true,
   }, () => confirmModal({
-    title: 'Last chance',
-    message: 'Really erase everything? There is no way to recover this once it is gone.',
-    confirmLabel: 'Erase everything',
+    title: t('set.erase_title2'),
+    message: t('set.erase_msg2'),
+    confirmLabel: t('set.erase'),
     danger: true,
   }, doFullReset));
 }

@@ -556,23 +556,52 @@ tables).
 
 **Queue for the next i18n branch (pick up here, in this order):**
 
-1. **Dashboard + workout overview surface**: `vDashboard`, `vWorkout`,
-   `timelineHTML` legend/labels, the week-preview modal, check-in flow
-   (`vCheckin`, `FEEL_WORDS`, soreness copy), swap/add pickers (headers,
-   time-cost lines, "Adds <head>" hints), and their toasts. The phase chip
-   uses `PHASE_LABELS`, the volume screens use muscle names: reuse the
-   shipped `muscle.*` keys and move `PHASE_LABELS` copy to `phase.*` keys
-   (table keeps ids/colors, same pattern as `GOAL_ARCHETYPES`).
-2. **History, summary, More hub, exercise detail/library, remaining settings
-   body** (Profile/Barbell/Data/About/Debug sections, plate config), and any
-   leftover toasts (grep `toast(` for bare strings).
-3. **Phase 3 (its OWN PR, golden master regenerates)**: engine-emitted set
-   NOTES become `noteKey` (+ params) translated at render; legacy stored
-   `note` strings keep rendering verbatim. Generated day NAMES
-   (`generateBodybuildingDays`, `FOCUS_LABELS`, day-theme names) are the same
-   stored-string category and go in this PR too.
-4. **Phase 4 (optional)**: exercise names as `i18n` keys layered over
-   `EXERCISES`; custom exercises are user text, never translated.
+1. ~~**Dashboard + workout overview surface**~~ DONE (2026-07-09, branch
+   `claude/english-spanish-translation-cajw1r`): dashboard, timeline +
+   week preview + plan editor + calibration explainer, early-deload banner,
+   Weekly volume screen, Phase & bodyweight screen, workout overview, time
+   banners/modal, check-in flow, swap/select/add pickers, and their toasts.
+   `PHASES` replaced `PHASE_LABELS`/`PHASE_BLURB` (copy in `phase.*`);
+   `CHECKIN_GROUPS`/`PLAN_TYPES`/`FEEL_WORDS`/`WEEK_FEEL_LEGEND` went
+   logic-only; new `mv.*`/`head.*`/`sfr.*`/`equip.*`/`week.*` namespaces;
+   `Engine.autoregVolume` gained an additive `reasonKey` so the volume
+   screen translates recommendations at render. Also fixed the rest-timer
+   bar overflowing with Spanish strings (label truncates, done state drops
+   the redundant label). NOTE: `.claude/skills/copywriting/` (translation
+   copy tooling) lives on this branch only; drop it before merging to main.
+2. ~~**History, summary, More hub, exercise detail/library, remaining settings
+   body**~~ DONE (2026-07-09, same branch): history + session detail, summary,
+   More hub, My Program (now titled by the athlete's track), exercise library +
+   custom-exercise modal, the full exercise detail modal, all settings sections
+   + plate config, the boot error screen, and every leftover bare toast.
+   Phase 2 is COMPLETE. Per-exercise coaching-cue TEXT (`EX_CUES`/`CUES`) was
+   deliberately left English: cues are content like exercise names, so they
+   belong to phase 4. ALSO: `es.js` is now **Latin American Spanish** (owner
+   call, 2026-07-09); see the regional note in `app/i18n/README.md`. Keep new
+   keys in that register; a Spain-Spanish `es-ES` can fork from git history
+   (commit `85943f0`) if ever wanted.
+3. ~~**Phase 3 (its OWN PR, golden master regenerates)**~~ DONE (2026-07-09,
+   same branch): every scheme note-emission site emits `noteKey` (+
+   `noteParams`); `setNoteText`/`displaySetNote` translate at render and
+   legacy stored `note` strings render verbatim (no migration). Generated
+   days store a structured `theme` (plus the legacy English `name` for
+   back-compat) and `BB_DAY_TEMPLATES` days carry a `nameKey`; `dayTheme`
+   prefers theme -> nameKey -> legacy name. Golden master regenerated; the
+   reviewed diff is exclusively note -> noteKey/noteParams, zero
+   weight/rep/set changes.
+4. ~~**Phase 4 (optional)**~~ DONE (2026-07-09, same branch): `exDisplayName`
+   layers `exn.<id>` keys over `EXERCISES` (fallback: the English data.js
+   name; custom exercises never translate); all 148 names shipped in es.js;
+   pickers/library/detail/search/sort/onboarding-maxes route through it and
+   search matches both languages. The typo-net test validates `exn.*`
+   against real exercise ids since these keys are deliberately not in en.js.
+5. **NEW: Spanish coaching-cue content.** The per-exercise cue TEXT
+   (`EX_CUES` in data.js, ~148 entries / ~450 sentences, plus the small
+   generic `CUES` fallback in app.js) still renders in English on the
+   exercise detail Info tab. This is a content-translation job (like a
+   booklet chapter), not plumbing: the mechanism can mirror phase 4
+   (`cue.<id>_<n>` keys layered over `EX_CUES`, falling back to English).
+   Own branch, translation review recommended.
 
 Conventions the shipped code established (follow them): keys are
 `surface.snake_case` (`session.*`, `perf.*`, `ob.*`, shared `muscle.*` /

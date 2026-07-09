@@ -1,5 +1,132 @@
 # IRONWAVE — Changelog
 
+## [i18n phase 4: translated exercise names] (2026-07-09)
+
+The optional last phase of the i18n plan. Display-only: `resolveSlot` builds
+names through `exName`, which resolves to English under the default catalog,
+so the golden master is untouched. Bumped `APP_VERSION`/`CACHE_VERSION` to
+`1.7.1`.
+
+- **Exercise names translate**: `exDisplayName(e)` layers an `exn.<id>`
+  catalog key over `EXERCISES`, falling back to the English `data.js` name
+  for any id a catalog does not cover; custom exercises are the athlete's
+  own text and never translate. `es.js` covers all 148 exercises in Latam
+  gym vocabulary (Jalón al pecho, Press francés, Sentadilla búlgara,
+  Elevación de pantorrillas, Caminata del granjero, ...).
+- Every live render site routes through it: swap/add pickers, the exercise
+  library (including alphabetical sort and letter grouping by the DISPLAY
+  name), the detail modal title, the onboarding maxes labels (the
+  `OB_MAIN_LIFTS` label column is gone), and every `exName` toast. Search
+  matches BOTH the translated and the English name ("sentadilla" and
+  "squat" both find the squat). Names already stored in sessions/records
+  render verbatim, as with notes and day names.
+- Guardrail: `exn.*` keys are deliberately absent from `en.js` (English
+  falls back to `data.js`), so the catalog typo-net test now validates
+  them against real exercise ids instead; a key with no matching exercise
+  fails CI. Plus a translation/fallback/custom-exercise unit test.
+- Out of scope, its own follow-up: the per-exercise coaching-cue TEXT
+  (`EX_CUES`, ~450 sentences) stays English; it is a content-translation
+  job on the scale of a booklet, listed in `docs/pending-future-work.md`.
+
+## [i18n phase 3: engine noteKey + translated day names] (2026-07-09)
+
+The one deliberately engine-touching i18n step (its own PR per the plan).
+**The golden master regenerated**: the diff was reviewed field by field and is
+exclusively `note` (baked English string) -> `noteKey` + `noteParams` on the
+same sets; zero weight/rep/RPE/set-count changes. Bumped
+`APP_VERSION`/`CACHE_VERSION` to `1.7.0`.
+
+- **Prescribed set notes**: every scheme emission site (calibration ramp,
+  intro/accumulation/intensification last-set cues, AMRAP, all deload
+  variants, the jbb meso/peak/hardest-week notes) now emits a stable
+  `noteKey` (+ `noteParams` where parametric) instead of an English `note`
+  string. The UI resolves it at render via `setNoteText` ('note.*' keys);
+  keyed calibration rows use explicit short forms ('note.*_short'). LEGACY
+  stored `note` strings (old sessions/drafts) render verbatim, no migration.
+  `sessionEntryFrom` carries noteKey/noteParams into drafts and sessions;
+  `applySetDelta` clones stay note-free.
+- **Generated day names**: `generateBodybuildingDays` still stores the
+  English `name` (back-compat, exports) but now also stores a structured
+  `theme` ({region, primary}); `BB_DAY_TEMPLATES` days carry a `nameKey`.
+  `dayTheme` renders theme -> nameKey -> legacy name verbatim, so new
+  programs show 'Inferior · Piernas' / 'Empuje A' in Spanish while old
+  programs keep their stored names.
+- The AMRAP held/below-standard toast now translates at render
+  ('perf.wm_below_standard' / 'perf.wm_standard_met'); the engine's
+  `amrapAdjust().msg` is unchanged.
+- Tests: engine deload-note assertion moved to `noteKey`; four new
+  keyed-note tests (resolution, params, calib short forms, hoisting, and a
+  Spanish render check) in `feedback-round2.test.js`; `setNoteText`/`dayTheme`
+  exported through the harness shim.
+
+## [i18n phase 2 complete + Latin American Spanish] (2026-07-09)
+
+Queue item 2 of the i18n plan (the last mechanical phase-2 surface) plus a
+regional rewrite of the Spanish catalog. Display layer only; golden master
+byte-identical. Bumped `APP_VERSION`/`CACHE_VERSION` to `1.6.2`.
+
+- **Spanish is now LATIN AMERICAN Spanish** (owner call): agregar not añadir,
+  pantorrillas not gemelos, femorales not isquios, bombeo not congestión,
+  fisicoculturismo not culturismo, calificación not valoración, al 100 not
+  a tope, la configuración not los ajustes, mantén presionado not pulsado,
+  and friends, across the whole catalog. `es.js`'s header and
+  `app/i18n/README.md` document the register; the earlier Spain-leaning
+  wording survives in git history (commit `85943f0`) if an `es-ES` variant
+  is ever wanted.
+- **Extracted surfaces (queue item 2)**: History (list + session detail),
+  the post-workout Summary, the More hub, My Program (which now also titles
+  itself by the athlete's actual track instead of a hardcoded
+  "Powerbuilding"), the Exercises library + custom-exercise modal, the full
+  exercise detail modal (info/stimulus, history, trend, maxes, settings,
+  loading modes, drop-set opt-in, known maxes), Settings (profile, barbell,
+  dumbbells/machines, plates, data import/export/reset, rest-timer alerts,
+  about/update check, debug chime intro), the boot error screen, and every
+  remaining bare toast. Per-exercise coaching-cue TEXT and the debug chime
+  option labels stay English (content, phase-4 territory, and dev tooling
+  respectively).
+- Phase 2 of the i18n plan is now COMPLETE: what remains is phase 3
+  (stored set notes + generated day names, its own golden-master PR) and
+  the optional phase 4 (exercise names).
+
+## [i18n phase 2, second batch: dashboard + workout surface, Spanish UI fixes] (2026-07-09)
+
+Queue item 1 of the i18n plan in `docs/pending-future-work.md`. Display layer
+only; no prescription change, golden master byte-identical. Bumped
+`APP_VERSION`/`CACHE_VERSION` to `1.6.1`.
+
+- **Extracted surfaces**: the dashboard (readiness hero, program header, day
+  rows, phase chip, new-cycle flow), the macrocycle timeline (phase labels,
+  emphasis legend, week-preview modal with its calibration explainer), the
+  block plan editor, the early-deload banner and confirms, the Weekly volume
+  screen (statuses, per-muscle recommendations, regions, overreach/minicut/
+  deload notes, muscle-deload controls), the Phase & bodyweight screen, the
+  workout overview (cards, superset controls, swipe-remove, skip/preview,
+  time banners and the time-by-week modal), the check-in flow, the swap /
+  select / add pickers (equipment chips, head/SFR badges, time costs), and
+  every toast on those paths.
+- **Tables reduced to logic-only** per the plan's convention: `PHASE_LABELS` /
+  `PHASE_BLURB` became the `PHASES` id list (copy in `phase.*` keys),
+  `CHECKIN_GROUPS` and `PLAN_TYPES` dropped their label columns,
+  `WEEK_FEEL_LEGEND` / `FEEL_WORDS` became key lookups. New display-label
+  namespaces: `mv.*` (movement labels), `head.*`, `sfr.*`, `equip.*`,
+  `week.*` (per-scheme week labels, translated at render; the engine's
+  `weekLabel`/`weekTypeLabel` strings are untouched).
+- **Engine**: `Engine.autoregVolume` now also returns a stable `reasonKey`
+  alongside the English `reason`, so the volume screen translates
+  recommendations at render (`vol.rec_*`). Additive; all other engine-emitted
+  display strings are rebuilt from their structured parts at render sites.
+- **Spanish UI fixes** (reported with screenshots): the rest-timer bar no
+  longer overflows with longer strings; the label truncates instead of pushing
+  "Saltar" off screen, the done state hides the redundant label and keeps
+  "Descanso listo" on one line, and buttons never wrap (plus a narrow-screen
+  size step under 380px).
+- **Copy pass** over `es.js` with the branch-local copywriting skill's
+  AI-trope checklist: literal calques reworded ("es inteligente, no
+  debilidad" -> "es de listos, no de flojos", "todas son razones válidas" ->
+  "cualquier razón vale", and friends).
+- Note: `.claude/skills/copywriting/` is tooling for this branch only and is
+  dropped before merge.
+
 ## [i18n foundation + Spanish: session view and perf modal] (2026-07-09)
 
 Phases 1 and 2 (first surface) of the i18n plan in

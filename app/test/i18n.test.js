@@ -32,10 +32,31 @@ test('the English catalog is registered and non-empty', () => {
 
 test('non-English catalogs have no unknown keys (typo net, fails)', () => {
   const en = I18N.catalogs.en.strings;
+  // [phase 4] 'exn.<id>' exercise-name keys are layered over EXERCISES and
+  // deliberately absent from en.js (English falls back to the data.js name),
+  // so they validate against real exercise ids instead of the en key set.
+  const exIds = new Set(app.EXERCISES.map(e => e.id));
   for (const [code, cat] of nonEnglish()) {
-    const extra = Object.keys(cat.strings).filter(k => !(k in en));
-    assert.deepStrictEqual(extra, [], `${code}.js has keys that do not exist in en.js`);
+    const extra = Object.keys(cat.strings).filter(k =>
+      !(k in en) && !(k.startsWith('exn.') && exIds.has(k.slice(4))));
+    assert.deepStrictEqual(extra, [], `${code}.js has keys that do not exist in en.js (or exn.* keys with no matching exercise)`);
   }
+});
+
+test('exercise names translate through exn.* keys and fall back to English', () => {
+  app.S = app.defaultState(); // exName resolves through allExercises (S.customEx)
+  I18N.setLang('es');
+  try {
+    assert.strictEqual(app.exName('comp-squat'), 'Sentadilla de competencia');
+    assert.strictEqual(app.exName('lat-pulldown'), 'Jalón al pecho');
+    // A custom exercise is the athlete's own text, never translated.
+    app.S.customEx.push({ id: 'cx-test', name: 'My Special Lift', movement: 'squat', equipment: 'bb', custom: true });
+    assert.strictEqual(app.exName('cx-test'), 'My Special Lift');
+    app.S.customEx.pop();
+  } finally {
+    I18N.setLang('en');
+  }
+  assert.strictEqual(app.exName('comp-squat'), 'Comp Squat', 'English uses the data.js name');
 });
 
 test('missing keys in a non-English catalog warn but do not fail', () => {

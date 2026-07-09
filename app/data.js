@@ -9,7 +9,7 @@
 // repo, and it must be kept in step with CACHE_VERSION in sw.js (the service
 // worker only ships new code to installed PWAs when that cache name changes).
 // Bump this on any shell change (data/engine/app/styles/index/sw).
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.7.1';
 
 // Movement categories (used for "Select X Exercise" slots & swaps)
 const MOVEMENTS = {
@@ -259,23 +259,9 @@ const EX_META_DEFAULT = { sfr: 2, stretch: false, head: null };
 // [Cluster F] Training-phase / energy-balance taxonomy. Public concepts, our own
 // copy. A deficit (cut/minicut) tells the autoregulator recovery is lower. No
 // calorie/macro database: this is a training-coupled phase tag, not a nutrition
-// tracker. Athlete-facing labels, no em dashes.
-const PHASE_LABELS = {
-  'lean-gain':  'Lean gain',
-  'gain':       'Gain phase',
-  'maintenance': 'Maintenance',
-  'cut':        'Cut',
-  'minicut':    'Minicut',
-  'peak':       'Peak',
-};
-const PHASE_BLURB = {
-  'lean-gain':  'Slight surplus, build muscle. The autoregulator can add volume freely.',
-  'gain':       'Bigger surplus, push muscle gain and recovery is high.',
-  'maintenance': 'Around maintenance, hold weight and recover.',
-  'cut':        'Deficit to lose fat. Recovery drops, so volume holds rather than climbs.',
-  'minicut':    'Short sharp deficit (about 2 to 4 weeks) to shed fatigue, then back to growing.',
-  'peak':       'Final sharpening into a meet or photo date. Volume drops, freshness rises.',
-};
+// tracker. Logic-only id list: the athlete-facing label and blurb live in the
+// i18n catalogs ('phase.<id>' / 'phase.<id>_desc'), same pattern as GOAL_ARCHETYPES.
+const PHASES = ['lean-gain', 'gain', 'maintenance', 'cut', 'minicut', 'peak'];
 const PHASE_DEFICIT = { cut: true, minicut: true };
 // [Epic G1/G3] Per-block phase colors for the macrocycle timeline. The container
 // tint groups a block by phase; the legend reuses these. Our own palette (blues
@@ -865,21 +851,21 @@ const DAY_TEMPLATES = {
 // ============================================================
 const BB_DAY_TEMPLATES = {
   3: [
-    { name: 'Full Body A', slots: [
+    { name: 'Full Body A', nameKey: 'full_body_a', slots: [
       { type:'main', lift:'comp-bench' },
       { type:'acc', cat:'vpull', def:'lat-pulldown' },
       { type:'acc', cat:'quad',  def:'leg-press' },
       { type:'acc', cat:'ham',   def:'seated-leg-curl' },
       { type:'select', cat:'shoulder' },
     ]},
-    { name: 'Full Body B', slots: [
+    { name: 'Full Body B', nameKey: 'full_body_b', slots: [
       { type:'main', lift:'comp-squat' },
       { type:'acc', cat:'hpull', def:'chest-supported-row' },
       { type:'acc', cat:'bench', def:'db-incline-bench' },
       { type:'acc', cat:'calf',  def:'standing-calf-raise' },
       { type:'select', cat:'bicep' },
     ]},
-    { name: 'Full Body C', slots: [
+    { name: 'Full Body C', nameKey: 'full_body_c', slots: [
       { type:'main', lift:'military-press' },
       { type:'acc', cat:'vpull', def:'pullup' },
       { type:'acc', cat:'ham',   def:'romanian-deadlift' },
@@ -888,28 +874,28 @@ const BB_DAY_TEMPLATES = {
     ]},
   ],
   4: [
-    { name: 'Upper A', slots: [
+    { name: 'Upper A', nameKey: 'upper_a', slots: [
       { type:'main', lift:'comp-bench' },
       { type:'acc', cat:'vpull', def:'lat-pulldown' },
       { type:'acc', cat:'hpull', def:'chest-supported-row' },
       { type:'acc', cat:'shoulder', def:'lateral-raise' },
       { type:'select', cat:'tricep' },
     ]},
-    { name: 'Lower A', slots: [
+    { name: 'Lower A', nameKey: 'lower_a', slots: [
       { type:'main', lift:'comp-squat' },
       { type:'acc', cat:'ham',  def:'romanian-deadlift' },
       { type:'acc', cat:'quad', def:'leg-extensions' },
       { type:'acc', cat:'calf', def:'standing-calf-raise' },
       { type:'select', cat:'glute' },
     ]},
-    { name: 'Upper B', slots: [
+    { name: 'Upper B', nameKey: 'upper_b', slots: [
       { type:'main', lift:'military-press' },
       { type:'acc', cat:'vpull', def:'pullup' },
       { type:'acc', cat:'bench', def:'db-incline-bench' },
       { type:'acc', cat:'upperback', def:'face-pull' },
       { type:'select', cat:'bicep' },
     ]},
-    { name: 'Lower B', slots: [
+    { name: 'Lower B', nameKey: 'lower_b', slots: [
       { type:'acc', cat:'quad', def:'leg-press' },
       { type:'acc', cat:'ham',  def:'seated-leg-curl' },
       { type:'acc', cat:'glute', def:'bb-hip-thrust' },
@@ -918,35 +904,35 @@ const BB_DAY_TEMPLATES = {
     ]},
   ],
   5: [
-    { name: 'Push', slots: [
+    { name: 'Push', nameKey: 'push', slots: [
       { type:'main', lift:'comp-bench' },
       { type:'acc', cat:'bench', def:'db-incline-bench' },
       { type:'acc', cat:'shoulder', def:'lateral-raise' },
       { type:'acc', cat:'tricep', def:'triceps-pushdown' },
       { type:'select', cat:'chest' },
     ]},
-    { name: 'Pull', slots: [
+    { name: 'Pull', nameKey: 'pull', slots: [
       { type:'acc', cat:'vpull', def:'lat-pulldown' },
       { type:'acc', cat:'hpull', def:'barbell-row' },
       { type:'acc', cat:'upperback', def:'face-pull' },
       { type:'acc', cat:'bicep', def:'ez-curl' },
       { type:'select', cat:'bicep' },
     ]},
-    { name: 'Legs', slots: [
+    { name: 'Legs', nameKey: 'legs', slots: [
       { type:'main', lift:'comp-squat' },
       { type:'acc', cat:'ham',  def:'romanian-deadlift' },
       { type:'acc', cat:'quad', def:'leg-extensions' },
       { type:'acc', cat:'calf', def:'standing-calf-raise' },
       { type:'select', cat:'glute' },
     ]},
-    { name: 'Upper', slots: [
+    { name: 'Upper', nameKey: 'upper', slots: [
       { type:'main', lift:'military-press' },
       { type:'acc', cat:'vpull', def:'chinup' },
       { type:'acc', cat:'hpull', def:'chest-supported-row' },
       { type:'acc', cat:'bench', def:'machine-chest-press' },
       { type:'select', cat:'tricep' },
     ]},
-    { name: 'Lower', slots: [
+    { name: 'Lower', nameKey: 'lower', slots: [
       { type:'acc', cat:'quad', def:'leg-press' },
       { type:'acc', cat:'ham',  def:'seated-leg-curl' },
       { type:'acc', cat:'glute', def:'bb-hip-thrust' },
@@ -955,37 +941,37 @@ const BB_DAY_TEMPLATES = {
     ]},
   ],
   6: [
-    { name: 'Push A', slots: [
+    { name: 'Push A', nameKey: 'push_a', slots: [
       { type:'main', lift:'comp-bench' },
       { type:'acc', cat:'bench', def:'db-incline-bench' },
       { type:'acc', cat:'shoulder', def:'lateral-raise' },
       { type:'acc', cat:'tricep', def:'triceps-pushdown' },
     ]},
-    { name: 'Pull A', slots: [
+    { name: 'Pull A', nameKey: 'pull_a', slots: [
       { type:'acc', cat:'vpull', def:'lat-pulldown' },
       { type:'acc', cat:'hpull', def:'barbell-row' },
       { type:'acc', cat:'upperback', def:'face-pull' },
       { type:'acc', cat:'bicep', def:'ez-curl' },
     ]},
-    { name: 'Legs A', slots: [
+    { name: 'Legs A', nameKey: 'legs_a', slots: [
       { type:'main', lift:'comp-squat' },
       { type:'acc', cat:'ham',  def:'romanian-deadlift' },
       { type:'acc', cat:'quad', def:'leg-extensions' },
       { type:'acc', cat:'calf', def:'standing-calf-raise' },
     ]},
-    { name: 'Push B', slots: [
+    { name: 'Push B', nameKey: 'push_b', slots: [
       { type:'main', lift:'military-press' },
       { type:'acc', cat:'bench', def:'machine-chest-press' },
       { type:'acc', cat:'shoulder', def:'cable-lateral-raise' },
       { type:'acc', cat:'tricep', def:'overhead-triceps-ext' },
     ]},
-    { name: 'Pull B', slots: [
+    { name: 'Pull B', nameKey: 'pull_b', slots: [
       { type:'acc', cat:'vpull', def:'pullup' },
       { type:'acc', cat:'hpull', def:'cable-row' },
       { type:'acc', cat:'upperback', def:'rear-delt-fly' },
       { type:'acc', cat:'bicep', def:'hammer-curl' },
     ]},
-    { name: 'Legs B', slots: [
+    { name: 'Legs B', nameKey: 'legs_b', slots: [
       { type:'acc', cat:'quad', def:'leg-press' },
       { type:'acc', cat:'ham',  def:'seated-leg-curl' },
       { type:'acc', cat:'glute', def:'bb-hip-thrust' },
@@ -994,14 +980,16 @@ const BB_DAY_TEMPLATES = {
   ],
 };
 
-// Muscle-group check-in questions per main movement on the day
+// Muscle-group check-in questions per main movement on the day. Logic-only
+// keys: the athlete-facing group label lives in the i18n catalogs
+// ('ci.group_<key>'), so the table stays translation-free.
 const CHECKIN_GROUPS = {
-  bench:    { key:'bench', label:'Pecs / Shoulders / Triceps' },
-  press:    { key:'press', label:'Shoulders / Triceps' },
-  squat:    { key:'squat', label:'Quads / Glutes' },
-  deadlift: { key:'deadlift', label:'Hamstrings / Glutes' },
-  lowback:  { key:'lowback', label:'Lower Back' },
-  upperpull:{ key:'upperpull', label:'Lats / Upper Back / Biceps' },
+  bench:    { key:'bench' },
+  press:    { key:'press' },
+  squat:    { key:'squat' },
+  deadlift: { key:'deadlift' },
+  lowback:  { key:'lowback' },
+  upperpull:{ key:'upperpull' },
 };
 
 // IPF-style kg plate colors for the plate-math visual
