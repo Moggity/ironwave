@@ -214,7 +214,23 @@ function exMetaCardHTML(e) {
 
 function allExercises() { return EXERCISES.concat(S.customEx); }
 function exById(id) { return allExercises().find(e => e.id === id); }
-function exName(id) { const e = exById(id); return e ? e.name : id; }
+// [i18n phase 4] Translated exercise display name: an 'exn.<id>' catalog key
+// layered over EXERCISES, falling back to the English name for any id a
+// catalog does not cover. Custom exercises are the athlete's own text and are
+// never translated. Names already stored in sessions/records stay verbatim.
+function exDisplayName(e) {
+  if (!e) return '';
+  if (e.custom) return e.name;
+  const cat = I18N.catalogs[I18N.lang];
+  return (cat && cat.strings['exn.' + e.id]) || e.name;
+}
+function exName(id) { const e = exById(id); return e ? exDisplayName(e) : id; }
+// Search matcher: a query hits the translated display name or the English one,
+// so "sentadilla" and "squat" both find the squat in a Spanish UI.
+function exMatches(e, q) {
+  if (!q) return true;
+  return e.name.toLowerCase().includes(q) || exDisplayName(e).toLowerCase().includes(q);
+}
 function recordsFor(id) { return S.records[id] || []; }
 function pushRecord(id, rec) { (S.records[id] = S.records[id] || []).push(rec); }
 
@@ -1623,8 +1639,8 @@ function vOnboarding() {
     body = `
       <div class="ob-title">${esc(t('ob.maxes_title'))}</div>
       <p class="subtle">${esc(t('ob.maxes_sub'))}</p>
-      ${lifts.map(([id,label]) => `
-        <div class="field"><label>${esc(t('ob.rm_label', { name: label }))}</label>
+      ${lifts.map(([id]) => `
+        <div class="field"><label>${esc(t('ob.rm_label', { name: exName(id) }))}</label>
           <input id="ob-max-${id}" type="number" inputmode="decimal"
             value="${ob.maxes[id] ?? ''}" placeholder="${esc(t('ob.calib_ph'))}"></div>`).join('')}
       <button class="btn btn-green mt16" onclick="obNext(6)">${esc(t('ob.create'))}</button>`;
@@ -4153,7 +4169,7 @@ function dayHeadsCovered(di, exceptSi, cat) {
 function swapBodyHTML() {
   const used = new Set(Object.keys(S.records));
   const ql = SW.q.trim().toLowerCase();
-  const matchText = e => !ql || e.name.toLowerCase().includes(ql);
+  const matchText = e => exMatches(e, ql);
   const matchEquip = e => SW.equip === 'all' || e.equipment === SW.equip;
   const all = allExercises().filter(e => e.id !== SW.current);
   // [Cluster C] On accessory slots, bias the order toward better stimulus:
@@ -4182,7 +4198,7 @@ function swapBodyHTML() {
   const sortFn = (a, b) => (used.has(b.id) - used.has(a.id))
     || (sfrBias ? (fillsGap(b) - fillsGap(a)) : 0)
     || (sfrBias ? ((b.sfr || 2) - (a.sfr || 2)) : 0)
-    || a.name.localeCompare(b.name);
+    || exDisplayName(a).localeCompare(exDisplayName(b));
 
   // Chips reflect the pool the athlete can actually browse: just the
   // recommended movement for a main slot, every exercise otherwise.
@@ -4240,7 +4256,7 @@ function swapCardHTML(e, showGroup, gap) {
   const overTag = (!gap && e.head && SW.overHeads && SW.overHeads.has(e.head) && HEAD_LABELS[e.head])
     ? ` <span class="ex-tag over">${esc(t('swap.head_maxed', { head: headLabel(e.head) }))}</span>` : '';
   return `<div class="ex-card">
-      <span class="name">${esc(e.name)}${costTag}${gapTag}${overTag}${showGroup ? `<span class="sub">${esc(mvLabel(e.movement))}</span>` : ''}${exTagsHTML(e)}</span>
+      <span class="name">${esc(exDisplayName(e))}${costTag}${gapTag}${overTag}${showGroup ? `<span class="sub">${esc(mvLabel(e.movement))}</span>` : ''}${exTagsHTML(e)}</span>
       <span class="actions">
         <button class="icon-btn" onclick="openExDetail('${e.id}')"><span class="ic">ⓘ</span>${esc(t('common.info'))}</button>
         <button class="icon-btn" onclick="doSwap(${SW.di},${SW.si},'${e.id}')"><span class="ic">☐</span>${esc(t('common.select'))}</button>
@@ -4277,7 +4293,7 @@ function openAddExercise(di) {
 }
 function addBodyHTML() {
   const ql = ADDF.q.trim().toLowerCase();
-  const matchText = e => !ql || e.name.toLowerCase().includes(ql);
+  const matchText = e => exMatches(e, ql);
   const matchEquip = e => ADDF.equip === 'all' || e.equipment === ADDF.equip;
   const equips = [...new Set(allExercises().map(e => e.equipment))].sort((a, b) => EQUIP_ORDER.indexOf(a) - EQUIP_ORDER.indexOf(b));
   const list = allExercises().filter(e => matchEquip(e) && matchText(e)).slice(0, 60);
@@ -4291,7 +4307,7 @@ function addBodyHTML() {
       const costTxt = cost ? ` · ${esc(t('add.cost', { n: cost }))}` : '';
       const overTag = (e.head && overHeads.has(e.head) && HEAD_LABELS[e.head]) ? ` <span class="ex-tag over">${esc(t('swap.head_maxed', { head: headLabel(e.head) }))}</span>` : '';
       return `<button class="lib-item" onclick="doAddExercise('${e.id}')">
-      <span>${esc(e.name)}<span class="sub">${esc(mvLabel(e.movement))} · ${EQUIP_LABEL[e.equipment] ? esc(t('equip.' + e.equipment)) : ''}${costTxt}</span>${exTagsHTML(e)}${overTag}</span><span>＋</span>
+      <span>${esc(exDisplayName(e))}<span class="sub">${esc(mvLabel(e.movement))} · ${EQUIP_LABEL[e.equipment] ? esc(t('equip.' + e.equipment)) : ''}${costTxt}</span>${exTagsHTML(e)}${overTag}</span><span>＋</span>
     </button>`;
     }).join('')
     : `<p class="faint mt8">${esc(t('add.no_matches'))}</p>`;
@@ -4421,13 +4437,13 @@ function redoDay(i) {
 // ------------------------------------------------------------
 function vExercises() {
   const q = V.libSearch.toLowerCase();
-  let list = allExercises().filter(e => !q || e.name.toLowerCase().includes(q));
+  let list = allExercises().filter(e => exMatches(e, q));
   let body = '';
   if (V.libTab === 'alpha') {
-    list.sort((a, b) => a.name.localeCompare(b.name));
+    list.sort((a, b) => exDisplayName(a).localeCompare(exDisplayName(b)));
     let letter = '';
     body = list.map(e => {
-      const L = e.name[0].toUpperCase();
+      const L = exDisplayName(e)[0].toUpperCase();
       const head = L !== letter ? `<div class="lib-letter">${L}</div>` : '';
       letter = L;
       return head + libItemHTML(e);
@@ -4437,12 +4453,12 @@ function vExercises() {
       const items = list.filter(e => e.movement === mv);
       if (!items.length) return '';
       return `<div class="lib-letter">${esc(mvLabel(mv))}</div>` +
-        items.sort((a, b) => a.name.localeCompare(b.name)).map(libItemHTML).join('');
+        items.sort((a, b) => exDisplayName(a).localeCompare(exDisplayName(b))).map(libItemHTML).join('');
     }).join('');
   } else {
     const used = new Set(Object.keys(S.records));
     const mine = list.filter(e => used.has(e.id) || S.customEx.some(c => c.id === e.id));
-    body = mine.length ? mine.sort((a, b) => a.name.localeCompare(b.name)).map(libItemHTML).join('')
+    body = mine.length ? mine.sort((a, b) => exDisplayName(a).localeCompare(exDisplayName(b))).map(libItemHTML).join('')
       : `<div class="card mt16"><b>${esc(t('lib.mine_empty_title'))}</b><p class="subtle mt8">${esc(t('lib.mine_empty_body'))}</p></div>`;
     body += `<button class="btn btn-blue mt16" onclick="openCustomEx()">${esc(t('lib.create_custom'))}</button>`;
   }
@@ -4462,7 +4478,7 @@ function libItemHTML(e) {
   const eq = EQUIP_LABEL[e.equipment] ? t('equip.' + e.equipment) : '';
   const best = Engine.bestE1RM(recordsFor(e.id));
   return `<button class="lib-item" onclick="openExDetail('${e.id}')">
-    <span>${esc(e.name)}${e.isMain ? ' <span style="color:var(--blue)">★</span>' : ''}
+    <span>${esc(exDisplayName(e))}${e.isMain ? ' <span style="color:var(--blue)">★</span>' : ''}
       <span class="sub">${esc(mvLabel(e.movement))} · ${esc(eq)}${best ? ' · e1RM ' + kg(Engine.roundLoad(best, 0.5)) + 'kg' : ''}</span>${exTagsHTML(e)}</span>
     <span>›</span></button>`;
 }
@@ -4636,7 +4652,7 @@ function renderExDetail(anim) {
       ${loadingUI}
       ${e.custom ? `<button class="btn btn-outline mt16" style="color:var(--red);border-color:var(--red)" onclick="deleteCustomEx('${e.id}')">${esc(t('xd.delete_custom'))}</button>` : ''}`;
   }
-  $modal.innerHTML = modalShell(anim, esc(e.name),
+  $modal.innerHTML = modalShell(anim, esc(exDisplayName(e)),
     `<div class="tabs">${tabBtn('info')}${tabBtn('history')}${tabBtn('trend')}${tabBtn('maxes')}${tabBtn('settings')}</div>${body}`);
 }
 function saveExSettings() {

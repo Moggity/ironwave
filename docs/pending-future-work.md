@@ -589,8 +589,19 @@ tables).
    prefers theme -> nameKey -> legacy name. Golden master regenerated; the
    reviewed diff is exclusively note -> noteKey/noteParams, zero
    weight/rep/set changes.
-4. **Phase 4 (optional)**: exercise names as `i18n` keys layered over
-   `EXERCISES`; custom exercises are user text, never translated.
+4. ~~**Phase 4 (optional)**~~ DONE (2026-07-09, same branch): `exDisplayName`
+   layers `exn.<id>` keys over `EXERCISES` (fallback: the English data.js
+   name; custom exercises never translate); all 148 names shipped in es.js;
+   pickers/library/detail/search/sort/onboarding-maxes route through it and
+   search matches both languages. The typo-net test validates `exn.*`
+   against real exercise ids since these keys are deliberately not in en.js.
+5. **NEW: Spanish coaching-cue content.** The per-exercise cue TEXT
+   (`EX_CUES` in data.js, ~148 entries / ~450 sentences, plus the small
+   generic `CUES` fallback in app.js) still renders in English on the
+   exercise detail Info tab. This is a content-translation job (like a
+   booklet chapter), not plumbing: the mechanism can mirror phase 4
+   (`cue.<id>_<n>` keys layered over `EX_CUES`, falling back to English).
+   Own branch, translation review recommended.
 
 Conventions the shipped code established (follow them): keys are
 `surface.snake_case` (`session.*`, `perf.*`, `ob.*`, shared `muscle.*` /

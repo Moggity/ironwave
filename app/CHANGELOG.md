@@ -1,5 +1,33 @@
 # IRONWAVE — Changelog
 
+## [i18n phase 4: translated exercise names] (2026-07-09)
+
+The optional last phase of the i18n plan. Display-only: `resolveSlot` builds
+names through `exName`, which resolves to English under the default catalog,
+so the golden master is untouched. Bumped `APP_VERSION`/`CACHE_VERSION` to
+`1.7.1`.
+
+- **Exercise names translate**: `exDisplayName(e)` layers an `exn.<id>`
+  catalog key over `EXERCISES`, falling back to the English `data.js` name
+  for any id a catalog does not cover; custom exercises are the athlete's
+  own text and never translate. `es.js` covers all 148 exercises in Latam
+  gym vocabulary (Jalón al pecho, Press francés, Sentadilla búlgara,
+  Elevación de pantorrillas, Caminata del granjero, ...).
+- Every live render site routes through it: swap/add pickers, the exercise
+  library (including alphabetical sort and letter grouping by the DISPLAY
+  name), the detail modal title, the onboarding maxes labels (the
+  `OB_MAIN_LIFTS` label column is gone), and every `exName` toast. Search
+  matches BOTH the translated and the English name ("sentadilla" and
+  "squat" both find the squat). Names already stored in sessions/records
+  render verbatim, as with notes and day names.
+- Guardrail: `exn.*` keys are deliberately absent from `en.js` (English
+  falls back to `data.js`), so the catalog typo-net test now validates
+  them against real exercise ids instead; a key with no matching exercise
+  fails CI. Plus a translation/fallback/custom-exercise unit test.
+- Out of scope, its own follow-up: the per-exercise coaching-cue TEXT
+  (`EX_CUES`, ~450 sentences) stays English; it is a content-translation
+  job on the scale of a booklet, listed in `docs/pending-future-work.md`.
+
 ## [i18n phase 3: engine noteKey + translated day names] (2026-07-09)
 
 The one deliberately engine-touching i18n step (its own PR per the plan).
