@@ -55,15 +55,18 @@ test('fresh onboarding preselects nothing but program length', () => {
 });
 
 test('bodybuilding leads the track list', () => {
-  assert.strictEqual(app.OB_TRACKS[0][0], 'bodybuilding');
+  assert.strictEqual(app.OB_TRACKS[0], 'bodybuilding');
 });
 
+// Labels moved to the i18n catalog (i18n phase 2); the table keeps ids + logic.
 test('goal archetypes carry the renamed labels, ids unchanged', () => {
   const A = app.GOAL_ARCHETYPES;
-  assert.strictEqual(A['serious-macro'].label, 'Serious bodybuilder training');
-  assert.strictEqual(A['recomp'].label, 'Look good, stay healthy');
-  assert.strictEqual(A['lean-asap'].label, 'Look lean ASAP');
-  assert.ok(A['lean-asap'].warn.includes('Look good, stay healthy'), 'warning points at the renamed pick');
+  assert.deepStrictEqual(Object.keys(A), ['serious-macro', 'recomp', 'lean-asap']);
+  assert.strictEqual(app.t('goal.serious-macro'), 'Serious bodybuilder training');
+  assert.strictEqual(app.t('goal.recomp'), 'Look good, stay healthy');
+  assert.strictEqual(app.t('goal.lean-asap'), 'Look lean ASAP');
+  assert.ok(A['lean-asap'].warn, 'the aggressive-deficit pick still carries its warning flag');
+  assert.ok(app.t('goal.lean-asap_warn').includes(app.t('goal.recomp')), 'warning points at the renamed pick');
 });
 
 // makeProgram still works when optional onboarding fields are absent (the

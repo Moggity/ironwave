@@ -1,5 +1,49 @@
 # IRONWAVE — Changelog
 
+## [i18n foundation + Spanish: session view and perf modal] (2026-07-09)
+
+Phases 1 and 2 (first surface) of the i18n plan in
+`docs/pending-future-work.md`. Display layer only; no prescription change,
+golden master byte-identical. Bumped `APP_VERSION`/`CACHE_VERSION` to `1.6.0`
+(new shell files).
+
+- **Translation runtime** (`app/i18n/i18n.js`): a ~40-line `t(key, params)`
+  helper with lookup order active language -> English -> the key itself, and
+  `{name}` placeholder interpolation. Catalogs are plain script files loaded
+  before `data.js` (`i18n/en.js` is the source of truth; translators copy it,
+  translate values only - see `app/i18n/README.md`). All i18n files are in the
+  service worker `SHELL`, so language switching works offline.
+- **Language setting**: `profile.lang` (default `'auto'` = device language,
+  backfilled in `migrateState`), a Settings > Language select listing the
+  registered catalogs, applied live via `setAppLang`. An explicit choice also
+  drives date formatting (`I18N.dateLocale()` threaded into
+  `toLocaleDateString`); on auto the device keeps deciding.
+- **First extracted surface (highest athlete exposure)**: the live session
+  view (cards, superset rounds, finisher chips and info modal, RIR intro,
+  readiness strip), the rest timer and rest notification, the performance
+  modal (steppers, pump, mini-sets, mini-rest cue, outlier confirm, all
+  toasts), the warmup modal, and the session rating flow. Labels that lived in
+  render paths (`PUMP_LABELS`, `TECHNIQUE_LABELS`, `RPE_DESCRIPTIONS`,
+  `SR_WORDS`, `FINISHER_UI`) now render through catalog keys; prescribed set
+  NOTES stay English by design (the stored-string step is its own
+  golden-master PR per the plan).
+- **Second extracted surface: onboarding**, all seven steps (welcome, days,
+  goal + archetypes + the lean-asap warning, experience, time, focus sliders
+  and their extreme-setting warning, maxes) plus the step-gating toasts and the
+  session-length estimate lines. The onboarding data tables are now logic-only
+  per the plan: `OB_TRACKS` / `OB_EXP` keep ids and order, `GOAL_ARCHETYPES`
+  keeps weeks/phaseCycle and a `warn` flag; their copy lives in the catalogs
+  (`track.*`, `exp.*`, `goal.*`, `muscle.*`). `FOCUS_LABELS` stays for the
+  generated day NAMES (stored in the program, phase-3 territory).
+- **Spanish** (`app/i18n/es.js`): a full translation of the extracted surfaces.
+- Fixed an em-dash violation in the superset next-exercise toast (athlete
+  facing strings carry no em dashes).
+- Tests: new `test/i18n.test.js` (catalog completeness: extra keys fail,
+  missing keys warn; placeholder parity; no em dashes in catalog values;
+  lookup/interpolation/resolution; the migration backfill; index.html + sw.js
+  wiring), and render-smoke passes of the session view + all navigation views
+  and every onboarding step under the Spanish catalog. Suite at 246 passing.
+
 ## [User-feedback round 3: quieter dashboard, honest onboarding] (2026-07-08)
 
 Display/onboarding layer only; no prescription change, golden master

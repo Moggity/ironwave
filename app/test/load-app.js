@@ -71,6 +71,7 @@ const EXPORTS = `return {
   VOLUME_LANDMARKS, EXPERIENCE_FACTOR, DEFAULT_PLATES,
   DEFAULT_ACC, SPLIT_FREQ, FOCUS_FACTOR, MOVEMENT_SLIDER,
   UPPER_MUSCLES, LOWER_MUSCLES, FOCUS_KEYS,
+  t, I18N,
   get S() { return S; }, set S(v) { S = v; },
   get V() { return V; }, set V(v) { V = v; },
 };`;
@@ -79,6 +80,8 @@ function loadApp() {
   const appDir = path.join(__dirname, '..');
   const read = f => fs.readFileSync(path.join(appDir, f), 'utf8');
 
+  // The i18n runtime + catalogs load before data.js, matching index.html.
+  const i18n = ['i18n/i18n.js', 'i18n/en.js', 'i18n/es.js'].map(read).join('\n;\n');
   const data = read('data.js');
   const engine = read('engine.js');
   // Drop the boot() invocation at the end of app.js so loading does not kick
@@ -92,7 +95,7 @@ function loadApp() {
   // backticks inside the app's own template strings can't terminate it early.
   const wrapper =
     '(function (window, self, globalThis, document, fetch) {\n' +
-    data + '\n;\n' + engine + '\n;\n' + app + '\n;\n' + EXPORTS + '\n})';
+    i18n + '\n;\n' + data + '\n;\n' + engine + '\n;\n' + app + '\n;\n' + EXPORTS + '\n})';
 
   const factory = vm.runInThisContext(wrapper, { filename: 'ironwave-combined.js' });
 

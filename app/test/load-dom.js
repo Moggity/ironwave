@@ -24,6 +24,7 @@ const EXPORTS = `
 ;window.__APP__ = {
   render, makeProgram, defaultState, obDefaults, startCheckin, beginSession,
   doSwap, exById, allExercises, openVolumeDashboard,
+  t, I18N, setAppLang, openPerf,
   get S() { return S; }, set S(v) { S = v; },
   get V() { return V; }, set V(v) { V = v; },
 };`;
@@ -44,6 +45,8 @@ function loadDom() {
   // No real network: save()/loadState() resolve to an empty OK so nothing throws.
   window.fetch = () => Promise.resolve({ ok: true, json: async () => ({}) });
 
+  // The i18n runtime + catalogs load before data.js, matching index.html.
+  const i18n = ['i18n/i18n.js', 'i18n/en.js', 'i18n/es.js'].map(read);
   const data = read('data.js');
   const engine = read('engine.js');
   // Strip the whole trailing `boot().catch(...)` statement (see load-app.js:
@@ -51,7 +54,7 @@ function loadDom() {
   // letting boot run async in tests and replace an injected S mid-test).
   const app = read('app.js').replace(/\bboot\(\)(\.catch\([\s\S]*?\))?;\s*$/, '');
 
-  window.eval([data, engine, app, EXPORTS].join('\n;\n'));
+  window.eval([...i18n, data, engine, app, EXPORTS].join('\n;\n'));
   return { window, document: window.document, app: window.__APP__ };
 }
 
