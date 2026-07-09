@@ -642,20 +642,27 @@ Engine.headLandmark = function (lm, nHeads) {
 // recovery capacity drops, so we never add volume (retain, do not grow) and back
 // off one notch sooner. Omitted -> surplus/maintenance behavior (unchanged).
 Engine.autoregVolume = function (sig, sets, lm, phase) {
-  if (!lm) return { action: 'hold', delta: 0, nextSets: sets, reason: 'No landmark yet' };
+  // `reasonKey` is a stable id for the reason, so the UI can translate it at
+  // render time ('vol.rec_<key>' in the i18n catalogs); `reason` stays the
+  // English sentence for logs and tests.
+  if (!lm) return { action: 'hold', delta: 0, nextSets: sets, reason: 'No landmark yet', reasonKey: 'no_landmark' };
   const s = sig || {};
   const rec = s.recovery == null ? 3 : s.recovery;
   const perf = s.performance == null ? 0 : s.performance;
   const deficit = phase === 'cut' || phase === 'minicut';
   const addRec = deficit ? 5 : 4;     // harder to justify adding when under-fed
   const cutRec = deficit ? 3 : 2;     // back off sooner
-  let delta, why;
-  if (perf < 0 || rec <= cutRec) { delta = -1; why = perf < 0 ? 'Reps are dropping, back off' : 'Still under-recovered, back off'; }
-  else if (deficit) { delta = 0; why = 'In a deficit, hold volume and keep what you have'; }
-  else if (sets < lm.mev) { delta = Math.min(2, lm.mev - sets); why = 'Below MEV, ramp the volume in'; }
-  else if (sets >= lm.mrv) { delta = 0; why = 'At your MRV, hold here'; }
-  else if (rec >= addRec && perf >= 0) { delta = 1; why = 'Recovered well, add a set'; }
-  else { delta = 0; why = 'On track, hold and let it adapt'; }
+  let delta, why, whyKey;
+  if (perf < 0 || rec <= cutRec) {
+    delta = -1;
+    why = perf < 0 ? 'Reps are dropping, back off' : 'Still under-recovered, back off';
+    whyKey = perf < 0 ? 'perf_down' : 'under_recovered';
+  }
+  else if (deficit) { delta = 0; why = 'In a deficit, hold volume and keep what you have'; whyKey = 'deficit_hold'; }
+  else if (sets < lm.mev) { delta = Math.min(2, lm.mev - sets); why = 'Below MEV, ramp the volume in'; whyKey = 'below_mev'; }
+  else if (sets >= lm.mrv) { delta = 0; why = 'At your MRV, hold here'; whyKey = 'at_mrv'; }
+  else if (rec >= addRec && perf >= 0) { delta = 1; why = 'Recovered well, add a set'; whyKey = 'recovered_add'; }
+  else { delta = 0; why = 'On track, hold and let it adapt'; whyKey = 'on_track'; }
   // Clamp direction-safely: an add caps at MRV, a cut floors at MV but never
   // turns into an increase when the muscle is already below maintenance.
   const nextSets = delta >= 0
@@ -664,9 +671,11 @@ Engine.autoregVolume = function (sig, sets, lm, phase) {
   const applied = nextSets - sets;
   const action = applied > 0 ? 'add' : applied < 0 ? 'cut' : 'hold';
   // If clamping turned an intended move into a hold, say why plainly.
-  const reason = applied === 0 && delta !== 0
+  const clamped = applied === 0 && delta !== 0;
+  const reason = clamped
     ? (delta > 0 ? 'At your MRV, hold here' : 'Already at maintenance, hold here') : why;
-  return { action, delta: applied, nextSets, reason };
+  const reasonKey = clamped ? (delta > 0 ? 'at_mrv' : 'at_maint') : whyKey;
+  return { action, delta: applied, nextSets, reason, reasonKey };
 };
 
 // [Cluster F] Fatigue saturation: how many muscles sit at or near MRV (over the

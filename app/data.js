@@ -9,7 +9,7 @@
 // repo, and it must be kept in step with CACHE_VERSION in sw.js (the service
 // worker only ships new code to installed PWAs when that cache name changes).
 // Bump this on any shell change (data/engine/app/styles/index/sw).
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.6.1';
 
 // Movement categories (used for "Select X Exercise" slots & swaps)
 const MOVEMENTS = {
@@ -259,23 +259,9 @@ const EX_META_DEFAULT = { sfr: 2, stretch: false, head: null };
 // [Cluster F] Training-phase / energy-balance taxonomy. Public concepts, our own
 // copy. A deficit (cut/minicut) tells the autoregulator recovery is lower. No
 // calorie/macro database: this is a training-coupled phase tag, not a nutrition
-// tracker. Athlete-facing labels, no em dashes.
-const PHASE_LABELS = {
-  'lean-gain':  'Lean gain',
-  'gain':       'Gain phase',
-  'maintenance': 'Maintenance',
-  'cut':        'Cut',
-  'minicut':    'Minicut',
-  'peak':       'Peak',
-};
-const PHASE_BLURB = {
-  'lean-gain':  'Slight surplus, build muscle. The autoregulator can add volume freely.',
-  'gain':       'Bigger surplus, push muscle gain and recovery is high.',
-  'maintenance': 'Around maintenance, hold weight and recover.',
-  'cut':        'Deficit to lose fat. Recovery drops, so volume holds rather than climbs.',
-  'minicut':    'Short sharp deficit (about 2 to 4 weeks) to shed fatigue, then back to growing.',
-  'peak':       'Final sharpening into a meet or photo date. Volume drops, freshness rises.',
-};
+// tracker. Logic-only id list: the athlete-facing label and blurb live in the
+// i18n catalogs ('phase.<id>' / 'phase.<id>_desc'), same pattern as GOAL_ARCHETYPES.
+const PHASES = ['lean-gain', 'gain', 'maintenance', 'cut', 'minicut', 'peak'];
 const PHASE_DEFICIT = { cut: true, minicut: true };
 // [Epic G1/G3] Per-block phase colors for the macrocycle timeline. The container
 // tint groups a block by phase; the legend reuses these. Our own palette (blues
@@ -994,14 +980,16 @@ const BB_DAY_TEMPLATES = {
   ],
 };
 
-// Muscle-group check-in questions per main movement on the day
+// Muscle-group check-in questions per main movement on the day. Logic-only
+// keys: the athlete-facing group label lives in the i18n catalogs
+// ('ci.group_<key>'), so the table stays translation-free.
 const CHECKIN_GROUPS = {
-  bench:    { key:'bench', label:'Pecs / Shoulders / Triceps' },
-  press:    { key:'press', label:'Shoulders / Triceps' },
-  squat:    { key:'squat', label:'Quads / Glutes' },
-  deadlift: { key:'deadlift', label:'Hamstrings / Glutes' },
-  lowback:  { key:'lowback', label:'Lower Back' },
-  upperpull:{ key:'upperpull', label:'Lats / Upper Back / Biceps' },
+  bench:    { key:'bench' },
+  press:    { key:'press' },
+  squat:    { key:'squat' },
+  deadlift: { key:'deadlift' },
+  lowback:  { key:'lowback' },
+  upperpull:{ key:'upperpull' },
 };
 
 // IPF-style kg plate colors for the plate-math visual

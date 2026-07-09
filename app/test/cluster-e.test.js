@@ -57,7 +57,7 @@ test('missing signal fields default to a neutral hold-ish read', () => {
   const r = Engine.autoregVolume({}, 14, LM); // rec=3, perf=0
   assert.strictEqual(r.action, 'hold');
   assert.deepStrictEqual(Engine.autoregVolume({}, 14, null),
-    { action: 'hold', delta: 0, nextSets: 14, reason: 'No landmark yet' });
+    { action: 'hold', delta: 0, nextSets: 14, reason: 'No landmark yet', reasonKey: 'no_landmark' });
 });
 
 // ---------------------------------------------------------------------------

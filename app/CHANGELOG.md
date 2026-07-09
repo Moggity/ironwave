@@ -1,5 +1,44 @@
 # IRONWAVE — Changelog
 
+## [i18n phase 2, second batch: dashboard + workout surface, Spanish UI fixes] (2026-07-09)
+
+Queue item 1 of the i18n plan in `docs/pending-future-work.md`. Display layer
+only; no prescription change, golden master byte-identical. Bumped
+`APP_VERSION`/`CACHE_VERSION` to `1.6.1`.
+
+- **Extracted surfaces**: the dashboard (readiness hero, program header, day
+  rows, phase chip, new-cycle flow), the macrocycle timeline (phase labels,
+  emphasis legend, week-preview modal with its calibration explainer), the
+  block plan editor, the early-deload banner and confirms, the Weekly volume
+  screen (statuses, per-muscle recommendations, regions, overreach/minicut/
+  deload notes, muscle-deload controls), the Phase & bodyweight screen, the
+  workout overview (cards, superset controls, swipe-remove, skip/preview,
+  time banners and the time-by-week modal), the check-in flow, the swap /
+  select / add pickers (equipment chips, head/SFR badges, time costs), and
+  every toast on those paths.
+- **Tables reduced to logic-only** per the plan's convention: `PHASE_LABELS` /
+  `PHASE_BLURB` became the `PHASES` id list (copy in `phase.*` keys),
+  `CHECKIN_GROUPS` and `PLAN_TYPES` dropped their label columns,
+  `WEEK_FEEL_LEGEND` / `FEEL_WORDS` became key lookups. New display-label
+  namespaces: `mv.*` (movement labels), `head.*`, `sfr.*`, `equip.*`,
+  `week.*` (per-scheme week labels, translated at render; the engine's
+  `weekLabel`/`weekTypeLabel` strings are untouched).
+- **Engine**: `Engine.autoregVolume` now also returns a stable `reasonKey`
+  alongside the English `reason`, so the volume screen translates
+  recommendations at render (`vol.rec_*`). Additive; all other engine-emitted
+  display strings are rebuilt from their structured parts at render sites.
+- **Spanish UI fixes** (reported with screenshots): the rest-timer bar no
+  longer overflows with longer strings; the label truncates instead of pushing
+  "Saltar" off screen, the done state hides the redundant label and keeps
+  "Descanso listo" on one line, and buttons never wrap (plus a narrow-screen
+  size step under 380px).
+- **Copy pass** over `es.js` with the branch-local copywriting skill's
+  AI-trope checklist: literal calques reworded ("es inteligente, no
+  debilidad" -> "es de listos, no de flojos", "todas son razones válidas" ->
+  "cualquier razón vale", and friends).
+- Note: `.claude/skills/copywriting/` is tooling for this branch only and is
+  dropped before merge.
+
 ## [i18n foundation + Spanish: session view and perf modal] (2026-07-09)
 
 Phases 1 and 2 (first surface) of the i18n plan in

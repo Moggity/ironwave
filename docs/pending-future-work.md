@@ -556,13 +556,19 @@ tables).
 
 **Queue for the next i18n branch (pick up here, in this order):**
 
-1. **Dashboard + workout overview surface**: `vDashboard`, `vWorkout`,
-   `timelineHTML` legend/labels, the week-preview modal, check-in flow
-   (`vCheckin`, `FEEL_WORDS`, soreness copy), swap/add pickers (headers,
-   time-cost lines, "Adds <head>" hints), and their toasts. The phase chip
-   uses `PHASE_LABELS`, the volume screens use muscle names: reuse the
-   shipped `muscle.*` keys and move `PHASE_LABELS` copy to `phase.*` keys
-   (table keeps ids/colors, same pattern as `GOAL_ARCHETYPES`).
+1. ~~**Dashboard + workout overview surface**~~ DONE (2026-07-09, branch
+   `claude/english-spanish-translation-cajw1r`): dashboard, timeline +
+   week preview + plan editor + calibration explainer, early-deload banner,
+   Weekly volume screen, Phase & bodyweight screen, workout overview, time
+   banners/modal, check-in flow, swap/select/add pickers, and their toasts.
+   `PHASES` replaced `PHASE_LABELS`/`PHASE_BLURB` (copy in `phase.*`);
+   `CHECKIN_GROUPS`/`PLAN_TYPES`/`FEEL_WORDS`/`WEEK_FEEL_LEGEND` went
+   logic-only; new `mv.*`/`head.*`/`sfr.*`/`equip.*`/`week.*` namespaces;
+   `Engine.autoregVolume` gained an additive `reasonKey` so the volume
+   screen translates recommendations at render. Also fixed the rest-timer
+   bar overflowing with Spanish strings (label truncates, done state drops
+   the redundant label). NOTE: `.claude/skills/copywriting/` (translation
+   copy tooling) lives on this branch only; drop it before merging to main.
 2. **History, summary, More hub, exercise detail/library, remaining settings
    body** (Profile/Barbell/Data/About/Debug sections, plate config), and any
    leftover toasts (grep `toast(` for bare strings).

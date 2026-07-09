@@ -63,7 +63,7 @@ const EXPORTS = `return {
   muscleSignal, checkinGroupForMovement,
   toggleMuscleDeload, isMuscleDeloaded, accessoryPrimaryMuscle, isAccessoryMuscleDeloaded, fatigueStatuses,
   autoregForAccessory, updateAutoreg, currentPhase,
-  PHASE_LABELS, PHASE_DEFICIT, PHASE_COLORS, DEFAULT_BLOCK_PHASE, BLOCK_COLORS,
+  PHASES, phaseLabel, mvLabel, headLabel, PHASE_DEFICIT, PHASE_COLORS, DEFAULT_BLOCK_PHASE, BLOCK_COLORS,
   stampBlockPhase, blockPhase, barColorFor,
   extendBlocks, blocksForWeeks, scheduledTechForBlock, TECH_MARK,
   GOAL_ARCHETYPES, applyArchetypePhases, markPeakBlock,
