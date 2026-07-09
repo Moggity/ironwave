@@ -563,10 +563,15 @@ function generateBodybuildingDays(focus, N) {
       if (focus[d.primary] >= 5) { const s = accSlot(d.primary); if (s) slots.push(s); }
       let g = 0;
       while (slots.length < 3 && g++ < 6) { const s = accSlot(d.primary); if (!s) break; slots.push(s); }
-      const region = UPPER_MUSCLES.includes(d.primary) ? 'Upper' : 'Lower';
+      const upper = UPPER_MUSCLES.includes(d.primary);
+      const region = upper ? 'Upper' : 'Lower';
       // `primary` is carried for the same-muscle spacing pass below; render reads
-      // only name + slots, so the extra field is inert everywhere else.
-      return { name: `${region} · ${FOCUS_LABELS[d.primary] || d.primary}`, slots, primary: d.primary };
+      // name + slots (and now `theme`), so the extra field is inert everywhere
+      // else. [i18n phase 3] `theme` is the structured, render-translated form of
+      // the name; the English `name` string stays for back-compat and exports.
+      return { name: `${region} · ${FOCUS_LABELS[d.primary] || d.primary}`,
+               theme: { region: upper ? 'upper' : 'lower', primary: d.primary },
+               slots, primary: d.primary };
     });
   }
   const up = buildRegion(UPPER_MUSCLES, upDays);
@@ -615,7 +620,17 @@ function daysOut() { return Math.max(0, Math.ceil((P().testDate - Date.now()) / 
 function globalWeekNum() { return P().pointer.block * P().weeksPerBlock + P().pointer.week + 1; }
 // Day theme label (e.g. "Upper A", "Push") shown as a subtitle. Empty for the
 // plain "Day N" templates so we never render "Day 1 · Day 1".
-function dayTheme(d) { return (d && d.name && !/^Day \d+$/.test(d.name)) ? d.name : ''; }
+// [i18n phase 3] Day display theme. Preference order: a structured generator
+// theme (region + primary muscle, translated), a template nameKey (translated),
+// then a legacy stored name verbatim ('Day N' placeholders show nothing).
+function dayTheme(d) {
+  if (!d) return '';
+  if (d.theme && d.theme.primary) {
+    return `${t(d.theme.region === 'lower' ? 'day.lower' : 'day.upper')} · ${t('muscle.' + d.theme.primary)}`;
+  }
+  if (d.nameKey) return t('day.' + d.nameKey);
+  return (d.name && !/^Day \d+$/.test(d.name)) ? d.name : '';
+}
 
 // Resolve slot to a prescription { exId, name, sets, slotRef, isMain, isSelect }
 // All prescriptions route through the block's declared scheme — see
@@ -633,7 +648,7 @@ function applySetDelta(sets, delta) {
     if (!plainIdx.length) return sets; // nothing to clone (e.g. a ramp-to-AMRAP realization main)
     const src = sets[plainIdx[plainIdx.length - 1]];
     let at = plainIdx[plainIdx.length - 1] + 1; // insert before any trailing AMRAP
-    for (let k = 0; k < delta; k++) { sets.splice(at, 0, Object.assign({}, src, { note: null })); at++; }
+    for (let k = 0; k < delta; k++) { sets.splice(at, 0, Object.assign({}, src, { note: null, noteKey: null, noteParams: null })); at++; }
   } else {
     let toRemove = -delta;
     for (let i = sets.length - 1; i >= 0 && toRemove > 0; i--) {
@@ -3026,6 +3041,7 @@ function sessionEntryFrom(x) {
     sets: x.rs.sets.map(t => ({
       targetWeight: t.weight ?? null, targetReps: t.reps, targetRpe: t.rpe ?? null,
       amrap: !!t.amrap, ramp: !!t.ramp, calib: !!t.calib, note: t.note || null,
+      noteKey: t.noteKey || null, noteParams: t.noteParams || null,
       technique: t.technique || null, dropTargets: t.drops || null,
       weight: null, reps: null, rpe: null, drops: null, done: false,
     })),
@@ -3066,18 +3082,31 @@ function setTargetLabel(st, exId) {
 // (calibration explainer, deload copy) hoists to ONE card-level hint; rows keep
 // only what differs per set ('build up', 'top set'). Display-only: the engine's
 // set objects and notes are untouched, so nothing prescription-side moves.
+// [i18n phase 3] Resolve a set's note to display text: a keyed note translates
+// through the catalogs ('note.<key>'); a legacy stored English `note` string
+// (pre-phase-3 sessions and drafts) renders verbatim, no migration.
+function setNoteText(st) {
+  if (st.noteKey) return t('note.' + st.noteKey, st.noteParams || undefined);
+  return st.note || null;
+}
 function cardHintFor(sets) {
   const work = sets.filter(s => !s.ramp);
   if (!work.length) return null;
   if (work.every(s => s.calib)) return t('session.calibration_hint');
-  const notes = [...new Set(work.map(s => s.note).filter(Boolean))];
-  return (notes.length === 1 && work.every(s => s.note)) ? notes[0] : null;
+  const notes = [...new Set(work.map(setNoteText).filter(Boolean))];
+  return (notes.length === 1 && work.every(s => setNoteText(s))) ? notes[0] : null;
 }
 function displaySetNote(st, cardHint) {
-  if (!st.note) return null;
-  if (cardHint && st.note === cardHint) return null; // hoisted to the card line
-  if (st.calib) return st.note.replace(/^Calibration(\s*·\s*)?/, '') || null;
-  return st.note;
+  const txt = setNoteText(st);
+  if (!txt) return null;
+  if (cardHint && txt === cardHint) return null; // hoisted to the card line
+  if (st.calib) {
+    // Keyed calibration notes have explicit short display forms; the bare
+    // middle set ('calib') shows nothing. Legacy strings strip their prefix.
+    if (st.noteKey) return st.noteKey === 'calib' ? null : t('note.' + st.noteKey + '_short');
+    return st.note.replace(/^Calibration(\s*·\s*)?/, '') || null;
+  }
+  return txt;
 }
 
 // [Cluster B] One-time "we switched to RIR" note, dismissed for good once read.
@@ -3881,7 +3910,7 @@ function donePerf() {
         P().wm[e.wmKey] = res.newWM;
         V.draft.wmChange = { name: e.name, from: res.newWM - res.delta, to: res.newWM, delta: res.delta, capped: res.capped };
         toast(t('perf.wm_up', { name: e.name, from: kg(res.newWM - res.delta), to: kg(res.newWM) }) + (res.capped ? ' ' + t('perf.wm_capped') : ''));
-      } else toast(res.msg, true);
+      } else toast(t(st.reps < wave.standard ? 'perf.wm_below_standard' : 'perf.wm_standard_met'), true);
     } else {
       toast(t('perf.amrap_variation'));
     }
@@ -4233,7 +4262,7 @@ function doSwap(di, si, exId) {
     if (item && ei >= 0) dr.entries[ei] = sessionEntryFrom(item);
   }
   save(); closeAllModals(); render();
-  toast(t('swap.set_for', { name: exName(exId), day: P().days[di].name }));
+  toast(t('swap.set_for', { name: exName(exId), day: dayTheme(P().days[di]) || t('common.day_n', { n: di + 1 }) }));
 }
 let ADDF = { equip: 'all', q: '' };
 function openAddExercise(di) {

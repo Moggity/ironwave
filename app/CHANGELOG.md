@@ -1,5 +1,36 @@
 # IRONWAVE — Changelog
 
+## [i18n phase 3: engine noteKey + translated day names] (2026-07-09)
+
+The one deliberately engine-touching i18n step (its own PR per the plan).
+**The golden master regenerated**: the diff was reviewed field by field and is
+exclusively `note` (baked English string) -> `noteKey` + `noteParams` on the
+same sets; zero weight/rep/RPE/set-count changes. Bumped
+`APP_VERSION`/`CACHE_VERSION` to `1.7.0`.
+
+- **Prescribed set notes**: every scheme emission site (calibration ramp,
+  intro/accumulation/intensification last-set cues, AMRAP, all deload
+  variants, the jbb meso/peak/hardest-week notes) now emits a stable
+  `noteKey` (+ `noteParams` where parametric) instead of an English `note`
+  string. The UI resolves it at render via `setNoteText` ('note.*' keys);
+  keyed calibration rows use explicit short forms ('note.*_short'). LEGACY
+  stored `note` strings (old sessions/drafts) render verbatim, no migration.
+  `sessionEntryFrom` carries noteKey/noteParams into drafts and sessions;
+  `applySetDelta` clones stay note-free.
+- **Generated day names**: `generateBodybuildingDays` still stores the
+  English `name` (back-compat, exports) but now also stores a structured
+  `theme` ({region, primary}); `BB_DAY_TEMPLATES` days carry a `nameKey`.
+  `dayTheme` renders theme -> nameKey -> legacy name verbatim, so new
+  programs show 'Inferior · Piernas' / 'Empuje A' in Spanish while old
+  programs keep their stored names.
+- The AMRAP held/below-standard toast now translates at render
+  ('perf.wm_below_standard' / 'perf.wm_standard_met'); the engine's
+  `amrapAdjust().msg` is unchanged.
+- Tests: engine deload-note assertion moved to `noteKey`; four new
+  keyed-note tests (resolution, params, calib short forms, hoisting, and a
+  Spanish render check) in `feedback-round2.test.js`; `setNoteText`/`dayTheme`
+  exported through the harness shim.
+
 ## [i18n phase 2 complete + Latin American Spanish] (2026-07-09)
 
 Queue item 2 of the i18n plan (the last mechanical phase-2 surface) plus a

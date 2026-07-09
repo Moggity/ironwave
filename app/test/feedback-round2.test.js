@@ -63,6 +63,52 @@ test('distinct per-set notes are left alone', () => {
 });
 
 // ------------------------------------------------------------
+// [i18n phase 3] Keyed notes: the engine emits noteKey (+ params), the UI
+// translates at render; legacy stored `note` strings (above) stay verbatim.
+// ------------------------------------------------------------
+test('keyed notes resolve through the catalog, with params interpolated', () => {
+  assert.strictEqual(app.setNoteText({ noteKey: 'deload_main' }), 'Deload, move well and recover');
+  assert.strictEqual(app.setNoteText({ noteKey: 'meso_week', noteParams: { m: 2, w: 3 } }),
+    'Meso 2 · volume week 3 of 4, sets climb next week');
+  assert.strictEqual(app.setNoteText({ noteKey: 'amrap', noteParams: { standard: 8 } }),
+    'AMRAP. Standard is 8, and every rep over moves your working max up.');
+  assert.strictEqual(app.setNoteText({ note: 'legacy stored note' }), 'legacy stored note');
+  assert.strictEqual(app.setNoteText({}), null);
+});
+
+test('keyed calibration rows show short forms and the bare middle set vanishes', () => {
+  const sets = [
+    { calib: true, targetReps: 12, targetRpe: 6, noteKey: 'calib_build' },
+    { calib: true, targetReps: 10, targetRpe: 7, noteKey: 'calib' },
+    { calib: true, targetReps: 8, targetRpe: 8, noteKey: 'calib_top' },
+  ];
+  const hint = app.cardHintFor(sets);
+  assert.ok(/calibration/i.test(hint), 'card-level calibration hint');
+  assert.strictEqual(app.displaySetNote(sets[0], hint), 'build up');
+  assert.strictEqual(app.displaySetNote(sets[1], hint), null);
+  assert.strictEqual(app.displaySetNote(sets[2], hint), 'top set');
+});
+
+test('a keyed note repeated on every set hoists to one line', () => {
+  const sets = [
+    { targetWeight: 60, targetReps: 5, noteKey: 'deload_main' },
+    { targetWeight: 60, targetReps: 5, noteKey: 'deload_main' },
+  ];
+  const hint = app.cardHintFor(sets);
+  assert.strictEqual(hint, 'Deload, move well and recover');
+  assert.strictEqual(app.displaySetNote(sets[0], hint), null, 'row copy suppressed');
+});
+
+test('keyed notes translate: Spanish deload note renders in Spanish', () => {
+  app.I18N.setLang('es');
+  try {
+    assert.strictEqual(app.setNoteText({ noteKey: 'deload_main' }), 'Descarga: muévete bien y recupera');
+  } finally {
+    app.I18N.setLang('en');
+  }
+});
+
+// ------------------------------------------------------------
 // Known maxes: seeded records anchor the engine
 // ------------------------------------------------------------
 test('a seeded 1RM/10RM produces a bestE1RM, so calibration steps aside', () => {

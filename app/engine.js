@@ -103,17 +103,20 @@ const Engine = {
   // path), so changing it deliberately moves the golden master.
   calibrationRamp(baseReps, experience) {
     const topRir = experience === 'beginner' ? 3 : 2;
-    const notes = ['Calibration · build up', 'Calibration', 'Calibration · top set'];
+    // [i18n phase 3] Sets carry a noteKey (translated at render, 'note.<key>'
+    // in the catalogs) instead of a baked-in English string. Legacy stored
+    // notes still render verbatim on the UI side.
+    const noteKeys = ['calib_build', 'calib', 'calib_top'];
     return [4, 3, topRir].map((rir, i) => ({
       reps: Math.max(3, baseReps - 2 * i),
       rpe: 10 - rir,
       calib: true,
-      note: notes[i],
+      noteKey: noteKeys[i],
     }));
   },
 
   // ---------- MAIN LIFT PRESCRIPTION (the Juggernaut tables) ----------
-  // Returns array of set objects: {weight?, reps, rpe?, amrap?, note?}
+  // Returns array of set objects: {weight?, reps, rpe?, amrap?, noteKey?, noteParams?}
   prescribeMain(wave, weekIdx, workingMax, rounding, pctMod = 1, experience) {
     const W = WAVES[wave];
     const wm = workingMax * pctMod;
@@ -131,27 +134,27 @@ const Engine = {
       const w = this.roundLoad(wm * (W.acc.pct - 0.025), rounding);
       for (let i = 0; i < W.acc.sets; i++) {
         sets.push({ weight: w, reps: W.acc.reps, rpe: 7,
-          note: i === W.acc.sets - 1 ? 'Leave 2–3 reps in the tank' : null });
+          noteKey: i === W.acc.sets - 1 ? 'intro_tank' : null });
       }
     } else if (type === 'accumulation') {
       for (let i = 0; i < W.acc.sets; i++) {
         sets.push({ weight: R(W.acc.pct), reps: W.acc.reps,
           rpe: i === W.acc.sets - 1 ? 8 : 7,
-          note: i === W.acc.sets - 1 ? 'Last set: 2–3 reps shy of failure' : null });
+          noteKey: i === W.acc.sets - 1 ? 'acc_last' : null });
       }
     } else if (type === 'intensification') {
       W.int.ramp.forEach(([p, r]) => sets.push({ weight: R(p), reps: r, ramp: true }));
       for (let i = 0; i < W.int.work.sets; i++) {
         sets.push({ weight: R(W.int.work.pct), reps: W.int.work.reps,
           rpe: i === W.int.work.sets - 1 ? 9 : 8,
-          note: i === W.int.work.sets - 1 ? 'Last set: 1–2 reps shy of failure' : null });
+          noteKey: i === W.int.work.sets - 1 ? 'int_last' : null });
       }
     } else if (type === 'realization') {
       W.real.ramp.forEach(([p, r]) => sets.push({ weight: R(p), reps: r, ramp: true }));
       sets.push({ weight: R(W.real.amrap.pct), reps: W.standard, rpe: 10, amrap: true,
-        note: `AMRAP. Standard is ${W.standard}, and every rep over moves your working max up.` });
+        noteKey: 'amrap', noteParams: { standard: W.standard } });
     } else if (type === 'deload') {
-      DELOAD_SETS.forEach(([p, r]) => sets.push({ weight: R(p), reps: r, note: 'Deload, move well and recover' }));
+      DELOAD_SETS.forEach(([p, r]) => sets.push({ weight: R(p), reps: r, noteKey: 'deload_main' }));
     }
     return sets;
   },
@@ -166,7 +169,7 @@ const Engine = {
     const wm = workingMax * pctMod;
     if (type === 'deload') {
       return [[0.40, 5], [0.50, 5]].map(([p, r]) =>
-        ({ weight: this.roundLoad(wm * p, rounding), reps: r, note: 'Deload' }));
+        ({ weight: this.roundLoad(wm * p, rounding), reps: r, noteKey: 'deload' }));
     }
     // Slight ramp across the block: +2.5% per work week
     const bump = { intro: -0.025, accumulation: 0, intensification: 0.025, realization: 0.05 }[type] || 0;
@@ -506,19 +509,20 @@ Engine.schemes = {
       const wmE = wm * pctMod;
       const R = p => Engine.roundLoad(wmE * p, rounding);
       if (t === 'deload') {
-        return DELOAD_SETS.map(([p, r]) => ({ weight: R(p), reps: r, note: 'Deload, move well and recover' }));
+        return DELOAD_SETS.map(([p, r]) => ({ weight: R(p), reps: r, noteKey: 'deload_main' }));
       }
       const m = this._meso(block);
       const idx = Math.min(w, 3);
       const nSets = JBB_HYP.mainSets[m][idx];
       const sets = [];
       for (let i = 0; i < nSets; i++) {
+        const last = i === nSets - 1 && idx < 3;
         sets.push({ weight: R(W.acc.pct + JBB_HYP.dPct[idx]), reps: W.standard, rpe: JBB_HYP.rpe[idx],
-          note: i === nSets - 1 && idx < 3 ? `Meso ${m + 1} \u00b7 volume week ${idx + 1} of 4, sets climb next week` : null });
+          noteKey: last ? 'meso_week' : null, noteParams: last ? { m: m + 1, w: idx + 1 } : null });
       }
       if (idx === 3) {
         sets.push({ weight: R(W.real.amrap.pct), reps: W.standard, rpe: 10, amrap: true,
-          note: `AMRAP. Standard is ${W.standard}, and every rep over moves your working max up.` });
+          noteKey: 'amrap', noteParams: { standard: W.standard } });
       }
       return sets;
     },
@@ -528,7 +532,7 @@ Engine.schemes = {
       const wmE = wm * pctMod;
       if (t === 'deload') {
         const w0 = Engine.roundLoad(wmE * JBB_HYP.deload.secPct, rounding);
-        return Array.from({ length: JBB_HYP.deload.secSets }, () => ({ weight: w0, reps: JBB_HYP.secReps, note: 'Deload' }));
+        return Array.from({ length: JBB_HYP.deload.secSets }, () => ({ weight: w0, reps: JBB_HYP.secReps, noteKey: 'deload' }));
       }
       const m = this._meso(block);
       const idx = Math.min(w, 3);
@@ -542,7 +546,7 @@ Engine.schemes = {
       if (t === 'deload') {
         const wt = Engine.weightFor(e1, JBB_HYP.accReps, JBB_HYP.deload.accRpe, rounding);
         return Array.from({ length: JBB_HYP.deload.accSets },
-          () => ({ weight: wt, reps: JBB_HYP.accReps, rpe: JBB_HYP.deload.accRpe, note: 'Deload, half volume' }));
+          () => ({ weight: wt, reps: JBB_HYP.accReps, rpe: JBB_HYP.deload.accRpe, noteKey: 'deload_half' }));
       }
       const m = this._meso(block);
       const idx = Math.min(w, 3);
@@ -551,8 +555,7 @@ Engine.schemes = {
       const last = m === JBB_HYP.accSets.length - 1 && idx === 3;
       return Array.from({ length: JBB_HYP.accSets[m][idx] }, (_, i) => ({
         weight: wt, reps: JBB_HYP.accReps, rpe,
-        note: i === 0 ? (last ? 'Hardest week of the macrocycle, deload is next' :
-                         idx === 3 ? 'Peak volume week, deload is next' : null) : null }));
+        noteKey: i === 0 ? (last ? 'hardest_week' : idx === 3 ? 'peak_week' : null) : null }));
     },
     weekVolume(block, w) {
       const W = WAVES[block.wave];

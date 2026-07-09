@@ -52,7 +52,7 @@ const EXPORTS = `return {
   PUMP_LABELS, TECHNIQUE_LABELS, DROP_DEFAULTS, MYO_DEFAULTS, RESTPAUSE_DEFAULTS, PARTIAL_DEFAULTS,
   applyTechnique, buildTechnique, lastWorkingSetIdx, entryHasDrop, entryTech, canDropEntry,
   armTapGuard, tapGuardActive,
-  pumpBadge, PUMP_ICONS, cardHintFor, displaySetNote, suggestedWeight,
+  pumpBadge, PUMP_ICONS, cardHintFor, displaySetNote, setNoteText, dayTheme, suggestedWeight,
   recordsFor, pushRecord, deleteRecord, confirmResolve, setTargetLabel,
   restNotifySupported, showRestNotification, toggleRestNotify,
   obDefaults, OB_TRACKS, timelineHTML,

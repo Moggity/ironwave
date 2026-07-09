@@ -236,7 +236,7 @@ test('jbb-hyp main ramp: sets climb, week 4 AMRAP, deload, uncalibrated', () => 
   // Deload (week 4 index): the three-set DELOAD ramp.
   const deload = jbb.main(block, 4, wm, 2.5);
   assert.strictEqual(deload.length, 3);
-  assert.ok(deload.every(s => /Deload/.test(s.note)));
+  assert.ok(deload.every(s => /^deload/.test(s.noteKey)));
 
   // Uncalibrated lift falls back to the shared calibration ramp.
   const calib = jbb.main(block, 0, null, 2.5);

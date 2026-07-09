@@ -580,11 +580,15 @@ tables).
    call, 2026-07-09); see the regional note in `app/i18n/README.md`. Keep new
    keys in that register; a Spain-Spanish `es-ES` can fork from git history
    (commit `85943f0`) if ever wanted.
-3. **Phase 3 (its OWN PR, golden master regenerates)**: engine-emitted set
-   NOTES become `noteKey` (+ params) translated at render; legacy stored
-   `note` strings keep rendering verbatim. Generated day NAMES
-   (`generateBodybuildingDays`, `FOCUS_LABELS`, day-theme names) are the same
-   stored-string category and go in this PR too.
+3. ~~**Phase 3 (its OWN PR, golden master regenerates)**~~ DONE (2026-07-09,
+   same branch): every scheme note-emission site emits `noteKey` (+
+   `noteParams`); `setNoteText`/`displaySetNote` translate at render and
+   legacy stored `note` strings render verbatim (no migration). Generated
+   days store a structured `theme` (plus the legacy English `name` for
+   back-compat) and `BB_DAY_TEMPLATES` days carry a `nameKey`; `dayTheme`
+   prefers theme -> nameKey -> legacy name. Golden master regenerated; the
+   reviewed diff is exclusively note -> noteKey/noteParams, zero
+   weight/rep/set changes.
 4. **Phase 4 (optional)**: exercise names as `i18n` keys layered over
    `EXERCISES`; custom exercises are user text, never translated.
 
