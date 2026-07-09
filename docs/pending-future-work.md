@@ -569,9 +569,17 @@ tables).
    bar overflowing with Spanish strings (label truncates, done state drops
    the redundant label). NOTE: `.claude/skills/copywriting/` (translation
    copy tooling) lives on this branch only; drop it before merging to main.
-2. **History, summary, More hub, exercise detail/library, remaining settings
-   body** (Profile/Barbell/Data/About/Debug sections, plate config), and any
-   leftover toasts (grep `toast(` for bare strings).
+2. ~~**History, summary, More hub, exercise detail/library, remaining settings
+   body**~~ DONE (2026-07-09, same branch): history + session detail, summary,
+   More hub, My Program (now titled by the athlete's track), exercise library +
+   custom-exercise modal, the full exercise detail modal, all settings sections
+   + plate config, the boot error screen, and every leftover bare toast.
+   Phase 2 is COMPLETE. Per-exercise coaching-cue TEXT (`EX_CUES`/`CUES`) was
+   deliberately left English: cues are content like exercise names, so they
+   belong to phase 4. ALSO: `es.js` is now **Latin American Spanish** (owner
+   call, 2026-07-09); see the regional note in `app/i18n/README.md`. Keep new
+   keys in that register; a Spain-Spanish `es-ES` can fork from git history
+   (commit `85943f0`) if ever wanted.
 3. **Phase 3 (its OWN PR, golden master regenerates)**: engine-emitted set
    NOTES become `noteKey` (+ params) translated at render; legacy stored
    `note` strings keep rendering verbatim. Generated day NAMES

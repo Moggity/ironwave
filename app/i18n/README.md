@@ -23,3 +23,12 @@ truth. To add a language:
 
 A missing key is fine: the app falls back to English for it. An extra or
 misspelled key fails the test suite, which is your typo net.
+
+## Regional note: Spanish
+
+`es.js` is written in **Latin American Spanish** (agregar not añadir,
+pantorrillas not gemelos, femorales not isquios, bombeo not congestión,
+al 100 not a tope, la configuración not los ajustes). Keep new keys in that
+register. If a Spain-Spanish variant is ever wanted, copy `es.js` to a new
+catalog and re-localize; the pre-Latam wording also survives in git history
+(branch `claude/english-spanish-translation-cajw1r`, commit `85943f0`).

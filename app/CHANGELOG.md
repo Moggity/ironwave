@@ -1,5 +1,34 @@
 # IRONWAVE — Changelog
 
+## [i18n phase 2 complete + Latin American Spanish] (2026-07-09)
+
+Queue item 2 of the i18n plan (the last mechanical phase-2 surface) plus a
+regional rewrite of the Spanish catalog. Display layer only; golden master
+byte-identical. Bumped `APP_VERSION`/`CACHE_VERSION` to `1.6.2`.
+
+- **Spanish is now LATIN AMERICAN Spanish** (owner call): agregar not añadir,
+  pantorrillas not gemelos, femorales not isquios, bombeo not congestión,
+  fisicoculturismo not culturismo, calificación not valoración, al 100 not
+  a tope, la configuración not los ajustes, mantén presionado not pulsado,
+  and friends, across the whole catalog. `es.js`'s header and
+  `app/i18n/README.md` document the register; the earlier Spain-leaning
+  wording survives in git history (commit `85943f0`) if an `es-ES` variant
+  is ever wanted.
+- **Extracted surfaces (queue item 2)**: History (list + session detail),
+  the post-workout Summary, the More hub, My Program (which now also titles
+  itself by the athlete's actual track instead of a hardcoded
+  "Powerbuilding"), the Exercises library + custom-exercise modal, the full
+  exercise detail modal (info/stimulus, history, trend, maxes, settings,
+  loading modes, drop-set opt-in, known maxes), Settings (profile, barbell,
+  dumbbells/machines, plates, data import/export/reset, rest-timer alerts,
+  about/update check, debug chime intro), the boot error screen, and every
+  remaining bare toast. Per-exercise coaching-cue TEXT and the debug chime
+  option labels stay English (content, phase-4 territory, and dev tooling
+  respectively).
+- Phase 2 of the i18n plan is now COMPLETE: what remains is phase 3
+  (stored set notes + generated day names, its own golden-master PR) and
+  the optional phase 4 (exercise names).
+
 ## [i18n phase 2, second batch: dashboard + workout surface, Spanish UI fixes] (2026-07-09)
 
 Queue item 1 of the i18n plan in `docs/pending-future-work.md`. Display layer

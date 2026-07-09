@@ -138,7 +138,7 @@ function save() {
   // it succeeds with no network. Only a genuine local-write failure (e.g. quota)
   // is real data loss worth surfacing.
   const persisted = localSave(S);
-  if (!persisted && typeof toast === 'function') toast('Save failed, data not persisted', true);
+  if (!persisted && typeof toast === 'function') toast(t('common.save_failed'), true);
   // Best-effort mirror to the server when one is reachable. Failure here is
   // expected offline and is NOT data loss, so it stays silent.
   _saveChain = _saveChain.then(async () => {
@@ -204,12 +204,12 @@ function exTagsHTML(e) {
 // [Cluster C] Fuller stimulus block for the exercise detail Info tab.
 function exMetaCardHTML(e) {
   if (!e) return '';
-  const rows = [`<div class="row"><span class="subtle">Stimulus to fatigue</span><b>${SFR_LABELS[e.sfr] || 'Moderate'}</b></div>`];
-  if (e.head && HEAD_LABELS[e.head]) rows.push(`<div class="row"><span class="subtle">Region bias</span><b>${HEAD_LABELS[e.head]}</b></div>`);
-  if (e.stretch) rows.push(`<div class="row"><span class="subtle">Emphasis</span><b>Loaded stretch</b></div>`);
-  return `<div class="section-title" style="font-size:1.1rem">Stimulus</div>
+  const rows = [`<div class="row"><span class="subtle">${esc(t('ex.sfr_row'))}</span><b>${esc(SFR_LABELS[e.sfr] ? t('sfr.' + e.sfr) : t('sfr.2'))}</b></div>`];
+  if (e.head && HEAD_LABELS[e.head]) rows.push(`<div class="row"><span class="subtle">${esc(t('ex.region_row'))}</span><b>${esc(headLabel(e.head))}</b></div>`);
+  if (e.stretch) rows.push(`<div class="row"><span class="subtle">${esc(t('ex.emphasis_row'))}</span><b>${esc(t('ex.loaded_stretch'))}</b></div>`);
+  return `<div class="section-title" style="font-size:1.1rem">${esc(t('ex.stimulus_title'))}</div>
     <div class="card">${rows.join('<div class="divider"></div>')}</div>
-    <p class="faint">SFR is our own read of growth stimulus per unit of fatigue. Higher means more reward for less systemic cost, handy when you are adding volume late in a block. A loaded stretch tends to grow muscle well for the fatigue it costs.</p>`;
+    <p class="faint">${esc(t('ex.sfr_footer'))}</p>`;
 }
 
 function allExercises() { return EXERCISES.concat(S.customEx); }
@@ -1143,7 +1143,7 @@ function toggleSuperset(di, si) {
   else {
     const order = accessorySiOrder(di, p.pointer.block, p.pointer.week);
     const pos = order.indexOf(si);
-    if (pos < 0 || pos >= order.length - 1) { toast('Add an exercise after this one to superset it', true); return; }
+    if (pos < 0 || pos >= order.length - 1) { toast(t('workout.ss_need_next'), true); return; }
     slot.superset = true;                            // links to the next; chains form giant sets
   }
   save(); render();
@@ -1404,14 +1404,14 @@ function render() {
 function renderErrorScreen(err) {
   const detail = esc((err && (err.stack || err.message)) || String(err));
   $app.innerHTML = `<div class="view">
-    <div class="section-title">Something went wrong</div>
-    <p class="faint" style="margin-bottom:10px">The app hit an error while drawing the screen. Your data is still saved on this device. Try reloading. If it keeps happening, export a backup, then check for updates.</p>
+    <div class="section-title">${esc(t('err.title'))}</div>
+    <p class="faint" style="margin-bottom:10px">${esc(t('err.body'))}</p>
     <div class="btn-row">
-      <button class="btn btn-blue" onclick="location.reload()">Reload</button>
-      <button class="btn btn-outline" onclick="exportData()">Export backup</button>
+      <button class="btn btn-blue" onclick="location.reload()">${esc(t('err.reload'))}</button>
+      <button class="btn btn-outline" onclick="exportData()">${esc(t('err.export'))}</button>
     </div>
-    <button class="btn btn-outline mt8" onclick="checkForUpdate()">Check for updates</button>
-    <div class="section-title">Error detail</div>
+    <button class="btn btn-outline mt8" onclick="checkForUpdate()">${esc(t('set.check_updates'))}</button>
+    <div class="section-title">${esc(t('err.detail'))}</div>
     <pre class="faint" style="white-space:pre-wrap;word-break:break-word;font-size:.72rem;overflow:auto">${detail}</pre>
   </div>`;
 }
@@ -3509,7 +3509,7 @@ function playTestChime(id) {
   }
   if (navigator.vibrate) { try { navigator.vibrate(150); } catch (_) {} }
   const cfg = CHIME_CONFIGS.find(c => c.id === id);
-  toast('Played: ' + (cfg ? cfg.label : id));
+  toast(t('set.chime_played', { label: cfg ? cfg.label : id }));
 }
 function startRestTimer(kind, exId) {
   const dur = Engine.restSecFor(kind, sessionTight(), TIME_MODEL);
@@ -4285,35 +4285,35 @@ function vHistory() {
   const sessions = [...S.sessions].reverse();
   let body;
   if (!sessions.length) {
-    body = `<div class="card mt16"><b>No sessions yet.</b>
-      <p class="subtle mt8">Finish your first workout and your tonnage shows up here, session by session.</p></div>`;
+    body = `<div class="card mt16"><b>${esc(t('hist.empty_title'))}</b>
+      <p class="subtle mt8">${esc(t('hist.empty_body'))}</p></div>`;
   } else {
     const maxT = Math.max(...sessions.map(s => s.tonnage || 0), 1);
     body = sessions.map(s => {
       const pct = Math.max(8, (s.tonnage || 0) / maxT * 100);
-      const label = `${blockOf(s.b)?.label || ''} · W${s.b * P().weeksPerBlock + s.w + 1} D${s.d + 1}`;
+      const label = `${blockOf(s.b)?.label || ''} · ${t('hist.wd', { w: s.b * P().weeksPerBlock + s.w + 1, d: s.d + 1 })}`;
       return `<button class="hist-row ${s.skipped ? 'skipped' : ''}" style="display:block;width:100%;text-align:left" onclick="openSessionDetail('${s.id}')">
-        <div class="meta"><span>${fmtDate(s.ts)} · ${esc(label)}</span><span>${s.skipped ? 'Skipped' : (s.rating ? 'rated ' + s.rating + '/10' : '')}</span></div>
+        <div class="meta"><span>${fmtDate(s.ts)} · ${esc(label)}</span><span>${s.skipped ? esc(t('session.skipped')) : (s.rating ? esc(t('hist.rated', { n: s.rating })) : '')}</span></div>
         <div class="bar-track"><div class="bar" style="width:${s.skipped ? 100 : pct}%">${s.skipped ? '—' : (s.tonnage || 0).toLocaleString() + ' kg'}</div></div>
       </button>`;
     }).join('');
   }
-  return `${topbar('History')}<div class="view">
-    <div class="section-title">Total Session Tonnage</div>
-    <p class="faint" style="margin-bottom:14px">Sum of weight × reps across every logged set.</p>
+  return `${topbar(t('tab.history'))}<div class="view">
+    <div class="section-title">${esc(t('hist.title'))}</div>
+    <p class="faint" style="margin-bottom:14px">${esc(t('hist.sub'))}</p>
     ${body}</div>${tabbar()}`;
 }
 // Shared per-lift rendering for the history modal and the post-workout summary.
 function sessionSetRowsHTML(e, withTarget) {
   const done = e.sets.filter(x => x.done);
-  if (!done.length) return '<p class="faint">No sets logged</p>';
+  if (!done.length) return `<p class="faint">${esc(t('sum.no_sets'))}</p>`;
   return done.map((x, i) => {
     const actual = `${fmtW(e.exId, x.weight)} × ${x.reps} · ${fmtRir(x.rpe)}`;
     let tgt = '';
     if (withTarget) {
       tgt = x.targetWeight != null
-        ? ` <small>target ${fmtW(e.exId, x.targetWeight)} × ${x.targetReps}${x.targetRpe ? ' · ' + fmtRir(x.targetRpe) : ''}</small>`
-        : (x.targetReps ? ` <small>target ${x.targetReps} reps${x.targetRpe ? ' · ' + fmtRir(x.targetRpe) : ''}</small>` : '');
+        ? ` <small>${esc(t('sum.target_w', { w: fmtW(e.exId, x.targetWeight), reps: x.targetReps }))}${x.targetRpe ? ' · ' + fmtRir(x.targetRpe) : ''}</small>`
+        : (x.targetReps ? ` <small>${esc(t('sum.target_reps', { reps: x.targetReps }))}${x.targetRpe ? ' · ' + fmtRir(x.targetRpe) : ''}</small>` : '');
     }
     const drops = (x.drops && x.drops.length) ? ` <small class="faint">${childWord(x.technique)} ${dropDetail(e.exId, x.drops)}</small>` : '';
     return `<div class="set-row"><span class="num">${i + 1}</span>
@@ -4330,9 +4330,9 @@ function openSessionDetail(id) {
   if (!s || s.skipped) return;
   showModal(anim => {
     $modal.innerHTML = modalShell(anim, fmtDate(s.ts), `
-        <div class="row" style="margin-bottom:10px"><span class="subtle">Tonnage</span><b>${(s.tonnage || 0).toLocaleString()} kg</b></div>
-        ${s.rating ? `<div class="row" style="margin-bottom:10px"><span class="subtle">Session rating</span><b>${s.rating} / 10</b></div>` : ''}
-        ${s.mindset ? `<div class="card accent"><span class="faint">Focus</span><div>${esc(s.mindset)}</div></div>` : ''}
+        <div class="row" style="margin-bottom:10px"><span class="subtle">${esc(t('sum.tonnage'))}</span><b>${(s.tonnage || 0).toLocaleString()} kg</b></div>
+        ${s.rating ? `<div class="row" style="margin-bottom:10px"><span class="subtle">${esc(t('sum.rating'))}</span><b>${s.rating} / 10</b></div>` : ''}
+        ${s.mindset ? `<div class="card accent"><span class="faint">${esc(t('sum.focus'))}</span><div>${esc(s.mindset)}</div></div>` : ''}
         ${s.entries.map(e => sessionLiftCardHTML(e, false)).join('')}`);
   });
 }
@@ -4341,7 +4341,7 @@ function openSessionDetail(id) {
 // VIEW: POST-WORKOUT SUMMARY (Change 3)
 // ------------------------------------------------------------
 function openSummaryFor(id) {
-  if (!S.sessions.some(x => x.id === id)) { toast('Summary not found', true); return; }
+  if (!S.sessions.some(x => x.id === id)) { toast(t('sum.not_found'), true); return; }
   V.summaryId = id;
   nav('summary');
 }
@@ -4351,22 +4351,22 @@ function vSummary() {
   if (!s || s.skipped) { V.view = 'dashboard'; return vDashboard(); }
   const block = blockOf(s.b);
   const wmc = s.wmChange;
-  return `${topbar('Summary')}
+  return `${topbar(t('sum.title'))}
   <div class="view">
     <div class="mt8">
       <div style="color:${BLOCK_COLORS[block?.type] || 'var(--blue)'};font-weight:600">${esc(block?.label || '')}</div>
-      <div style="font-size:1.6rem;font-weight:800">Week ${s.b * P().weeksPerBlock + s.w + 1}, Day ${s.d + 1} complete ✓</div>
+      <div style="font-size:1.6rem;font-weight:800">${esc(t('sum.day_done', { week: s.b * P().weeksPerBlock + s.w + 1, day: s.d + 1 }))}</div>
     </div>
     <div class="card accent mt8">
-      <div class="row"><span class="subtle">Total tonnage</span><b>${(s.tonnage || 0).toLocaleString()} kg</b></div>
-      <div class="row mt8"><span class="subtle">Session rating</span><b>${s.rating ? s.rating + ' / 10' : '—'}</b></div>
-      <div class="row mt8"><span class="subtle">Readiness</span><b>${s.readiness != null ? s.readiness.toFixed(2) : '—'}</b></div>
-      ${wmc ? `<div class="row mt8"><span class="subtle">${esc(wmc.name)} working max</span><b style="color:var(--blue)">${kg(wmc.from)} → ${kg(wmc.to)} kg${wmc.capped ? ' (capped)' : ''}</b></div>` : ''}
+      <div class="row"><span class="subtle">${esc(t('sum.total_tonnage'))}</span><b>${(s.tonnage || 0).toLocaleString()} kg</b></div>
+      <div class="row mt8"><span class="subtle">${esc(t('sum.rating'))}</span><b>${s.rating ? s.rating + ' / 10' : '—'}</b></div>
+      <div class="row mt8"><span class="subtle">${esc(t('dash.readiness'))}</span><b>${s.readiness != null ? s.readiness.toFixed(2) : '—'}</b></div>
+      ${wmc ? `<div class="row mt8"><span class="subtle">${esc(t('sum.wm_row', { name: wmc.name }))}</span><b style="color:var(--blue)">${kg(wmc.from)} → ${kg(wmc.to)} kg${wmc.capped ? ' ' + esc(t('sum.capped')) : ''}</b></div>` : ''}
     </div>
-    <div class="section-title" style="font-size:1.2rem">Sets logged <span class="faint">actual vs target</span></div>
+    <div class="section-title" style="font-size:1.2rem">${esc(t('sum.sets_logged'))} <span class="faint">${esc(t('sum.actual_vs_target'))}</span></div>
     ${s.entries.map(e => sessionLiftCardHTML(e, true)).join('')}
-    <button class="btn btn-green mt16" onclick="nav('dashboard')">Back to dashboard</button>
-    <button class="btn btn-outline mt8" onclick="V.tab='history';nav('history')">View history</button>
+    <button class="btn btn-green mt16" onclick="nav('dashboard')">${esc(t('sum.back_dash'))}</button>
+    <button class="btn btn-outline mt8" onclick="V.tab='history';nav('history')">${esc(t('sum.view_history'))}</button>
   </div>${tabbar()}`;
 }
 function redoDay(i) {
@@ -4375,9 +4375,9 @@ function redoDay(i) {
   const sid = p.completedDays[k];
   if (!sid || sid === 'skipped') { startCheckin(i); return; }
   confirmModal({
-    title: 'Redo this day?',
-    message: 'The logged session for this day will be removed and replaced from scratch.',
-    confirmLabel: 'Redo day',
+    title: t('workout.redo_title'),
+    message: t('workout.redo_msg'),
+    confirmLabel: t('workout.redo_day'),
     danger: true,
   }, () => {
     S.sessions = S.sessions.filter(x => x.id !== sid); // drop the prior session so nothing is orphaned
@@ -4407,55 +4407,54 @@ function vExercises() {
     body = Object.entries(MOVEMENTS).map(([mv, m]) => {
       const items = list.filter(e => e.movement === mv);
       if (!items.length) return '';
-      return `<div class="lib-letter">${m.label}</div>` +
+      return `<div class="lib-letter">${esc(mvLabel(mv))}</div>` +
         items.sort((a, b) => a.name.localeCompare(b.name)).map(libItemHTML).join('');
     }).join('');
   } else {
     const used = new Set(Object.keys(S.records));
     const mine = list.filter(e => used.has(e.id) || S.customEx.some(c => c.id === e.id));
     body = mine.length ? mine.sort((a, b) => a.name.localeCompare(b.name)).map(libItemHTML).join('')
-      : `<div class="card mt16"><b>Nothing here yet.</b><p class="subtle mt8">Exercises you've logged or created appear here.</p></div>`;
-    body += `<button class="btn btn-blue mt16" onclick="openCustomEx()">＋ Create Custom Exercise</button>`;
+      : `<div class="card mt16"><b>${esc(t('lib.mine_empty_title'))}</b><p class="subtle mt8">${esc(t('lib.mine_empty_body'))}</p></div>`;
+    body += `<button class="btn btn-blue mt16" onclick="openCustomEx()">${esc(t('lib.create_custom'))}</button>`;
   }
-  return `${topbar('Exercises')}<div class="view">
+  return `${topbar(t('lib.title'))}<div class="view">
     <div class="tabs">
-      <button class="${V.libTab === 'alpha' ? 'on' : ''}" onclick="libTab('alpha')">Alphabetical</button>
-      <button class="${V.libTab === 'movements' ? 'on' : ''}" onclick="libTab('movements')">Movements</button>
-      <button class="${V.libTab === 'mine' ? 'on' : ''}" onclick="libTab('mine')">My Exercises</button>
+      <button class="${V.libTab === 'alpha' ? 'on' : ''}" onclick="libTab('alpha')">${esc(t('lib.tab_alpha'))}</button>
+      <button class="${V.libTab === 'movements' ? 'on' : ''}" onclick="libTab('movements')">${esc(t('lib.tab_movements'))}</button>
+      <button class="${V.libTab === 'mine' ? 'on' : ''}" onclick="libTab('mine')">${esc(t('lib.tab_mine'))}</button>
     </div>
-    <input class="search-input" placeholder="Search ${allExercises().length} exercises…" value="${esc(V.libSearch)}"
+    <input class="search-input" placeholder="${esc(t('lib.search_ph', { n: allExercises().length }))}" value="${esc(V.libSearch)}"
       oninput="V.libSearch=this.value;render();this.focus();this.setSelectionRange(this.value.length,this.value.length)">
     ${body}
   </div>${tabbar()}`;
 }
 function libTab(t) { V.libTab = t; render(); }
 function libItemHTML(e) {
-  const eq = { bb: 'Barbell', db: 'Dumbbell', mc: 'Machine', cb: 'Cable', bw: 'Bodyweight', bd: 'Band', kb: 'Kettlebell' }[e.equipment] || '';
+  const eq = EQUIP_LABEL[e.equipment] ? t('equip.' + e.equipment) : '';
   const best = Engine.bestE1RM(recordsFor(e.id));
   return `<button class="lib-item" onclick="openExDetail('${e.id}')">
     <span>${esc(e.name)}${e.isMain ? ' <span style="color:var(--blue)">★</span>' : ''}
-      <span class="sub">${MOVEMENTS[e.movement]?.label || ''} · ${eq}${best ? ' · e1RM ' + kg(Engine.roundLoad(best, 0.5)) + 'kg' : ''}</span>${exTagsHTML(e)}</span>
+      <span class="sub">${esc(mvLabel(e.movement))} · ${esc(eq)}${best ? ' · e1RM ' + kg(Engine.roundLoad(best, 0.5)) + 'kg' : ''}</span>${exTagsHTML(e)}</span>
     <span>›</span></button>`;
 }
 
 // Custom exercise creation (with optional 10RM / 1RM seeding)
 function openCustomEx() {
   showModal(anim => {
-    $modal.innerHTML = modalShell(anim, 'Custom Exercise', `
-        <div class="field"><label>Name</label><input id="cx-name" placeholder="e.g. Cambered Bar Squat"></div>
-        <div class="field"><label>Movement category</label>
-          <select id="cx-mv">${Object.entries(MOVEMENTS).map(([k, m]) => `<option value="${k}">${m.label}</option>`).join('')}</select></div>
-        <div class="field"><label>Equipment</label>
-          <select id="cx-eq"><option value="bb">Barbell</option><option value="db">Dumbbell</option>
-          <option value="mc">Machine</option><option value="cb">Cable</option><option value="bw">Bodyweight</option><option value="bd">Band</option></select></div>
-        <div class="field"><label>Known 1RM (kg, optional)</label><input id="cx-1rm" type="number" inputmode="decimal" placeholder="Seeds the weight engine"></div>
-        <div class="field"><label>Known 10RM (kg, optional)</label><input id="cx-10rm" type="number" inputmode="decimal" placeholder="Also seeds the engine"></div>
-        <button class="btn btn-green" onclick="saveCustomEx()">Create</button>`);
+    $modal.innerHTML = modalShell(anim, t('cx.title'), `
+        <div class="field"><label>${esc(t('cx.name'))}</label><input id="cx-name" placeholder="${esc(t('cx.name_ph'))}"></div>
+        <div class="field"><label>${esc(t('cx.movement'))}</label>
+          <select id="cx-mv">${Object.keys(MOVEMENTS).map(k => `<option value="${k}">${esc(mvLabel(k))}</option>`).join('')}</select></div>
+        <div class="field"><label>${esc(t('cx.equipment'))}</label>
+          <select id="cx-eq">${['bb', 'db', 'mc', 'cb', 'bw', 'bd'].map(eq => `<option value="${eq}">${esc(t('equip.' + eq))}</option>`).join('')}</select></div>
+        <div class="field"><label>${esc(t('cx.rm1'))}</label><input id="cx-1rm" type="number" inputmode="decimal" placeholder="${esc(t('cx.rm1_ph'))}"></div>
+        <div class="field"><label>${esc(t('cx.rm10'))}</label><input id="cx-10rm" type="number" inputmode="decimal" placeholder="${esc(t('cx.rm10_ph'))}"></div>
+        <button class="btn btn-green" onclick="saveCustomEx()">${esc(t('cx.create'))}</button>`);
   });
 }
 function saveCustomEx() {
   const name = document.getElementById('cx-name').value.trim();
-  if (!name) { toast('Give it a name', true); return; }
+  if (!name) { toast(t('cx.need_name'), true); return; }
   const id = 'cx-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now().toString(36);
   S.customEx.push({ id, name, movement: document.getElementById('cx-mv').value,
     equipment: document.getElementById('cx-eq').value, isMain: false, custom: true });
@@ -4464,7 +4463,7 @@ function saveCustomEx() {
   if (r1 > 0) pushRecord(id, { ts: Date.now(), weight: r1, reps: 1, rpe: 10, seed: true });
   if (r10 > 0) pushRecord(id, { ts: Date.now(), weight: r10, reps: 10, rpe: 10, seed: true });
   save(); closeAllModals(); render();
-  toast(name + ' created' + (r1 || r10 ? ', weights will be prescribed from your maxes' : ''));
+  toast(t(r1 || r10 ? 'cx.created_seeded_toast' : 'cx.created_toast', { name }));
 }
 
 // ------------------------------------------------------------
@@ -4490,14 +4489,16 @@ function renderExDetail(anim) {
   if (!e) { closeModal(); return; }
   const recs = recordsFor(XD.id);
   const inc = P()?.increments?.[XD.id] ?? Engine.defaultIncrement(XD.id);
-  const tabBtn = t => `<button class="${XD.tab === t ? 'on' : ''}" onclick="XD.tab='${t}';rerenderTop()">${t[0].toUpperCase() + t.slice(1)}</button>`;
+  const tabBtn = id => `<button class="${XD.tab === id ? 'on' : ''}" onclick="XD.tab='${id}';rerenderTop()">${esc(t('xd.tab_' + id))}</button>`;
   let body = '';
   if (XD.tab === 'info') {
+    // Cue TEXT stays English for now: like exercise names, per-exercise cues are
+    // content (phase 4 of the i18n plan), not UI chrome.
     const cues = EX_CUES[e.id] || CUES[e.movement] || CUES.default;
     body = `<div class="placeholder-media">🏋</div>
-      <p class="subtle">${MOVEMENTS[e.movement]?.label || ''} · ${EQUIP_LABEL[e.equipment] || ''}${e.isMain ? ' · Main lift' : ''}</p>
+      <p class="subtle">${esc(mvLabel(e.movement))} · ${EQUIP_LABEL[e.equipment] ? esc(t('equip.' + e.equipment)) : ''}${e.isMain ? ' · ' + esc(t('xd.main_lift')) : ''}</p>
       ${exMetaCardHTML(e)}
-      <div class="section-title" style="font-size:1.1rem">Coaching cues</div>
+      <div class="section-title" style="font-size:1.1rem">${esc(t('xd.cues_title'))}</div>
       ${cues.map(c => `<div class="check-row">▸ ${c}</div>`).join('')}`;
   } else if (XD.tab === 'history') {
     // Newest first; ✕ deletes a wrong log (a typo here poisons the e1RM that
@@ -4505,21 +4506,21 @@ function renderExDetail(anim) {
     body = recs.length ? ([...recs].reverse().slice(0, 40).map((r, i) => {
       const idx = recs.length - 1 - i; // index in the stored array
       return `<div class="row" style="padding:9px 0;border-bottom:1px solid var(--line)">
-        <span class="subtle">${fmtDate(r.ts)}${r.seed ? ' · entered max' : ''}${techniqueBadge(r.technique)}${pumpBadge(r.pump)}</span>
+        <span class="subtle">${fmtDate(r.ts)}${r.seed ? ' · ' + esc(t('xd.entered_max')) : ''}${techniqueBadge(r.technique)}${pumpBadge(r.pump)}</span>
         <span><b>${fmtW(XD.id, r.weight)} × ${r.reps} · ${fmtRir(r.rpe)}</b>
-          <button class="rec-del" onclick="deleteRecord('${XD.id}',${idx})" aria-label="Delete logged set">✕</button></span></div>`;
-    }).join('') + '<p class="faint mt8">Tap ✕ to remove a wrongly logged set. Prescribed weights follow your remaining history.</p>')
-      : '<p class="faint mt16">No logged sets yet.</p>';
+          <button class="rec-del" onclick="deleteRecord('${XD.id}',${idx})" aria-label="${esc(t('xd.del_aria'))}">✕</button></span></div>`;
+    }).join('') + `<p class="faint mt8">${esc(t('xd.history_hint'))}</p>`)
+      : `<p class="faint mt16">${esc(t('xd.no_sets'))}</p>`;
   } else if (XD.tab === 'trend') {
     const e1Series = Engine.e1rmTrend(recs);
     const vlSeries = Engine.volumeLoadTrend(recs);
     body = (e1Series.length < 2 && vlSeries.length < 2)
-      ? '<p class="faint mt16">Log a few sessions to see your e1RM and volume-load trends.</p>'
-      : `<div class="section-title" style="font-size:1.05rem">Estimated 1RM</div>
+      ? `<p class="faint mt16">${esc(t('xd.trend_empty'))}</p>`
+      : `<div class="section-title" style="font-size:1.05rem">${esc(t('xd.e1rm'))}</div>
         ${trendChartHTML(e1Series, '#67a3ff', v => kg(Engine.roundLoad(v, 0.5)) + ' kg')}
-        <div class="section-title" style="font-size:1.05rem">Volume load <small class="faint">weight × reps per day</small></div>
+        <div class="section-title" style="font-size:1.05rem">${esc(t('xd.volume_load'))} <small class="faint">${esc(t('xd.vl_sub'))}</small></div>
         ${trendChartHTML(vlSeries, '#4ad6a0', v => Math.round(v).toLocaleString() + ' kg')}
-        <p class="faint">Both trends read straight from your logged sets over the last few months.</p>`;
+        <p class="faint">${esc(t('xd.trend_footer'))}</p>`;
   } else if (XD.tab === 'maxes') {
     const best = Engine.bestE1RM(recs);
     const wm = P()?.wm?.[XD.id];
@@ -4532,18 +4533,18 @@ function renderExDetail(anim) {
     const miles = Engine.maxMilestones(recs).slice(0, 8);
     const milesHTML = miles.map(m => `
       <div class="max-milestone">
-        <div class="row"><span class="subtle">${m.kind === 'entered' ? 'Max you entered' : 'New estimated max'}</span>
+        <div class="row"><span class="subtle">${esc(t(m.kind === 'entered' ? 'xd.max_entered' : 'xd.max_estimated'))}</span>
           <span class="subtle">${fmtDate(m.ts)}</span></div>
         <div class="max-val">${kg(Engine.roundLoad(m.value, 0.5))}<small> kg</small></div>
       </div>`).join('');
     body = `
       ${chart}
-      ${wm ? `<div class="card accent"><div class="row"><span>Working Max</span><b>${kg(wm)} kg</b></div>
-        <p class="faint mt8">All wave percentages run off this number (90% of your real 1RM).</p></div>` : ''}
-      <div class="card"><div class="row"><span>Estimated 1RM</span><b>${best ? kg(Engine.roundLoad(best, 0.5)) + ' kg' : '—'}</b></div>
-        <p class="faint mt8">Computed from your recent logged sets (weight, reps, RIR). Know it already? Enter it under Settings.</p></div>
+      ${wm ? `<div class="card accent"><div class="row"><span>${esc(t('xd.working_max'))}</span><b>${kg(wm)} kg</b></div>
+        <p class="faint mt8">${esc(t('xd.wm_note'))}</p></div>` : ''}
+      <div class="card"><div class="row"><span>${esc(t('xd.e1rm'))}</span><b>${best ? kg(Engine.roundLoad(best, 0.5)) + ' kg' : '—'}</b></div>
+        <p class="faint mt8">${esc(t('xd.e1rm_note'))}</p></div>
       ${milesHTML}
-      ${recs.length ? `<div class="section-title" style="font-size:1.05rem">Best recent sets</div>` +
+      ${recs.length ? `<div class="section-title" style="font-size:1.05rem">${esc(t('xd.best_sets'))}</div>` +
         [...recs].sort((a, b) => Engine.e1rm(b.weight, b.reps, b.rpe) - Engine.e1rm(a.weight, a.reps, a.rpe)).slice(0, 5)
           .map(r => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">
             <span class="subtle">${fmtDate(r.ts)}</span>
@@ -4558,27 +4559,26 @@ function renderExDetail(anim) {
       XD.load = { id: XD.id, mode: stored.mode || def.mode, count: stored.count ?? def.count ?? 2, barWeight: stored.barWeight ?? 10 };
     }
     const Ld = XD.load;
-    const modeOpts = [['barbell', 'Barbell'], ['lightbar', 'Light bar'], ['dumbbell', 'Dumbbell'],
-                      ['machine', 'Machine'], ['cable', 'Cable'], ['bodyweight', 'Bodyweight'], ['band', 'Band']];
+    const modeOpts = ['barbell', 'lightbar', 'dumbbell', 'machine', 'cable', 'bodyweight', 'band'];
     const loadingUI = `
-      <div class="section-title" style="font-size:1.05rem">Loading</div>
-      <div class="field"><label>How is this loaded?</label>
-        <select id="xd-mode" onchange="xdSetMode(this.value)">${modeOpts.map(([v, l]) => `<option value="${v}" ${Ld.mode === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-      ${Ld.mode === 'dumbbell' ? `<div class="field"><label>Dumbbells used</label>
-        <select id="xd-count">${[[2, 'Two (one per hand)'], [1, 'One (single dumbbell)']].map(([v, l]) => `<option value="${v}" ${Ld.count === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>` : ''}
-      ${Ld.mode === 'lightbar' ? `<div class="field"><label>Bar weight (kg)</label>
+      <div class="section-title" style="font-size:1.05rem">${esc(t('xd.loading_title'))}</div>
+      <div class="field"><label>${esc(t('xd.loading_q'))}</label>
+        <select id="xd-mode" onchange="xdSetMode(this.value)">${modeOpts.map(v => `<option value="${v}" ${Ld.mode === v ? 'selected' : ''}>${esc(t('load.mode_' + v))}</option>`).join('')}</select></div>
+      ${Ld.mode === 'dumbbell' ? `<div class="field"><label>${esc(t('xd.db_used'))}</label>
+        <select id="xd-count">${[[2, t('xd.db_two')], [1, t('xd.db_one')]].map(([v, l]) => `<option value="${v}" ${Ld.count === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>` : ''}
+      ${Ld.mode === 'lightbar' ? `<div class="field"><label>${esc(t('set.bar_weight'))}</label>
         <input id="xd-bar" type="number" inputmode="decimal" value="${Ld.barWeight}"></div>` : ''}
-      <p class="faint">Weights are stored as the total load moved; dumbbells display per hand. This setting persists across programs.</p>
-      <button class="btn btn-blue mt8" onclick="saveExLoading()">Save loading</button>`;
+      <p class="faint">${esc(t('xd.loading_note'))}</p>
+      <button class="btn btn-blue mt8" onclick="saveExLoading()">${esc(t('xd.save_loading'))}</button>`;
     // [Cluster B] Intensity technique opt-in. Bodybuilding accessories only, so
     // it never reaches the default/powerbuilding path. Today: a finishing drop set.
     const tcd = P() && P().trainingConfig;
     const canTech = tcd && tcd.track === 'bodybuilding' && !isMainLift;
     const techUI = canTech ? `
-      <div class="section-title" style="font-size:1.05rem">Intensity technique</div>
+      <div class="section-title" style="font-size:1.05rem">${esc(t('xd.tech_title'))}</div>
       <label class="check-row"><input type="checkbox" ${(S.techniques || {})[XD.id] === 'drop' ? 'checked' : ''}
-        onchange="toggleDropSet('${XD.id}', this.checked)"> Finish with a drop set</label>
-      <p class="faint">Adds two lighter strips after your last working set, run to the same rep target. Counts toward your session time.</p>` : '';
+        onchange="toggleDropSet('${XD.id}', this.checked)"> ${esc(t('xd.tech_check'))}</label>
+      <p class="faint">${esc(t('xd.tech_note'))}</p>` : '';
     // Known maxes: seed a 1RM/10RM so the engine prescribes real weights right
     // away (no calibration week) and the athlete can correct a bad anchor.
     // Saving replaces the previous entry of the same type, so this reads as an
@@ -4586,26 +4586,26 @@ function renderExDetail(anim) {
     const seed1 = [...recs].reverse().find(r => r.seed && r.reps === 1);
     const seed10 = [...recs].reverse().find(r => r.seed && r.reps === 10);
     const maxesUI = `
-      <div class="section-title" style="font-size:1.05rem">Known maxes</div>
-      <p class="faint">Already know your strength here? Enter one or both and weights are prescribed right away, no calibration needed.${isMainLift ? ' A 1RM also sets the working max (90% of it) if it is empty.' : ''}</p>
-      <div class="field"><label>1 rep max (kg)</label>
-        <input id="xd-1rm" type="number" inputmode="decimal" value="${seed1 ? kg(seed1.weight) : ''}" placeholder="e.g. 120"></div>
-      <div class="field"><label>10 rep max (kg, optional)</label>
-        <input id="xd-10rm" type="number" inputmode="decimal" value="${seed10 ? kg(seed10.weight) : ''}" placeholder="e.g. 90"></div>
-      <button class="btn btn-blue mt8" onclick="saveExMaxes('${e.id}')">Save maxes</button>`;
+      <div class="section-title" style="font-size:1.05rem">${esc(t('xd.known_maxes'))}</div>
+      <p class="faint">${esc(t('xd.known_maxes_note'))}${isMainLift ? ' ' + esc(t('xd.known_maxes_main')) : ''}</p>
+      <div class="field"><label>${esc(t('xd.rm1_label'))}</label>
+        <input id="xd-1rm" type="number" inputmode="decimal" value="${seed1 ? kg(seed1.weight) : ''}" placeholder="${esc(t('xd.rm1_ph'))}"></div>
+      <div class="field"><label>${esc(t('xd.rm10_label'))}</label>
+        <input id="xd-10rm" type="number" inputmode="decimal" value="${seed10 ? kg(seed10.weight) : ''}" placeholder="${esc(t('xd.rm10_ph'))}"></div>
+      <button class="btn btn-blue mt8" onclick="saveExMaxes('${e.id}')">${esc(t('xd.save_maxes'))}</button>`;
     body = `
       ${isMainLift ? `
-        <div class="field"><label>Working max (kg)</label>
-          <input id="xd-wm" type="number" inputmode="decimal" value="${P().wm[XD.id] ?? ''}" placeholder="Not set, calibrates in week 1"></div>
-        <div class="field"><label>Working-max increment per AMRAP rep (kg)</label>
+        <div class="field"><label>${esc(t('xd.wm_label'))}</label>
+          <input id="xd-wm" type="number" inputmode="decimal" value="${P().wm[XD.id] ?? ''}" placeholder="${esc(t('xd.wm_ph'))}"></div>
+        <div class="field"><label>${esc(t('xd.inc_label'))}</label>
           <input id="xd-inc" type="number" inputmode="decimal" step="0.25" value="${inc}"></div>
-        <p class="faint">Book guidance: 2.5 kg/rep lower body, 1.25 kg/rep upper body. Halve it if progress stalls.</p>
-        <button class="btn btn-blue mt8" onclick="saveExSettings()">Save</button>` :
-        `<p class="subtle">Weights are computed from your logged history (e1RM). Log honestly, the engine follows you.</p>`}
+        <p class="faint">${esc(t('xd.inc_note'))}</p>
+        <button class="btn btn-blue mt8" onclick="saveExSettings()">${esc(t('common.save'))}</button>` :
+        `<p class="subtle">${esc(t('xd.e1rm_follow'))}</p>`}
       ${maxesUI}
       ${techUI}
       ${loadingUI}
-      ${e.custom ? `<button class="btn btn-outline mt16" style="color:var(--red);border-color:var(--red)" onclick="deleteCustomEx('${e.id}')">Delete custom exercise</button>` : ''}`;
+      ${e.custom ? `<button class="btn btn-outline mt16" style="color:var(--red);border-color:var(--red)" onclick="deleteCustomEx('${e.id}')">${esc(t('xd.delete_custom'))}</button>` : ''}`;
   }
   $modal.innerHTML = modalShell(anim, esc(e.name),
     `<div class="tabs">${tabBtn('info')}${tabBtn('history')}${tabBtn('trend')}${tabBtn('maxes')}${tabBtn('settings')}</div>${body}`);
@@ -4615,7 +4615,7 @@ function saveExSettings() {
   const incv = parseFloat(document.getElementById('xd-inc').value);
   if (wmv > 0) P().wm[XD.id] = wmv;
   if (incv > 0) P().increments[XD.id] = incv;
-  save(); toast('Saved'); rerenderTop();
+  save(); toast(t('common.saved')); rerenderTop();
 }
 // Seed / edit known maxes for any exercise. Stored as seeded records (the same
 // shape custom-exercise seeding writes), so bestE1RM anchors on them and the
@@ -4625,8 +4625,8 @@ function saveExSettings() {
 function saveExMaxes(id) {
   const r1 = parseFloat(byId('xd-1rm') && byId('xd-1rm').value);
   const r10 = parseFloat(byId('xd-10rm') && byId('xd-10rm').value);
-  if (!(r1 > 0) && !(r10 > 0)) { toast('Enter a 1RM or a 10RM', true); return; }
-  if (r1 > 0 && r10 > 0 && r10 >= r1) { toast('Your 10RM should be below your 1RM', true); return; }
+  if (!(r1 > 0) && !(r10 > 0)) { toast(t('xd.need_rm'), true); return; }
+  if (r1 > 0 && r10 > 0 && r10 >= r1) { toast(t('xd.rm_order'), true); return; }
   S.records[id] = recordsFor(id).filter(r => !r.seed); // replace, not append
   if (r1 > 0) pushRecord(id, { ts: Date.now(), weight: r1, reps: 1, rpe: 10, seed: true });
   if (r10 > 0) pushRecord(id, { ts: Date.now(), weight: r10, reps: 10, rpe: 10, seed: true });
@@ -4636,10 +4636,10 @@ function saveExMaxes(id) {
   const p = P();
   if (p && p.wm && id in p.wm && !p.wm[id] && r1 > 0) {
     p.wm[id] = Engine.roundLoad(r1 * 0.9, 1.25);
-    wmNote = `, working max set to ${kg(p.wm[id])} kg`;
+    wmNote = t('xd.wm_set_note', { w: kg(p.wm[id]) });
   }
   save();
-  toast('Maxes saved' + wmNote + '. Weights are prescribed from your next session');
+  toast(t('xd.maxes_saved', { wm: wmNote }));
   rerenderTop();
 }
 // Remove one wrongly logged set from an exercise's history (by stored index,
@@ -4650,16 +4650,16 @@ function deleteRecord(id, idx) {
   const r = recs && recs[idx];
   if (!r) return;
   confirmModal({
-    title: 'Delete this set?',
-    message: `${fmtW(id, r.weight)} × ${r.reps} logged ${fmtDate(r.ts)} will be removed from this exercise's history. Prescribed weights follow the remaining sets.`,
-    confirmLabel: 'Delete set',
+    title: t('xd.del_set_title'),
+    message: t('xd.del_set_msg', { set: `${fmtW(id, r.weight)} × ${r.reps}`, date: fmtDate(r.ts) }),
+    confirmLabel: t('xd.del_set_confirm'),
     danger: true,
-  }, () => { recs.splice(idx, 1); save(); toast('Set deleted'); rerenderTop(); });
+  }, () => { recs.splice(idx, 1); save(); toast(t('xd.set_deleted')); rerenderTop(); });
 }
 function toggleDropSet(id, on) {
   S.techniques = S.techniques || {};
   if (on) S.techniques[id] = 'drop'; else delete S.techniques[id];
-  save(); toast(on ? 'Drop set added to this exercise' : 'Drop set removed'); rerenderTop();
+  save(); toast(t(on ? 'xd.drop_on' : 'xd.drop_off')); rerenderTop();
 }
 function xdSetMode(m) { if (XD.load) XD.load.mode = m; rerenderTop(); }
 function saveExLoading() {
@@ -4670,13 +4670,13 @@ function saveExLoading() {
   S.loadingProfiles = S.loadingProfiles || {};
   S.loadingProfiles[XD.id] = prof;
   XD.load = null; // re-init from the saved profile on next render
-  save(); toast('Loading saved'); rerenderTop();
+  save(); toast(t('xd.loading_saved')); rerenderTop();
 }
 function deleteCustomEx(id) {
   confirmModal({
-    title: 'Delete exercise?',
-    message: 'This removes the custom exercise and every set logged against it. This cannot be undone.',
-    confirmLabel: 'Delete exercise',
+    title: t('xd.delete_title'),
+    message: t('xd.delete_msg'),
+    confirmLabel: t('xd.delete_confirm'),
     danger: true,
   }, () => {
     S.customEx = S.customEx.filter(e => e.id !== id);
@@ -4690,16 +4690,16 @@ function deleteCustomEx(id) {
 // ------------------------------------------------------------
 function vMore() {
   const link = (label, ic, fn) => `<button class="lib-item" onclick="${fn}">
-    <span><span style="margin-right:10px">${ic}</span>${label}</span><span>›</span></button>`;
-  return `${topbar('More')}<div class="view">
-    <div class="section-title">${esc(S.profile.name || 'Lifter')}</div>
-    <p class="faint" style="margin-bottom:14px">IRONWAVE · Juggernaut Method 2.0 engine</p>
-    ${link('My Program', '📈', "nav('program')")}
-    ${link('Weekly Volume', '📊', 'openVolumeDashboard()')}
-    ${link('Phase & Bodyweight', '🍽', 'openPhase()')}
-    ${link('Exercises', '🏋', "nav('exercises')")}
-    ${link('Settings & Data', '⚙', "nav('settings')")}
-    <p class="faint" style="margin-top:18px;text-align:center;font-size:12px">Version ${esc(APP_VERSION)}</p>
+    <span><span style="margin-right:10px">${ic}</span>${esc(label)}</span><span>›</span></button>`;
+  return `${topbar(t('tab.more'))}<div class="view">
+    <div class="section-title">${esc(S.profile.name || t('more.lifter'))}</div>
+    <p class="faint" style="margin-bottom:14px">${esc(t('more.tagline'))}</p>
+    ${link(t('dash.my_program'), '📈', "nav('program')")}
+    ${link(t('vol.title'), '📊', 'openVolumeDashboard()')}
+    ${link(t('phase.screen_title'), '🍽', 'openPhase()')}
+    ${link(t('lib.title'), '🏋', "nav('exercises')")}
+    ${link(t('more.settings'), '⚙', "nav('settings')")}
+    <p class="faint" style="margin-top:18px;text-align:center;font-size:12px">${esc(t('more.version', { v: APP_VERSION }))}</p>
   </div>${tabbar()}`;
 }
 
@@ -4718,24 +4718,25 @@ function vProgram() {
     return `<div class="row" style="padding:10px 0 10px 8px;border-bottom:1px solid var(--line);border-left:3px solid ${c}">
       <span><b style="color:${c}">${status}</b> ${esc(b.label)}
         <span class="faint">· ${esc(t('common.wave', { w: b.wave }))} · ${esc(sch.short || sch.label)} · <span style="color:${c}">${esc(phaseLabel(ph))}</span></span></span>
-      <span class="subtle">W${startW}–${startW + p.weeksPerBlock - 1}</span></div>`;
+      <span class="subtle">${esc(t('prog.week_range', { a: startW, b: startW + p.weeksPerBlock - 1 }))}</span></div>`;
   }).join('');
-  return `${topbar('My Program')}<div class="view">
-    <div class="section-title">Powerbuilding</div>
-    <p class="faint" style="margin:-4px 0 10px">Methodology: ${esc(p.methodology || 'Juggernaut + Bodybuilding')}: ascending-volume hypertrophy blocks, book-wave strength blocks. Schemes never mix.</p>
+  const track = (p.trainingConfig && p.trainingConfig.track) || 'powerbuilding';
+  return `${topbar(t('dash.my_program'))}<div class="view">
+    <div class="section-title">${esc(t('track.' + track))}</div>
+    <p class="faint" style="margin:-4px 0 10px">${esc(t('prog.methodology', { m: p.methodology || 'Juggernaut + Bodybuilding' }))}</p>
     <div class="card">
-      <div class="row"><span class="subtle">Test date</span><b>${fmtDateLong(p.testDate)}</b></div>
-      <div class="row mt8"><span class="subtle">Days out</span><b>${daysOut()}</b></div>
-      <div class="row mt8"><span class="subtle">Training days / week</span><b>${p.daysPerWeek}</b></div>
+      <div class="row"><span class="subtle">${esc(t('prog.test_date'))}</span><b>${fmtDateLong(p.testDate)}</b></div>
+      <div class="row mt8"><span class="subtle">${esc(t('prog.days_out_row'))}</span><b>${daysOut()}</b></div>
+      <div class="row mt8"><span class="subtle">${esc(t('prog.days_week'))}</span><b>${p.daysPerWeek}</b></div>
     </div>
     ${timelineHTML()}
-    <div class="section-title" style="font-size:1.15rem">Blocks</div>
+    <div class="section-title" style="font-size:1.15rem">${esc(t('prog.blocks'))}</div>
     ${blockRows}
-    <p class="faint mt8">Hypertrophy blocks build volume week over week (sets climb, reps in reserve tighten) into the deload. Strength blocks run the book's waves, volume drops as intensity rises. Both end their last work week with an AMRAP on the mains that moves your working max, exactly like the book's formula.</p>
-    <div class="section-title" style="font-size:1.15rem">Working Maxes</div>
+    <p class="faint mt8">${esc(t('prog.blocks_note'))}</p>
+    <div class="section-title" style="font-size:1.15rem">${esc(t('prog.working_maxes'))}</div>
     ${lifts.map(l => `<button class="lib-item" onclick="openExDetail('${l}','settings')">
-      <span>${exName(l)}</span><b>${p.wm[l] ? kg(p.wm[l]) + ' kg' : 'Calibrating'}</b></button>`).join('')}
-    <button class="btn btn-outline mt24" style="color:var(--red);border-color:var(--red)" onclick="confirmNewProgram()">Start New Program</button>
+      <span>${esc(exName(l))}</span><b>${p.wm[l] ? kg(p.wm[l]) + ' kg' : esc(t('prog.calibrating'))}</b></button>`).join('')}
+    <button class="btn btn-outline mt24" style="color:var(--red);border-color:var(--red)" onclick="confirmNewProgram()">${esc(t('dash.new_program_confirm'))}</button>
   </div>${tabbar()}`;
 }
 function confirmNewProgram() {
@@ -4770,41 +4771,41 @@ function vSettings() {
   const langOptions = [`<option value="auto" ${(p.lang || 'auto') === 'auto' ? 'selected' : ''}>${esc(t('settings.language_auto'))}</option>`]
     .concat(Object.values(I18N.catalogs).map(c =>
       `<option value="${c.code}" ${p.lang === c.code ? 'selected' : ''}>${esc(c.name)}</option>`)).join('');
-  return `${topbar('Settings')}<div class="view">
+  return `${topbar(t('set.title'))}<div class="view">
     <div class="section-title">${esc(t('settings.language'))}</div>
     <div class="field"><label>${esc(t('settings.language'))}</label>
       <select id="st-lang" onchange="setAppLang(this.value)">${langOptions}</select></div>
     <p class="faint" style="margin-bottom:10px">${esc(t('settings.language_hint'))}</p>
-    <div class="section-title">Profile</div>
-    <div class="field"><label>Name</label><input id="st-name" value="${esc(p.name)}"></div>
-    <div class="field"><label>Bodyweight (kg)</label><input id="st-bw" type="number" inputmode="decimal" value="${p.bodyweight ?? ''}"></div>
-    <div class="section-title">Barbell</div>
-    <div class="field"><label>Bar weight (kg)</label><input id="st-bar" type="number" inputmode="decimal" value="${p.barWeight}"></div>
-    <div class="field"><label>Load rounding (kg)</label>
+    <div class="section-title">${esc(t('set.profile'))}</div>
+    <div class="field"><label>${esc(t('cx.name'))}</label><input id="st-name" value="${esc(p.name)}"></div>
+    <div class="field"><label>${esc(t('ob.bodyweight'))}</label><input id="st-bw" type="number" inputmode="decimal" value="${p.bodyweight ?? ''}"></div>
+    <div class="section-title">${esc(t('equip.bb'))}</div>
+    <div class="field"><label>${esc(t('set.bar_weight'))}</label><input id="st-bar" type="number" inputmode="decimal" value="${p.barWeight}"></div>
+    <div class="field"><label>${esc(t('set.rounding'))}</label>
       <select id="st-round">${[1.25, 2.5, 5].map(r => `<option ${p.rounding === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
-    <div class="section-title">Dumbbells &amp; machines</div>
-    <div class="field"><label>Dumbbell increment (kg per hand)</label>
+    <div class="section-title">${esc(t('set.db_mc'))}</div>
+    <div class="field"><label>${esc(t('set.db_inc'))}</label>
       <select id="st-dbinc">${[1, 2, 2.5].map(r => `<option ${(p.dbIncrement ?? 2.5) === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
-    <div class="field"><label>Machine / cable step (kg)</label>
+    <div class="field"><label>${esc(t('set.mc_step'))}</label>
       <select id="st-mcstep">${[2.5, 5, 10].map(r => `<option ${(p.machineStep ?? 5) === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
-    <button class="btn btn-outline" onclick="openPlateConfig()">Configure Plates ›</button>
-    <button class="btn btn-blue mt8" onclick="saveSettings()">Save Settings</button>
-    <div class="section-title">Data</div>
-    <p class="faint" style="margin-bottom:10px">iOS can evict browser storage after ~7 days of not visiting the site. Export a backup regularly.</p>
+    <button class="btn btn-outline" onclick="openPlateConfig()">${esc(t('plates.configure'))}</button>
+    <button class="btn btn-blue mt8" onclick="saveSettings()">${esc(t('set.save'))}</button>
+    <div class="section-title">${esc(t('set.data'))}</div>
+    <p class="faint" style="margin-bottom:10px">${esc(t('set.data_note'))}</p>
     <div class="btn-row">
-      <button class="btn btn-outline" onclick="exportData()">Export JSON</button>
-      <button class="btn btn-outline" onclick="document.getElementById('import-file').click()">Import JSON</button>
+      <button class="btn btn-outline" onclick="exportData()">${esc(t('set.export'))}</button>
+      <button class="btn btn-outline" onclick="document.getElementById('import-file').click()">${esc(t('set.import'))}</button>
     </div>
     <input type="file" id="import-file" accept=".json,application/json" style="display:none" onchange="importData(this)">
-    <button class="btn btn-outline mt16" style="color:var(--red);border-color:var(--red)" onclick="fullReset()">Erase everything</button>
-    <div class="section-title">Rest timer</div>
-    <label class="check-row"><input type="checkbox" ${p.restNotify ? 'checked' : ''} onchange="toggleRestNotify(this.checked)"> Notify me when rest ends</label>
-    <p class="faint" style="margin-bottom:10px">Shows a notification when the rest countdown finishes while you are in another app, on top of the in-app chime. On iPhone this needs the installed app (Add to Home Screen), and if iOS pauses the app in the background the alert arrives the moment you come back to it.</p>
-    <div class="section-title">About</div>
-    <p class="faint" style="margin-bottom:10px">IRONWAVE version ${esc(APP_VERSION)}. If a feature you expect is missing, the installed app may be caching an older build. Check for updates, then relaunch.</p>
-    <button class="btn btn-outline" onclick="checkForUpdate()">Check for updates</button>
-    <div class="section-title">Debug: timer chime</div>
-    <p class="faint" style="margin-bottom:10px">The rest-timer chime can be silent on some installed (PWA) devices even when it works in a browser. Tap each option below and note which one you actually hear, then tell me. On iPhone, also check your ring/silent switch is on.</p>
+    <button class="btn btn-outline mt16" style="color:var(--red);border-color:var(--red)" onclick="fullReset()">${esc(t('set.erase'))}</button>
+    <div class="section-title">${esc(t('set.rest_timer'))}</div>
+    <label class="check-row"><input type="checkbox" ${p.restNotify ? 'checked' : ''} onchange="toggleRestNotify(this.checked)"> ${esc(t('set.rest_notify'))}</label>
+    <p class="faint" style="margin-bottom:10px">${esc(t('set.rest_notify_note'))}</p>
+    <div class="section-title">${esc(t('set.about'))}</div>
+    <p class="faint" style="margin-bottom:10px">${esc(t('set.about_note', { v: APP_VERSION }))}</p>
+    <button class="btn btn-outline" onclick="checkForUpdate()">${esc(t('set.check_updates'))}</button>
+    <div class="section-title">${esc(t('set.debug_chime'))}</div>
+    <p class="faint" style="margin-bottom:10px">${esc(t('set.debug_chime_note'))}</p>
     ${CHIME_CONFIGS.map(c => `
       <button class="btn btn-outline mt8" onclick="playTestChime('${c.id}')">${esc(c.label)}</button>
       <p class="faint" style="margin:4px 0 0">${esc(c.desc)}</p>`).join('')}
@@ -4814,11 +4815,11 @@ function vSettings() {
 // over and reload so the athlete is on the latest code. Without this an installed
 // PWA only updates on its own schedule, which is why a fix can seem "not there yet".
 async function checkForUpdate() {
-  if (!('serviceWorker' in navigator)) { toast('Updates are managed by your browser here'); return; }
+  if (!('serviceWorker' in navigator)) { toast(t('set.upd_browser')); return; }
   try {
     const reg = await navigator.serviceWorker.getRegistration();
-    if (!reg) { toast('No installed app to update'); return; }
-    toast('Checking for updates...');
+    if (!reg) { toast(t('set.upd_none')); return; }
+    toast(t('set.upd_checking'));
     await reg.update();
     const incoming = reg.installing || reg.waiting;
     if (incoming) {
@@ -4827,9 +4828,9 @@ async function checkForUpdate() {
       });
       if (incoming.state === 'installed' || incoming.state === 'activated') location.reload();
     } else {
-      toast(`You are on the latest (v${APP_VERSION})`);
+      toast(t('set.upd_latest', { v: APP_VERSION }));
     }
-  } catch (_) { toast('Could not check for updates'); }
+  } catch (_) { toast(t('set.upd_failed')); }
 }
 // [i18n] Language switch: store the preference, re-resolve the active catalog,
 // and re-render so the whole UI follows immediately.
@@ -4847,7 +4848,7 @@ function saveSettings() {
   S.profile.rounding = parseFloat(document.getElementById('st-round').value) || 2.5;
   S.profile.dbIncrement = parseFloat(document.getElementById('st-dbinc').value) || 2.5;
   S.profile.machineStep = parseFloat(document.getElementById('st-mcstep').value) || 5;
-  save(); toast('Settings saved');
+  save(); toast(t('set.saved_toast'));
 }
 function openPlateConfig() { showModal(renderPlateConfig); }
 function renderPlateConfig(anim) {
@@ -4859,8 +4860,8 @@ function renderPlateConfig(anim) {
         <b id="pc-count-${i}">${pl.count}</b>
         <button class="pm btn-ghost" style="font-size:1.4rem" onclick="plateCount(${i},2)">＋</button>
       </span></div>`).join('');
-  $modal.innerHTML = modalShell(anim, 'Configure Plates',
-    `<p class="faint" style="margin-bottom:10px">Total plates you own per weight (pairs are used per side). The plate-math visual only suggests loads you can actually build.</p>${rows}`);
+  $modal.innerHTML = modalShell(anim, t('plates.title'),
+    `<p class="faint" style="margin-bottom:10px">${esc(t('plates.config_note'))}</p>${rows}`);
 }
 function plateCount(i, d) {
   S.profile.plates[i].count = Math.max(0, S.profile.plates[i].count + d);
@@ -4875,7 +4876,7 @@ function exportData() {
   a.download = `ironwave-backup-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
-  toast('Backup exported');
+  toast(t('set.backup_exported'));
 }
 function importData(input) {
   const f = input.files[0];
@@ -4887,11 +4888,11 @@ function importData(input) {
       if (!data || data.v !== 1) throw new Error('not an IRONWAVE backup');
       S = Object.assign(defaultState(), data);
       save();
-      toast('Backup restored');
+      toast(t('set.backup_restored'));
       V = { view: S.program ? 'dashboard' : 'onboarding', tab: 'dashboard', dayIdx: null,
             libTab: 'alpha', libSearch: '', obStep: 0, ob: null, draft: null };
       render();
-    } catch (e) { toast('Import failed: ' + e.message, true); }
+    } catch (e) { toast(t('set.import_failed', { err: e.message }), true); }
   };
   reader.readAsText(f);
   input.value = '';
@@ -4899,14 +4900,14 @@ function importData(input) {
 function fullReset() {
   // Two-stage confirm for the most destructive action in the app.
   confirmModal({
-    title: 'Erase everything?',
-    message: 'This erases all of your data: program, history and records. This cannot be undone.',
-    confirmLabel: 'Continue',
+    title: t('set.erase_title'),
+    message: t('set.erase_msg'),
+    confirmLabel: t('set.continue'),
     danger: true,
   }, () => confirmModal({
-    title: 'Last chance',
-    message: 'Really erase everything? There is no way to recover this once it is gone.',
-    confirmLabel: 'Erase everything',
+    title: t('set.erase_title2'),
+    message: t('set.erase_msg2'),
+    confirmLabel: t('set.erase'),
     danger: true,
   }, doFullReset));
 }
