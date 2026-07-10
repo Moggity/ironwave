@@ -1,5 +1,30 @@
 # IRONWAVE — Changelog
 
+## [Copywriting pass EN/ES + hidden surfaces] (2026-07-10)
+
+Editorial pass over both catalogs plus three deliberate UI hides, documented
+in `docs/hidden-ui.md`. Display/copy only: no prescription change, golden
+master untouched. Bumped `APP_VERSION`/`CACHE_VERSION` to `1.7.2`.
+
+- **Copy trimmed in `en.js` and `es.js`**: pep talk, methodology
+  name-drops, and explanations of behavior the system enforces anyway are
+  gone (onboarding subtitles, time-cap notes, skip hints, deload confirms,
+  week-feel modal, settings notes). Tap-to-open explainers (calibration,
+  finishers, volume footers) keep their depth.
+- **Latam gym vocabulary**, checked against Spanish fitness apps/content:
+  Polea al pecho (not Jalón), Culturismo (not Fisicoculturismo), and gym
+  terms that are conventionally English stay in English: pump (not
+  bombeo), drop set (not serie descendente), finisher (not remate).
+  Rest-pause is "pausa-descanso" (the Spanish-literature name; English
+  "rest" reads like "resto"). The register note in `i18n/README.md` grew
+  the new rules.
+- **Hidden, still working** (`docs/hidden-ui.md` has the restore paths):
+  Powerbuilding is no longer an onboarding option (`OB_TRACKS`), the
+  readiness score/trend UI is behind `SHOW_READINESS_UI = false` while the
+  metric keeps affecting prescriptions, and the timeline "tap a week"
+  caption is gone (the tap still works). Athlete-facing copy now says
+  "recovery" where it used to say "readiness".
+
 ## [i18n phase 4: translated exercise names] (2026-07-09)
 
 The optional last phase of the i18n plan. Display-only: `resolveSlot` builds
