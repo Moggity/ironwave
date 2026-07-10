@@ -48,7 +48,7 @@ test('exercise names translate through exn.* keys and fall back to English', () 
   I18N.setLang('es');
   try {
     assert.strictEqual(app.exName('comp-squat'), 'Sentadilla de competencia');
-    assert.strictEqual(app.exName('lat-pulldown'), 'Jalón al pecho');
+    assert.strictEqual(app.exName('lat-pulldown'), 'Tirón al pecho');
     // A custom exercise is the athlete's own text, never translated.
     app.S.customEx.push({ id: 'cx-test', name: 'My Special Lift', movement: 'squat', equipment: 'bb', custom: true });
     assert.strictEqual(app.exName('cx-test'), 'My Special Lift');

@@ -1470,7 +1470,9 @@ function topbar(title) {
 // copy stays to one short line per card; the picker does the explaining.
 // Track and experience copy lives in the i18n catalogs ('track.<id>' /
 // 'track.<id>_desc', 'exp.<id>' / 'exp.<id>_desc'); these keep only the order.
-const OB_TRACKS = ['bodybuilding', 'powerbuilding', 'powerlifting'];
+// 'powerbuilding' is hidden from onboarding for now (docs/hidden-ui.md); the
+// track itself stays fully supported (default state, migration, golden master).
+const OB_TRACKS = ['bodybuilding', 'powerlifting'];
 const OB_EXP = ['beginner', 'intermediate', 'advanced'];
 // The main lifts whose 1RM onboarding collects. The bodybuilding generator
 // never programs the deadlift (see removeBigLift, "not used in hypertrophy"),
@@ -1753,6 +1755,11 @@ function obNext(step) {
 // ------------------------------------------------------------
 const BLOCK_COLORS = { hypertrophy: '#5aa2f7', strength: '#e8883a', peaking: '#e2483d', bridge: '#2d9d8f' };
 
+// Readiness stays computed and keeps affecting prescriptions (check-ins, skip
+// penalties, autoregulation, early deload); only its score/trend UI is hidden
+// for now (docs/hidden-ui.md). Flip to true to restore every surface.
+const SHOW_READINESS_UI = false;
+
 function sparklineHTML() {
   const log = S.readinessLog.slice(-30);
   if (log.length < 2) return `<div class="faint">${esc(t('dash.readiness_empty'))}</div>`;
@@ -1890,7 +1897,7 @@ function timelineHTML(opts) {
   // Editable surface only (My Program); the dashboard shows the plan, not edits it.
   const add = editable ? `<button class="tl-add" onclick="openPlanEditor()" aria-label="${esc(t('plan.title'))}">+</button>` : '';
   return `<div class="timeline-v2">${groups}${add}</div>
-    <div class="legend">${leg.join('')}<span class="faint">${esc(t('timeline.tap_hint'))}</span></div>`;
+    <div class="legend">${leg.join('')}</div>`;
 }
 function openWeekPreview(bi, wi) {
   const p = P();
@@ -2048,7 +2055,6 @@ function openCalibrationInfo() {
 }
 function vDashboard() {
   if (!P()) return vOnboarding();
-  const readiness = computeReadiness();
   const p = P();
   const done = programDone();
   let weekSection = '';
@@ -2082,13 +2088,13 @@ function vDashboard() {
   }
   return `${topbar()}
   <div class="view">
-    <div class="readiness-hero">
+    ${SHOW_READINESS_UI ? `<div class="readiness-hero">
       <div class="row">
         <span class="label">${esc(t('dash.readiness'))} <span class="faint">ⓘ 0–30</span></span>
-        <span class="score-sm">${readiness.toFixed(2)}</span>
+        <span class="score-sm">${computeReadiness().toFixed(2)}</span>
       </div>
       ${sparklineHTML()}
-    </div>
+    </div>` : ''}
     <div class="section-title mt24">${esc(t('dash.my_program'))}</div>
     <div style="font-size:2rem;font-weight:800">${esc(t('dash.days_out', { n: daysOut() }))}</div>
     <div class="subtle">${fmtDateLong(p.testDate)}</div>
@@ -2622,10 +2628,17 @@ function openWeekFeel(up) { WF = 3; V.wfUp = up; showModal(renderWeekFeel); }
 function renderWeekFeel(anim) {
   const up = V.wfUp;
   const upBlock = blockOf(up.block);
-  const ctx = readinessContext();
-  const ctxLine = ctx.hasBaseline
-    ? t('week.ctx_baseline', { avg: ctx.weekAvg, base: ctx.baseAvg })
-    : t('week.ctx_building', { avg: ctx.weekAvg });
+  // The readiness numbers stay hidden with the rest of the readiness UI; the
+  // card keeps only the next-week line.
+  let ctxCard = '';
+  if (SHOW_READINESS_UI) {
+    const ctx = readinessContext();
+    const ctxLine = ctx.hasBaseline
+      ? t('week.ctx_baseline', { avg: ctx.weekAvg, base: ctx.baseAvg })
+      : t('week.ctx_building', { avg: ctx.weekAvg });
+    ctxCard = `<span class="faint">${esc(t('week.readiness_ctx'))}</span>
+          <div class="subtle mt8">${esc(ctxLine)}</div>`;
+  }
   $modal.innerHTML = modalShell(anim, t('week.complete'), `
         <div class="slider-card">
           <div class="q">${esc(t('week.feel_q'))}</div>
@@ -2634,9 +2647,8 @@ function renderWeekFeel(anim) {
           <input type="range" min="1" max="5" step="1" value="${WF}" oninput="wfSet(this.value)">
           <div class="range-labels"><span>${esc(t('week.feel_low'))}</span><span>${esc(t('week.feel_mid'))}</span><span>${esc(t('week.feel_high'))}</span></div>
         </div>
-        <div class="card"><span class="faint">${esc(t('week.readiness_ctx'))}</span>
-          <div class="subtle mt8">${esc(ctxLine)}</div>
-          <p class="faint mt8">${esc(t('week.next_up', { block: upBlock.label, week: weekLabelFor(upBlock, up.week) }))}</p></div>
+        <div class="card">${ctxCard}
+          <p class="faint${SHOW_READINESS_UI ? ' mt8' : ''}">${esc(t('week.next_up', { block: upBlock.label, week: weekLabelFor(upBlock, up.week) }))}</p></div>
         <button class="btn btn-green" onclick="confirmWeekFeel()">${esc(t('week.advance_btn'))}</button>
         <button class="btn btn-outline mt8" onclick="closeModal()">${esc(t('confirm.cancel'))}</button>`, 'closeModal()');
 }
@@ -4405,7 +4417,7 @@ function vSummary() {
     <div class="card accent mt8">
       <div class="row"><span class="subtle">${esc(t('sum.total_tonnage'))}</span><b>${(s.tonnage || 0).toLocaleString()} kg</b></div>
       <div class="row mt8"><span class="subtle">${esc(t('sum.rating'))}</span><b>${s.rating ? s.rating + ' / 10' : '—'}</b></div>
-      <div class="row mt8"><span class="subtle">${esc(t('dash.readiness'))}</span><b>${s.readiness != null ? s.readiness.toFixed(2) : '—'}</b></div>
+      ${SHOW_READINESS_UI ? `<div class="row mt8"><span class="subtle">${esc(t('dash.readiness'))}</span><b>${s.readiness != null ? s.readiness.toFixed(2) : '—'}</b></div>` : ''}
       ${wmc ? `<div class="row mt8"><span class="subtle">${esc(t('sum.wm_row', { name: wmc.name }))}</span><b style="color:var(--blue)">${kg(wmc.from)} → ${kg(wmc.to)} kg${wmc.capped ? ' ' + esc(t('sum.capped')) : ''}</b></div>` : ''}
     </div>
     <div class="section-title" style="font-size:1.2rem">${esc(t('sum.sets_logged'))} <span class="faint">${esc(t('sum.actual_vs_target'))}</span></div>
