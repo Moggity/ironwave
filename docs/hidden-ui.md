@@ -71,10 +71,15 @@ new athlete-facing string, in both languages:
 4. **No methodology name-dropping on first-run surfaces.** Onboarding no
    longer cites Juggernaut Method wave systems; My Program keeps a single
    short methodology line.
-5. **Latam gym Spanish.** tirón not jalón, culturismo not fisicoculturismo,
+5. **Latam gym Spanish**, checked against how Spanish fitness apps and
+   evidence-based content actually name things: polea al pecho (not jalón,
+   which is Mexico-only; "tirón" stays for the movement patterns where it
+   is standard), culturismo (owner call; fisicoculturismo also exists),
    agregar not añadir, pantorrillas, femorales. Gym terms conventionally
    said in English stay in English: pump (not bombeo), drop set (not serie
-   descendente), rest-pause (not descanso-pausa), myo-reps, AMRAP, RIR.
-   When in doubt, prefer the loanword the gym floor actually uses.
+   descendente), finisher (not remate, which is soccer vocabulary),
+   myo-reps, AMRAP, RIR. Exception: rest-pause is "pausa-descanso", the
+   name used in Spanish fitness literature, because English "rest" reads
+   like "resto" and misleads.
 6. **No em dashes in athlete-facing strings** (pre-existing hard rule,
    enforced by `i18n.test.js`).

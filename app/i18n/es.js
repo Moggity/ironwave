@@ -1,9 +1,10 @@
 /* ============================================================
    IRONWAVE — i18n/es.js
    Catálogo en español LATINOAMERICANO (agregar, pantorrillas,
-   femorales, tirón; nada de "a tope" ni "añadir"; los términos de
-   gimnasio que se usan en inglés se quedan en inglés: pump, drop
-   set, rest-pause). Copiado de
+   femorales, polea al pecho; nada de "a tope" ni "añadir"; los
+   términos de gimnasio que se usan en inglés se quedan en inglés:
+   pump, drop set, finisher; pausa-descanso en español porque "rest"
+   se confunde con "resto"). Copiado de
    en.js: se traducen solo los VALORES, nunca las claves; los
    marcadores tipo {name} se dejan intactos. Ver README.md en
    esta carpeta.
@@ -73,33 +74,33 @@ const I18N_ES = {
   'tech.straight': 'Serie normal',
   'tech.drop': 'Drop set',
   'tech.myo': 'Myo-reps',
-  'tech.restpause': 'Rest-pause',
+  'tech.restpause': 'Pausa-descanso',
   'tech.partials': 'Parciales en estiramiento',
   'tech.superset': 'Superserie',
   'tech.chip_drop': 'Drop set',
   'tech.chip_myo': 'Myo-reps',
-  'tech.chip_restpause': 'Rest-pause',
+  'tech.chip_restpause': 'Pausa-descanso',
   'tech.chip_partials': 'Parciales',
   'tech.drop_how': 'Drop set agregado. Haz tu última serie, luego quita peso y sigue',
   'tech.myo_how': 'Myo-reps agregadas. Haz la serie de activación, luego mini-descansos cortos y mini-series',
-  'tech.restpause_how': 'Rest-pause agregado. Llega al fallo, pausa y saca unas cuantas más',
+  'tech.restpause_how': 'Pausa-descanso agregada. Llega al fallo, pausa y saca unas cuantas más',
   'tech.partials_how': 'Parciales agregados. Tras tu última rep completa, sigue con reps parciales en el estiramiento',
   'tech.removed': '{name}: quitado',
   'tech.need_weight': 'Primero define un peso de trabajo',
-  'tech.add_finisher': 'Agrega un remate',
+  'tech.add_finisher': 'Agrega un finisher',
   'tech.optional_last_set': 'opcional, última serie',
   'tech.runs_on_set': 'Va en la serie {n}: haz la serie hasta su tope de RIR tal como está escrita, lo que se acerca al fallo es el {tech} de después.',
-  'tech.what_is': '¿Qué es un remate?',
-  'tech.info_title': 'Remates',
-  'tech.info_intro': 'Un remate extiende tu <b>última serie de trabajo</b> de un ejercicio. Haz esa serie tal como está escrita y para en su tope de RIR, no la lleves al fallo. El remate de después es lo que acerca el músculo al fallo, con una fracción de la fatiga de más series normales.',
+  'tech.what_is': '¿Qué es un finisher?',
+  'tech.info_title': 'Finishers',
+  'tech.info_intro': 'Un finisher extiende tu <b>última serie de trabajo</b> de un ejercicio. Haz esa serie tal como está escrita y para en su tope de RIR, no la lleves al fallo. El finisher de después es lo que acerca el músculo al fallo, con una fracción de la fatiga de más series normales.',
   'tech.info_drop': 'Termina la serie, baja al peso más ligero indicado y sigue sin descanso. Registra las reps de cada bajada en su propia fila de mini-serie.',
   'tech.info_myo': 'Termina la serie, descansa unos 20 segundos y haz mini-series cortas con el mismo peso. Repite hasta que las reps de la mini-serie caigan. Registra las reps de cada mini-serie.',
   'tech.info_restpause': 'Termina la serie, pausa unos 15 segundos y saca unas cuantas reps más con el mismo peso. Registra las reps extra en las filas de mini-serie.',
   'tech.info_partials': 'Tras tu última rep completa, sigue con reps parciales en la mitad estirada del movimiento. Cuenta solo las reps completas en el total de la serie, juzga tu RIR sobre las reps completas antes de empezar los parciales, y registra las reps parciales en su propia fila.',
-  'tech.info_logging': 'Registro: apunta primero el peso, las reps y el RIR de la serie, como si hubieras parado ahí. Las filas de mini-serie de abajo son para las reps del remate.',
+  'tech.info_logging': 'Registro: apunta primero el peso, las reps y el RIR de la serie, como si hubieras parado ahí. Las filas de mini-serie de abajo son para las reps del finisher.',
   'tech.word_drop': 'drops',
   'tech.word_myo': 'myo',
-  'tech.word_restpause': 'rest-pause',
+  'tech.word_restpause': 'pausa-descanso',
   'tech.word_partials': 'parciales',
   'tech.child_drop_title': 'Drops',
   'tech.child_drop_hint': 'quita peso y sigue, registra reps',
@@ -371,7 +372,7 @@ const I18N_ES = {
   'timeline.strength': 'Fuerza',
   'timeline.cut': 'Definición',
   'timeline.peak': 'Pico',
-  'timeline.finisher_week': 'Remate de esta semana: {tech}. Agrégalo en la última serie de un accesorio.',
+  'timeline.finisher_week': 'Finisher de esta semana: {tech}. Agrégalo en la última serie de un accesorio.',
 
   // --- week preview modal ---
   'preview.title': 'Vista previa',
@@ -911,8 +912,8 @@ const I18N_ES = {
   'exn.chinup': 'Dominadas supinas',
   'exn.weighted-pullup': 'Dominadas con peso',
   'exn.neutral-pullup': 'Dominadas agarre neutro',
-  'exn.lat-pulldown': 'Tirón al pecho',
-  'exn.close-grip-pulldown': 'Tirón agarre cerrado',
+  'exn.lat-pulldown': 'Polea al pecho',
+  'exn.close-grip-pulldown': 'Polea al pecho agarre cerrado',
   'exn.straight-arm-pulldown': 'Pullover en polea',
   'exn.barbell-row': 'Remo con barra',
   'exn.pendlay-row': 'Remo Pendlay',

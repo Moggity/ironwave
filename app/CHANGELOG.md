@@ -11,11 +11,13 @@ master untouched. Bumped `APP_VERSION`/`CACHE_VERSION` to `1.7.2`.
   gone (onboarding subtitles, time-cap notes, skip hints, deload confirms,
   week-feel modal, settings notes). Tap-to-open explainers (calibration,
   finishers, volume footers) keep their depth.
-- **Latam gym vocabulary**: Tirón al pecho (not Jalón), Culturismo (not
-  Fisicoculturismo), and gym terms that are conventionally English stay in
-  English: pump (not bombeo), drop set (not serie descendente), rest-pause
-  (not descanso-pausa). The register note in `i18n/README.md` grew the new
-  rules.
+- **Latam gym vocabulary**, checked against Spanish fitness apps/content:
+  Polea al pecho (not Jalón), Culturismo (not Fisicoculturismo), and gym
+  terms that are conventionally English stay in English: pump (not
+  bombeo), drop set (not serie descendente), finisher (not remate).
+  Rest-pause is "pausa-descanso" (the Spanish-literature name; English
+  "rest" reads like "resto"). The register note in `i18n/README.md` grew
+  the new rules.
 - **Hidden, still working** (`docs/hidden-ui.md` has the restore paths):
   Powerbuilding is no longer an onboarding option (`OB_TRACKS`), the
   readiness score/trend UI is behind `SHOW_READINESS_UI = false` while the
