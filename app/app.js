@@ -469,6 +469,9 @@ function makeProgram(ob) {
     // does not silently rewrite an in-flight program.
     trainingConfig: {
       track,
+      // The bodybuilding goal drives the block display name (blockDisplayLabel);
+      // older saves lack it and fall back to the generic track word.
+      goalArchetype: track === 'bodybuilding' ? (ob.goalArchetype || null) : null,
       timeMode: ob.timeMode || 'unlimited',
       timeCapMin: ob.timeMode === 'custom' ? (ob.timeCapMin || null) : null,
       muscleFocus: Object.assign({}, focus),
@@ -642,10 +645,32 @@ function globalWeekNum() { return P().pointer.block * P().weeksPerBlock + P().po
 function dayTheme(d) {
   if (!d) return '';
   if (d.theme && d.theme.primary) {
-    return `${t(d.theme.region === 'lower' ? 'day.lower' : 'day.upper')} · ${t('muscle.' + d.theme.primary)}`;
+    // Owner feedback: the Upper/Lower region tag reads as noise next to the
+    // primary muscle, so themed days show the muscle alone.
+    return t('muscle.' + d.theme.primary);
   }
   if (d.nameKey) return t('day.' + d.nameKey);
   return (d.name && !/^Day \d+$/.test(d.name)) ? d.name : '';
+}
+// Athlete-facing block name. The stored label stays English ('Hypertrophy 2',
+// state and history keep their shape); display translates it and, on the
+// bodybuilding track, uses the athlete's own goal word instead of the jargon
+// (owner feedback: most athletes do not know "hypertrophy").
+function blockDisplayLabel(block) {
+  const m = /^(Hypertrophy|Strength) (\d+)$/.exec(block && block.label || '');
+  if (!m) return (block && block.label) || '';
+  let base;
+  if (m[1] === 'Strength') {
+    base = t('timeline.strength');
+  } else {
+    const tc = P() && P().trainingConfig;
+    if (tc && tc.track === 'bodybuilding') {
+      base = tc.goalArchetype === 'serious-macro' ? t('block.bb_serious') : t('track.bodybuilding');
+    } else {
+      base = t('timeline.hypertrophy');
+    }
+  }
+  return `${base} ${m[2]}`;
 }
 
 // Resolve slot to a prescription { exId, name, sets, slotRef, isMain, isSelect }
@@ -1576,7 +1601,6 @@ function vOnboarding() {
       <div class="seg mt16">
         ${[3,4,5,6].map(n => `<button class="${ob.daysPerWeek===n?'on':''}" onclick="obDays(${n})">${n}</button>`).join('')}
       </div>
-      <p class="faint mt16">${esc([3,4,5,6].includes(ob.daysPerWeek) ? t('ob.days_' + ob.daysPerWeek) : t('ob.days_pick'))}</p>
       <button class="btn btn-green mt24" onclick="obNext(1)" ${ob.daysPerWeek ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
   } else if (step === 2) {
     const goalReady = ob.track && (ob.track !== 'bodybuilding' || ob.goalArchetype);
@@ -1615,19 +1639,16 @@ function vOnboarding() {
   } else if (step === 4) {
     body = `
       <div class="ob-title">${esc(t('ob.time_title'))}</div>
-      <p class="subtle">${esc(t('ob.time_sub'))}</p>
       <div class="seg mt16">
         <button class="${ob.timeMode==='unlimited'?'on':''}" onclick="obTimeMode('unlimited')">${esc(t('ob.time_unlimited'))}</button>
         <button class="${ob.timeMode==='custom'?'on':''}" onclick="obTimeMode('custom')">${esc(t('ob.time_custom'))}</button>
       </div>
       ${ob.timeMode==='custom' ? `<div class="field mt16"><label>${esc(t('ob.time_minutes'))}</label>
         <input id="ob-time" type="number" inputmode="numeric" value="${esc(ob.timeCapMin)}" placeholder="60" oninput="obTimeInput(this.value)"></div>` : ''}
-      <div id="ob-time-est" class="focus-time">${ob.timeMode ? esc(focusTimeLine(ob)) : ''}</div>
       <button class="btn btn-green mt24" onclick="obNext(4)" ${ob.timeMode ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
   } else if (step === 5) {
     body = `
       <div class="ob-title">${esc(t('ob.focus_title'))}</div>
-      <p class="subtle">${esc(t('ob.focus_sub'))}</p>
       ${FOCUS_KEYS.map(k => `
         <div class="focus-row">
           <div class="row"><span>${esc(t('muscle.' + k))}</span><b id="mf-val-${k}">${ob.muscleFocus[k]}</b></div>
@@ -1668,11 +1689,10 @@ function obMacroLine(ob) {
 }
 function obExp(id) { V.ob.experience = id; render(); }
 function obTimeMode(mode) { V.ob.timeMode = mode; render(); }
-// Live-update the time estimate as the cap is typed, without a full re-render
-// (which would blur the number input mid-entry). Mirrors obSlider's pattern.
+// Store the cap as typed without a full re-render (which would blur the
+// number input mid-entry). The estimate line only shows on the focus step.
 function obTimeInput(v) {
   V.ob.timeCapMin = v === '' ? '' : (parseInt(v) || '');
-  const el = byId('ob-time-est'); if (el) el.textContent = focusTimeLine(V.ob);
 }
 // Update slider value + warning live, without a full re-render (keeps the drag smooth).
 function obSlider(k, v) {
@@ -1721,6 +1741,7 @@ function obNext(step) {
       S.profile.experience = ob.experience;
       S.profile.training = {
         track: ob.track,
+        goalArchetype: ob.track === 'bodybuilding' ? (ob.goalArchetype || null) : null,
         timeMode: ob.timeMode,
         timeCapMin: ob.timeMode === 'custom' ? (parseInt(ob.timeCapMin) || null) : null,
         muscleFocus: Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 }, ob.muscleFocus),
@@ -1935,7 +1956,7 @@ function openWeekPreview(bi, wi) {
     const techNote = tech
       ? `<p class="tl-finisher">${TECH_MARK[tech] || ''} ${esc(t('timeline.finisher_week', { tech: TECHNIQUE_LABELS[tech] ? t('tech.' + tech) : tech }))}</p>`
       : '';
-    $modal.innerHTML = modalShell(anim, `${esc(b.label)} · ${esc(t('common.week_n', { n: bi * p.weeksPerBlock + wi + 1 }))}`,
+    $modal.innerHTML = modalShell(anim, `${esc(blockDisplayLabel(b))} · ${esc(t('common.week_n', { n: bi * p.weeksPerBlock + wi + 1 }))}`,
       `<p class="subtle" style="margin-bottom:10px">${weekLabelFor(b, wi)} · ${esc(t('preview.projected'))}</p>${techNote}${days}`);
   });
 }
@@ -1972,7 +1993,7 @@ function renderPlanEditor(anim) {
   const locked = V.planLocked;
   const lockedRows = p.blocks.slice(0, locked).map((b, i) =>
     `<div class="plan-row locked"><span class="plan-lock">🔒</span>
-      <span class="plan-name">${esc(b.label)}</span>
+      <span class="plan-name">${esc(blockDisplayLabel(b))}</span>
       <span class="faint">${esc(phaseLabel(blockPhase(b)))} · ${esc(t('plan.trained'))}</span></div>`).join('');
   const draft = V.planDraft;
   const rows = draft.map((b, i) => {
@@ -2078,7 +2099,6 @@ function vDashboard() {
     const allDone = p.days.every((d, i) => p.completedDays[dayKey(p.pointer.block, w, i)]);
     weekSection = `
       <div class="mt16">
-        <div style="color:${BLOCK_COLORS[block.type]};font-weight:600">${esc(block.label)} · ${esc(t('common.wave', { w: block.wave }))}</div>
         <div style="font-size:1.7rem;font-weight:800">${esc(t('common.week_n', { n: globalWeekNum() }))}</div>
         <div class="subtle">${weekLabelFor(block, w)}</div>
       </div>
@@ -2546,7 +2566,7 @@ function endBlock(finishedBlock, bb) {
         }
       }
     }
-    toast(t('week.new_block_toast', { label: p.blocks[p.pointer.block].label }));
+    toast(t('week.new_block_toast', { label: blockDisplayLabel(p.blocks[p.pointer.block]) }));
   }
   V.dayIdx = null;
   save(); render();
@@ -2648,7 +2668,7 @@ function renderWeekFeel(anim) {
           <div class="range-labels"><span>${esc(t('week.feel_low'))}</span><span>${esc(t('week.feel_mid'))}</span><span>${esc(t('week.feel_high'))}</span></div>
         </div>
         <div class="card">${ctxCard}
-          <p class="faint${SHOW_READINESS_UI ? ' mt8' : ''}">${esc(t('week.next_up', { block: upBlock.label, week: weekLabelFor(upBlock, up.week) }))}</p></div>
+          <p class="faint${SHOW_READINESS_UI ? ' mt8' : ''}">${esc(t('week.next_up', { block: blockDisplayLabel(upBlock), week: weekLabelFor(upBlock, up.week) }))}</p></div>
         <button class="btn btn-green" onclick="confirmWeekFeel()">${esc(t('week.advance_btn'))}</button>
         <button class="btn btn-outline mt8" onclick="closeModal()">${esc(t('confirm.cancel'))}</button>`, 'closeModal()');
 }
@@ -2750,7 +2770,7 @@ function vWorkout() {
   return `${topbar(t('tab.workout'))}
   <div class="view">
     <div class="mt8">
-      <div style="color:${BLOCK_COLORS[block.type]};font-weight:600">${esc(block.label)}</div>
+      <div style="color:${BLOCK_COLORS[block.type]};font-weight:600">${esc(blockDisplayLabel(block))}</div>
       <div style="font-size:1.4rem;font-weight:700">${esc(t('common.week_n', { n: globalWeekNum() }))}</div>
       <div class="row">
         <div style="font-size:2.4rem;font-weight:800">${esc(t('common.day_n', { n: di + 1 }))}</div>
@@ -2778,7 +2798,7 @@ function vWorkout() {
       <button class="btn btn-outline" onclick="skipWorkout(${di})">${esc(t('workout.skip'))}</button>
       <button class="btn btn-outline" onclick="openPreview(${di})">${esc(t('workout.preview'))}</button>
     </div>`}
-    <div class="section-title">${esc(t('workout.overview'))} <span class="faint">${esc(t('workout.reorder_hint'))}</span></div>
+    <div class="section-title">${esc(t('workout.overview'))}</div>
     <div id="ex-list">${cards}</div>
     ${timeBudgetHTML(di)}
     <button class="btn btn-outline" style="border-radius:24px" onclick="openAddExercise(${di})">${esc(t('workout.add_exercise'))}</button>
@@ -2973,7 +2993,7 @@ function vCheckin() {
   let body = '';
   const header = `
     <div class="checkin-step-label">◌ ${esc(t('ci.step', { n: step + 1, total: totalSteps }))}</div>
-    <div class="checkin-title">${esc(block.label)} · ${esc(t('session.week_day', { week: globalWeekNum(), day: cd.di + 1 }))}</div>`;
+    <div class="checkin-title">${esc(blockDisplayLabel(block))} · ${esc(t('session.week_day', { week: globalWeekNum(), day: cd.di + 1 }))}</div>`;
 
   if (step === 0) {
     body = `${header}
@@ -3099,8 +3119,8 @@ function setTargetLabel(st, exId) {
   if (st.amrap) return `${fmtW(exId, st.targetWeight)} × AMRAP <small>${esc(t('set.amrap_standard', { reps: st.targetReps }))}</small>${tech}`;
   // Calibration rows stay bare; the card carries the one-line explainer.
   if (st.calib) return `${esc(t('set.reps_at_rir', { reps: st.targetReps, rir: fmtRir(st.targetRpe) }))}${tech}`;
-  if (st.targetWeight != null && st.targetRpe != null)
-    return `${fmtW(exId, st.targetWeight)} × ${st.targetReps} <small>${esc(t('set.cap_at', { rir: fmtRir(st.targetRpe) }))}</small>${tech}`;
+  // The per-set RIR cap moved up to the card's scheme line (owner feedback:
+  // repeating it on every row is noise); rows show weight × reps only.
   if (st.targetWeight != null) return `${fmtW(exId, st.targetWeight)} × ${st.targetReps}${tech}`;
   return `${esc(t('set.reps_at_rir', { reps: st.targetReps, rir: fmtRir(st.targetRpe) }))}${tech}`;
 }
@@ -3137,15 +3157,8 @@ function displaySetNote(st, cardHint) {
   return txt;
 }
 
-// [Cluster B] One-time "we switched to RIR" note, dismissed for good once read.
-function rirIntroHTML() {
-  if (S.flags && S.flags.rirSeen) return '';
-  return `<div class="card accent rir-intro">
-    <div style="font-weight:700">${esc(t('rir.intro_title'))}</div>
-    <p class="faint mt8">${esc(t('rir.intro_body'))}</p>
-    <button class="btn btn-outline mt8" onclick="dismissRir()">${esc(t('rir.got_it'))}</button></div>`;
-}
-function dismissRir() { S.flags = S.flags || {}; S.flags.rirSeen = true; save(); render(); }
+// [Cluster B] The one-time "we switched to RIR" card is retired (owner
+// feedback: too verbose). The S.flags.rirSeen flag stays in old saves, unused.
 
 // [Cluster B] Surface the drop set right where the athlete trains, not buried in
 // settings. The chip toggles the technique live on this entry's last working set
@@ -3243,13 +3256,12 @@ function vSession() {
 
   return `<header class="topbar">
       <button class="btn-ghost" onclick="abandonSession()">‹</button>
-      <div class="col center"><span style="color:var(--blue);font-weight:600">${esc(block.label)}</span>
+      <div class="col center"><span style="color:var(--blue);font-weight:600">${esc(blockDisplayLabel(block))}</span>
       <span style="font-weight:700">${esc(t('session.week_day', { week: dr.b * P().weeksPerBlock + dr.w + 1, day: dr.d + 1 }))}</span></div>
       <span></span></header>
     <div class="view">
       ${restTimerHTML()}
       ${shortSleep ? `<div class="banner-warn">${esc(t('session.short_sleep', { hours: dr.sleepHours }))}</div>` : ''}
-      ${rirIntroHTML()}
       ${dr.mindset ? `<div class="card accent"><span class="faint">${esc(t('session.todays_focus'))}</span><div style="font-weight:600">${esc(dr.mindset)}</div></div>` : ''}
       ${ratingsStripHTML(dr.sliders)}
       ${cards}
@@ -3294,26 +3306,34 @@ function sessionCardsHTML(dr, shortSleep) {
 }
 // One logged set row (shared by the single card and, in compact form, the
 // superset round cells).
-function setRowHTML(e, ei, st, si2, shortSleep, cardHint) {
+function setRowHTML(e, ei, st, si2, shortSleep) {
   const perfLabel = st.done ? `${fmtW(e.exId, st.weight)} x ${st.reps} · ${fmtRir(st.rpe)}` : st.skipped ? esc(t('session.skipped')) : esc(t('session.performance'));
   const fatigueFlag = shortSleep && !st.ramp && si2 >= e.sets.length - 1 && !e.isMain
     ? `<div class="flag">${esc(t('session.short_sleep_flag'))}</div>` : '';
   const loggedDrops = (st.done && st.drops && st.drops.length)
     ? `<small class="faint">${childWord(st.technique)} ${dropDetail(e.exId, st.drops)}</small>` : '';
   const hasTech = FINISHER_TECHS.includes(st.technique);
-  const note = displaySetNote(st, cardHint);
+  // Per-set prescription notes are no longer rendered (owner feedback: noise);
+  // displaySetNote/cardHintFor stay for tests and possible detail surfaces.
   return `<div class="set-row ${st.done ? 'done' : ''} ${st.amrap ? 'amrap' : ''} ${st.skipped ? 'skipped' : ''} ${hasTech ? 'tech' : ''}">
       <span class="num">${st.skipped ? '–' : si2 + 1}</span>
-      <span class="target">${setTargetLabel(st, e.exId)}${note ? `<small>${esc(note)}</small>` : ''}${loggedDrops}</span>
+      <span class="target">${setTargetLabel(st, e.exId)}${loggedDrops}</span>
       <button class="perf ${st.done ? 'filled' : ''}" onclick="openPerf(${ei},${si2})">${perfLabel}</button>
     </div>${fatigueFlag}`;
 }
 // The standard single-exercise session card.
 function liftCardHTML(e, ei, dr, shortSleep) {
-  const cardHint = cardHintFor(e.sets);
-  const setRows = e.sets.map((st, si2) => setRowHTML(e, ei, st, si2, shortSleep, cardHint)).join('');
+  const setRows = e.sets.map((st, si2) => setRowHTML(e, ei, st, si2, shortSleep)).join('');
   const schemeWork = e.sets.filter(s => !s.ramp);
-  const schemeTxt = schemeWork.length ? esc(t('session.sets_x_reps', { sets: schemeWork.length, reps: schemeWork[0].targetReps })) : '';
+  // When every working set shares one RIR cap it reads once up here, next to
+  // the sets x reps scheme, instead of repeating on each row.
+  const rpes = [...new Set(schemeWork.filter(s => !s.amrap && s.targetRpe != null).map(s => s.targetRpe))];
+  const uniformRir = rpes.length === 1 && schemeWork.every(s => s.amrap || s.targetRpe != null) ? rpes[0] : null;
+  const schemeTxt = schemeWork.length
+    ? esc(uniformRir != null
+        ? t('session.sets_x_reps_rir', { sets: schemeWork.length, reps: schemeWork[0].targetReps, rir: fmtRir(uniformRir) })
+        : t('session.sets_x_reps', { sets: schemeWork.length, reps: schemeWork[0].targetReps }))
+    : '';
   const top = topWorkWeight(e);
   return `<div class="lift-card ${e.optional ? 'optional' : ''}">
       <h3>${esc(e.name)}${e.optional ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}</h3>
@@ -3325,7 +3345,6 @@ function liftCardHTML(e, ei, dr, shortSleep) {
       </div>
       ${top && loadingFor(e.exId).showPlates ? `<button class="warmup-btn" onclick="openWarmup(${top},'${e.exId}')"><b>＋</b> ${esc(t('session.warmup'))}</button>` : ''}
       <div class="scheme">${schemeTxt}</div>
-      ${cardHint ? `<p class="faint" style="margin:2px 0 6px;font-size:.78rem">${esc(cardHint)}</p>` : ''}
       ${techChipHTML(e, ei)}
       ${setRows}
       <button class="notes-link" onclick="toggleNotes(${ei})">${esc(t('session.notes'))} ✎</button>
@@ -4814,6 +4833,7 @@ function doNewProgram() {
   V.ob = { name: S.profile.name, bodyweight: S.profile.bodyweight,
            daysPerWeek: P()?.daysPerWeek || 4, maxes: keepMaxes,
            track: tr.track || 'powerbuilding',
+           goalArchetype: tr.goalArchetype || null,
            experience: S.profile.experience || 'intermediate',
            timeMode: tr.timeMode || 'unlimited',
            timeCapMin: tr.timeCapMin || '',

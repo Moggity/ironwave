@@ -28,8 +28,9 @@ misspelled key fails the test suite, which is your typo net.
 
 `es.js` is written in **Latin American Spanish** (agregar not añadir,
 pantorrillas not gemelos, femorales not isquios, polea al pecho not jalón,
-culturismo not fisicoculturismo, al 100 not a tope, la configuración not
-los ajustes). Gym terms that are conventionally said in English stay in
+al 100 not a tope, la configuración not los ajustes). Owner call on the
+goal vocabulary: the bodybuilding track is "Musculación" and the serious
+goal is "Fisicoculturismo" (not "culturismo"). Gym terms that are conventionally said in English stay in
 English: pump (not bombeo), drop set (not serie descendente), finisher
 (not remate), myo-reps, AMRAP, RIR. When in doubt, prefer the English
 loanword the gym floor actually uses, EXCEPT where the English word has a

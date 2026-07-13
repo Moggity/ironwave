@@ -1,5 +1,46 @@
 # IRONWAVE — Changelog
 
+## [Owner feedback group 1: verbosity pass] (2026-07-13)
+
+Screenshot-annotated feedback from the owner (remove / replace / fix), applied
+to both catalogs. Display/copy only: no prescription change, golden master
+untouched. Bumped `APP_VERSION`/`CACHE_VERSION` to `1.7.3`.
+
+- **Onboarding trimmed**: the per-day-count description on the days step, the
+  time and muscle-focus subtitles, and the time step's estimate box are gone
+  (the estimate box also rendered as an empty container before a pick, the
+  reported fix). The focus step keeps its estimate line but drops the
+  "longer days will be trimmed" sentence. Experience descriptions are just
+  the year ranges, and the ES subtitle reads "¿Cuánto tiempo has entrenado
+  seriamente?".
+- **Goal copy (owner's terms, reversing part of the 2026-07-10 triage)**:
+  ES Culturismo → **Musculación** (track) and Culturismo en serio →
+  **Fisicoculturismo** (goal); "bloques de volumen" instead of "de ganancia";
+  the recomp and lean-asap descriptions drop "hacia tu fecha" / "into your
+  date" and "Conserva músculo." / "Holds muscle." in both languages.
+- **Block names read as the athlete's goal**: new `blockDisplayLabel` maps the
+  stored English label (state unchanged) to Fuerza/Strength and, for
+  bodybuilding programs, to the goal word (Fisicoculturismo on serious-macro,
+  Musculación otherwise; EN shows Bodybuilding) everywhere block labels
+  render: check-in, workout header, train view, plan editor, preview title,
+  toasts. `trainingConfig`/`profile.training` snapshot `goalArchetype` to
+  drive it; older saves fall back to the track word.
+- **Dashboard**: the "Hypertrophy 1 · wave of 10s" line above the week heading
+  is gone, and themed day rows (plus the train-view subtitle) drop the
+  Upper/Lower region tag, keeping just the primary muscle (`dayTheme`).
+- **Session card de-noised**: the one-time RIR intro card is retired, the
+  reorder hint next to Overview is gone, per-set prescription notes
+  ("build up", "top set", meso-week lines) and the card-level calibration
+  hint no longer render (helpers stay for tests), and the per-set
+  "cap at N RIR" moved up to the scheme line as
+  "{sets} sets x {reps} reps @ {rir}" when every working set shares one cap.
+- **Log-set sheet**: the RIR hint drops "0 is all out." / "0 es darlo todo."
+  and the RIR-3 effort line drops "confidently" / "con confianza".
+- Tests: `feedback-round4.test.js` covers `blockDisplayLabel` (EN/ES, custom
+  labels, goal snapshot), the region-free `dayTheme`, the cap-free
+  `setTargetLabel`, and the catalog trims; `blockDisplayLabel` exported
+  through the harness shim.
+
 ## [Copywriting pass EN/ES + hidden surfaces] (2026-07-10)
 
 Editorial pass over both catalogs plus three deliberate UI hides, documented
