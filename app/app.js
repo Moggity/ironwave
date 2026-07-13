@@ -241,8 +241,10 @@ function pushRecord(id, rec) { (S.records[id] = S.records[id] || []).push(rec); 
 // We only change how the total is rounded and how it is displayed.
 // ------------------------------------------------------------
 // Dumbbell entries that use a single implement at a time.
-const SINGLE_DB = new Set(['goblet-squat', 'db-row', 'kroc-row', 'single-leg-rdl', 'db-side-bend', 'suitcase-carry']);
-const EQUIP_MODE = { bb: 'barbell', db: 'dumbbell', mc: 'machine', cb: 'cable', bw: 'bodyweight', bd: 'band' };
+const SINGLE_DB = new Set(['goblet-squat', 'db-row', 'kroc-row', 'single-leg-rdl', 'db-side-bend', 'suitcase-carry', 'db-pullover', 'concentration-curl', 'db-kickback']);
+// A kettlebell loads like a single fixed implement: dumbbell-mode math (the
+// athlete's dumbbell increment), one bell, no plate math.
+const EQUIP_MODE = { bb: 'barbell', db: 'dumbbell', mc: 'machine', cb: 'cable', bw: 'bodyweight', bd: 'band', kb: 'dumbbell' };
 // Athlete-facing equipment labels and a stable display order for the
 // equipment filter chips on the swap / select / add-exercise pickers.
 const EQUIP_LABEL = { bb: 'Barbell', db: 'Dumbbell', mc: 'Machine', cb: 'Cable', bw: 'Bodyweight', bd: 'Band', kb: 'Kettlebell' };
@@ -259,6 +261,7 @@ function defaultLoadingFor(exId) {
   const e = exById(exId);
   const eq = e ? e.equipment : 'bb';
   if (eq === 'db') return { mode: 'dumbbell', count: SINGLE_DB.has(exId) ? 1 : 2 };
+  if (eq === 'kb') return { mode: 'dumbbell', count: 1 };
   return { mode: EQUIP_MODE[eq] || 'barbell' };
 }
 
@@ -3730,9 +3733,10 @@ function plateVizHTML(weight, exId) {
   const L = loadingFor(exId);
   if (!L.showPlates) {
     if (L.mode === 'dumbbell') {
+      const kbell = (exById(exId) || {}).equipment === 'kb';
       const txt = L.count === 2
         ? t('load.per_hand', { half: kg(weight / 2), total: kg(weight) })
-        : t('load.dumbbell', { w: kg(weight) });
+        : t(kbell ? 'load.kettlebell' : 'load.dumbbell', { w: kg(weight) });
       return { viz: `<span class="faint">${esc(txt)}</span>`, note: '' };
     }
     const label = (L.mode === 'machine' || L.mode === 'cable') ? t('load.machine') : t('load.added');
@@ -4556,6 +4560,19 @@ const CUES = {
   press: ['Squeeze the glutes, ribs down.', 'Bar travels in a straight line, head through at the top.'],
   default: ['Move with intent, every rep crisp and identical.', 'Leave technique breakdown out of it; quality over grind.'],
 };
+// [i18n phase 5] Coaching cues translate like exercise names: 'cue.<id>_<n>'
+// keys (per-exercise) and 'cues.<movement>_<n>' keys (the generic fallback
+// above) are layered over the English text at render. The keys are
+// deliberately absent from en.js, so English reads straight from data.js and
+// an untranslated cue degrades to English, sentence by sentence.
+function exCues(e) {
+  const perEx = EX_CUES[e.id];
+  const base = perEx || CUES[e.movement] || CUES.default;
+  const cat = I18N.catalogs[I18N.lang];
+  if (!cat) return base;
+  const pfx = perEx ? `cue.${e.id}_` : `cues.${CUES[e.movement] ? e.movement : 'default'}_`;
+  return base.map((c, i) => cat.strings[pfx + i] || c);
+}
 function openExDetail(id, tab) {
   XD = { id, tab: tab || 'info' };
   showModal(renderExDetail);
@@ -4568,9 +4585,7 @@ function renderExDetail(anim) {
   const tabBtn = id => `<button class="${XD.tab === id ? 'on' : ''}" onclick="XD.tab='${id}';rerenderTop()">${esc(t('xd.tab_' + id))}</button>`;
   let body = '';
   if (XD.tab === 'info') {
-    // Cue TEXT stays English for now: like exercise names, per-exercise cues are
-    // content (phase 4 of the i18n plan), not UI chrome.
-    const cues = EX_CUES[e.id] || CUES[e.movement] || CUES.default;
+    const cues = exCues(e);
     body = `<div class="placeholder-media">🏋</div>
       <p class="subtle">${esc(mvLabel(e.movement))} · ${EQUIP_LABEL[e.equipment] ? esc(t('equip.' + e.equipment)) : ''}${e.isMain ? ' · ' + esc(t('xd.main_lift')) : ''}</p>
       ${exMetaCardHTML(e)}
