@@ -30,6 +30,7 @@ const I18N_EN = {
   'session.optional_tag': 'optional',
   'session.over_time_limit': 'Over your time limit. Do it if you have time, otherwise skip it.',
   'session.sets_x_reps': '{sets} sets x {reps} reps',
+  'session.sets_x_reps_rir': '{sets} sets x {reps} reps @ {rir}',
   'session.notes': 'Notes',
   'session.notes_placeholder': 'Session notes…',
   'session.warmup': 'Warmup',
@@ -126,7 +127,7 @@ const I18N_EN = {
   'perf.bw_note': 'Bodyweight lift. Count only weight you add (vest, belt, dumbbell). Leave 0 for bodyweight only.',
   'perf.reps': 'Reps',
   'perf.rir_label': 'Reps In Reserve (RIR)',
-  'perf.rir_hint': 'RIR is how many reps you could still do. 0 is all out.',
+  'perf.rir_hint': 'RIR is how many reps you could still do.',
   'perf.pump': 'Pump',
   'perf.optional': 'optional',
   'perf.clear': 'CLEAR',
@@ -171,7 +172,7 @@ const I18N_EN = {
   'rpe.8.5': 'Could do 1, maybe 2 more reps',
   'rpe.8': 'Could do 2 more reps',
   'rpe.7.5': 'Could do 2, maybe 3 more reps',
-  'rpe.7': 'Could confidently do 3 more reps',
+  'rpe.7': 'Could do 3 more reps',
   'rpe.6.5': 'Could do 3, maybe 4 more reps',
   'rpe.6': 'Could do 4 more reps',
   'rpe.5.5': 'Could do 4, maybe 5 more reps',
@@ -230,7 +231,7 @@ const I18N_EN = {
   'ob.time_unlimited': 'As much as necessary',
   'ob.time_custom': 'Enter time',
   'ob.time_minutes': 'Minutes per session',
-  'ob.est_over': 'Estimated median session about {m} min, over your {cap} min limit. Longer days will be trimmed to fit.',
+  'ob.est_over': 'Estimated median session about {m} min, over your {cap} min limit.',
   'ob.est_within': 'Estimated median session about {m} min, within your {cap} min limit.',
   'ob.est_plain': 'Estimated median session about {m} min (rest and execution included).',
   'ob.focus_title': 'Muscle focus',
@@ -264,18 +265,18 @@ const I18N_EN = {
   'goal.serious-macro': 'Serious bodybuilder training',
   'goal.serious-macro_desc': 'Gain blocks with periodic minicuts, ending on a cut.',
   'goal.recomp': 'Look good, stay healthy',
-  'goal.recomp_desc': 'Build muscle and lean down into your date. The balanced pick for most.',
+  'goal.recomp_desc': 'Build muscle and lean down. The balanced pick for most.',
   'goal.lean-asap': 'Look lean ASAP',
-  'goal.lean-asap_desc': 'Aggressive fat loss for a near date. Holds muscle.',
+  'goal.lean-asap_desc': 'Aggressive fat loss for a near date.',
   'goal.lean-asap_warn': 'An aggressive deficit for an experienced, already fairly lean lifter with a near date. Otherwise pick Look good, stay healthy.',
 
   // --- experience levels ---
   'exp.beginner': 'Beginner',
-  'exp.beginner_desc': 'Under a year of serious training. Starts your volume lower.',
+  'exp.beginner_desc': 'Under a year.',
   'exp.intermediate': 'Intermediate',
-  'exp.intermediate_desc': '1 to 3 years. The standard starting point.',
+  'exp.intermediate_desc': '1 to 3 years.',
   'exp.advanced': 'Advanced',
-  'exp.advanced_desc': '3+ years. Starts your volume near the top of the range.',
+  'exp.advanced_desc': '3+ years.',
 
   // --- muscles (focus sliders and beyond) ---
   'muscle.arms': 'Arms',
@@ -367,6 +368,9 @@ const I18N_EN = {
   // --- macrocycle timeline ---
   'timeline.hypertrophy': 'Hypertrophy',
   'timeline.strength': 'Strength',
+  // Display word for a hypertrophy block on the bodybuilding serious-macro
+  // goal (block labels show the athlete's own goal word, not the jargon).
+  'block.bb_serious': 'Bodybuilding',
   'timeline.cut': 'Cut',
   'timeline.peak': 'Peak',
   'timeline.finisher_week': 'Finisher this week: {tech}. Add it on an accessory\'s last set.',

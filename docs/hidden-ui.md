@@ -52,6 +52,35 @@ the preview (discoverable interaction, no caption needed). The
 `timeline.tap_hint` key was deleted from both catalogs. To restore, re-add
 the key and the `<span>` in `timelineHTML`.
 
+## 4. Feedback group 1 hides (2026-07-13)
+
+Screenshot-annotated owner feedback. All display-only; the mechanics stay.
+
+- **Onboarding days step**: the per-day-count description (`ob.days_3..6`,
+  `ob.days_pick`) no longer renders; keys kept. Restore the `<p>` in
+  `vOnboarding` step 1.
+- **Onboarding time step**: the subtitle (`ob.time_sub`) and the estimate box
+  are gone (the box also rendered as an empty pill before a mode was picked,
+  the reported bug). The focus step keeps the estimate line, whose over-cap
+  string lost its trailing "longer days will be trimmed" sentence.
+- **Onboarding focus step**: the slider-legend subtitle (`ob.focus_sub`) no
+  longer renders; key kept.
+- **Dashboard**: the block label + wave line above the week heading is gone;
+  themed day rows and the train-view subtitle drop the Upper/Lower region
+  word (`dayTheme` returns the primary muscle only).
+- **Session card**: the one-time RIR intro card is retired (the
+  `S.flags.rirSeen` flag stays in old saves, unused), per-set prescription
+  notes and the card-level calibration hint no longer render
+  (`displaySetNote`/`cardHintFor` stay exported for tests), and the per-set
+  RIR cap (`set.cap_at`) was hoisted to the scheme line
+  (`session.sets_x_reps_rir`) when all working sets share one cap.
+- **Workout overview**: the "hold to reorder" hint (`workout.reorder_hint`)
+  no longer renders; drag still works.
+- **Block names**: display goes through `blockDisplayLabel` (goal word for
+  bodybuilding programs, Fuerza/Strength otherwise); stored labels stay
+  English. ES goal vocabulary changed by owner call: Musculación (track),
+  Fisicoculturismo (serious goal), reversing part of rule 5 below.
+
 ## Copy style rules applied in this pass
 
 These are the editorial rules the 2026-07 pass enforced. Apply them to any
