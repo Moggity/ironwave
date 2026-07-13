@@ -1,5 +1,38 @@
 # IRONWAVE — Changelog
 
+## [Exercise library expansion + Spanish coaching cues (i18n phase 5)] (2026-07-13)
+
+The last i18n queue item, scope-expanded by owner request: close the library's
+gaps against other training apps, then translate ALL coaching cues. Additive
+and display-only: no template, generator pool (`DEFAULT_ACC`) or prescription
+change, so the golden master and every generated program are untouched. Bumped
+`APP_VERSION`/`CACHE_VERSION` to `1.8.0`.
+
+- **31 new exercises (148 → 179)**, each with movement/equipment, SFR/stretch/
+  head metadata, 4 English cues, a Latam Spanish name and 4 Spanish cues.
+  Machines: Smith squat/bench, pendulum squat, machine row, machine lateral
+  raise, machine incline press, hip abduction/adduction, assisted pull-up,
+  assisted dip, machine crunch, standing leg curl. Calisthenics: muscle-up,
+  archer push-up, pseudo planche push-up, dragon flag, hollow hold, Copenhagen
+  plank, hanging knee raise. Kettlebell (first kb exercises): swing, Turkish
+  get-up. Gaps: DB pullover, concentration/spider/Bayesian/reverse curls,
+  DB kickback, Zercher squat, crunch, Russian twist, cable woodchop. They are
+  pickable everywhere (library, swap, add) but join no generator pool, so
+  existing routines do not change.
+- **Kettlebell loading**: `kb` equipment now maps to single-implement
+  dumbbell-mode loading (dumbbell increment, no plate math) instead of
+  falling back to barbell, with its own load note (`load.kettlebell`).
+- **Coaching cues translate (i18n phase 5)**: new `exCues(e)` layers
+  `cue.<id>_<n>` catalog keys over `EX_CUES` per sentence, and
+  `cues.<movement>_<n>` over the generic fallback for custom exercises;
+  missing keys degrade to English sentence by sentence. `es.js` ships all
+  720 sentences plus the 13 fallback cues. English deliberately keeps no
+  cue keys (reads `data.js` directly), mirroring the phase-4 `exn.*` pattern.
+- Tests: the i18n typo net validates `cue.*`/`cues.*` keys against the real
+  exercise data; a coverage test pins full Spanish cue translation; an
+  `exCues` test pins the layering and fallback. Translator docs updated in
+  `i18n/README.md`.
+
 ## [Owner feedback group 1: verbosity pass] (2026-07-13)
 
 Screenshot-annotated feedback from the owner (remove / replace / fix), applied

@@ -158,6 +158,7 @@ const I18N_EN = {
   'load.added': 'added load',
   'load.per_hand': '{half} kg per hand, {total} kg total',
   'load.dumbbell': '{w} kg dumbbell',
+  'load.kettlebell': '{w} kg kettlebell',
 
   // --- pump quick-tap ---
   'pump.1': 'Light',

@@ -35,12 +35,58 @@ test('non-English catalogs have no unknown keys (typo net, fails)', () => {
   // [phase 4] 'exn.<id>' exercise-name keys are layered over EXERCISES and
   // deliberately absent from en.js (English falls back to the data.js name),
   // so they validate against real exercise ids instead of the en key set.
+  // [phase 5] 'cue.<id>_<n>' coaching-cue keys validate the same way against
+  // that exercise's EX_CUES sentence count, and 'cues.<movement>_<n>' against
+  // the generic fallback table in app.js.
   const exIds = new Set(app.EXERCISES.map(e => e.id));
+  const cueLen = id => (app.EX_CUES[id] || []).length;
+  const validCue = k => {
+    const m = /^cue\.(.+)_(\d+)$/.exec(k);
+    return !!m && exIds.has(m[1]) && Number(m[2]) < cueLen(m[1]);
+  };
+  const validCues = k => /^cues\.(squat|bench|deadlift|press|default)_\d+$/.test(k);
   for (const [code, cat] of nonEnglish()) {
     const extra = Object.keys(cat.strings).filter(k =>
-      !(k in en) && !(k.startsWith('exn.') && exIds.has(k.slice(4))));
-    assert.deepStrictEqual(extra, [], `${code}.js has keys that do not exist in en.js (or exn.* keys with no matching exercise)`);
+      !(k in en) && !(k.startsWith('exn.') && exIds.has(k.slice(4))) &&
+      !(k.startsWith('cue.') && validCue(k)) && !(k.startsWith('cues.') && validCues(k)));
+    assert.deepStrictEqual(extra, [], `${code}.js has keys that do not exist in en.js (or exn./cue. keys with no matching exercise or sentence)`);
   }
+});
+
+// [phase 5] Spanish ships a full cue translation: every exercise's every
+// sentence has its cue.* key. Other future catalogs may be partial (they fall
+// back per sentence), so this pins es.js only.
+test('es.js translates every coaching cue of every exercise', () => {
+  const es = I18N.catalogs.es.strings;
+  const missing = [];
+  for (const e of app.EXERCISES) {
+    app.EX_CUES[e.id].forEach((_, i) => {
+      if (!es[`cue.${e.id}_${i}`]) missing.push(`cue.${e.id}_${i}`);
+    });
+  }
+  assert.deepStrictEqual(missing, [], 'untranslated cue sentences in es.js');
+});
+
+test('exCues returns translated cues in Spanish and data.js text in English', () => {
+  app.S = app.defaultState();
+  const squat = app.EXERCISES.find(e => e.id === 'comp-squat');
+  I18N.setLang('es');
+  try {
+    const es = app.exCues(squat);
+    assert.strictEqual(es.length, app.EX_CUES['comp-squat'].length, 'same sentence count');
+    es.forEach((c, i) => {
+      assert.strictEqual(c, I18N.catalogs.es.strings[`cue.comp-squat_${i}`], `sentence ${i} reads from the es catalog`);
+      assert.notStrictEqual(c, app.EX_CUES['comp-squat'][i], `sentence ${i} actually translated`);
+    });
+    // A custom exercise falls to the translated per-movement generic cues.
+    const custom = { id: 'cx-1', name: 'X', movement: 'squat', equipment: 'bb', custom: true };
+    assert.strictEqual(app.exCues(custom)[0], I18N.catalogs.es.strings['cues.squat_0']);
+    const noMovement = { id: 'cx-2', name: 'Y', movement: 'nope', equipment: 'bb', custom: true };
+    assert.strictEqual(app.exCues(noMovement)[0], I18N.catalogs.es.strings['cues.default_0']);
+  } finally {
+    I18N.setLang('en');
+  }
+  assert.deepStrictEqual(app.exCues(squat), app.EX_CUES['comp-squat'], 'English reads straight from data.js');
 });
 
 test('exercise names translate through exn.* keys and fall back to English', () => {

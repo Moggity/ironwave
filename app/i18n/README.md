@@ -24,6 +24,16 @@ truth. To add a language:
 A missing key is fine: the app falls back to English for it. An extra or
 misspelled key fails the test suite, which is your typo net.
 
+Two key families are deliberately NOT in `en.js` (English reads them straight
+from `data.js` / `app.js`) and validate against the exercise data instead:
+
+- `exn.<exercise-id>` translates an exercise NAME.
+- `cue.<exercise-id>_<n>` translates sentence `n` (0-based) of that
+  exercise's coaching cues, and `cues.<movement>_<n>` the small generic
+  fallback cues (squat / bench / deadlift / press / default) used by custom
+  exercises. A missing sentence falls back to English individually, so a
+  partial cue translation still works.
+
 ## Regional note: Spanish
 
 `es.js` is written in **Latin American Spanish** (agregar not añadir,

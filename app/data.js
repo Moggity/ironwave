@@ -9,7 +9,7 @@
 // repo, and it must be kept in step with CACHE_VERSION in sw.js (the service
 // worker only ships new code to installed PWAs when that cache name changes).
 // Bump this on any shell change (data/engine/app/styles/index/sw).
-const APP_VERSION = '1.7.3';
+const APP_VERSION = '1.8.0';
 
 // Movement categories (used for "Select X Exercise" slots & swaps)
 const MOVEMENTS = {
@@ -54,6 +54,8 @@ const EXERCISE_LIST = [
   ['one-half-squat','1.5 Rep Squat','squat','bb',0],
   ['dead-squat','Dead Squat','squat','bb',0],
   ['goblet-squat','Goblet Squat','squat','db',0],
+  ['zercher-squat','Zercher Squat','squat','bb',0],
+  ['smith-squat','Smith Machine Squat','squat','mc',0],
 
   // ===== BENCH VARIATIONS =====
   ['close-grip-bench','Close Grip Bench','bench','bb',0],
@@ -70,6 +72,7 @@ const EXERCISE_LIST = [
   ['one-half-bench','1.5 Rep Bench','bench','bb',0],
   ['db-bench','DB Bench Press','bench','db',0],
   ['db-incline-bench','DB Incline Bench','bench','db',0],
+  ['smith-bench','Smith Machine Bench Press','bench','mc',0],
 
   // ===== DEADLIFT VARIATIONS =====
   ['conv-deadlift','Conventional Deadlift','deadlift','bb',0],
@@ -103,6 +106,9 @@ const EXERCISE_LIST = [
   ['lat-pulldown','Lat Pulldown','vpull','cb',0],
   ['close-grip-pulldown','Close Grip Pulldown','vpull','cb',0],
   ['straight-arm-pulldown','Straight Arm Pulldown','vpull','cb',0],
+  ['assisted-pullup','Assisted Pull-up (Machine)','vpull','mc',0],
+  ['muscle-up','Muscle-up','vpull','bw',0],
+  ['db-pullover','DB Pullover','vpull','db',0],
 
   // ===== HORIZONTAL PULL =====
   ['barbell-row','Barbell Row','hpull','bb',0],
@@ -115,6 +121,7 @@ const EXERCISE_LIST = [
   ['cable-row','Seated Cable Row','hpull','cb',0],
   ['meadows-row','Meadows Row','hpull','bb',0],
   ['inverted-row','Inverted Row','hpull','bw',0],
+  ['machine-row','Machine Row','hpull','mc',0],
 
   // ===== UPPER BACK / TRAPS / REAR DELT =====
   ['bb-shrug','Barbell Shrug','upperback','bb',0],
@@ -139,6 +146,8 @@ const EXERCISE_LIST = [
   ['pistol-squat','Pistol Squat','quad','bw',0],
   ['sissy-squat','Sissy Squat','quad','bw',0],
   ['wall-sit','Wall Sit','quad','bw',0],
+  ['pendulum-squat','Pendulum Squat','quad','mc',0],
+  ['hip-adduction-machine','Hip Adduction Machine','quad','mc',0],
 
   // ===== HAMSTRINGS / POSTERIOR =====
   ['romanian-deadlift','Romanian Deadlift','ham','bb',0],
@@ -147,6 +156,8 @@ const EXERCISE_LIST = [
   ['good-mornings','Good Mornings','ham','bb',0],
   ['hamstring-curls','Hamstring Curls','ham','mc',0],
   ['seated-leg-curl','Seated Leg Curl','ham','mc',0],
+  ['standing-leg-curl','Standing Leg Curl','ham','mc',0],
+  ['kb-swing','Kettlebell Swing','ham','kb',0],
   ['ghr','Glute Ham Raise','ham','bw',0],
   ['nordic-curl','Nordic Curl','ham','bw',0],
   ['pull-throughs','Pull Throughs','glute','cb',0],
@@ -161,6 +172,7 @@ const EXERCISE_LIST = [
   ['frog-pumps','Frog Pumps','glute','bw',0],
   ['cable-kickback','Cable Kickback','glute','cb',0],
   ['curtsy-lunge','Curtsy Lunge','glute','db',0],
+  ['hip-abduction-machine','Hip Abduction Machine','glute','mc',0],
 
   // ===== CALVES =====
   ['standing-calf-raise','Standing Calf Raise','calf','mc',0],
@@ -175,13 +187,18 @@ const EXERCISE_LIST = [
   ['pushup','Push-up','chest','bw',0],
   ['deficit-pushup','Deficit Push-up','chest','bw',0],
   ['machine-chest-press','Machine Chest Press','chest','mc',0],
+  ['machine-incline-press','Machine Incline Press','chest','mc',0],
   ['cable-fly','Cable Fly','chest','cb',0],
   ['db-fly','DB Fly','chest','db',0],
   ['pec-deck','Pec Deck','chest','mc',0],
+  ['assisted-dip','Assisted Dip (Machine)','chest','mc',0],
+  ['archer-pushup','Archer Push-up','chest','bw',0],
+  ['pseudo-planche-pushup','Pseudo Planche Push-up','chest','bw',0],
 
   // ===== SHOULDER ACCESSORY =====
   ['lateral-raise','DB Lateral Raise','shoulder','db',0],
   ['cable-lateral-raise','Cable Lateral Raise','shoulder','cb',0],
+  ['machine-lateral-raise','Machine Lateral Raise','shoulder','mc',0],
   ['front-raise','Front Raise','shoulder','db',0],
   ['upright-row','Upright Row','shoulder','bb',0],
 
@@ -193,6 +210,7 @@ const EXERCISE_LIST = [
   ['db-triceps-ext','DB Triceps Extension','tricep','db',0],
   ['close-grip-pushup','Close Grip Push-up','tricep','bw',0],
   ['bench-dips','Bench Dips','tricep','bw',0],
+  ['db-kickback','DB Triceps Kickback','tricep','db',0],
 
   // ===== BICEPS =====
   ['bb-curl','Barbell Curl','bicep','bb',0],
@@ -202,6 +220,10 @@ const EXERCISE_LIST = [
   ['incline-db-curl','Incline DB Curl','bicep','db',0],
   ['preacher-curl','Preacher Curl','bicep','mc',0],
   ['cable-curl','Cable Curl','bicep','cb',0],
+  ['concentration-curl','Concentration Curl','bicep','db',0],
+  ['spider-curl','Spider Curl','bicep','db',0],
+  ['bayesian-curl','Bayesian Cable Curl','bicep','cb',0],
+  ['reverse-curl','Reverse EZ Bar Curl','bicep','bb',0],
 
   // ===== ABS / CORE =====
   ['ab-wheel','Ab Wheel','abs','bw',0],
@@ -216,6 +238,15 @@ const EXERCISE_LIST = [
   ['l-sit','L-Sit','abs','bw',0],
   ['farmer-carry','Farmer Carry','abs','db',0],
   ['suitcase-carry','Suitcase Carry','abs','db',0],
+  ['crunch','Crunch','abs','bw',0],
+  ['ab-crunch-machine','Machine Crunch','abs','mc',0],
+  ['russian-twist','Russian Twist','abs','bw',0],
+  ['cable-woodchop','Cable Woodchop','abs','cb',0],
+  ['hanging-knee-raise','Hanging Knee Raise','abs','bw',0],
+  ['hollow-hold','Hollow Body Hold','abs','bw',0],
+  ['copenhagen-plank','Copenhagen Plank','abs','bw',0],
+  ['dragon-flag','Dragon Flag','abs','bw',0],
+  ['turkish-getup','Turkish Get-up','abs','kb',0],
 ];
 
 // ============================================================
@@ -375,6 +406,33 @@ const EX_META = {
   'bb-hip-thrust': { sfr: 2 }, 'cable-kickback': { sfr: 3 },
   'standing-calf-raise': { sfr: 3, stretch: true }, 'seated-calf-raise': { sfr: 3, stretch: true },
   'cable-crunch': { sfr: 3 }, 'hanging-leg-raise': { sfr: 2, stretch: true },
+  // 2026-07 library expansion: machines, calisthenics, kettlebell, gaps.
+  'zercher-squat': { sfr: 1 }, 'smith-squat': { sfr: 2 },
+  'smith-bench': { sfr: 2, head: 'chest-lower' },
+  'machine-incline-press': { sfr: 3, head: 'chest-upper' },
+  'assisted-dip': { sfr: 3, stretch: true, head: 'chest-lower' },
+  'archer-pushup': { sfr: 2, head: 'chest-lower' },
+  'pseudo-planche-pushup': { sfr: 1 },
+  'machine-lateral-raise': { sfr: 3, head: 'delt-side' },
+  'assisted-pullup': { sfr: 3, stretch: true, head: 'back-lat' },
+  'muscle-up': { sfr: 1 },
+  'db-pullover': { sfr: 2, stretch: true, head: 'back-lat' },
+  'machine-row': { sfr: 3, head: 'back-upper' },
+  'pendulum-squat': { sfr: 3, stretch: true },
+  'hip-adduction-machine': { sfr: 3 },
+  'standing-leg-curl': { sfr: 3, head: 'ham-knee' },
+  'kb-swing': { sfr: 2, head: 'ham-hip' },
+  'hip-abduction-machine': { sfr: 3 },
+  'crunch': { sfr: 3 }, 'ab-crunch-machine': { sfr: 3 },
+  'russian-twist': { sfr: 2 }, 'cable-woodchop': { sfr: 2 },
+  'hanging-knee-raise': { sfr: 3 }, 'hollow-hold': { sfr: 2 },
+  'copenhagen-plank': { sfr: 2 }, 'dragon-flag': { sfr: 1 },
+  'turkish-getup': { sfr: 1 },
+  'concentration-curl': { sfr: 3, head: 'bi-short' },
+  'spider-curl': { sfr: 3, head: 'bi-short' },
+  'bayesian-curl': { sfr: 3, stretch: true, head: 'bi-long' },
+  'reverse-curl': { sfr: 2 },
+  'db-kickback': { sfr: 2, head: 'tri-lateral' },
 };
 
 const EXERCISES = EXERCISE_LIST.map(e => {
@@ -573,6 +631,39 @@ const EX_CUES = {
   'l-sit': ['Support the body on the hands or parallettes.', 'Brace the core and lift the legs to horizontal.', 'Keep the legs straight and the toes pointed.', 'Hold for time, keeping the shoulders down.'],
   'farmer-carry': ['Pick up the load with a flat back and tall posture.', 'Brace the core and keep the shoulders back.', 'Walk with controlled steps, staying tall.', 'Keep the weights from swinging.'],
   'suitcase-carry': ['Hold one weight at one side, standing tall.', 'Brace hard to resist leaning toward the weight.', 'Walk with level shoulders and hips.', 'Keep the trunk upright and controlled.'],
+
+  // ===== 2026-07 LIBRARY EXPANSION =====
+  'zercher-squat': ['Cradle the bar in the crook of the elbows, hands clasped.', 'Keep the elbows high and the chest tall against the load.', 'Sit between the legs to depth with a braced trunk.', 'Drive up through mid foot without letting the bar roll down the arms.'],
+  'smith-squat': ['Set your feet slightly ahead of the bar path.', 'Unrack and let the fixed path take the balance work away.', 'Squat to depth with the knees tracking over the toes.', 'Drive up smoothly; use the fixed path to push the quads hard.'],
+  'smith-bench': ['Set the bench so the bar meets your lower chest.', 'Pull the shoulder blades back and down into the bench.', 'Lower under control to the same spot each rep.', 'Press along the fixed path and stop shy of harsh lockouts.'],
+  'machine-incline-press': ['Set the seat so the handles start at upper-chest height.', 'Keep the shoulder blades back against the pad.', 'Press up and together without shrugging.', 'Lower under control for a full stretch on the upper chest.'],
+  'assisted-dip': ['Set the counterweight so you can hit the target reps cleanly.', 'Lean slightly forward with the shoulders down.', 'Lower until you feel a deep stretch across the chest.', 'Press back up without locking out harshly.'],
+  'archer-pushup': ['Take a wide push-up stance with one arm out to the side.', 'Lower toward the working arm, keeping the other nearly straight.', 'Keep the hips square and the core braced.', 'Press back to center and alternate sides.'],
+  'pseudo-planche-pushup': ['Set the hands at waist level with the fingers turned out.', 'Lean the shoulders far forward past the hands.', 'Keep the elbows tucked and the body rigid.', 'Press back up while holding the forward lean.'],
+  'machine-lateral-raise': ['Set the seat so the pads sit just above the elbows.', 'Raise the arms out to the sides up to shoulder height.', 'Lead with the elbows, not the hands.', 'Lower under control, keeping tension on the side delts.'],
+  'assisted-pullup': ['Set the counterweight so you can finish every prescribed rep.', 'Start from a full hang with the shoulders set down.', 'Pull the chest to the bar by driving the elbows down.', 'Lower under control to a full stretch each rep.'],
+  'muscle-up': ['Start from a dead hang with a false grip if you can.', 'Pull explosively high toward the sternum.', 'Lean forward and punch the chest over the bar in one motion.', 'Press out to lockout, then lower under control.'],
+  'db-pullover': ['Lie across or along a bench holding one dumbbell over the chest.', 'Keep a slight elbow bend and lower the bell back overhead.', 'Stop at a deep lat stretch without flaring the ribs.', 'Pull the weight back over the chest with the lats.'],
+  'machine-row': ['Set the chest pad so the handles are at full reach.', 'Pull the handles to the torso, driving the elbows back.', 'Squeeze the shoulder blades together at the back.', 'Return under control to a full stretch.'],
+  'pendulum-squat': ['Set the shoulders under the pads and the feet high on the plate.', 'Lower along the arc to a deep, controlled bottom.', 'Let the knees travel and keep the hips against the pad.', 'Drive up without slamming the top of the stroke.'],
+  'hip-adduction-machine': ['Sit tall with the pads inside the knees.', 'Open to a comfortable stretch to start.', 'Squeeze the legs together under control.', 'Return slowly, resisting the pads on the way out.'],
+  'standing-leg-curl': ['Set the pad just above the ankle of the working leg.', 'Keep the hips pinned; only the knee moves.', 'Curl the heel toward the glute and squeeze.', 'Lower under control to a full stretch.'],
+  'kb-swing': ['Hinge at the hips and hike the bell back between the legs.', 'Snap the hips forward hard to float the bell to chest height.', 'Keep the back flat and the arms relaxed; the hips do the work.', 'Let the bell swing back and hinge again without squatting.'],
+  'hip-abduction-machine': ['Sit tall with the pads outside the knees.', 'Push the legs apart under control.', 'Pause briefly at the widest point and squeeze the glutes.', 'Return slowly without letting the stack slam.'],
+  'crunch': ['Lie on your back with the knees bent and feet flat.', 'Curl the rib cage toward the pelvis, peeling the upper back off the floor.', 'Keep the lower back down and the neck relaxed.', 'Lower under control, keeping tension on the abs.'],
+  'ab-crunch-machine': ['Set the seat so the pad sits at chest height.', 'Crunch the rib cage toward the pelvis against the load.', 'Keep the hips fixed; only the spine flexes.', 'Return under control, resisting the stack.'],
+  'russian-twist': ['Sit back to about forty five degrees with the knees bent.', 'Hold the weight in front of the chest.', 'Rotate the torso side to side under control.', 'Keep the chest tall and move from the trunk, not the arms.'],
+  'cable-woodchop': ['Stand side-on to a high cable with straight arms.', 'Pull the handle down and across the body to the opposite hip.', 'Rotate from the trunk with the hips following.', 'Return under control along the same arc.'],
+  'hanging-knee-raise': ['Hang from a bar with the shoulders active.', 'Brace the core and avoid swinging.', 'Raise the knees toward the chest by curling the pelvis up.', 'Lower under control without rocking.'],
+  'hollow-hold': ['Lie on your back and press the lower back into the floor.', 'Lift the shoulders and legs a few inches off the ground.', 'Reach the arms overhead without arching.', 'Hold the shape and breathe steadily.'],
+  'copenhagen-plank': ['Set one foot or knee on a bench, body side-on like a side plank.', 'Lift the hips so the body forms a straight line.', 'Squeeze the inner thigh of the top leg to hold.', 'Keep the hips stacked and hold for time.'],
+  'dragon-flag': ['Lie on a bench and grip it firmly behind your head.', 'Press the body up so only the upper back stays on the bench.', 'Keep the body rigid in one straight line.', 'Lower under control without letting the hips break.'],
+  'turkish-getup': ['Press the bell overhead lying down and lock the eyes on it.', 'Move through each position slowly: roll to the elbow, the hand, then the hips.', 'Keep the arm vertical and the shoulder packed the whole way.', 'Stand tall, then reverse each step under control.'],
+  'concentration-curl': ['Sit with the working elbow braced against the inner thigh.', 'Curl the dumbbell up without swinging the torso.', 'Squeeze the biceps hard at the top.', 'Lower slowly to a full stretch.'],
+  'spider-curl': ['Lie chest-down on an incline bench with the arms hanging.', 'Curl the weight up without moving the upper arms.', 'Squeeze at the top with the shoulders staying down.', 'Lower slowly to a dead hang each rep.'],
+  'bayesian-curl': ['Stand facing away from a low cable, arm behind the body.', 'Start from a deep stretch with the shoulder extended back.', 'Curl through to full flexion without drifting the elbow forward.', 'Return slowly, feeling the long head stretch at the bottom.'],
+  'reverse-curl': ['Grip the bar overhand at shoulder width.', 'Curl up keeping the wrists straight and knuckles up.', 'Keep the elbows pinned at the sides.', 'Lower slowly, resisting through the forearms.'],
+  'db-kickback': ['Hinge over with the upper arm parallel to the floor.', 'Extend the elbow until the arm is straight back.', 'Squeeze the triceps hard at lockout.', 'Return under control without dropping the elbow.'],
 };
 
 // ============================================================

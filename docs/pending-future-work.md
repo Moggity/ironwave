@@ -595,13 +595,18 @@ tables).
    pickers/library/detail/search/sort/onboarding-maxes route through it and
    search matches both languages. The typo-net test validates `exn.*`
    against real exercise ids since these keys are deliberately not in en.js.
-5. **NEW: Spanish coaching-cue content.** The per-exercise cue TEXT
-   (`EX_CUES` in data.js, ~148 entries / ~450 sentences, plus the small
-   generic `CUES` fallback in app.js) still renders in English on the
-   exercise detail Info tab. This is a content-translation job (like a
-   booklet chapter), not plumbing: the mechanism can mirror phase 4
-   (`cue.<id>_<n>` keys layered over `EX_CUES`, falling back to English).
-   Own branch, translation review recommended.
+5. ~~**NEW: Spanish coaching-cue content.**~~ DONE (2026-07-13, phase 5,
+   scope-expanded by owner request): the library first grew 31 exercises
+   (148 → 179; machines incl. Smith/pendulum/abduction-adduction/assisted,
+   calisthenics incl. muscle-up/dragon flag/Copenhagen plank, the first
+   kettlebell exercises with proper single-implement loading, and gaps like
+   DB pullover and Bayesian curl), all swap/add/library-pickable but in no
+   generator pool, so existing routines are untouched. Then `exCues(e)`
+   layers `cue.<id>_<n>` keys over `EX_CUES` (and `cues.<movement>_<n>` over
+   the generic fallback), falling back to English per sentence; es.js ships
+   all 720 sentences. The i18n typo net validates cue keys against the data
+   and a coverage test pins full Spanish translation. A native-speaker
+   review pass of the cue register is still welcome.
 
 Conventions the shipped code established (follow them): keys are
 `surface.snake_case` (`session.*`, `perf.*`, `ob.*`, shared `muscle.*` /
