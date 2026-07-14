@@ -28,7 +28,7 @@ function defaultState() {
                experience: 'intermediate',
                trainingAge: { startedTs: null, blocksCompleted: 0 },
                phase: 'lean-gain', // [Cluster F] current training phase
-               lang: 'auto',       // [i18n] app language, 'auto' = device
+               lang: 'en',         // [i18n] app language, English by default (owner call)
                landmarks: {} },
     program: null,
     bodyweight: [],   // [Cluster F] [{ts, kg}] light trend, no macro tracking
@@ -119,7 +119,7 @@ function migrateState(s) {
   if (!s.techniques) s.techniques = {}; // Cluster B opt-in map, additive and inert when empty
   if (!s.flags) s.flags = {};           // one-time UI flags, additive
   if (!p.phase) p.phase = 'lean-gain';  // [Cluster F] training phase
-  if (!p.lang) p.lang = 'auto';         // [i18n] app language, 'auto' = device
+  if (!p.lang) p.lang = 'en';           // [i18n] app language, English by default
   if (p.restNotify == null) p.restNotify = false; // rest-done notification opt-in
   if (!Array.isArray(s.bodyweight)) s.bodyweight = []; // [Cluster F] bodyweight trend
   if (s.program && !s.program.volAdj) s.program.volAdj = {}; // [Cluster E] per-muscle autoreg
@@ -1592,6 +1592,11 @@ function vOnboarding() {
     body = `
       <div class="ob-title">${esc(t('ob.welcome'))}<br>IRON<span style="color:var(--blue)">WAVE</span></div>
       <p class="subtle">${esc(t('ob.welcome_sub'))}</p>
+      <div class="field"><label>${esc(t('settings.language'))}</label>
+        <select id="ob-lang" onchange="obLang(this.value)">
+          ${Object.values(I18N.catalogs).map(c =>
+            `<option value="${c.code}" ${I18N.lang === c.code ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
+        </select></div>
       <div class="field"><label>${esc(t('ob.your_name'))}</label>
         <input id="ob-name" value="${esc(ob.name)}" placeholder="${esc(t('ob.name_ph'))}"></div>
       <div class="field"><label>${esc(t('ob.bodyweight'))}</label>
@@ -1672,6 +1677,19 @@ function vOnboarding() {
       <button class="btn btn-green mt16" onclick="obNext(6)">${esc(t('ob.create'))}</button>`;
   }
   return `${topbar()}<div class="view">${body}</div>`;
+}
+// Explicit language pick on the first onboarding screen (owner call: no more
+// auto-detect, English is the default). Applies immediately so the rest of
+// onboarding reads in the chosen language; anything already typed is kept.
+function obLang(v) {
+  if (V.ob) {
+    const n = byId('ob-name'), b = byId('ob-bw');
+    if (n) V.ob.name = n.value.trim();
+    if (b) V.ob.bodyweight = b.value;
+  }
+  S.profile.lang = v;
+  I18N.setLang(v);
+  save(); render();
 }
 function obDays(n) { V.ob.daysPerWeek = n; render(); }
 function obTrack(id) { V.ob.track = id; render(); }
@@ -1945,7 +1963,7 @@ function openWeekPreview(bi, wi) {
         if (uncalibrated) {
           right = `<span class="subtle calib-tag">${esc(t('calib.waiting'))} <button class="info-dot" onclick="event.stopPropagation();openCalibrationInfo()" aria-label="${esc(t('calib.what_aria'))}">ⓘ</button></span>`;
         } else {
-          const scheme = f ? `${(work.length || rs.sets.length)}×${f.reps}${f.weight != null ? ' @ ' + kg(f.weight) + 'kg' : (f.rpe ? ' @ RPE ' + f.rpe : '')}` : '';
+          const scheme = f ? `${(work.length || rs.sets.length)}×${f.reps}${f.weight != null ? ' @ ' + kg(f.weight) + 'kg' : (f.rpe ? ' @ ' + fmtRir(f.rpe) : '')}` : '';
           right = `<span class="subtle">${scheme}</span>`;
         }
         return `<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)">
@@ -3098,6 +3116,34 @@ function sessionEntryFrom(x) {
     })),
   };
 }
+// A corrected max (1RM/10RM seed, working max, or a deleted record) should move
+// the weights the athlete is looking at RIGHT NOW, not just the next session:
+// the active draft snapshots its targets at session start, so re-prescribe the
+// affected entries in place. Un-logged sets pick up the fresh targets; sets
+// already logged (or skipped) keep exactly what was performed. Notes stay.
+function refreshDraftTargets(exId) {
+  const dr = V && V.draft;
+  if (!dr) return;
+  const built = resolveDayEntries(dr.d, dr.b, dr.w);
+  dr.entries.forEach((e, i) => {
+    // The exercise itself, plus any main/secondary whose wave math keys off it.
+    if (e.exId !== exId && e.wmKey !== exId) return;
+    const item = built.items.find(x => x.si === e.si && x.rs.exId === e.exId);
+    if (!item) return;
+    const fresh = sessionEntryFrom(item);
+    fresh.notes = e.notes; fresh.notesOpen = e.notesOpen;
+    fresh.sets = fresh.sets.map((s, j) => {
+      const old = e.sets[j];
+      return old && (old.done || old.skipped) ? old : s;
+    });
+    // Logged sets beyond the fresh prescription's length are performed work;
+    // never drop them.
+    for (let j = fresh.sets.length; j < e.sets.length; j++) {
+      if (e.sets[j].done) fresh.sets.push(e.sets[j]);
+    }
+    dr.entries[i] = fresh;
+  });
+}
 
 function ratingsStripHTML(sliders) {
   const map = ['squat', 'bench', 'deadlift', 'upperpull', 'press', 'lowback'];
@@ -3117,7 +3163,10 @@ function lastSetInfo(exId) {
 }
 
 function setTargetLabel(st, exId) {
-  const tech = techniqueBadge(st.technique) +
+  // Partials get no per-row detail (owner feedback): they ride the working
+  // weight and run to near failure, so a "then 22.5kg×6" target is noise. The
+  // chip row and the runs-on-set note already say the finisher is on.
+  const tech = st.technique === 'partials' ? '' : techniqueBadge(st.technique) +
     (st.dropTargets ? ` <small class="faint">${esc(t('set.then', { detail: dropDetail(exId, st.dropTargets) }))}</small>` : '');
   if (st.amrap) return `${fmtW(exId, st.targetWeight)} × AMRAP <small>${esc(t('set.amrap_standard', { reps: st.targetReps }))}</small>${tech}`;
   // Calibration rows stay bare; the card carries the one-line explainer.
@@ -3313,7 +3362,7 @@ function setRowHTML(e, ei, st, si2, shortSleep) {
   const perfLabel = st.done ? `${fmtW(e.exId, st.weight)} x ${st.reps} · ${fmtRir(st.rpe)}` : st.skipped ? esc(t('session.skipped')) : esc(t('session.performance'));
   const fatigueFlag = shortSleep && !st.ramp && si2 >= e.sets.length - 1 && !e.isMain
     ? `<div class="flag">${esc(t('session.short_sleep_flag'))}</div>` : '';
-  const loggedDrops = (st.done && st.drops && st.drops.length)
+  const loggedDrops = (st.done && st.drops && st.drops.length && st.technique !== 'partials')
     ? `<small class="faint">${childWord(st.technique)} ${dropDetail(e.exId, st.drops)}</small>` : '';
   const hasTech = FINISHER_TECHS.includes(st.technique);
   // Per-set prescription notes are no longer rendered (owner feedback: noise);
@@ -3381,7 +3430,7 @@ function supersetGroupCardHTML(members, dr) {
       if (r >= e.sets.length) return `<div class="ss-set-row empty"><span class="ss-set-ex faint">${esc(e.name)}</span><span class="faint">${esc(t('session.member_done'))}</span></div>`;
       const st = e.sets[r];
       const perfLabel = st.done ? `${fmtW(e.exId, st.weight)} x ${st.reps} · ${fmtRir(st.rpe)}` : st.skipped ? esc(t('session.skipped')) : esc(t('session.log'));
-      const loggedDrops = (st.done && st.drops && st.drops.length)
+      const loggedDrops = (st.done && st.drops && st.drops.length && st.technique !== 'partials')
         ? ` <small class="faint">${childWord(st.technique)} ${dropDetail(e.exId, st.drops)}</small>` : '';
       return `<div class="ss-set-row ${st.done ? 'done' : ''} ${st.skipped ? 'skipped' : ''}">
           <span class="ss-set-ex">${esc(e.name)}</span>
@@ -4140,6 +4189,12 @@ function finishSession() {
 // ------------------------------------------------------------
 // PREVIEW MODAL
 // ------------------------------------------------------------
+// One preview set row's text. Effort reads as RIR here like everywhere the
+// athlete sees it (RPE stays the stored value; owner feedback: the preview was
+// the one surface still speaking RPE).
+function previewSetLabel(s, exId) {
+  return `${s.weight != null ? fmtW(exId, s.weight) + ' × ' : ''}${s.amrap ? 'AMRAP' : s.reps}${s.rpe ? ' @ ' + fmtRir(s.rpe) : ''}`;
+}
 function openPreview(di) {
   const built = resolveDayEntries(di, P().pointer.block, P().pointer.week);
   const timeNote = built.capMin
@@ -4152,7 +4207,7 @@ function openPreview(di) {
         return `<div class="lift-card ${rs.optional ? 'optional' : ''}"><h3 style="font-size:1.2rem">${esc(rs.name)}${rs.optional ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}</h3>
           <div class="scheme">${esc(t('session.sets_x_reps', { sets: work.length, reps: work[0]?.reps ?? '' }))}</div>
           ${rs.sets.map((s, i) => `<div class="set-row"><span class="num">${i + 1}</span>
-            <span class="target">${s.weight != null ? fmtW(rs.exId, s.weight) + ' × ' : ''}${s.amrap ? 'AMRAP' : s.reps}${s.rpe ? ' @ ' + s.rpe + ' RPE' : ''}</span>
+            <span class="target">${previewSetLabel(s, rs.exId)}</span>
           </div>`).join('')}
         </div>`;
       }).join(''));
@@ -4706,7 +4761,8 @@ function saveExSettings() {
   const incv = parseFloat(document.getElementById('xd-inc').value);
   if (wmv > 0) P().wm[XD.id] = wmv;
   if (incv > 0) P().increments[XD.id] = incv;
-  save(); toast(t('common.saved')); rerenderTop();
+  refreshDraftTargets(XD.id);
+  save(); toast(t('common.saved')); render(); rerenderTop();
 }
 // Seed / edit known maxes for any exercise. Stored as seeded records (the same
 // shape custom-exercise seeding writes), so bestE1RM anchors on them and the
@@ -4729,9 +4785,10 @@ function saveExMaxes(id) {
     p.wm[id] = Engine.roundLoad(r1 * 0.9, 1.25);
     wmNote = t('xd.wm_set_note', { w: kg(p.wm[id]) });
   }
+  refreshDraftTargets(id);
   save();
   toast(t('xd.maxes_saved', { wm: wmNote }));
-  rerenderTop();
+  render(); rerenderTop();
 }
 // Remove one wrongly logged set from an exercise's history (by stored index,
 // since two records can share a timestamp). The e1RM and every prescribed
@@ -4745,7 +4802,7 @@ function deleteRecord(id, idx) {
     message: t('xd.del_set_msg', { set: `${fmtW(id, r.weight)} × ${r.reps}`, date: fmtDate(r.ts) }),
     confirmLabel: t('xd.del_set_confirm'),
     danger: true,
-  }, () => { recs.splice(idx, 1); save(); toast(t('xd.set_deleted')); rerenderTop(); });
+  }, () => { recs.splice(idx, 1); refreshDraftTargets(id); save(); toast(t('xd.set_deleted')); render(); rerenderTop(); });
 }
 function toggleDropSet(id, on) {
   S.techniques = S.techniques || {};

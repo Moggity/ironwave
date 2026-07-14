@@ -1,5 +1,41 @@
 # IRONWAVE — Changelog
 
+## [Owner feedback: live max corrections, partials row cleanup, RIR preview, onboarding language] (2026-07-14)
+
+Owner-feedback round 5, from live use of the first bodybuilding block. Display
+and state plumbing only: no prescription math changed, so the golden master is
+untouched. Bumped `APP_VERSION`/`CACHE_VERSION` to `1.8.1`.
+
+- **Corrected maxes now move the active session** (`refreshDraftTargets`): the
+  session draft snapshots its targets at start, so a 1RM/10RM correction, a
+  working-max edit or a deleted history record used to leave the on-screen
+  weights stale until the next session. Saving from the exercise Settings /
+  History tab now re-prescribes the affected draft entries in place. Un-logged
+  sets pick up the fresh targets; logged (and skipped) sets and the exercise
+  notes are kept exactly as performed. The `xd.maxes_saved` toast says so.
+- **Partials set rows are clean** (owner feedback): the row no longer shows the
+  "Lengthened partials then 22.5kg×6" sub-label, nor the logged partials
+  detail. Partials ride the working weight and run to near failure, so a fixed
+  weight×reps target there was noise (and read stale once the working set was
+  logged at a different weight). Drop sets keep their strip targets (different
+  weights are real information); myo-reps / rest-pause are unchanged. The chip
+  row and the runs-on-set note still say the finisher is on.
+- **The preview speaks RIR**: the day preview modal and the week preview were
+  the last surfaces showing raw RPE ("@ 7 RPE"); both now render through the
+  same RIR display as the session view (new `previewSetLabel` helper). The
+  "effort is now logged as RIR" one-time card was already retired last round.
+- **Onboarding language picker, English default**: the first onboarding screen
+  (name / bodyweight) now has a language select over the shipped catalogs,
+  applied immediately (`obLang`). The app no longer auto-detects by default:
+  fresh state and the migration backfill default `profile.lang` to `'en'`
+  (owner call, easier debugging); an existing explicit choice, including
+  `'auto'` picked in Settings, is never overwritten and Settings keeps the
+  Automatic option.
+- Tests: new `feedback-round5.test.js` (draft refresh for accessory seeds and
+  working-max changes, partials/drop row labels, RIR preview labels); i18n
+  migration test updated for the English default. Harness exports
+  `sessionEntryFrom`, `refreshDraftTargets`, `previewSetLabel`.
+
 ## [Exercise library expansion + Spanish coaching cues (i18n phase 5)] (2026-07-13)
 
 The last i18n queue item, scope-expanded by owner request: close the library's

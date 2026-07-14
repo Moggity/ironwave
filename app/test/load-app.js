@@ -54,6 +54,7 @@ const EXPORTS = `return {
   armTapGuard, tapGuardActive,
   pumpBadge, PUMP_ICONS, cardHintFor, displaySetNote, setNoteText, dayTheme, blockDisplayLabel, suggestedWeight,
   recordsFor, pushRecord, deleteRecord, confirmResolve, setTargetLabel,
+  sessionEntryFrom, refreshDraftTargets, previewSetLabel,
   restNotifySupported, showRestNotification, toggleRestNotify,
   obDefaults, OB_TRACKS, timelineHTML, exDisplayName, exMatches, exCues, EX_CUES,
   FINISHER_TECHS, SAME_WEIGHT_TECHS, TIMED_REST_TECHS,
