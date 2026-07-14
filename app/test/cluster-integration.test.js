@@ -76,15 +76,15 @@ test('a multi-week cycle of good feedback ramps volume up, then converges', () =
 // ---------------------------------------------------------------------------
 test('autoreg-added volume and a drop set apply together on one accessory', () => {
   const prog = program('bodybuilding');
-  prog.pointer.week = 1; // align resolveSlot week with weeklyVolumeByMuscle (reads the pointer)
+  prog.pointer.week = 2; // finisher-eligible week; also aligns weeklyVolumeByMuscle (reads the pointer)
   prog.days = [{ name: 'Arms', slots: [slot('db-curl')] }];
   app.S.records['db-curl'] = [{ ts: Date.now(), weight: 15, reps: 12, rpe: 8 }];
 
-  const baseline = plainSets(app.resolveSlot(prog.days[0].slots[0], 0, 1)); // no offset, no technique
+  const baseline = plainSets(app.resolveSlot(prog.days[0].slots[0], 0, 2)); // no offset, no technique
 
   prog.volAdj = { bicep: 1 };           // E: one autoreg-added set
   app.S.techniques['db-curl'] = 'drop'; // B: finish with a drop set
-  const rs = app.resolveSlot(prog.days[0].slots[0], 0, 1);
+  const rs = app.resolveSlot(prog.days[0].slots[0], 0, 2);
   assert.strictEqual(plainSets(rs), baseline + 1, 'the autoreg add landed');
   assert.strictEqual(rs.sets[rs.sets.length - 1].technique, 'drop', 'the last set became a drop set');
   // That drop set still counts as one working set toward weekly volume.

@@ -83,12 +83,16 @@ test('applyTechnique turns the last working set into partials when tagged, off-t
   bbProgramWithRecords('cable-fly');
   app.S.techniques = { 'cable-fly': 'partials' };
   const sets = [{ weight: 40, reps: 12, rpe: 8 }, { weight: 40, reps: 12, rpe: 8 }];
-  const out = app.applyTechnique('cable-fly', sets, 2.5);
+  const out = app.applyTechnique('cable-fly', sets, 2.5, 0, 2); // week 2: finisher-eligible
   assert.strictEqual(out[out.length - 1].technique, 'partials', 'last working set tagged');
   assert.strictEqual(out[0].technique, undefined, 'earlier sets untouched');
 
+  // The periodization gate holds the same tag back on an accumulation week.
+  const early = app.applyTechnique('cable-fly', [{ weight: 40, reps: 12, rpe: 8 }], 2.5, 0, 1);
+  assert.strictEqual(early[0].technique, undefined, 'no finisher on an early week');
+
   // The same tag is inert on a non-bodybuilding program.
   app.S.program.trainingConfig.track = 'powerbuilding';
-  const out2 = app.applyTechnique('cable-fly', [{ weight: 40, reps: 12, rpe: 8 }], 2.5);
+  const out2 = app.applyTechnique('cable-fly', [{ weight: 40, reps: 12, rpe: 8 }], 2.5, 0, 2);
   assert.strictEqual(out2[0].technique, undefined, 'off-track stays a straight set');
 });

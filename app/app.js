@@ -808,7 +808,7 @@ function resolveSlot(slot, blockIdx, wIdx) {
   if (Engine.weekType(eIdx) !== 'deload' && isAccessoryMuscleDeloaded(exId)) {
     sets = applyMuscleDeload(sets);
   } else {
-    sets = applyTechnique(exId, sets, r);
+    sets = applyTechnique(exId, sets, r, blockIdx, wIdx);
   }
   return { exId, name: exName(exId), sets, cat: slot.cat };
 }
@@ -1009,9 +1009,20 @@ function autoregForAccessory(exId, sets, wIdx) {
 // athlete has tagged this exercise, so every other track and an untagged
 // exercise are byte-identical (golden master holds). Calibration / AMRAP / ramp
 // and weightless sets are never modified.
-function applyTechnique(exId, sets, rounding) {
+// Finishers belong to the back half of a meso, the same rule Engine.scheduledTech
+// encodes (book: intensity techniques demand 0-3 RIR, incompatible with the high
+// RIR intro week, and have no place on a deload): intensification/realization
+// work weeks only, bodybuilding track, non-beginner. effectiveWeekIdx makes an
+// early (pulled-in) deload suppress them too.
+function finisherAllowed(blockIdx, wIdx) {
   const tc = P() && P().trainingConfig;
-  if (!tc || tc.track !== 'bodybuilding') return sets;
+  if (!tc || tc.track !== 'bodybuilding') return false;
+  if ((S.profile.experience || 'intermediate') === 'beginner') return false;
+  const t = Engine.weekType(effectiveWeekIdx(blockIdx, wIdx));
+  return t === 'intensification' || t === 'realization';
+}
+function applyTechnique(exId, sets, rounding, blockIdx, wIdx) {
+  if (!finisherAllowed(blockIdx, wIdx)) return sets;
   const tech = (S.techniques || {})[exId];
   if (!FINISHER_TECHS.includes(tech)) return sets;
   for (let i = sets.length - 1; i >= 0; i--) {
@@ -3240,8 +3251,11 @@ function canDropEntry(e) {
 // Chip icons per finisher; labels and the how-to toast live in the i18n
 // catalog ('tech.<id>' / 'tech.<id>_how'), athlete-facing, no em dashes.
 const FINISHER_ICONS = { drop: '🔥', myo: '🔁', restpause: '⏸', partials: '📐' };
-function techChipHTML(e, ei) {
+function techChipHTML(e, ei, dr) {
   if (!canDropEntry(e)) return '';
+  // Hard periodization gate (owner call, no placeholder hint): outside the
+  // intensification/realization weeks the chips simply do not exist.
+  if (!dr || !finisherAllowed(dr.b, dr.w)) return '';
   const cur = entryTech(e);
   const chip = (tech) =>
     `<button class="tech-chip ${cur === tech ? 'on' : ''}" onclick="toggleTechInSession(${ei},'${tech}')">${FINISHER_ICONS[tech]} ${esc(t('tech.chip_' + tech))}${cur === tech ? ' ✓' : ''}</button>`;
@@ -3280,6 +3294,9 @@ function clearEntryTechnique(e) {
   });
 }
 function toggleTechInSession(ei, tech) {
+  // The chips are hidden outside eligible weeks; this guard covers stale DOM,
+  // since this path writes the sets and S.techniques directly.
+  if (!V.draft || !finisherAllowed(V.draft.b, V.draft.w)) return;
   const e = V.draft.entries[ei];
   const cur = entryTech(e);
   clearEntryTechnique(e); // only one finisher per exercise
@@ -3397,7 +3414,7 @@ function liftCardHTML(e, ei, dr, shortSleep) {
       </div>
       ${top && loadingFor(e.exId).showPlates ? `<button class="warmup-btn" onclick="openWarmup(${top},'${e.exId}')"><b>＋</b> ${esc(t('session.warmup'))}</button>` : ''}
       <div class="scheme">${schemeTxt}</div>
-      ${techChipHTML(e, ei)}
+      ${techChipHTML(e, ei, dr)}
       ${setRows}
       <button class="notes-link" onclick="toggleNotes(${ei})">${esc(t('session.notes'))} ✎</button>
       ${e.notesOpen ? `<textarea class="notes-area" oninput="setNotes(${ei}, this.value)" placeholder="${esc(t('session.notes_placeholder'))}">${esc(e.notes)}</textarea>` : ''}
@@ -3421,7 +3438,7 @@ function supersetGroupCardHTML(members, dr) {
             <button onclick="toggleNotes(${ei})" aria-label="${esc(t('session.notes'))}">✎</button>
           </span>
         </div>
-        ${techChipHTML(e, ei)}
+        ${techChipHTML(e, ei, dr)}
         ${e.notesOpen ? `<textarea class="notes-area" oninput="setNotes(${ei}, this.value)" placeholder="${esc(t('session.notes_placeholder'))}">${esc(e.notes)}</textarea>` : ''}
       </div>`).join('');
   const rounds = [];

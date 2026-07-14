@@ -1,5 +1,61 @@
 # IRONWAVE — Changelog
 
+## [Book-alignment: finisher periodization, hypertrophy secondary re-dose, rep-anchored prescriptions] (2026-07-14)
+
+Owner feedback round 6, grounded in the reference book (Israetel 2020,
+Scientific Principles of Hypertrophy Training) and a full-program simulation
+that computed the implied reps-in-reserve of every prescribed set. Three
+prescription-level fixes; the default Powerbuilding golden master is
+byte-identical (verified). Bumped `APP_VERSION`/`CACHE_VERSION` to `1.9.0`.
+
+- **Finishers now respect periodization** (`finisherAllowed`): intensity
+  techniques demand 0-3 RIR, which is incompatible with the high-RIR intro
+  week and has no place on a deload (book p.92-93, p.343). The finisher chips
+  and the persisted opt-in (`S.techniques`) now only manifest on
+  intensification/realization work weeks, bodybuilding track, non-beginner:
+  `applyTechnique` gained week context, `techChipHTML` reads the draft's
+  week (no placeholder hint, owner call), and `toggleTechInSession` guards
+  the direct path. The opt-in itself persists and simply reappears when the
+  block reaches week 3. This matches what `Engine.scheduledTech` always
+  encoded but only the timeline preview read.
+- **jbb-hyp secondaries re-dosed** (the "Arnold press 3x5" case): the repeat
+  anchor exposure prescribed 5 reps at 60-67.5% of the working max, roughly
+  54% e1RM and about 20 implied RIR, i.e. junk volume by the book's own
+  definition (p.58-60, p.109). Now `JBB_HYP.secReps = 8` with a
+  `secRpe: [7, 7.5, 8, 9]` ramp (RIR 3 down to 1) and the weight priced via
+  `Engine.weightFor(wm / 0.9, ...)`, landing ~73-78% e1RM, inside the book's
+  effective 5-10 rep window (p.252). Deload branch unchanged (deliberately
+  light). Uncalibrated secondaries now ramp at 8 reps ([8,6,4]) instead of
+  5s. Side effect, accepted: powerbuilding 3/5/6-day templates share
+  `jbb-hyp.secondary` during hypertrophy blocks, so their secondary weights
+  correct too (the 4-day golden-master template has no secondary slots).
+  `jm2-wave`/`prescribeSecondary` untouched (source-faithful).
+- **Rep-proximity prescription anchor** (`Engine.anchorE1RM`): `bestE1RM`
+  takes the max implied e1RM over recent records, so an athlete who entered
+  1RM 90 AND 10RM 60 got 12-rep accessory sets prescribed at 60-62.5 kg, at
+  or above their stated 10RM (impossible). Prescriptions now prefer records
+  whose rep count is within 4 of the target (a stated 10RM outranks a 1RM
+  extrapolated through Epley, which degrades across ranges), falling back to
+  the old behavior when nothing is close. Display surfaces (Maxes tab,
+  milestones, trends) keep `bestE1RM`.
+- **Deliberately NOT changed: jbb-hyp main weights.** Mains still run the
+  Juggernaut wave percentages (~52-63% e1RM) against displayed RIR caps of
+  3-1; the simulation shows their true proximity is 10-20 RIR. Re-anchoring
+  them is a bigger call (it raises week-1 mains by ~20 percentage points of
+  WM and moves the golden master) and is parked pending owner analysis.
+- **New `test/prescription-sanity.test.js`**: simulates a bodybuilding
+  5-day (shoulder emphasis, so a secondary slot is generated and
+  guard-asserted) and a powerbuilding 4-day through `resolveSlot` for every
+  block/week/day/slot, asserting: no finisher outside intensification/
+  realization (with a positive control), implied-vs-displayed RIR coherence
+  and a junk-volume ceiling for jbb-hyp secondaries + accessories (mains
+  exempt pending the owner decision; jm2-wave exempt as source-faithful),
+  and that no 10+ rep prescription reaches an entered 10RM. Written first
+  and confirmed red on the pre-fix code. Plus `anchorE1RM` and re-dosed
+  secondary unit tests in `engine.test.js`; cluster-b/myo/restpause/partials
+  and the B+E integration test moved their technique assertions to
+  finisher-eligible weeks with new early-week negative assertions.
+
 ## [Owner feedback: live max corrections, partials row cleanup, RIR preview, onboarding language] (2026-07-14)
 
 Owner-feedback round 5, from live use of the first bodybuilding block. Display

@@ -50,7 +50,7 @@ const EXPORTS = `return {
   Engine, PROGRAM_TEMPLATES, DAY_TEMPLATES, WAVES, TIME_MODEL,
   ACC_SCHEMES, SECONDARY_SCHEMES, JBB_HYP, DELOAD_SETS,
   PUMP_LABELS, TECHNIQUE_LABELS, DROP_DEFAULTS, MYO_DEFAULTS, RESTPAUSE_DEFAULTS, PARTIAL_DEFAULTS,
-  applyTechnique, buildTechnique, lastWorkingSetIdx, entryHasDrop, entryTech, canDropEntry,
+  applyTechnique, buildTechnique, lastWorkingSetIdx, entryHasDrop, entryTech, canDropEntry, finisherAllowed,
   armTapGuard, tapGuardActive,
   pumpBadge, PUMP_ICONS, cardHintFor, displaySetNote, setNoteText, dayTheme, blockDisplayLabel, suggestedWeight,
   recordsFor, pushRecord, deleteRecord, confirmResolve, setTargetLabel,

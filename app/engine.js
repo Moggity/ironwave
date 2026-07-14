@@ -54,6 +54,22 @@ const Engine = {
     return Math.max(...last.map(r => this.e1rm(r.weight, r.reps, r.rpe)));
   },
 
+  // PRESCRIPTION anchor for a target rep range: prefer recent records whose rep
+  // count is close to the target. A stated 10RM is better evidence for a 12 rep
+  // prescription than a heavier 1RM pushed through Epley (the conversion
+  // degrades across rep ranges, so max-of-everything can price a 12 rep set at
+  // or above the athlete's actual 10RM). Same recency window as bestE1RM and
+  // falls back to it when nothing is close; bestE1RM stays the DISPLAY estimate.
+  anchorE1RM(records, targetReps) {
+    if (!records || !records.length) return null;
+    const cutoff = Date.now() - 120 * 864e5;
+    const recent = records.filter(r => r.ts > cutoff && r.weight > 0 && r.reps > 0).slice(-8);
+    if (!recent.length) return null;
+    const near = recent.filter(r => Math.abs(r.reps - targetReps) <= 4);
+    const pool = near.length ? near : recent;
+    return Math.max(...pool.map(r => this.e1rm(r.weight, r.reps, r.rpe)));
+  },
+
   // ---------- week typing ----------
   weekType(weekIdx) {
     return ['intro', 'accumulation', 'intensification', 'realization', 'deload'][weekIdx] || 'accumulation';
@@ -184,7 +200,7 @@ const Engine = {
   prescribeAccessory(blockType, weekIdx, records, rounding, experience) {
     const type = this.weekType(weekIdx);
     const S = ACC_SCHEMES[blockType] || ACC_SCHEMES.hypertrophy;
-    const e1 = this.bestE1RM(records);
+    const e1 = this.anchorE1RM(records, S.reps);
     const sets = [];
     const deload = type === 'deload';
     const nSets = deload ? Math.max(2, Math.floor(S.sets / 2)) : S.sets;
@@ -527,20 +543,26 @@ Engine.schemes = {
       return sets;
     },
     secondary(block, w, wm, rounding, pctMod = 1, experience) {
-      if (!wm) return Engine.prescribeSecondary(block.type, w, null, rounding, pctMod, experience);
+      // Uncalibrated: ramp at the scheme's own rep target (8s), not the
+      // strength-flavored 5s the shared prescribeSecondary path uses.
+      if (!wm) return Engine.calibrationRamp(JBB_HYP.secReps, experience);
       const t = Engine.weekType(w);
       const wmE = wm * pctMod;
       if (t === 'deload') {
         const w0 = Engine.roundLoad(wmE * JBB_HYP.deload.secPct, rounding);
         return Array.from({ length: JBB_HYP.deload.secSets }, () => ({ weight: w0, reps: JBB_HYP.secReps, noteKey: 'deload' }));
       }
+      // Weight from the same anchor math accessories use: the working max is
+      // 0.9 x e1RM, so weightFor(wmE / 0.9, ...) prices the set to actually
+      // reach the displayed RIR (roughly 73-78% e1RM across the ramp).
       const m = this._meso(block);
       const idx = Math.min(w, 3);
-      const wt = Engine.roundLoad(wmE * (JBB_HYP.secPct + JBB_HYP.secStep * idx), rounding);
-      return Array.from({ length: JBB_HYP.secSets[m][idx] }, () => ({ weight: wt, reps: JBB_HYP.secReps, rpe: 7 }));
+      const rpe = JBB_HYP.secRpe[idx];
+      const wt = Engine.weightFor(wmE / 0.9, JBB_HYP.secReps, Math.min(rpe, 9), rounding);
+      return Array.from({ length: JBB_HYP.secSets[m][idx] }, () => ({ weight: wt, reps: JBB_HYP.secReps, rpe }));
     },
     accessory(block, w, records, rounding, experience) {
-      const e1 = Engine.bestE1RM(records);
+      const e1 = Engine.anchorE1RM(records, JBB_HYP.accReps);
       if (!e1) return Engine.prescribeAccessory(block.type, w, records, rounding, experience); // calibration ramp
       const t = Engine.weekType(w);
       if (t === 'deload') {
