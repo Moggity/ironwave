@@ -9,7 +9,7 @@
 // repo, and it must be kept in step with CACHE_VERSION in sw.js (the service
 // worker only ships new code to installed PWAs when that cache name changes).
 // Bump this on any shell change (data/engine/app/styles/index/sw).
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.9.0';
 
 // Movement categories (used for "Select X Exercise" slots & swaps)
 const MOVEMENTS = {
@@ -784,7 +784,10 @@ const JBB_HYP = {
   secSets:  [ [3, 4, 5, 5],
               [3, 4, 5, 6],
               [4, 5, 6, 6] ],
-  secPct:   0.60, secStep: 0.025, secReps: 5,
+  // Secondary anchor exposure: moderate reps priced off the working max to hit
+  // a real RIR ramp (book: 5-10 rep work is only effective near failure, at
+  // roughly 75-85% 1RM; the old 5 reps at 60% of WM sat ~20 RIR from failure).
+  secReps:  8, secRpe: [7, 7.5, 8, 9],
   deload:   { accSets: 2, accRpe: 6, secSets: 2, secPct: 0.45 },
 };
 

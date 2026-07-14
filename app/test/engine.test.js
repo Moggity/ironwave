@@ -14,7 +14,7 @@ const assert = require('node:assert');
 const { loadApp } = require('./load-app');
 
 const app = loadApp();
-const { Engine, WAVES, DEFAULT_PLATES, VOLUME_LANDMARKS, EXPERIENCE_FACTOR, TIME_MODEL } = app;
+const { Engine, WAVES, DEFAULT_PLATES, VOLUME_LANDMARKS, EXPERIENCE_FACTOR, TIME_MODEL, JBB_HYP } = app;
 
 // Float helper: engine weights/scores are real-valued.
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) <= eps;
@@ -210,6 +210,55 @@ test('calibrationRamp: descending reps floored at 3, RIR 4/3/2, beginner cap', (
   // Routed by every prescribe* path: main/secondary/accessory all use it.
   assert.deepStrictEqual(Engine.prescribeAccessory('hypertrophy', 1, [], 2.5, 'intermediate').map(s => s.reps), [12, 10, 8]);
   assert.deepStrictEqual(Engine.prescribeSecondary('hypertrophy', 1, null, 2.5, 1, 'intermediate').map(s => s.reps), [5, 3, 3]);
+});
+
+test('anchorE1RM: rep-proximity anchor for prescriptions', () => {
+  const now = Date.now();
+  const oneRM = { ts: now, weight: 90, reps: 1, rpe: 10, seed: true };
+  const tenRM = { ts: now, weight: 60, reps: 10, rpe: 10, seed: true };
+
+  // The endurance-poor athlete: the 1RM implies e1 = 90, the 10RM implies 80.
+  // A 12-rep prescription anchors on the stated 10RM, not the extrapolated 1RM.
+  assert.ok(near(Engine.anchorE1RM([oneRM, tenRM], 12), Engine.e1rm(60, 10, 10)));
+  // A low-rep target anchors on the 1RM (the close record).
+  assert.ok(near(Engine.anchorE1RM([oneRM, tenRM], 3), 90));
+  // Nothing close to the target: falls back to the bestE1RM behavior (max).
+  assert.ok(near(Engine.anchorE1RM([oneRM], 12), Engine.bestE1RM([oneRM])));
+  // Same recency window as bestE1RM: stale and empty inputs return null.
+  assert.strictEqual(Engine.anchorE1RM([], 12), null);
+  assert.strictEqual(Engine.anchorE1RM([{ ts: now - 200 * 864e5, weight: 60, reps: 10, rpe: 10 }], 12), null);
+
+  // End to end: with both maxes on record, a 12-rep accessory prescription
+  // stays below the stated 10RM (it used to land at or above it).
+  const sets = Engine.prescribeAccessory('hypertrophy', 1, [oneRM, tenRM], 2.5, 'intermediate');
+  assert.ok(sets.every(s => s.weight < 60), 'never at or above the athlete\'s 10RM');
+});
+
+test('jbb-hyp secondary: RIR-anchored moderate reps, deload, calibration', () => {
+  const jbb = Engine.schemes['jbb-hyp'];
+  const block = { wave: '10s', type: 'hypertrophy', scheme: 'jbb-hyp', mesoIdx: 0 };
+  const wm = 90; // = 0.9 x e1RM 100
+
+  // Work weeks: secSets counts, 8 reps, weight priced off the e1RM to hit the
+  // secRpe ramp (RIR 3 -> 1), i.e. the book's effective 5-10 rep window.
+  const wk0 = jbb.secondary(block, 0, wm, 2.5);
+  assert.strictEqual(wk0.length, JBB_HYP.secSets[0][0]);
+  assert.ok(wk0.every(s => s.reps === JBB_HYP.secReps && s.rpe === JBB_HYP.secRpe[0]));
+  assert.ok(near(wk0[0].weight, Engine.weightFor(100, JBB_HYP.secReps, JBB_HYP.secRpe[0], 2.5)));
+  // ~73% of e1RM at week 0: inside the effective window, far from the old 54%.
+  assert.ok(wk0[0].weight / 100 > 0.68 && wk0[0].weight / 100 < 0.80);
+  const wk3 = jbb.secondary(block, 3, wm, 2.5);
+  assert.ok(wk3[0].weight > wk0[0].weight, 'load climbs as the RIR tightens');
+
+  // Deload: unchanged shape, deliberately light.
+  const dl = jbb.secondary(block, 4, wm, 2.5);
+  assert.strictEqual(dl.length, JBB_HYP.deload.secSets);
+  assert.ok(near(dl[0].weight, Engine.roundLoad(wm * JBB_HYP.deload.secPct, 2.5)));
+
+  // Uncalibrated: ramps at the scheme's own 8-rep target ([8,6,4]).
+  const calib = jbb.secondary(block, 0, null, 2.5, 1, 'intermediate');
+  assert.deepStrictEqual(calib.map(s => s.reps), [8, 6, 4]);
+  assert.ok(calib.every(s => s.calib === true));
 });
 
 test('jbb-hyp main ramp: sets climb, week 4 AMRAP, deload, uncalibrated', () => {

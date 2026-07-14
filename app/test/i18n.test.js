@@ -182,14 +182,18 @@ test('dateLocale follows an explicit choice and defers to the device on auto', (
   }
 });
 
-test('migrateState backfills profile.lang to auto, idempotently', () => {
+test('migrateState backfills profile.lang to English (owner call: no auto-detect default)', () => {
   const s = app.defaultState();
+  assert.strictEqual(s.profile.lang, 'en', 'fresh state defaults to English');
   delete s.profile.lang;
   app.migrateState(s);
-  assert.strictEqual(s.profile.lang, 'auto');
+  assert.strictEqual(s.profile.lang, 'en');
   s.profile.lang = 'es';
   app.migrateState(s);
   assert.strictEqual(s.profile.lang, 'es', 'an existing choice is never overwritten');
+  s.profile.lang = 'auto';
+  app.migrateState(s);
+  assert.strictEqual(s.profile.lang, 'auto', 'an explicit auto choice also survives');
 });
 
 test('every catalog on disk is loaded by index.html and cached by sw.js', () => {

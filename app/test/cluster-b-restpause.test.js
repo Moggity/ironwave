@@ -103,7 +103,7 @@ test('applyTechnique turns the last working set into a rest-pause set when tagge
   const prog = bbProgramWithRecords(exId);
   prog.days[0] = { name: 'Chest', slots: [accSlot(exId)] };
   app.S.techniques[exId] = 'restpause';
-  const rs = app.resolveSlot(prog.days[0].slots[0], 0, 1);
+  const rs = app.resolveSlot(prog.days[0].slots[0], 0, 2); // intensification: finisher-eligible
   const rpSets = rs.sets.filter(s => s.technique === 'restpause');
   assert.strictEqual(rpSets.length, 1, 'exactly one rest-pause set');
   assert.strictEqual(rs.sets[rs.sets.length - 1].technique, 'restpause', 'it is the last set');
@@ -121,6 +121,6 @@ test('applyTechnique is inert off the bodybuilding track even if tagged rest-pau
   app.S.records[exId] = [{ ts: Date.now(), weight: 40, reps: 12, rpe: 8 }];
   app.S.techniques[exId] = 'restpause';
   app.S.program.days[0] = { name: 'Day', slots: [accSlot(exId)] };
-  const rs = app.resolveSlot(app.S.program.days[0].slots[0], 0, 1);
+  const rs = app.resolveSlot(app.S.program.days[0].slots[0], 0, 2);
   assert.ok(!rs.sets.some(s => s.technique === 'restpause'), 'powerbuilding never gets a rest-pause set');
 });

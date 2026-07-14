@@ -729,7 +729,7 @@ const I18N_EN = {
   'xd.save_maxes': 'Save maxes',
   'xd.need_rm': 'Enter a 1RM or a 10RM',
   'xd.rm_order': 'Your 10RM should be below your 1RM',
-  'xd.maxes_saved': 'Maxes saved{wm}. Weights are prescribed from your next session',
+  'xd.maxes_saved': 'Maxes saved{wm}. Prescribed weights are updated, including the current session',
   'xd.wm_set_note': ', working max set to {w} kg',
   'xd.wm_label': 'Working max (kg)',
   'xd.wm_ph': 'Not set, calibrates in week 1',

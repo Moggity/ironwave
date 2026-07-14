@@ -108,14 +108,17 @@ test('applyTechnique adds a drop set only to an opted-in bodybuilding accessory'
   const prog = bbProgramWithRecords(exId);
   prog.days[0] = { name: 'Chest', slots: [accSlot(exId)] };
 
-  // Untagged: no drop anywhere.
-  let rs = app.resolveSlot(prog.days[0].slots[0], 0, 1);
+  // Untagged: no drop anywhere. Week 2 (intensification) is finisher-eligible.
+  let rs = app.resolveSlot(prog.days[0].slots[0], 0, 2);
   assert.ok(rs.sets.length, 'accessory resolved to weighted sets');
   assert.ok(!rs.sets.some(s => s.technique === 'drop'), 'untagged accessory has no drop set');
 
   // Tagged: exactly the last weighted working set becomes a drop set.
   app.S.techniques[exId] = 'drop';
-  rs = app.resolveSlot(prog.days[0].slots[0], 0, 1);
+  // The periodization gate holds it back on early weeks (intro/accumulation).
+  const early = app.resolveSlot(prog.days[0].slots[0], 0, 1);
+  assert.ok(!early.sets.some(s => s.technique === 'drop'), 'no finisher on an accumulation week');
+  rs = app.resolveSlot(prog.days[0].slots[0], 0, 2);
   const dropSets = rs.sets.filter(s => s.technique === 'drop');
   assert.strictEqual(dropSets.length, 1, 'exactly one drop set');
   assert.strictEqual(rs.sets[rs.sets.length - 1].technique, 'drop', 'it is the last set');
@@ -132,7 +135,7 @@ test('applyTechnique is inert off the bodybuilding track even if tagged', () => 
   app.S.records[exId] = [{ ts: Date.now(), weight: 40, reps: 12, rpe: 8 }];
   app.S.techniques[exId] = 'drop';
   app.S.program.days[0] = { name: 'Day', slots: [accSlot(exId)] };
-  const rs = app.resolveSlot(app.S.program.days[0].slots[0], 0, 1);
+  const rs = app.resolveSlot(app.S.program.days[0].slots[0], 0, 2);
   assert.ok(!rs.sets.some(s => s.technique === 'drop'), 'powerbuilding never gets a drop set');
 });
 

@@ -91,7 +91,7 @@ test('applyTechnique turns the last working set into a myo set when tagged myo',
   const prog = bbProgramWithRecords(exId);
   prog.days[0] = { name: 'Chest', slots: [accSlot(exId)] };
   app.S.techniques[exId] = 'myo';
-  const rs = app.resolveSlot(prog.days[0].slots[0], 0, 1);
+  const rs = app.resolveSlot(prog.days[0].slots[0], 0, 2); // intensification: finisher-eligible
   const myoSets = rs.sets.filter(s => s.technique === 'myo');
   assert.strictEqual(myoSets.length, 1, 'exactly one myo set');
   assert.strictEqual(rs.sets[rs.sets.length - 1].technique, 'myo', 'it is the last set');
@@ -109,7 +109,7 @@ test('applyTechnique is inert off the bodybuilding track even if tagged myo', ()
   app.S.records[exId] = [{ ts: Date.now(), weight: 40, reps: 12, rpe: 8 }];
   app.S.techniques[exId] = 'myo';
   app.S.program.days[0] = { name: 'Day', slots: [accSlot(exId)] };
-  const rs = app.resolveSlot(app.S.program.days[0].slots[0], 0, 1);
+  const rs = app.resolveSlot(app.S.program.days[0].slots[0], 0, 2);
   assert.ok(!rs.sets.some(s => s.technique === 'myo'), 'powerbuilding never gets a myo set');
 });
 

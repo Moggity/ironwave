@@ -732,7 +732,7 @@ const I18N_ES = {
   'xd.save_maxes': 'Guardar máximos',
   'xd.need_rm': 'Ingresa un 1RM o un 10RM',
   'xd.rm_order': 'Tu 10RM debería estar por debajo de tu 1RM',
-  'xd.maxes_saved': 'Máximos guardados{wm}. Los pesos se prescriben desde tu próxima sesión',
+  'xd.maxes_saved': 'Máximos guardados{wm}. Los pesos prescritos se actualizaron, incluida la sesión actual',
   'xd.wm_set_note': ', máximo de trabajo fijado en {w} kg',
   'xd.wm_label': 'Máximo de trabajo (kg)',
   'xd.wm_ph': 'Sin definir, se calibra en la semana 1',
