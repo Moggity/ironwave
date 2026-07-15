@@ -9,32 +9,13 @@ them into focused branches rather than one large one (see the retrospective).
 - **Sport-aware scheduling** (the long-deferred epic): a sport -> muscle-fatigue
   dataset, "pick which weekdays you train" instead of a day count, calendar
   placement so high-fatigue sessions avoid game day, and named/dated days.
-- **2 training days per week** (owner request, 2026-07-08; assessed, NOT
-  trivial). Current state, verified by probing `makeProgram`:
-  - *Bodybuilding*: `generateBodybuildingDays(focus, 2)` already returns a
-    structurally valid 2-day week, but as an upper/lower split, so every muscle
-    silently drops to 1x/week regardless of what `SPLIT_FREQ` asked for, and a
-    week's whole per-muscle volume lands in one session (can exceed the
-    per-session landmark cap, which then trims sets with no other day to catch
-    them). The right 2-day shape is **two full-body days** (this is standard
-    practice at that frequency), which the region-interleaving generator does
-    not produce today.
-  - *Powerbuilding / Powerlifting*: `DAY_TEMPLATES[2]` does not exist, so
-    `makeProgram` throws. A 2-day template must pair mains (e.g. Day A =
-    squat + bench, Day B = deadlift + press), which is a real programming
-    design: two waves in one session, two AMRAPs on realization day, secondary
-    placement, and session length all need decisions, plus the day-theme labels
-    and check-in muscle groups.
-  - *Plan*: (1) add a `fullBody` mode to `generateBodybuildingDays` used when
-    N <= 2 (interleave upper/lower within each day, honor per-session caps by
-    splitting a muscle's weekly sets across both days); (2) design and add
-    `DAY_TEMPLATES[2]` / `BB_DAY_TEMPLATES[2]` with paired mains and trimmed
-    accessory slots; (3) extend the onboarding days picker to `[2..6]` with a
-    one-line "minimum effective dose" note; (4) tests: extend
-    `focus-generator.test.js` (2-day frequencies and caps) and add a 2-day
-    program to the render smoke; the default golden master (4-day) is
-    untouched. Estimated as its own branch; the template design wants owner
-    sign-off on the main-lift pairing before implementation.
+- ~~**2 training days per week**~~ DONE (2026-07-15, shipped with Epic H7):
+  `generateFullBodyDays` (two full-body days, leads from different regions,
+  each muscle on min(freq, 2) days), `DAY_TEMPLATES[2]` with the approved
+  paired mains (Day A squat + bench, Day B deadlift + press; two AMRAPs on
+  realization day), `BB_DAY_TEMPLATES[2]` fallback, onboarding picker 2..6
+  with a minimum-dose note. Simulated two-block run + eccentric edge tests;
+  the 4-day golden master untouched.
 - **e1RM-driven hypertrophy anchors.** Today a bodybuilding day's working-max
   anchor stays a barbell compound (bench/squat/press) because the wave/AMRAP
   weights are percentages of that lift's max. To let a day default to a DB or
@@ -671,24 +652,17 @@ screen (attempt tiles + warmup ladder to the opener). Still open: warmup
 TIMING on meet day (attempt tiles + rest hint shipped; a clock-driven
 "warm up now" flow needs sport-aware scheduling's clock dependence).
 
-### Epic H7 - Custom programming platform (gated capstone; needs G4 + H6's per-block weeks)
+### ~~Epic H7 - Custom programming platform~~ DONE (2026-07-15)
 
-- **What:** author, import, and export program templates: a versioned JSON
-  format describing blocks (scheme / wave / weeks / phase) and day/slot
-  layouts, plus a builder UI extending the shipped block editor down to the
-  day-template level. Sharing a program becomes sharing a file, which is the
-  long-term community play.
-- **Boundary (what keeps it safe and testable):** templates CONFIGURE
-  existing registered schemes; user-defined set MATH stays out. A new
-  methodology is still a code-level `registerScheme`, so the engine stays
-  unit-testable and schemes never mix. Imports validate against the schema
-  version and the registered scheme ids, and reject the rest.
-- **Why:** "one methodology, take it or leave it" is the last reason a
-  veteran leaves (Boostcamp's entire moat). Gated last because H4/H6 define
-  the scheme surface a template can reference.
-- **Tests:** template round-trip (export -> import -> identical program),
-  schema-version migration, and the default path never touching a custom
-  template (golden master untouched).
+Shipped (see CHANGELOG): versioned template JSON (`schemaVersion: 1`, blocks
++ day/slot layouts only), Export/Import on My Program with full validation
+against registered scheme ids / waves / the exercise catalog (reject the
+rest, with the reason), `programFromTemplate` building a fresh program that
+keeps the athlete's records/landmarks and recalibrates maxes, and the split
+editor opened to every track (day-template-level builder). Boundary held:
+templates configure schemes, set math stays code-level `registerScheme`.
+Round-trip + reject battery + monster-template edge tests in
+`test/h7-twoday.test.js`.
 
 ### Epic H8 - Exercise media (independent; content project more than code)
 
