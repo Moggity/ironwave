@@ -40,7 +40,9 @@ them into focused branches rather than one large one (see the retrospective).
   weights are percentages of that lift's max. To let a day default to a DB or
   machine compound *with correct weights*, anchors would need an e1RM-based
   prescription path instead of barbell percentages. Would make the bodybuilding
-  default fully non-barbell, barbell as a swap.
+  default fully non-barbell, barbell as a swap. (Now absorbed into
+  **Epic H4** below; the 2026-07 athlete feedback ranked it the bodybuilder's
+  second-loudest complaint.)
 - **Full cross-muscle zero-sum weekly volume budget.** The split generator now
   handles frequency, and de-emphasis scales sets, but total weekly sets are not
   strictly conserved/redistributed across muscles. Bounded today by per-muscle
@@ -350,8 +352,10 @@ layer, NOT a macro tracker. Keep it light and differentiated.
   sooner; `Engine.fatigueSaturated` drives a minicut suggestion on the volume
   dashboard; and a light `S.bodyweight` trend (sparkline, no calories/macros).
   **Still open:** phase per block/meso (currently one current phase), shortening
-  the deload/minicut interval (needs Epic 4's deload slice), and a measurement
-  trend beyond bodyweight.
+  the deload/minicut interval (needs Epic 4's deload slice), a measurement
+  trend beyond bodyweight, and (from the 2026-07 athlete feedback, Epic H
+  series) a target rate-of-change per phase plus an alert when the bodyweight
+  trend disagrees with the phase. Still explicitly NOT a macro tracker.
 
 - **What:**
   - A **phase tag** per block/meso: lean-gain (surplus), maintenance, cut,
@@ -390,7 +394,8 @@ Phase   (F) -- needs D --> modulates E and the deload; starts light
 ### Supporting features and polishes
 
 - **Double progression + explicit rep ranges + per-meso rep-range variation**
-  (foundation: Cluster A). [feature]
+  (foundation: Cluster A). Now absorbed into **Epic H4** (the 2026-07 athlete
+  feedback ranked it the single loudest gap). [feature]
 - **Autoregulated deload** timing/depth (part of Epic 4). [feature]
 - **Frequency autoregulation** from how fast soreness clears (needs Epic 1
   feedback). [feature]
@@ -461,9 +466,11 @@ model + timeline v2)**.
   fit, renumber labels, re-stamp mesoIdx + phase); `testDate`/`daysOut`/the
   timeline derive from the result; the default (no choice) keeps the template
   verbatim, so the golden master is untouched. **Still open:** variable *per-block*
-  week count (a deeper, scheme-level change to `weekType`/`JBB_HYP`), an explicit
-  end-date picker (today it is weeks presets), and smart phase auto-arrange (the
-  cycled pattern is mechanical; intelligent phase placement is G4/G6 territory).
+  week count (a deeper, scheme-level change to `weekType`/`JBB_HYP`; now planned
+  to land as **Epic H6**'s enabling slice, since a real taper needs it), an
+  explicit end-date picker (today it is weeks presets; H6's meet date covers the
+  strength tracks), and smart phase auto-arrange (the cycled pattern is
+  mechanical; intelligent phase placement is G4/G6 territory).
 - **Epic G3 - Macrocycle timeline v2 (UI).** The mocked-up bar chart: per-block
   containers tinted by phase with a phase label, bars colored by training
   emphasis (hypertrophy blue / strength orange / cut teal / peak red), deload
@@ -536,6 +543,248 @@ Assets/fidelity notes: the timeline is pure CSS/inline SVG (bars, gradients,
 deload hatch, markers) - no image files needed; exact Figma hex/gradient tokens
 are a fidelity nice-to-have, not a blocker. No Figma connector in the build
 environment, so reproduce from PNGs/tokens.
+
+## Veteran athlete feedback roadmap (Epics H1-H8, 2026-07-15)
+
+Source: a simulated end-to-end review by two 20+ year athletes (a classic
+physique bodybuilder anchored to the RP Hypertrophy app / Alpha Progression /
+Hevy, and a masters powerlifter anchored to JuggernautAI / KeyLifts /
+Boostcamp), run against v1.9.0 from onboarding to macro finish. Full write-up
+with per-stage praise and criticism: `docs/athlete-feedback-simulation.md`.
+
+What both personas PRAISED is the moat, defend it in every change below:
+ownership (self-hosted, offline, no account), gym-floor fidelity (plate math,
+loading modes, warmups, rest timer, outlier guard, mid-session
+re-prescription), the macro timeline/planner, honest copy, and strict scheme
+isolation.
+
+The epics below collect everything the simulation found LACKING plus the
+polish items on criticized features, ordered by dependency and priority.
+Pending items the feedback re-validated are ABSORBED into the epic that ships
+them (marked "absorbs", same convention Cluster D used for the zero-sum
+budget). The standing constraints hold throughout: the default/powerbuilding
+golden master stays byte-identical unless a change is deliberate and
+regenerated; new state is additive and backfilled in `migrateState`;
+athlete-facing copy lands in BOTH i18n catalogs; "inspired, not cloned".
+
+### Scalability ground rules (apply to every H epic)
+
+- **Canonical units.** kg stays the ONLY stored unit everywhere (records,
+  maxes, plates, tonnage). Unit preference (H1) is a display/input concern,
+  never a data migration; anything else poisons history, the e1RM math, and
+  the golden master.
+- **Derive, do not duplicate.** Longitudinal analytics (H3) derive from
+  `S.records` / `S.sessions` via pure, seeded `Engine` helpers (the
+  `e1rmTrend` pattern), windowed by date. No parallel aggregate store that
+  can drift. The ONE new persisted shape is the per-block landmark snapshot,
+  because past landmark values are otherwise lost to evolution.
+- **Versioned interchange.** Any new persisted or exported shape (unit
+  preference, custom program templates in H7, a media manifest in H8)
+  carries an explicit version and backfills in `migrateState`; template
+  JSON gets a `schemaVersion` so a future import never guesses.
+- **The scheme registry is the extension point.** H4 reshapes `jbb-hyp`
+  internals; H6 adds a peaking scheme via `Engine.registerScheme`; H7
+  templates may only REFERENCE registered schemes. Nothing ever forks
+  `resolveSlot` or blends schemes.
+- **Media stays out of the shell.** Exercise media (H8) never enters the
+  sw.js SHELL cache: a separate size-capped cache, lazy fetch, emoji
+  fallback. The app shell stays instant and offline-safe.
+
+### Epic H1 - Units and intensity display (priority 1, no dependencies)
+
+- **What:** `profile.units` ('kg' | 'lb') converting at render and input
+  only: set targets, the perf modal, plate inventory (an lb plate set with
+  its own colors), bar weight, rounding/increment presets in lb
+  (5 / 2.5 / 1.25 lb), e1RM and tonnage displays, and the exports' display
+  fields. Plus `profile.intensityDisplay` ('rir' | 'rpe') so the perf modal
+  and set labels can read RPE for the athletes who grew up on it (storage
+  stays RPE; `rpeToRir` is already two-way).
+- **Why:** kg-only is the single biggest market blocker (the powerlifter
+  called it disqualifying for the US market); RIR-only display is constant
+  friction for RPE-native lifters. Every competitor toggles both.
+- **How:** route every weight render through the existing
+  `fmtW` / `displayWeight` choke points and every input through one shared
+  parse; round-trip unit tests (kg -> lb -> kg stable at each rounding).
+  Prescription math never sees lb.
+- **Golden master:** untouched (conversions are display-only). Render smoke
+  runs once in lb mode.
+
+### Epic H2 - Onboarding completeness + check-in honesty (priority 2, no dependencies)
+
+Small, independent polish branches; ship early.
+
+- **Powerbuilding onboarding card.** `OB_TRACKS` omits the app's own default
+  template, so the hybrid track (and the golden-master program) is
+  unreachable from a fresh install. Add the third card; the powerbuilding
+  onboarding path must produce the exact golden-master program, which makes
+  it its own regression anchor.
+- **Check-in value.** The check-in feeds a readiness score that is never
+  shown (`SHOW_READINESS_UI = false`), which reads as five questions into a
+  void. Either surface a one-line readiness digest (a lighter cut of the
+  hidden hero) or trim the questions; decide, do not keep collecting
+  invisibly.
+- **Injury flags that do something.** The squat/bench/deadlift checkboxes
+  currently annotate nothing. Minimum: mark the session, hint a swap on the
+  flagged lift, and ease that day's top-set RPE with a visible note.
+- **Muscle-named soreness sliders on the bodybuilding track.** The
+  pattern-keyed groups ("upper pull") read wrong on generated bodybuilding
+  days; key them by the day's primary muscles instead (the
+  `checkinGroupsForDay` resolution already knows the slots).
+- **Working-max reset nudge.** Two consecutive below-standard AMRAPs on a
+  lift should offer a WM reduction (a confirm, athlete-controlled), not just
+  hold. `amrapAdjust` already detects below-standard; add a per-lift counter.
+
+### Epic H3 - Progress analytics + macro report (priority 3, data already exists)
+
+- **What:** the longitudinal story both personas asked for, one screen at a
+  time:
+  - per-muscle weekly-sets TREND across the macro, drawn against the
+    landmarks of the time;
+  - landmark evolution history (persist a small per-block snapshot at
+    `recalibrateLandmarks` time, additive + migrated: this is the one new
+    stored shape, since evolution otherwise overwrites the past);
+  - a multi-lift e1RM overlay (the big four on one chart);
+  - a PR feed (`maxMilestones` across lifts, newest first);
+  - pump and soreness history (already logged, never rendered);
+  - a **macro-end report** at `programDone`: start vs end e1RMs, total
+    tonnage, AMRAP history, MRV movement per muscle, sessions completed vs
+    skipped. Both athletes independently asked for this; everything derives
+    from existing records/sessions.
+- **Why:** retention surface every competitor has; also the payoff screen
+  that makes the invisible landmark evolution legible ("your chest MRV moved
+  20 -> 23").
+- **Order note:** land BEFORE the long H4/H6 macros so landmark snapshots
+  start accruing now.
+- **Tests:** pure Engine series helpers with seeded records; render smoke
+  for the new screens; golden master untouched (read-only).
+
+### Epic H4 - Hypertrophy prescription depth (priority 4; absorbs two pending items)
+
+- **Absorbs:** "Double progression + explicit rep ranges + per-meso rep-range
+  variation" (supporting features) and "e1RM-driven hypertrophy anchors"
+  (larger features).
+- **What, in slices:**
+  1. **Per-exercise rep RANGES.** Our own table keyed by movement + SFR
+     class (e.g. big compounds 6-10, isolation 10-15, calves/abs 12-20; our
+     numbers, not a product's), replacing the flat `JBB_HYP.accReps = 12`.
+     Display the range on the set row (the pending "target rep range" polish
+     ships inside this).
+  2. **Double progression.** Reps climb inside the range at target RIR
+     before weight climbs (the add-weight trigger reads the logged records
+     the anchor-e1RM path already trusts). Per-meso range variation follows.
+  3. **e1RM-priced anchors.** A bodybuilding day may LEAD with a DB or
+     machine compound at correct e1RM-derived loads (`anchorE1RM` is the
+     pricing primitive), demoting the barbell to a swap. The week-4 AMRAP
+     stays only where a barbell working-max anchor remains (it calibrates
+     the WM); an e1RM-anchored day peaks on a rep-PR top set instead.
+- **Why:** the bodybuilder's two loudest complaints, and the gap to RP /
+  Alpha Progression. His verdict: "fix reps and anchors and I would drop my
+  RP subscription."
+- **Autoreg contract:** volume autoreg (Cluster E) keeps SETS as its axis;
+  double progression owns REPS. Keeping the axes separate is what keeps the
+  loop convergent.
+- **Dependencies:** Cluster A logging (shipped). Bodybuilding-track-only, so
+  the default golden master holds; heavy engine unit tests plus a
+  cluster-integration extension.
+
+### Epic H5 - Split editing + mid-macro re-spec (priority 5, after H4)
+
+- **What:** treat the generated split as editable, not disposable:
+  - a split editor: rename days, move a muscle's slot between days, insert
+    or remove a day, validated live against `SPLIT_FREQ` frequencies and the
+    per-session landmark caps (the volume tooling already computes both);
+  - **mid-macro focus re-spec:** re-run `generateBodybuildingDays` from
+    edited sliders at a block boundary (where the accessory rotation already
+    rebuilds days), preserving `wm`, landmarks, and `volAdj`. Today the
+    sliders are frozen for the whole macro and the only escape is a new
+    program.
+- **Why:** RP re-specs per mesocycle and Alpha/Boostcamp have real split
+  editors; the bodybuilder called this the third thing keeping his RP
+  subscription alive.
+- **Scalability:** the editor edits the same `days[].slots[]` shape the
+  generator emits; no parallel format, so `resolveSlot` and the tests never
+  learn a second representation.
+
+### Epic H6 - Meet prep: the powerlifting final state (priority 6; needs per-block weeks)
+
+- **Absorbs:** the open half of Epic G2 (variable PER-BLOCK week count) as
+  its enabling slice; a real taper cannot exist while every block is 5
+  weeks.
+- **What:**
+  - a **meet date** input on strength-ending tracks replacing the derived
+    test date, with backward planning (`blocksForWeeks` from the date, taper
+    placed last);
+  - a genuine 1-2 week **taper/peak block** with its own scheme (e.g.
+    `jm2-peak` via `registerScheme`, keeping scheme isolation) instead of a
+    relabeled 3s wave;
+  - **attempt selection:** opener / second / third suggestions from the
+    AMRAP-driven e1RM data the app already collects, with our own
+    percentages and copy (attempt heuristics are public coaching practice);
+  - a meet-day screen: attempts, warmup timing, rest between attempts.
+- **Why:** "the app counts down to a test date it never programs" was the
+  powerlifter's sharpest line; JuggernautAI and KeyLifts both hand him
+  openers from less data than IRONWAVE stores.
+- **Cross-links:** pairs with sport-aware scheduling (named/dated days)
+  without depending on it; the 2-day templates item remains its own branch.
+
+### Epic H7 - Custom programming platform (gated capstone; needs G4 + H6's per-block weeks)
+
+- **What:** author, import, and export program templates: a versioned JSON
+  format describing blocks (scheme / wave / weeks / phase) and day/slot
+  layouts, plus a builder UI extending the shipped block editor down to the
+  day-template level. Sharing a program becomes sharing a file, which is the
+  long-term community play.
+- **Boundary (what keeps it safe and testable):** templates CONFIGURE
+  existing registered schemes; user-defined set MATH stays out. A new
+  methodology is still a code-level `registerScheme`, so the engine stays
+  unit-testable and schemes never mix. Imports validate against the schema
+  version and the registered scheme ids, and reject the rest.
+- **Why:** "one methodology, take it or leave it" is the last reason a
+  veteran leaves (Boostcamp's entire moat). Gated last because H4/H6 define
+  the scheme surface a template can reference.
+- **Tests:** template round-trip (export -> import -> identical program),
+  schema-version migration, and the default path never touching a custom
+  template (golden master untouched).
+
+### Epic H8 - Exercise media (independent; content project more than code)
+
+- **What:** a per-exercise visual (license-clean line art or short loops,
+  our own or licensed assets, never scraped), keyed by exercise id in a
+  small manifest; lazy-loaded into a separate size-capped cache (never the
+  sw.js SHELL); the emoji placeholder stays the fallback so the library
+  works media-less; custom exercises can attach their own image.
+- **Why:** the emoji placeholder undermines an otherwise pro-grade library
+  (720 bilingual cue sentences); every competitor ships demos, and text
+  cues alone do not serve the less-experienced training partner.
+- **Runs in parallel** with any other epic as assets become available.
+
+### Folded into existing clusters (not new epics)
+
+- **Nutrition-lite (-> Cluster F):** a target rate-of-change per phase and
+  an alert when the bodyweight trend disagrees with the phase (extends the
+  shipped sparkline; still explicitly NOT a macro tracker).
+- **Per-exercise rest override (-> Polish list):** an optional per-exercise
+  rest seconds, stored additively like `loadingProfiles` and read by
+  `restSecFor`.
+- **Pump history:** ships inside H3's analytics rather than as its own item.
+
+### Dependency map + suggested order
+
+```
+H1 (units/display)   -- foundation; ship first, everything renders through it
+H2 (onboarding/check-in) -- independent polish; small early branches
+H3 (analytics/report)    -- needs only shipped Cluster A data; land early so
+                            landmark snapshots start accruing
+H4 (rep ranges + e1RM anchors) -- absorbs 2 pending items; feeds H5, sharpens E
+H5 (split editing/re-spec)     -- needs the generator; better after H4
+H6 (meet prep)   -- absorbs G2's per-block weeks; strength counterpart to H4
+H7 (custom templates) -- capstone; needs G4 (shipped) + H6's per-block weeks
+H8 (media)       -- independent, content-driven, parallel to anything
+```
+
+Suggested order: H1 -> H2 -> H3 -> H4, then H5 (physique track) and H6
+(strength track) as parallel efforts, then H7; H8 runs alongside whenever
+assets exist. One epic per branch group, one slice per branch, as usual.
 
 ## Internationalization (i18n) plan (owner request, 2026-07-08)
 
@@ -707,6 +956,10 @@ glance. None change prescription math, so they are golden-master-irrelevant.
 
 - **Per-day time caps** (one global cap vs a longer cap for a naturally longer
   day such as legs).
+- **Per-exercise rest override** (from the 2026-07 athlete feedback): an
+  optional rest-seconds field per exercise, stored additively like
+  `loadingProfiles` and read by `Engine.restSecFor`, so one lift can rest
+  longer than its kind's default without touching the global time model.
 - ~~**Budget-aware swap/select list:** the Add button shows remaining time and
   per-add cost; the per-candidate cost is not yet shown inside the swap list.~~
   DONE: the swap and add pickers now show each candidate's approximate time cost
