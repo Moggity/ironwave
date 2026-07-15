@@ -474,6 +474,45 @@ const Engine = {
     return out.reverse();
   },
 
+  // ---------- [Epic H4] rep ranges + double progression ----------
+  // The rep range an exercise trains in: its movement's band, shifted up 2 for
+  // a high-SFR (3) pick since those tolerate reps cheaply. Pure table read.
+  repRangeFor(movement, sfr) {
+    const [lo, hi] = REP_RANGES[movement] || REP_RANGES.default;
+    return sfr >= 3 ? [lo + 2, hi + 2] : [lo, hi];
+  },
+  // Per-meso variation: odd mesos shift the band up 2 so back-to-back blocks
+  // do not repeat the same rep stimulus.
+  mesoRepRange(range, mesoIdx) {
+    return (mesoIdx || 0) % 2 === 1 ? [range[0] + 2, range[1] + 2] : range;
+  },
+  // The effort a prescribed set actually implies against its anchor (inverse
+  // Epley), as a displayable RPE on the half-point grid, clamped to 6..10.
+  // Double-progression sets show THIS instead of the weekly ramp: the ramp
+  // decides when to add weight, but the row must not claim 1 RIR on a set that
+  // sits 3 reps from failure (the prescription-sanity audit's contract).
+  impliedRpe(e1, weight, reps) {
+    const rir = 30 * (e1 / weight - 1) - reps;
+    return Math.max(6, Math.min(10, Math.round((10 - rir) * 2) / 2));
+  },
+  // Double progression: reps climb inside [lo, hi] at the target effort BEFORE
+  // weight climbs. Reads the athlete's logged records (the same source the
+  // e1RM anchor trusts): the top set of the most recent logged day decides.
+  // Returns null with no history (the calibration ramp owns a fresh lift).
+  // - range top reached at or under the target effort -> add weight, restart at lo
+  // - range top reached but over target effort -> hold weight at the top
+  // - otherwise -> same weight, one more rep (clamped inside the band)
+  doubleProgression(records, lo, hi, targetRpe, inc) {
+    const days = this._recordsByDay((records || []).filter(r => !r.seed), 3650);
+    if (!days.length) return null;
+    const last = days[days.length - 1].recs.reduce((a, b) => (b.weight > a.weight ? b : a));
+    if (last.reps >= hi) {
+      if ((last.rpe ?? 10) <= targetRpe) return { weight: last.weight + (inc || 2.5), reps: lo, moved: 'weight' };
+      return { weight: last.weight, reps: hi, moved: 'hold' };
+    }
+    return { weight: last.weight, reps: Math.min(hi, Math.max(lo, last.reps + 1)), moved: 'reps' };
+  },
+
   // ---------- [Epic H3] longitudinal series (pure, derived from logs) ----------
   // Actual logged working sets per muscle per program week, from finished
   // sessions. attributionOf maps an exercise id to [{mv, f}] fractions (the app
@@ -621,23 +660,72 @@ Engine.schemes = {
       const wt = Engine.weightFor(wmE / 0.9, JBB_HYP.secReps, Math.min(rpe, 9), rounding);
       return Array.from({ length: JBB_HYP.secSets[m][idx] }, () => ({ weight: wt, reps: JBB_HYP.secReps, rpe }));
     },
-    accessory(block, w, records, rounding, experience) {
-      const e1 = Engine.anchorE1RM(records, JBB_HYP.accReps);
-      if (!e1) return Engine.prescribeAccessory(block.type, w, records, rounding, experience); // calibration ramp
+    // [Epic H4] `range` ([lo, hi], optional) switches the flat 12s to a real
+    // rep range with double progression: reps climb inside the band at the
+    // week's effort target before weight climbs, read from the logged records.
+    // Sets stay the meso table's (+ the autoreg layer): volume autoreg owns
+    // SETS, double progression owns REPS, which keeps both loops convergent.
+    // Absent (the default/powerbuilding path), every branch is byte-identical.
+    accessory(block, w, records, rounding, experience, range) {
+      const baseReps = range ? range[0] : JBB_HYP.accReps;
+      const e1 = Engine.anchorE1RM(records, baseReps);
+      if (!e1) {
+        return range ? Engine.calibrationRamp(range[1], experience)
+                     : Engine.prescribeAccessory(block.type, w, records, rounding, experience); // calibration ramp
+      }
       const t = Engine.weekType(w);
+      const tag = range ? { repRange: range } : null;
       if (t === 'deload') {
-        const wt = Engine.weightFor(e1, JBB_HYP.accReps, JBB_HYP.deload.accRpe, rounding);
+        const wt = Engine.weightFor(e1, baseReps, JBB_HYP.deload.accRpe, rounding);
         return Array.from({ length: JBB_HYP.deload.accSets },
-          () => ({ weight: wt, reps: JBB_HYP.accReps, rpe: JBB_HYP.deload.accRpe, noteKey: 'deload_half' }));
+          () => Object.assign({ weight: wt, reps: baseReps, rpe: JBB_HYP.deload.accRpe, noteKey: 'deload_half' }, tag));
       }
       const m = this._meso(block);
       const idx = Math.min(w, 3);
-      const rpe = JBB_HYP.accRpe[idx];
-      const wt = Engine.weightFor(e1, JBB_HYP.accReps, Math.min(rpe, 9), rounding);
+      let rpe = JBB_HYP.accRpe[idx];
+      let wt = Engine.weightFor(e1, baseReps, Math.min(rpe, 9), rounding);
+      let reps = baseReps;
+      if (range) {
+        // The weekly ramp is the PROGRESSION threshold (when the range top may
+        // convert to a weight jump); the displayed effort is derived from what
+        // the set actually implies, so the row never overstates proximity to
+        // failure early in a rep climb.
+        const dp = Engine.doubleProgression(records, range[0], range[1], rpe, rounding);
+        if (dp) {
+          wt = dp.weight; reps = dp.reps;
+          rpe = Engine.impliedRpe(Engine.anchorE1RM(records, reps) || e1, wt, reps);
+        }
+      }
       const last = m === JBB_HYP.accSets.length - 1 && idx === 3;
-      return Array.from({ length: JBB_HYP.accSets[m][idx] }, (_, i) => ({
-        weight: wt, reps: JBB_HYP.accReps, rpe,
-        noteKey: i === 0 ? (last ? 'hardest_week' : idx === 3 ? 'peak_week' : null) : null }));
+      return Array.from({ length: JBB_HYP.accSets[m][idx] }, (_, i) => Object.assign({
+        weight: wt, reps, rpe,
+        noteKey: i === 0 ? (last ? 'hardest_week' : idx === 3 ? 'peak_week' : null) : null }, tag));
+    },
+    // [Epic H4] E1RM-priced anchor: a bodybuilding day led by a swapped-in
+    // (DB/machine) compound prices the wave off that lift's OWN e1RM instead
+    // of the barbell working max, whose percentages mean nothing on another
+    // implement. Same set counts and rep standard as the WM path, ascending
+    // effort via the weekly RPE ramp; week 4 peaks on a rep-PR top set (the
+    // WM-calibrating AMRAP only exists where a barbell working max anchors).
+    mainE1RM(block, w, records, rounding, experience) {
+      const W = WAVES[block.wave];
+      const e1 = Engine.anchorE1RM(records, W.standard);
+      if (!e1) return Engine.calibrationRamp(W.standard, experience);
+      const t = Engine.weekType(w);
+      if (t === 'deload') {
+        const wt = Engine.weightFor(e1, W.standard, 6, rounding);
+        return Array.from({ length: 3 }, () => ({ weight: wt, reps: W.standard, rpe: 6, noteKey: 'deload_main' }));
+      }
+      const m = this._meso(block);
+      const idx = Math.min(w, 3);
+      const rpe = JBB_HYP.rpe[idx];
+      const wt = Engine.weightFor(e1, W.standard, Math.min(rpe, 9), rounding);
+      const sets = Array.from({ length: JBB_HYP.mainSets[m][idx] }, () => ({ weight: wt, reps: W.standard, rpe }));
+      if (idx === 3) {
+        sets.push({ weight: wt, reps: W.standard, rpe: 10, repPR: true,
+          noteKey: 'rep_pr', noteParams: { reps: W.standard } });
+      }
+      return sets;
     },
     weekVolume(block, w) {
       const W = WAVES[block.wave];

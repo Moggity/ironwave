@@ -634,34 +634,20 @@ tab (+ 🏁 from History): sessions/tonnage, start-to-finish e1RMs, AMRAP
 history, MRV movement. Pure seeded Engine helpers, read-only, golden master
 untouched. Landed before H4/H6 so snapshots accrue from now.
 
-### Epic H4 - Hypertrophy prescription depth (priority 4; absorbs two pending items)
+### ~~Epic H4 - Hypertrophy prescription depth~~ DONE (2026-07-15)
 
-- **Absorbs:** "Double progression + explicit rep ranges + per-meso rep-range
-  variation" (supporting features) and "e1RM-driven hypertrophy anchors"
-  (larger features).
-- **What, in slices:**
-  1. **Per-exercise rep RANGES.** Our own table keyed by movement + SFR
-     class (e.g. big compounds 6-10, isolation 10-15, calves/abs 12-20; our
-     numbers, not a product's), replacing the flat `JBB_HYP.accReps = 12`.
-     Display the range on the set row (the pending "target rep range" polish
-     ships inside this).
-  2. **Double progression.** Reps climb inside the range at target RIR
-     before weight climbs (the add-weight trigger reads the logged records
-     the anchor-e1RM path already trusts). Per-meso range variation follows.
-  3. **e1RM-priced anchors.** A bodybuilding day may LEAD with a DB or
-     machine compound at correct e1RM-derived loads (`anchorE1RM` is the
-     pricing primitive), demoting the barbell to a swap. The week-4 AMRAP
-     stays only where a barbell working-max anchor remains (it calibrates
-     the WM); an e1RM-anchored day peaks on a rep-PR top set instead.
-- **Why:** the bodybuilder's two loudest complaints, and the gap to RP /
-  Alpha Progression. His verdict: "fix reps and anchors and I would drop my
-  RP subscription."
-- **Autoreg contract:** volume autoreg (Cluster E) keeps SETS as its axis;
-  double progression owns REPS. Keeping the axes separate is what keeps the
-  loop convergent.
-- **Dependencies:** Cluster A logging (shipped). Bodybuilding-track-only, so
-  the default golden master holds; heavy engine unit tests plus a
-  cluster-integration extension.
+All three slices shipped (see CHANGELOG), bodybuilding-only via optional
+scheme inputs (the `experience` threading pattern), golden master untouched:
+`REP_RANGES` by movement + SFR (+2 per odd meso), band shown on the set row;
+`Engine.doubleProgression` (reps climb in-band at the week's effort target
+before weight climbs, from logged records) with DERIVED displayed effort
+(`impliedRpe`, found by the prescription-sanity audit: the fixed ramp would
+overstate a fresh weight jump); and `jbb-hyp.mainE1RM` (a swapped DB/machine
+lead prices off its own e1RM, peaks on a rep-PR "× N+" top set; the AMRAP
+survives only on the barbell WM anchor). Autoreg contract kept: sets =
+autoreg, reps = double progression. NOT taken: flipping the generator's
+default anchors to non-barbell (the swap now prices correctly, which is the
+"may lead" contract; a default flip is an owner product call).
 
 ### Epic H5 - Split editing + mid-macro re-spec (priority 5, after H4)
 

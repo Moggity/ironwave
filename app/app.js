@@ -679,6 +679,8 @@ function spaceSameMuscle(days) {
   return days;
 }
 function P() { return S.program; }
+// The one gate most non-default behavior hangs off: is this a bodybuilding program?
+function bbTrack() { const tc = P() && P().trainingConfig; return !!(tc && tc.track === 'bodybuilding'); }
 function dayKey(b, w, d) { return `${b}-${w}-${d}`; }
 function blockOf(i) { return P().blocks[i]; }
 function curBlock() { return blockOf(P().pointer.block); }
@@ -802,6 +804,15 @@ function resolveSlot(slot, blockIdx, wIdx) {
     const rm = bbLiftRemoval(exId);
     if (rm) return { exId, name: exName(exId), sets: [], isMain: true, wmKey, isRemoved: true, removedReason: rm };
     const r = loadingFor(exId).totalInc;      // Change 1: round the total to this implement's increment
+    // [Epic H4] Bodybuilding: a swapped-in lead (DB/machine compound) prices
+    // off its OWN e1RM and peaks on a rep-PR top set; the barbell WM wave (and
+    // its calibrating AMRAP) applies only while the barbell anchors the day.
+    // Other tracks and un-swapped mains take the WM path, byte-identical.
+    if (exId !== wmKey && bbTrack() && sch.mainE1RM) {
+      let sets = sch.mainE1RM(block, eIdx, recordsFor(exId), r, S.profile.experience);
+      if (mod) sets = applySetDelta(sets, mod.mainSetDelta || 0);
+      return { exId, name: exName(exId), sets, isMain: true, wmKey, e1Anchor: true };
+    }
     let sets = sch.main(block, eIdx, P().wm[wmKey], r, modPct, S.profile.experience);
     if (mod) sets = applySetDelta(sets, mod.mainSetDelta || 0);
     return { exId, name: exName(exId), sets, isMain: true, wmKey };
@@ -836,7 +847,16 @@ function resolveSlot(slot, blockIdx, wIdx) {
     return { exId: null, name: null, isSelect: true, cat: slot.cat, sets: [] };
   }
   const r = loadingFor(exId).totalInc;
-  let sets = sch.accessory(block, eIdx, recordsFor(exId), r, S.profile.experience);
+  // [Epic H4] Bodybuilding accessories train a real rep range (movement + SFR
+  // band, shifted per meso) with double progression inside it. Passed into the
+  // scheme as an optional input, so the default/powerbuilding path (no range)
+  // stays byte-identical - the golden-master contract.
+  let range = null;
+  if (bbTrack()) {
+    const ex = exById(exId);
+    if (ex) range = Engine.mesoRepRange(Engine.repRangeFor(ex.movement, ex.sfr), block.mesoIdx || 0);
+  }
+  let sets = sch.accessory(block, eIdx, recordsFor(exId), r, S.profile.experience, range);
   const dld = deloadDepthDelta(blockIdx, eIdx); // [Cluster D] autoregulated deload depth (sets)
   if (dld) sets = applySetDelta(sets, dld);
   const rpd = deloadIntensityDelta(blockIdx, eIdx); // [Cluster D] deeper deload also eases effort
@@ -3293,13 +3313,15 @@ function sessionEntryFrom(x) {
     supersetIndex: x.rs.supersetIndex != null ? x.rs.supersetIndex : null,
     supersetSize: x.rs.supersetSize || null, supersetNames: x.rs.supersetNames || null,
     notes: '', notesOpen: false,
-    sets: x.rs.sets.map(t => ({
+    sets: x.rs.sets.map(t => (Object.assign({
       targetWeight: t.weight ?? null, targetReps: t.reps, targetRpe: t.rpe ?? null,
       amrap: !!t.amrap, ramp: !!t.ramp, calib: !!t.calib, note: t.note || null,
       noteKey: t.noteKey || null, noteParams: t.noteParams || null,
       technique: t.technique || null, dropTargets: t.drops || null,
       weight: null, reps: null, rpe: null, drops: null, done: false,
-    })),
+    }, // [Epic H4] optional fields, written only when the range/e1RM path set them
+    t.repRange ? { repRange: t.repRange } : null,
+    t.repPR ? { repPR: true } : null))),
   };
 }
 // A corrected max (1RM/10RM seed, working max, or a deleted record) should move
@@ -3355,11 +3377,17 @@ function setTargetLabel(st, exId) {
   const tech = st.technique === 'partials' ? '' : techniqueBadge(st.technique) +
     (st.dropTargets ? ` <small class="faint">${esc(t('set.then', { detail: dropDetail(exId, st.dropTargets) }))}</small>` : '');
   if (st.amrap) return `${fmtW(exId, st.targetWeight)} × AMRAP <small>${esc(t('set.amrap_standard', { reps: st.targetReps }))}</small>${tech}`;
+  // [Epic H4] Rep-PR top set: the e1RM-anchored day's peak. The + says it all;
+  // the row note (note.rep_pr) carries the one-liner.
+  if (st.repPR) return `${fmtW(exId, st.targetWeight)} × ${st.targetReps}+${tech}`;
   // Calibration rows stay bare; the card carries the one-line explainer.
   if (st.calib) return `${esc(t('set.reps_at_rir', { reps: st.targetReps, rir: fmtRir(st.targetRpe) }))}${tech}`;
+  // [Epic H4] A ranged set shows today's double-progression target with its
+  // band right on the row: "40kg × 9 (8-12)".
+  const rng = st.repRange ? ` <small class="faint">(${st.repRange[0]}-${st.repRange[1]})</small>` : '';
   // The per-set RIR cap moved up to the card's scheme line (owner feedback:
   // repeating it on every row is noise); rows show weight × reps only.
-  if (st.targetWeight != null) return `${fmtW(exId, st.targetWeight)} × ${st.targetReps}${tech}`;
+  if (st.targetWeight != null) return `${fmtW(exId, st.targetWeight)} × ${st.targetReps}${rng}${tech}`;
   return `${esc(t('set.reps_at_rir', { reps: st.targetReps, rir: fmtRir(st.targetRpe) }))}${tech}`;
 }
 

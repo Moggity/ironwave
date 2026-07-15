@@ -853,6 +853,7 @@ const I18N_EN = {
   'note.intro_tank': 'Leave 2–3 reps in the tank',
   'note.acc_last': 'Last set: 2–3 reps shy of failure',
   'note.int_last': 'Last set: 1–2 reps shy of failure',
+  'note.rep_pr': 'Rep PR set, beat your last time.',
   'note.amrap': 'AMRAP. Standard is {standard}, and every rep over moves your working max up.',
   'note.deload_main': 'Deload, move well and recover',
   'note.deload': 'Deload',

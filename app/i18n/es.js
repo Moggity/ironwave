@@ -856,6 +856,7 @@ const I18N_ES = {
   'note.intro_tank': 'Deja 2–3 reps en reserva',
   'note.acc_last': 'Última serie: quédate a 2–3 reps del fallo',
   'note.int_last': 'Última serie: quédate a 1–2 reps del fallo',
+  'note.rep_pr': 'Serie de récord, supera tus reps de la última vez.',
   'note.amrap': 'AMRAP. El estándar es {standard}, y cada rep de más sube tu máximo de trabajo.',
   'note.deload_main': 'Descarga: muévete bien y recupera',
   'note.deload': 'Descarga',

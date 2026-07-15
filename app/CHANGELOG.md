@@ -1,5 +1,42 @@
 # IRONWAVE — Changelog
 
+## [Epic H4: hypertrophy prescription depth] (2026-07-15)
+
+The bodybuilder persona's two loudest complaints. All bodybuilding-track
+only: the range/anchor inputs are threaded into the scheme as OPTIONAL
+parameters (the `experience` pattern), so the default/powerbuilding path is
+byte-identical and the golden master holds.
+
+- **Per-exercise rep ranges** (`REP_RANGES`, our own numbers): movement
+  band (compound patterns 6-10, most direct work 8-12, arms/delts 10-15,
+  calves/abs 12-20), +2 for a high-SFR pick (`Engine.repRangeFor`), +2 on
+  odd mesos so back-to-back blocks vary the stimulus (`mesoRepRange`).
+  The band shows right on the set row: "40kg × 10 (8-12)". A fresh ranged
+  lift calibrates descending from its band top.
+- **Double progression** (`Engine.doubleProgression`): reps climb inside
+  the band at the week's effort target BEFORE weight climbs, read from the
+  logged records (top set of the most recent day): band top at/under
+  target -> add weight, restart at the floor; band top over target ->
+  hold; else same weight, one more rep. Displayed effort is DERIVED
+  (`Engine.impliedRpe`, inverse Epley vs the anchor) so a fresh weight
+  jump never claims 1 RIR - the weekly ramp only decides when the jump is
+  allowed. Autoreg contract kept: volume autoreg owns SETS (the meso table
+  + volAdj), double progression owns REPS.
+- **e1RM-priced anchors** (`jbb-hyp.mainE1RM`): a bodybuilding day whose
+  lead is swapped to a DB/machine compound now prices the wave off that
+  lift's OWN `anchorE1RM` (the barbell WM percentages mean nothing on
+  another implement) and peaks on a rep-PR top set ("× 10+") instead of
+  the WM-calibrating AMRAP, which only exists while the barbell anchors
+  the day. Strength tracks and un-swapped leads are untouched.
+- Found by the prescription-sanity audit mid-build: the fixed weekly RPE
+  ramp would overstate effort on double-progression sets (a +weight
+  restart at the band floor sits ~3 RIR, not 1); the derived-effort rule
+  above is the fix and is pinned by a test.
+- Tests: `test/h4.test.js` (16 cases: ranges, meso shift, all DP branches,
+  derived effort, byte-identical no-range contract, resolveSlot bb vs pb,
+  the autoreg axes, e1RM anchor + rep-PR + barbell AMRAP retention,
+  strength-track immunity). Golden master untouched; suite 347/347.
+
 ## [Epic H3: progress analytics + macro report] (2026-07-15)
 
 The longitudinal story both simulated veterans asked for: charts, not
