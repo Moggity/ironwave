@@ -192,4 +192,46 @@ test('onboarding renders for a brand-new user (no program)', () => {
   const html = ctx.document.getElementById('app').innerHTML;
   assert.ok(html && html.length > 0, 'onboarding rendered empty');
 });
+
+// [Epic H1] The whole app renders in lb + RPE display mode. Conversion is
+// display/input-only, so every view must survive it with lb equipment defaults.
+test('lb + RPE display: every navigation view and a live session render', () => {
+  const ctx = fresh();
+  const s = ctx.app.defaultState();
+  ctx.app.S = s;
+  ctx.app.V = Object.assign({}, ctx.baseV);
+  // Seed maxes so the wave prescribes real weights (an uncalibrated program
+  // shows none, and this test is about weights rendering in lb).
+  s.program = ctx.app.makeProgram({
+    daysPerWeek: 4, track: 'powerbuilding', timeMode: 'unlimited',
+    muscleFocus: { ...DEFAULT_FOCUS },
+    maxes: { 'comp-squat': 140, 'comp-bench': 100, 'comp-deadlift': 180, 'comp-press': 60 },
+  });
+  ctx.app.setUnits('lb');
+  ctx.app.setIntensityDisplay('rpe');
+  for (const view of NAV_VIEWS) renderView(ctx, view);
+  const settings = renderView(ctx, 'settings');
+  assert.ok(/value="lb" selected/.test(settings), 'settings shows lb selected');
+  ctx.app.startCheckin(0);
+  ctx.app.beginSession();
+  const html = ctx.document.getElementById('app').innerHTML;
+  assert.ok(/lb/.test(html), 'the session view shows lb weights');
+  assert.ok(!/\d ?kg/.test(html), 'no kg weight leaks into the lb session view');
+  // The perf modal prices its weight input and plate math in lb + RPE too.
+  const ei = ctx.app.V.draft.entries.findIndex(e => e.sets.some(st => st.targetWeight));
+  assert.ok(ei >= 0, 'expected a weighted entry');
+  ctx.app.openPerf(ei, ctx.app.V.draft.entries[ei].sets.findIndex(st => st.targetWeight));
+  const modal = ctx.document.getElementById('modal-root').innerHTML;
+  assert.ok(/lb/.test(modal), 'perf modal shows lb');
+  assert.ok(/RPE/.test(modal), 'perf modal shows the RPE stepper');
+});
+
+test('lb mode: onboarding step 0 shows the unit toggle and lb bodyweight label', () => {
+  const ctx = fresh();
+  ctx.app.S = ctx.app.defaultState();
+  ctx.app.applyUnits('lb');
+  const html = renderView(ctx, 'onboarding', { ob: ctx.app.obDefaults(), obStep: 0 });
+  assert.ok(/obUnits\('kg'\)/.test(html) && /obUnits\('lb'\)/.test(html), 'unit toggle rendered');
+  assert.ok(/\(lb\)/.test(html), 'bodyweight label reads lb');
+});
 }

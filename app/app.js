@@ -29,6 +29,8 @@ function defaultState() {
                trainingAge: { startedTs: null, blocksCompleted: 0 },
                phase: 'lean-gain', // [Cluster F] current training phase
                lang: 'en',         // [i18n] app language, English by default (owner call)
+               units: 'kg',        // [Epic H1] display units; storage is always kg
+               intensityDisplay: 'rir', // [Epic H1] effort display; storage stays RPE
                landmarks: {} },
     program: null,
     bodyweight: [],   // [Cluster F] [{ts, kg}] light trend, no macro tracking
@@ -120,6 +122,8 @@ function migrateState(s) {
   if (!s.flags) s.flags = {};           // one-time UI flags, additive
   if (!p.phase) p.phase = 'lean-gain';  // [Cluster F] training phase
   if (!p.lang) p.lang = 'en';           // [i18n] app language, English by default
+  if (!p.units) p.units = 'kg';         // [Epic H1] display units (storage stays kg)
+  if (!p.intensityDisplay) p.intensityDisplay = 'rir'; // [Epic H1] effort display
   if (p.restNotify == null) p.restNotify = false; // rest-done notification opt-in
   if (!Array.isArray(s.bodyweight)) s.bodyweight = []; // [Cluster F] bodyweight trend
   if (s.program && !s.program.volAdj) s.program.volAdj = {}; // [Cluster E] per-muscle autoreg
@@ -166,9 +170,35 @@ const byId = id => document.getElementById(id);
 const fmtDate = ts => new Date(ts).toLocaleDateString(I18N.dateLocale(), { weekday:'short', month:'short', day:'numeric' });
 const fmtDateLong = ts => new Date(ts).toLocaleDateString(I18N.dateLocale(), { weekday:'long', month:'long', day:'numeric', year:'numeric' });
 const kg = w => (w % 1 === 0 ? w : w.toFixed(1));
+// [Epic H1] Unit display. kg stays the only stored unit; pounds are a
+// render/input skin. Every weight render goes out through toDispW/dispW/fmtWU
+// and every weight input comes back through fromDispW, so the engine, records
+// and the golden master never see lb.
+const isLb = () => S && S.profile && S.profile.units === 'lb';
+const toDispW = v => (v == null ? null : (isLb() ? Engine.kgToLb(v) : v));
+const fromDispW = v => (v == null || isNaN(v) ? null : (isLb() ? Engine.lbToKg(v) : v));
+const wUnit = () => t(isLb() ? 'unit.lb' : 'unit.kg');
+// Display-unit number formatting: a value sitting on the quarter grid keeps
+// both decimals (a 1.25 plate face must not read 1.3); anything else rounds to
+// one decimal, which also snaps float dust (45.000000000004 reads 45).
+const fmtNumW = v => {
+  const q = Math.round(v * 4) / 4;
+  if (Math.abs(v - q) < 5e-3) return q % 1 === 0 ? q : parseFloat(q.toFixed(2));
+  return parseFloat(v.toFixed(1));
+};
+// Stored-kg weight -> display-unit number string / "number unit" string.
+const dispW = v => (v == null ? '' : fmtNumW(toDispW(v)));
+const fmtWU = v => `${dispW(v)} ${wUnit()}`;
+// Tonnage in display units, rounded to whole units (a lb total is not a load
+// someone sets on a bar, so decimals are noise).
+const fmtTonnage = v => `${Math.round(toDispW(v || 0)).toLocaleString(I18N.dateLocale())} ${wUnit()}`;
 // [Cluster A] RIR-first display. The athlete sees reps-in-reserve everywhere;
 // the stored intensity stays RPE (rir = 10 - rpe), so the engine is untouched.
-const fmtRir = rpe => (rpe == null ? '–' : t('unit.rir', { n: kg(Engine.rpeToRir(rpe)) }));
+// [Epic H1] RPE-native athletes can flip the display; storage stays RPE.
+const isRpe = () => S && S.profile && S.profile.intensityDisplay === 'rpe';
+const fmtRir = rpe => (rpe == null ? '–'
+  : isRpe() ? t('unit.rpe', { n: kg(rpe) })
+  : t('unit.rir', { n: kg(Engine.rpeToRir(rpe)) }));
 // One icon per pump level so a glance at history tells the level apart.
 const PUMP_ICONS = { 1: '👍', 2: '💪', 3: '🔥' };
 // Translated effort description for an RPE value; unknown values render empty.
@@ -282,21 +312,34 @@ function loadingFor(exId) {
   return { mode, count, barWeight, totalInc, showPlates };
 }
 
-// Display a stored total in the exercise's own units. Stored numbers stay totals; only the shown number divides.
+// Display a stored total in the exercise's own units. Stored numbers stay kg
+// totals; only the shown number divides (two dumbbells) and converts (lb mode).
+// Returns { value: display-unit number, perHand: bool }.
 function displayWeight(exId, totalWeight) {
   const L = loadingFor(exId);
   if (L.mode === 'dumbbell' && L.count === 2) {
-    return { value: totalWeight == null ? null : totalWeight / 2, unit: 'kg per hand' };
+    return { value: totalWeight == null ? null : toDispW(totalWeight / 2), perHand: true };
   }
-  return { value: totalWeight, unit: 'kg' }; // single dumbbell: the number is the dumbbell itself
+  return { value: toDispW(totalWeight), perHand: false }; // single dumbbell: the number is the dumbbell itself
+}
+// Unit suffix matching a displayWeight result: kg / kg/hand / lb / lb/hand.
+function wUnitFor(d) {
+  return t(isLb() ? (d.perHand ? 'unit.lb_hand' : 'unit.lb')
+                  : (d.perHand ? 'unit.kg_hand' : 'unit.kg'));
 }
 
-// Compact weight string for set rows: "40kg" or "20kg/hand".
+// Compact weight string for set rows: "40kg" or "20kg/hand" (lb mode: "88lb").
 function fmtW(exId, totalWeight) {
   const d = displayWeight(exId, totalWeight);
   if (d.value == null) return '';
-  return d.unit === 'kg per hand' ? `${kg(d.value)}${t('unit.kg_hand')}` : `${kg(d.value)}${t('unit.kg')}`;
+  return `${fmtNumW(d.value)}${wUnitFor(d)}`;
 }
+
+// Plate visual colors resolve by the plate's face value in the athlete's
+// display unit (a 45 stored as 20.41 kg keys the lb map as '45').
+const plateFace = w => String(Math.round(toDispW(w) * 100) / 100);
+const plateColorFor = w => (isLb() ? PLATE_COLORS_LB : PLATE_COLORS)[plateFace(w)] || '#6b7280';
+const plateTextFor = w => (isLb() ? PLATE_TEXT_LB : PLATE_TEXT)[plateFace(w)] || '#fff';
 
 function toast(msg, warn) {
   const root = document.getElementById('toast-root');
@@ -1608,10 +1651,15 @@ function vOnboarding() {
           ${Object.values(I18N.catalogs).map(c =>
             `<option value="${c.code}" ${I18N.lang === c.code ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
         </select></div>
+      <div class="field"><label>${esc(t('ob.units'))}</label>
+        <div class="seg">
+          <button class="${!isLb() ? 'on' : ''}" onclick="obUnits('kg')">${esc(t('unit.kg'))}</button>
+          <button class="${isLb() ? 'on' : ''}" onclick="obUnits('lb')">${esc(t('unit.lb'))}</button>
+        </div></div>
       <div class="field"><label>${esc(t('ob.your_name'))}</label>
         <input id="ob-name" value="${esc(ob.name)}" placeholder="${esc(t('ob.name_ph'))}"></div>
-      <div class="field"><label>${esc(t('ob.bodyweight'))}</label>
-        <input id="ob-bw" type="number" inputmode="decimal" value="${esc(ob.bodyweight)}" placeholder="100"></div>
+      <div class="field"><label>${esc(t('ob.bodyweight', { u: wUnit() }))}</label>
+        <input id="ob-bw" type="number" inputmode="decimal" value="${esc(ob.bodyweight)}" placeholder="${isLb() ? 220 : 100}"></div>
       <button class="btn btn-green mt16" onclick="obNext(0)">${esc(t('ob.continue'))}</button>`;
   } else if (step === 1) {
     body = `
@@ -1682,9 +1730,9 @@ function vOnboarding() {
       <div class="ob-title">${esc(t('ob.maxes_title'))}</div>
       <p class="subtle">${esc(t('ob.maxes_sub'))}</p>
       ${lifts.map(([id]) => `
-        <div class="field"><label>${esc(t('ob.rm_label', { name: exName(id) }))}</label>
+        <div class="field"><label>${esc(t('ob.rm_label', { name: exName(id), u: wUnit() }))}</label>
           <input id="ob-max-${id}" type="number" inputmode="decimal"
-            value="${ob.maxes[id] ?? ''}" placeholder="${esc(t('ob.calib_ph'))}"></div>`).join('')}
+            value="${ob.maxes[id] != null ? dispW(ob.maxes[id]) : ''}" placeholder="${esc(t('ob.calib_ph'))}"></div>`).join('')}
       <button class="btn btn-green mt16" onclick="obNext(6)">${esc(t('ob.create'))}</button>`;
   }
   return `${topbar()}<div class="view">${body}</div>`;
@@ -1700,6 +1748,19 @@ function obLang(v) {
   }
   S.profile.lang = v;
   I18N.setLang(v);
+  save(); render();
+}
+// [Epic H1] Explicit unit pick next to the language, same pattern: applies
+// immediately (equipment defaults follow via applyUnits) so every later step's
+// weights read in the athlete's unit. A number already typed keeps its digits
+// and now means the new unit; it is on screen right next to the toggle.
+function obUnits(u) {
+  if (V.ob) {
+    const n = byId('ob-name'), b = byId('ob-bw');
+    if (n) V.ob.name = n.value.trim();
+    if (b) V.ob.bodyweight = b.value;
+  }
+  applyUnits(u);
   save(); render();
 }
 function obDays(n) { V.ob.daysPerWeek = n; render(); }
@@ -1739,7 +1800,7 @@ function obNext(step) {
   // choice step without an explicit pick (owner call: no silent defaults).
   if (step === 0) {
     ob.name = document.getElementById('ob-name').value.trim();
-    ob.bodyweight = parseFloat(document.getElementById('ob-bw').value) || null;
+    ob.bodyweight = fromDispW(parseFloat(document.getElementById('ob-bw').value)) || null;
     V.obStep = 1;
   } else if (step === 1) {
     if (!ob.daysPerWeek) { toast(t('ob.pick_days'), true); return; }
@@ -1765,7 +1826,7 @@ function obNext(step) {
     try {
       for (const [id] of obMainLifts(ob.track)) {
         const el = document.getElementById('ob-max-' + id);
-        const v = el ? parseFloat(el.value) : NaN;
+        const v = el ? fromDispW(parseFloat(el.value)) : NaN;
         if (v > 0) ob.maxes[id] = v;
       }
       S.profile.name = ob.name;
@@ -1974,7 +2035,7 @@ function openWeekPreview(bi, wi) {
         if (uncalibrated) {
           right = `<span class="subtle calib-tag">${esc(t('calib.waiting'))} <button class="info-dot" onclick="event.stopPropagation();openCalibrationInfo()" aria-label="${esc(t('calib.what_aria'))}">ⓘ</button></span>`;
         } else {
-          const scheme = f ? `${(work.length || rs.sets.length)}×${f.reps}${f.weight != null ? ' @ ' + kg(f.weight) + 'kg' : (f.rpe ? ' @ ' + fmtRir(f.rpe) : '')}` : '';
+          const scheme = f ? `${(work.length || rs.sets.length)}×${f.reps}${f.weight != null ? ' @ ' + dispW(f.weight) + wUnit() : (f.rpe ? ' @ ' + fmtRir(f.rpe) : '')}` : '';
           right = `<span class="subtle">${scheme}</span>`;
         }
         return `<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)">
@@ -2451,7 +2512,7 @@ function bodyweightTrendHTML() {
   const bw = (S.bodyweight || []).filter(x => x.kg > 0).slice(-30);
   if (bw.length < 2) return `<p class="faint">${esc(t('phase.bw_empty'))}</p>`;
   const pts = bw.map(x => ({ ts: x.ts, value: x.kg }));
-  return trendChartHTML(pts, '#67a3ff', v => kg(v) + ' kg');
+  return trendChartHTML(pts, '#67a3ff', v => fmtWU(v));
 }
 function phaseScreenHTML() {
   const cur = currentPhase();
@@ -2462,8 +2523,8 @@ function phaseScreenHTML() {
   return `<div class="section-title" style="font-size:1.1rem">${esc(t('phase.section'))}</div>
     <div class="phase-opts">${phases}</div>
     <div class="section-title" style="font-size:1.1rem">${esc(t('phase.bw_section'))}</div>
-    <div class="field"><label>${esc(t('phase.bw_label'))}</label>
-      <input id="bw-input" type="number" inputmode="decimal" step="0.1" value="${last || ''}" placeholder="${esc(t('phase.bw_ph'))}"></div>
+    <div class="field"><label>${esc(t('phase.bw_label', { u: wUnit() }))}</label>
+      <input id="bw-input" type="number" inputmode="decimal" step="0.1" value="${last ? dispW(last) : ''}" placeholder="${esc(t('phase.bw_ph', { n: isLb() ? 180 : 82.5 }))}"></div>
     <button class="btn btn-blue mt8" onclick="logBodyweight()">${esc(t('phase.bw_btn'))}</button>
     <div class="mt16">${bodyweightTrendHTML()}</div>
     <p class="faint mt16">${esc(t('phase.bw_note'))}</p>`;
@@ -2477,7 +2538,7 @@ function setPhase(ph) {
   save(); toast(t('phase.set_toast', { phase: phaseLabel(ph) })); rerenderTop();
 }
 function logBodyweight() {
-  const v = parseFloat(byId('bw-input') && byId('bw-input').value);
+  const v = fromDispW(parseFloat(byId('bw-input') && byId('bw-input').value));
   if (!(v > 0)) { toast(t('phase.bw_enter'), true); return; }
   S.bodyweight = S.bodyweight || [];
   S.bodyweight.push({ ts: Date.now(), kg: v });
@@ -3804,8 +3865,8 @@ function plateVizHTML(weight, exId) {
     if (L.mode === 'dumbbell') {
       const kbell = (exById(exId) || {}).equipment === 'kb';
       const txt = L.count === 2
-        ? t('load.per_hand', { half: kg(weight / 2), total: kg(weight) })
-        : t(kbell ? 'load.kettlebell' : 'load.dumbbell', { w: kg(weight) });
+        ? t('load.per_hand', { half: dispW(weight / 2), total: dispW(weight), u: wUnit() })
+        : t(kbell ? 'load.kettlebell' : 'load.dumbbell', { w: dispW(weight), u: wUnit() });
       return { viz: `<span class="faint">${esc(txt)}</span>`, note: '' };
     }
     const label = (L.mode === 'machine' || L.mode === 'cable') ? t('load.machine') : t('load.added');
@@ -3814,11 +3875,11 @@ function plateVizHTML(weight, exId) {
   const bar = L.barWeight;
   const { plates, achieved } = Engine.plateMath(weight, bar, S.profile.plates);
   const viz = plates.length
-    ? plates.map(p => `<div class="plate" style="background:${p.color};color:${PLATE_TEXT[String(p.w)] || '#fff'};height:${36 + p.w * 2.2}px">${kg(p.w)}</div>`).join('')
+    ? plates.map(p => `<div class="plate" style="background:${plateColorFor(p.w)};color:${plateTextFor(p.w)};height:${36 + p.w * 2.2}px">${dispW(p.w)}</div>`).join('')
     : `<span class="faint">${esc(t('plates.bar_only'))}</span>`;
   const mismatch = Math.abs(achieved - weight) > 0.01;
-  const note = esc(t('plates.note', { bar: kg(bar), plates: kg(Math.max(0, achieved - bar)) })) +
-    (mismatch ? `<br><span style="color:var(--amber)">${esc(t('plates.closest', { w: kg(achieved) }))}</span>` : '');
+  const note = esc(t('plates.note', { bar: dispW(bar), plates: dispW(Math.max(0, achieved - bar)), u: wUnit() })) +
+    (mismatch ? `<br><span style="color:var(--amber)">${esc(t('plates.closest', { w: dispW(achieved), u: wUnit() }))}</span>` : '');
   return { viz, note };
 }
 function renderPerfModal(anim) {
@@ -3829,7 +3890,7 @@ function renderPerfModal(anim) {
   const exId = V.draft.entries[pm.ei].exId;
   const L = loadingFor(exId);
   const disp = displayWeight(exId, pm.weight);
-  const unitLabel = disp.unit === 'kg per hand' ? t('unit.kg_hand') : t('unit.kg');
+  const unitLabel = wUnitFor(disp);
   const { viz, note } = plateVizHTML(pm.weight, exId);
   // On a bodyweight/band lift the number is ADDED load, and athletes who miss
   // that type in their own bodyweight, which wrecks the e1RM. Say it in place.
@@ -3847,7 +3908,7 @@ function renderPerfModal(anim) {
           <div class="ctr">
             <button class="pm" onclick="pmW(-1)">−</button>
             <span class="val"><input id="pm-weight" type="number" inputmode="decimal"
-              value="${kg(disp.value)}" onchange="pmWSet(this.value)"><small>${unitLabel}</small></span>
+              value="${fmtNumW(disp.value)}" onchange="pmWSet(this.value)"><small>${unitLabel}</small></span>
             <button class="pm" onclick="pmW(1)">＋</button>
           </div>
           <div class="plate-viz" id="pm-plateviz">${viz}</div>
@@ -3865,14 +3926,14 @@ function renderPerfModal(anim) {
           </div>
         </div>
         <div class="stepper">
-          <div class="lbl">${esc(t('perf.rir_label'))}</div>
+          <div class="lbl">${esc(t(isRpe() ? 'perf.rpe_label' : 'perf.rir_label'))}</div>
           <div class="ctr">
-            <button class="pm" onclick="pmRir(-0.5)">−</button>
-            <span class="val" id="pm-rir">${kg(Engine.rpeToRir(pm.rpe))}</span>
-            <button class="pm" onclick="pmRir(0.5)">＋</button>
+            <button class="pm" onclick="pmEffort(-0.5)">−</button>
+            <span class="val" id="pm-rir">${kg(isRpe() ? pm.rpe : Engine.rpeToRir(pm.rpe))}</span>
+            <button class="pm" onclick="pmEffort(0.5)">＋</button>
           </div>
           <div class="rpe-desc" id="pm-rpe-desc">${esc(rpeDesc(pm.rpe))}</div>
-          <div class="faint" style="font-size:.78rem;margin-top:2px">${esc(t('perf.rir_hint'))}</div>
+          <div class="faint" style="font-size:.78rem;margin-top:2px">${esc(t(isRpe() ? 'perf.rpe_hint' : 'perf.rir_hint'))}</div>
         </div>
         <div class="stepper" ${pm.drops ? '' : 'style="border-bottom:none"'}>
           <div class="lbl">${esc(t('perf.pump'))} <small class="faint">${esc(t('perf.optional'))}</small></div>
@@ -3909,7 +3970,7 @@ function perfUpdateWeight(dir) {
   const exId = V.draft.entries[PM.ei].exId;
   const disp = displayWeight(exId, PM.weight);
   const inp = byId('pm-weight');
-  if (inp) { inp.value = kg(disp.value); nudge(inp, dir); }
+  if (inp) { inp.value = fmtNumW(disp.value); nudge(inp, dir); }
   const { viz, note } = plateVizHTML(PM.weight, exId);
   const pv = byId('pm-plateviz'); if (pv) pv.innerHTML = viz;
   const pn = byId('pm-platenote'); if (pn) pn.innerHTML = note;
@@ -3931,7 +3992,7 @@ function pmWSet(v) {
   if (!PM) return;
   const exId = V.draft.entries[PM.ei].exId;
   const L = loadingFor(exId);
-  const parsed = Math.max(0, parseFloat(v) || 0);
+  const parsed = Math.max(0, fromDispW(parseFloat(v)) || 0); // typed in display units
   PM.weight = (L.mode === 'dumbbell' && L.count === 2) ? parsed * 2 : parsed; // typed value is per hand for two-DB
   perfUpdateWeight(0);
 }
@@ -3940,12 +4001,14 @@ function pmR(d) {
   PM.reps = Math.max(0, PM.reps + d);
   const el = byId('pm-reps'); if (el) { el.textContent = PM.reps; nudge(el, d); }
 }
-// RIR stepper: the athlete edits reps-in-reserve, we store the inverse RPE.
-// Adding RIR (easier) lowers RPE and vice versa, clamped to RPE 5..10 (RIR 0..5).
-function pmRir(d) {
+// Effort stepper: the athlete edits the DISPLAYED scale (RIR by default, RPE
+// when flipped in Settings); we always store RPE. `d` moves the displayed
+// number: adding RIR (easier) lowers RPE, adding RPE (harder) raises it,
+// clamped to RPE 5..10 (RIR 0..5).
+function pmEffort(d) {
   if (!PM) return;
-  PM.rpe = Math.min(10, Math.max(5, PM.rpe - d));
-  const el = byId('pm-rir'); if (el) el.textContent = kg(Engine.rpeToRir(PM.rpe));
+  PM.rpe = Math.min(10, Math.max(5, PM.rpe + (isRpe() ? d : -d)));
+  const el = byId('pm-rir'); if (el) el.textContent = kg(isRpe() ? PM.rpe : Engine.rpeToRir(PM.rpe));
   const desc = byId('pm-rpe-desc'); if (desc) desc.textContent = rpeDesc(PM.rpe);
   nudge(el, d);
 }
@@ -4052,7 +4115,7 @@ function donePerf() {
       if (res.delta > 0) {
         P().wm[e.wmKey] = res.newWM;
         V.draft.wmChange = { name: e.name, from: res.newWM - res.delta, to: res.newWM, delta: res.delta, capped: res.capped };
-        toast(t('perf.wm_up', { name: e.name, from: kg(res.newWM - res.delta), to: kg(res.newWM) }) + (res.capped ? ' ' + t('perf.wm_capped') : ''));
+        toast(t('perf.wm_up', { name: e.name, from: dispW(res.newWM - res.delta), to: dispW(res.newWM), u: wUnit() }) + (res.capped ? ' ' + t('perf.wm_capped') : ''));
       } else toast(t(st.reps < wave.standard ? 'perf.wm_below_standard' : 'perf.wm_standard_met'), true);
     } else {
       toast(t('perf.amrap_variation'));
@@ -4065,7 +4128,7 @@ function donePerf() {
       const newWM = Engine.recalibratedWM(P().wm[e.wmKey], loggedCalib);
       if (newWM) {
         P().wm[e.wmKey] = Engine.roundLoad(newWM, 1.25);
-        toast(t('perf.wm_calibrated', { name: e.name, w: kg(P().wm[e.wmKey]) }));
+        toast(t('perf.wm_calibrated', { name: e.name, w: dispW(P().wm[e.wmKey]), u: wUnit() }));
       }
     } else if (loggedCalib.length >= e.sets.filter(s => s.calib).length) {
       toast(t('perf.calibrated_next', { name: e.name }));
@@ -4101,11 +4164,11 @@ function openWarmup(top, exId) {
   const sets = Engine.warmupSets(top, bar, S.profile.rounding);
   showModal(anim => {
     $modal.innerHTML = modalShell(anim, t('warmup.title'), `
-        <div class="card"><div class="row"><span>${esc(t('warmup.target_top'))}</span><b>${kg(top)} kg</b></div>
+        <div class="card"><div class="row"><span>${esc(t('warmup.target_top'))}</span><b>${fmtWU(top)}</b></div>
         <div class="divider"></div>
-        <div class="row"><span>${esc(t('warmup.bar_weight'))}</span><b style="color:var(--blue)">${kg(bar)}kg</b></div></div>
+        <div class="row"><span>${esc(t('warmup.bar_weight'))}</span><b style="color:var(--blue)">${dispW(bar)}${wUnit()}</b></div></div>
         ${sets.map((s, i) => `<div class="set-row"><span class="num">${i + 1}</span>
-          <span class="target">${kg(s.weight)}kg × ${s.reps}</span></div>`).join('')}
+          <span class="target">${dispW(s.weight)}${wUnit()} × ${s.reps}</span></div>`).join('')}
         <p class="faint">${esc(t('warmup.hint'))}</p>`);
   });
 }
@@ -4224,7 +4287,7 @@ function finishSession() {
   clearRestTimer();
   save();
   closeAllModals();
-  toast(t('sr.saved', { tonnage: dr.tonnage.toLocaleString(I18N.dateLocale()) }));
+  toast(t('sr.saved', { tonnage: Math.round(toDispW(dr.tonnage)).toLocaleString(I18N.dateLocale()), u: wUnit() }));
   V.tab = 'dashboard';
   nav('summary');
 }
@@ -4472,7 +4535,7 @@ function vHistory() {
       const label = `${blockOf(s.b)?.label || ''} · ${t('hist.wd', { w: s.b * P().weeksPerBlock + s.w + 1, d: s.d + 1 })}`;
       return `<button class="hist-row ${s.skipped ? 'skipped' : ''}" style="display:block;width:100%;text-align:left" onclick="openSessionDetail('${s.id}')">
         <div class="meta"><span>${fmtDate(s.ts)} · ${esc(label)}</span><span>${s.skipped ? esc(t('session.skipped')) : (s.rating ? esc(t('hist.rated', { n: s.rating })) : '')}</span></div>
-        <div class="bar-track"><div class="bar" style="width:${s.skipped ? 100 : pct}%">${s.skipped ? '—' : (s.tonnage || 0).toLocaleString() + ' kg'}</div></div>
+        <div class="bar-track"><div class="bar" style="width:${s.skipped ? 100 : pct}%">${s.skipped ? '—' : fmtTonnage(s.tonnage)}</div></div>
       </button>`;
     }).join('');
   }
@@ -4508,7 +4571,7 @@ function openSessionDetail(id) {
   if (!s || s.skipped) return;
   showModal(anim => {
     $modal.innerHTML = modalShell(anim, fmtDate(s.ts), `
-        <div class="row" style="margin-bottom:10px"><span class="subtle">${esc(t('sum.tonnage'))}</span><b>${(s.tonnage || 0).toLocaleString()} kg</b></div>
+        <div class="row" style="margin-bottom:10px"><span class="subtle">${esc(t('sum.tonnage'))}</span><b>${fmtTonnage(s.tonnage)}</b></div>
         ${s.rating ? `<div class="row" style="margin-bottom:10px"><span class="subtle">${esc(t('sum.rating'))}</span><b>${s.rating} / 10</b></div>` : ''}
         ${s.mindset ? `<div class="card accent"><span class="faint">${esc(t('sum.focus'))}</span><div>${esc(s.mindset)}</div></div>` : ''}
         ${s.entries.map(e => sessionLiftCardHTML(e, false)).join('')}`);
@@ -4536,10 +4599,10 @@ function vSummary() {
       <div style="font-size:1.6rem;font-weight:800">${esc(t('sum.day_done', { week: s.b * P().weeksPerBlock + s.w + 1, day: s.d + 1 }))}</div>
     </div>
     <div class="card accent mt8">
-      <div class="row"><span class="subtle">${esc(t('sum.total_tonnage'))}</span><b>${(s.tonnage || 0).toLocaleString()} kg</b></div>
+      <div class="row"><span class="subtle">${esc(t('sum.total_tonnage'))}</span><b>${fmtTonnage(s.tonnage)}</b></div>
       <div class="row mt8"><span class="subtle">${esc(t('sum.rating'))}</span><b>${s.rating ? s.rating + ' / 10' : '—'}</b></div>
       ${SHOW_READINESS_UI ? `<div class="row mt8"><span class="subtle">${esc(t('dash.readiness'))}</span><b>${s.readiness != null ? s.readiness.toFixed(2) : '—'}</b></div>` : ''}
-      ${wmc ? `<div class="row mt8"><span class="subtle">${esc(t('sum.wm_row', { name: wmc.name }))}</span><b style="color:var(--blue)">${kg(wmc.from)} → ${kg(wmc.to)} kg${wmc.capped ? ' ' + esc(t('sum.capped')) : ''}</b></div>` : ''}
+      ${wmc ? `<div class="row mt8"><span class="subtle">${esc(t('sum.wm_row', { name: wmc.name }))}</span><b style="color:var(--blue)">${dispW(wmc.from)} → ${fmtWU(wmc.to)}${wmc.capped ? ' ' + esc(t('sum.capped')) : ''}</b></div>` : ''}
     </div>
     <div class="section-title" style="font-size:1.2rem">${esc(t('sum.sets_logged'))} <span class="faint">${esc(t('sum.actual_vs_target'))}</span></div>
     ${s.entries.map(e => sessionLiftCardHTML(e, true)).join('')}
@@ -4612,7 +4675,7 @@ function libItemHTML(e) {
   const best = Engine.bestE1RM(recordsFor(e.id));
   return `<button class="lib-item" onclick="openExDetail('${e.id}')">
     <span>${esc(exDisplayName(e))}${e.isMain ? ' <span style="color:var(--blue)">★</span>' : ''}
-      <span class="sub">${esc(mvLabel(e.movement))} · ${esc(eq)}${best ? ' · e1RM ' + kg(Engine.roundLoad(best, 0.5)) + 'kg' : ''}</span>${exTagsHTML(e)}</span>
+      <span class="sub">${esc(mvLabel(e.movement))} · ${esc(eq)}${best ? ' · e1RM ' + dispW(Engine.roundLoad(best, 0.5)) + wUnit() : ''}</span>${exTagsHTML(e)}</span>
     <span>›</span></button>`;
 }
 
@@ -4625,8 +4688,8 @@ function openCustomEx() {
           <select id="cx-mv">${Object.keys(MOVEMENTS).map(k => `<option value="${k}">${esc(mvLabel(k))}</option>`).join('')}</select></div>
         <div class="field"><label>${esc(t('cx.equipment'))}</label>
           <select id="cx-eq">${['bb', 'db', 'mc', 'cb', 'bw', 'bd'].map(eq => `<option value="${eq}">${esc(t('equip.' + eq))}</option>`).join('')}</select></div>
-        <div class="field"><label>${esc(t('cx.rm1'))}</label><input id="cx-1rm" type="number" inputmode="decimal" placeholder="${esc(t('cx.rm1_ph'))}"></div>
-        <div class="field"><label>${esc(t('cx.rm10'))}</label><input id="cx-10rm" type="number" inputmode="decimal" placeholder="${esc(t('cx.rm10_ph'))}"></div>
+        <div class="field"><label>${esc(t('cx.rm1', { u: wUnit() }))}</label><input id="cx-1rm" type="number" inputmode="decimal" placeholder="${esc(t('cx.rm1_ph'))}"></div>
+        <div class="field"><label>${esc(t('cx.rm10', { u: wUnit() }))}</label><input id="cx-10rm" type="number" inputmode="decimal" placeholder="${esc(t('cx.rm10_ph'))}"></div>
         <button class="btn btn-green" onclick="saveCustomEx()">${esc(t('cx.create'))}</button>`);
   });
 }
@@ -4636,8 +4699,8 @@ function saveCustomEx() {
   const id = 'cx-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now().toString(36);
   S.customEx.push({ id, name, movement: document.getElementById('cx-mv').value,
     equipment: document.getElementById('cx-eq').value, isMain: false, custom: true });
-  const r1 = parseFloat(document.getElementById('cx-1rm').value);
-  const r10 = parseFloat(document.getElementById('cx-10rm').value);
+  const r1 = fromDispW(parseFloat(document.getElementById('cx-1rm').value));
+  const r10 = fromDispW(parseFloat(document.getElementById('cx-10rm').value));
   if (r1 > 0) pushRecord(id, { ts: Date.now(), weight: r1, reps: 1, rpe: 10, seed: true });
   if (r10 > 0) pushRecord(id, { ts: Date.now(), weight: r10, reps: 10, rpe: 10, seed: true });
   save(); closeAllModals(); render();
@@ -4706,9 +4769,9 @@ function renderExDetail(anim) {
     body = (e1Series.length < 2 && vlSeries.length < 2)
       ? `<p class="faint mt16">${esc(t('xd.trend_empty'))}</p>`
       : `<div class="section-title" style="font-size:1.05rem">${esc(t('xd.e1rm'))}</div>
-        ${trendChartHTML(e1Series, '#67a3ff', v => kg(Engine.roundLoad(v, 0.5)) + ' kg')}
+        ${trendChartHTML(e1Series, '#67a3ff', v => fmtWU(Engine.roundLoad(v, 0.5)))}
         <div class="section-title" style="font-size:1.05rem">${esc(t('xd.volume_load'))} <small class="faint">${esc(t('xd.vl_sub'))}</small></div>
-        ${trendChartHTML(vlSeries, '#4ad6a0', v => Math.round(v).toLocaleString() + ' kg')}
+        ${trendChartHTML(vlSeries, '#4ad6a0', v => fmtTonnage(v))}
         <p class="faint">${esc(t('xd.trend_footer'))}</p>`;
   } else if (XD.tab === 'maxes') {
     const best = Engine.bestE1RM(recs);
@@ -4717,27 +4780,27 @@ function renderExDetail(anim) {
     // (new estimated highs and athlete-entered maxes), then the detail cards.
     const e1Series = Engine.e1rmTrend(recs, 365);
     const chart = e1Series.length >= 2
-      ? trendChartHTML(e1Series, '#67a3ff', v => kg(Engine.roundLoad(v, 0.5)) + ' kg')
+      ? trendChartHTML(e1Series, '#67a3ff', v => fmtWU(Engine.roundLoad(v, 0.5)))
       : '';
     const miles = Engine.maxMilestones(recs).slice(0, 8);
     const milesHTML = miles.map(m => `
       <div class="max-milestone">
         <div class="row"><span class="subtle">${esc(t(m.kind === 'entered' ? 'xd.max_entered' : 'xd.max_estimated'))}</span>
           <span class="subtle">${fmtDate(m.ts)}</span></div>
-        <div class="max-val">${kg(Engine.roundLoad(m.value, 0.5))}<small> kg</small></div>
+        <div class="max-val">${dispW(Engine.roundLoad(m.value, 0.5))}<small> ${wUnit()}</small></div>
       </div>`).join('');
     body = `
       ${chart}
-      ${wm ? `<div class="card accent"><div class="row"><span>${esc(t('xd.working_max'))}</span><b>${kg(wm)} kg</b></div>
+      ${wm ? `<div class="card accent"><div class="row"><span>${esc(t('xd.working_max'))}</span><b>${fmtWU(wm)}</b></div>
         <p class="faint mt8">${esc(t('xd.wm_note'))}</p></div>` : ''}
-      <div class="card"><div class="row"><span>${esc(t('xd.e1rm'))}</span><b>${best ? kg(Engine.roundLoad(best, 0.5)) + ' kg' : '—'}</b></div>
+      <div class="card"><div class="row"><span>${esc(t('xd.e1rm'))}</span><b>${best ? fmtWU(Engine.roundLoad(best, 0.5)) : '—'}</b></div>
         <p class="faint mt8">${esc(t('xd.e1rm_note'))}</p></div>
       ${milesHTML}
       ${recs.length ? `<div class="section-title" style="font-size:1.05rem">${esc(t('xd.best_sets'))}</div>` +
         [...recs].sort((a, b) => Engine.e1rm(b.weight, b.reps, b.rpe) - Engine.e1rm(a.weight, a.reps, a.rpe)).slice(0, 5)
           .map(r => `<div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">
             <span class="subtle">${fmtDate(r.ts)}</span>
-            <span>${fmtW(XD.id, r.weight)} × ${r.reps} · ${fmtRir(r.rpe)} <b style="color:var(--blue)">→ ${kg(Engine.roundLoad(Engine.e1rm(r.weight, r.reps, r.rpe), 0.5))}</b></span></div>`).join('') : ''}`;
+            <span>${fmtW(XD.id, r.weight)} × ${r.reps} · ${fmtRir(r.rpe)} <b style="color:var(--blue)">→ ${dispW(Engine.roundLoad(Engine.e1rm(r.weight, r.reps, r.rpe), 0.5))}</b></span></div>`).join('') : ''}`;
   } else {
     const isMainLift = P()?.wm && XD.id in P().wm;
     // Change 1: loading-mode control for every exercise, with a transient draft so the
@@ -4756,7 +4819,7 @@ function renderExDetail(anim) {
       ${Ld.mode === 'dumbbell' ? `<div class="field"><label>${esc(t('xd.db_used'))}</label>
         <select id="xd-count">${[[2, t('xd.db_two')], [1, t('xd.db_one')]].map(([v, l]) => `<option value="${v}" ${Ld.count === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></div>` : ''}
       ${Ld.mode === 'lightbar' ? `<div class="field"><label>${esc(t('set.bar_weight'))}</label>
-        <input id="xd-bar" type="number" inputmode="decimal" value="${Ld.barWeight}"></div>` : ''}
+        <input id="xd-bar" type="number" inputmode="decimal" value="${dispW(Ld.barWeight)}"></div>` : ''}
       <p class="faint">${esc(t('xd.loading_note'))}</p>
       <button class="btn btn-blue mt8" onclick="saveExLoading()">${esc(t('xd.save_loading'))}</button>`;
     // [Cluster B] Intensity technique opt-in. Bodybuilding accessories only, so
@@ -4777,18 +4840,18 @@ function renderExDetail(anim) {
     const maxesUI = `
       <div class="section-title" style="font-size:1.05rem">${esc(t('xd.known_maxes'))}</div>
       <p class="faint">${esc(t('xd.known_maxes_note'))}${isMainLift ? ' ' + esc(t('xd.known_maxes_main')) : ''}</p>
-      <div class="field"><label>${esc(t('xd.rm1_label'))}</label>
-        <input id="xd-1rm" type="number" inputmode="decimal" value="${seed1 ? kg(seed1.weight) : ''}" placeholder="${esc(t('xd.rm1_ph'))}"></div>
-      <div class="field"><label>${esc(t('xd.rm10_label'))}</label>
-        <input id="xd-10rm" type="number" inputmode="decimal" value="${seed10 ? kg(seed10.weight) : ''}" placeholder="${esc(t('xd.rm10_ph'))}"></div>
+      <div class="field"><label>${esc(t('xd.rm1_label', { u: wUnit() }))}</label>
+        <input id="xd-1rm" type="number" inputmode="decimal" value="${seed1 ? dispW(seed1.weight) : ''}" placeholder="${esc(t('xd.rm1_ph', { n: isLb() ? 265 : 120 }))}"></div>
+      <div class="field"><label>${esc(t('xd.rm10_label', { u: wUnit() }))}</label>
+        <input id="xd-10rm" type="number" inputmode="decimal" value="${seed10 ? dispW(seed10.weight) : ''}" placeholder="${esc(t('xd.rm10_ph', { n: isLb() ? 200 : 90 }))}"></div>
       <button class="btn btn-blue mt8" onclick="saveExMaxes('${e.id}')">${esc(t('xd.save_maxes'))}</button>`;
     body = `
       ${isMainLift ? `
-        <div class="field"><label>${esc(t('xd.wm_label'))}</label>
-          <input id="xd-wm" type="number" inputmode="decimal" value="${P().wm[XD.id] ?? ''}" placeholder="${esc(t('xd.wm_ph'))}"></div>
-        <div class="field"><label>${esc(t('xd.inc_label'))}</label>
-          <input id="xd-inc" type="number" inputmode="decimal" step="0.25" value="${inc}"></div>
-        <p class="faint">${esc(t('xd.inc_note'))}</p>
+        <div class="field"><label>${esc(t('xd.wm_label', { u: wUnit() }))}</label>
+          <input id="xd-wm" type="number" inputmode="decimal" value="${P().wm[XD.id] != null ? dispW(P().wm[XD.id]) : ''}" placeholder="${esc(t('xd.wm_ph'))}"></div>
+        <div class="field"><label>${esc(t('xd.inc_label', { u: wUnit() }))}</label>
+          <input id="xd-inc" type="number" inputmode="decimal" step="0.25" value="${dispW(inc)}"></div>
+        <p class="faint">${esc(t('xd.inc_note', { low: isLb() ? '5 lb' : '2.5 kg', up: isLb() ? '2.5 lb' : '1.25 kg' }))}</p>
         <button class="btn btn-blue mt8" onclick="saveExSettings()">${esc(t('common.save'))}</button>` :
         `<p class="subtle">${esc(t('xd.e1rm_follow'))}</p>`}
       ${maxesUI}
@@ -4800,8 +4863,8 @@ function renderExDetail(anim) {
     `<div class="tabs">${tabBtn('info')}${tabBtn('history')}${tabBtn('trend')}${tabBtn('maxes')}${tabBtn('settings')}</div>${body}`);
 }
 function saveExSettings() {
-  const wmv = parseFloat(document.getElementById('xd-wm').value);
-  const incv = parseFloat(document.getElementById('xd-inc').value);
+  const wmv = fromDispW(parseFloat(document.getElementById('xd-wm').value));
+  const incv = fromDispW(parseFloat(document.getElementById('xd-inc').value));
   if (wmv > 0) P().wm[XD.id] = wmv;
   if (incv > 0) P().increments[XD.id] = incv;
   refreshDraftTargets(XD.id);
@@ -4813,8 +4876,8 @@ function saveExSettings() {
 // previous seed of the same type, which makes the field editable, and an empty
 // field clears that seed.
 function saveExMaxes(id) {
-  const r1 = parseFloat(byId('xd-1rm') && byId('xd-1rm').value);
-  const r10 = parseFloat(byId('xd-10rm') && byId('xd-10rm').value);
+  const r1 = fromDispW(parseFloat(byId('xd-1rm') && byId('xd-1rm').value));
+  const r10 = fromDispW(parseFloat(byId('xd-10rm') && byId('xd-10rm').value));
   if (!(r1 > 0) && !(r10 > 0)) { toast(t('xd.need_rm'), true); return; }
   if (r1 > 0 && r10 > 0 && r10 >= r1) { toast(t('xd.rm_order'), true); return; }
   S.records[id] = recordsFor(id).filter(r => !r.seed); // replace, not append
@@ -4826,7 +4889,7 @@ function saveExMaxes(id) {
   const p = P();
   if (p && p.wm && id in p.wm && !p.wm[id] && r1 > 0) {
     p.wm[id] = Engine.roundLoad(r1 * 0.9, 1.25);
-    wmNote = t('xd.wm_set_note', { w: kg(p.wm[id]) });
+    wmNote = t('xd.wm_set_note', { w: dispW(p.wm[id]), u: wUnit() });
   }
   refreshDraftTargets(id);
   save();
@@ -4857,7 +4920,7 @@ function saveExLoading() {
   const mode = document.getElementById('xd-mode').value;
   const prof = { mode };
   if (mode === 'dumbbell') prof.count = parseInt(document.getElementById('xd-count').value) || 2;
-  if (mode === 'lightbar') prof.barWeight = parseFloat(document.getElementById('xd-bar').value) || 10;
+  if (mode === 'lightbar') prof.barWeight = fromDispW(parseFloat(document.getElementById('xd-bar').value)) || (isLb() ? 25 * KG_PER_LB : 10);
   S.loadingProfiles = S.loadingProfiles || {};
   S.loadingProfiles[XD.id] = prof;
   XD.load = null; // re-init from the saved profile on next render
@@ -4926,7 +4989,7 @@ function vProgram() {
     <p class="faint mt8">${esc(t('prog.blocks_note'))}</p>
     <div class="section-title" style="font-size:1.15rem">${esc(t('prog.working_maxes'))}</div>
     ${lifts.map(l => `<button class="lib-item" onclick="openExDetail('${l}','settings')">
-      <span>${esc(exName(l))}</span><b>${p.wm[l] ? kg(p.wm[l]) + ' kg' : esc(t('prog.calibrating'))}</b></button>`).join('')}
+      <span>${esc(exName(l))}</span><b>${p.wm[l] ? fmtWU(p.wm[l]) : esc(t('prog.calibrating'))}</b></button>`).join('')}
     <button class="btn btn-outline mt24" style="color:var(--red);border-color:var(--red)" onclick="confirmNewProgram()">${esc(t('dash.new_program_confirm'))}</button>
   </div>${tabbar()}`;
 }
@@ -4968,18 +5031,30 @@ function vSettings() {
     <div class="field"><label>${esc(t('settings.language'))}</label>
       <select id="st-lang" onchange="setAppLang(this.value)">${langOptions}</select></div>
     <p class="faint" style="margin-bottom:10px">${esc(t('settings.language_hint'))}</p>
+    <div class="section-title">${esc(t('set.units_section'))}</div>
+    <div class="field"><label>${esc(t('set.units'))}</label>
+      <select id="st-units" onchange="setUnits(this.value)">
+        <option value="kg" ${!isLb() ? 'selected' : ''}>${esc(t('set.units_kg'))}</option>
+        <option value="lb" ${isLb() ? 'selected' : ''}>${esc(t('set.units_lb'))}</option>
+      </select></div>
+    <div class="field"><label>${esc(t('set.intensity'))}</label>
+      <select id="st-int" onchange="setIntensityDisplay(this.value)">
+        <option value="rir" ${!isRpe() ? 'selected' : ''}>${esc(t('set.intensity_rir'))}</option>
+        <option value="rpe" ${isRpe() ? 'selected' : ''}>${esc(t('set.intensity_rpe'))}</option>
+      </select></div>
+    <p class="faint" style="margin-bottom:10px">${esc(t('set.units_hint'))}</p>
     <div class="section-title">${esc(t('set.profile'))}</div>
     <div class="field"><label>${esc(t('cx.name'))}</label><input id="st-name" value="${esc(p.name)}"></div>
-    <div class="field"><label>${esc(t('ob.bodyweight'))}</label><input id="st-bw" type="number" inputmode="decimal" value="${p.bodyweight ?? ''}"></div>
+    <div class="field"><label>${esc(t('ob.bodyweight', { u: wUnit() }))}</label><input id="st-bw" type="number" inputmode="decimal" value="${p.bodyweight != null ? dispW(p.bodyweight) : ''}"></div>
     <div class="section-title">${esc(t('equip.bb'))}</div>
-    <div class="field"><label>${esc(t('set.bar_weight'))}</label><input id="st-bar" type="number" inputmode="decimal" value="${p.barWeight}"></div>
-    <div class="field"><label>${esc(t('set.rounding'))}</label>
-      <select id="st-round">${[1.25, 2.5, 5].map(r => `<option ${p.rounding === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
+    <div class="field"><label>${esc(t('set.bar_weight', { u: wUnit() }))}</label><input id="st-bar" type="number" inputmode="decimal" value="${dispW(p.barWeight)}"></div>
+    <div class="field"><label>${esc(t('set.rounding', { u: wUnit() }))}</label>
+      <select id="st-round">${presetOptions('rounding', p.rounding)}</select></div>
     <div class="section-title">${esc(t('set.db_mc'))}</div>
-    <div class="field"><label>${esc(t('set.db_inc'))}</label>
-      <select id="st-dbinc">${[1, 2, 2.5].map(r => `<option ${(p.dbIncrement ?? 2.5) === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
-    <div class="field"><label>${esc(t('set.mc_step'))}</label>
-      <select id="st-mcstep">${[2.5, 5, 10].map(r => `<option ${(p.machineStep ?? 5) === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
+    <div class="field"><label>${esc(t('set.db_inc', { u: wUnit() }))}</label>
+      <select id="st-dbinc">${presetOptions('dbIncrement', p.dbIncrement ?? 2.5)}</select></div>
+    <div class="field"><label>${esc(t('set.mc_step', { u: wUnit() }))}</label>
+      <select id="st-mcstep">${presetOptions('machineStep', p.machineStep ?? 5)}</select></div>
     <button class="btn btn-outline" onclick="openPlateConfig()">${esc(t('plates.configure'))}</button>
     <button class="btn btn-blue mt8" onclick="saveSettings()">${esc(t('set.save'))}</button>
     <div class="section-title">${esc(t('set.data'))}</div>
@@ -5033,20 +5108,69 @@ function setAppLang(v) {
   render();
   toast(t('settings.language_saved'));
 }
+// [Epic H1] Preset <option>s for the equipment steps. The lists live in
+// UNIT_PRESETS in DISPLAY units; the option value is the display number and the
+// stored kg value is matched by converting back. A customized stored value that
+// matches no preset gets its own option, so opening Settings never silently
+// re-rounds someone's equipment.
+function presetOptions(key, storedKg) {
+  const list = UNIT_PRESETS[isLb() ? 'lb' : 'kg'][key];
+  const near = (a, b) => Math.abs(a - b) < 0.005;
+  const opts = list.map(r =>
+    `<option value="${r}" ${near(fromDispW(r), storedKg) ? 'selected' : ''}>${r}</option>`);
+  if (!list.some(r => near(fromDispW(r), storedKg))) {
+    opts.unshift(`<option value="${toDispW(storedKg)}" selected>${dispW(storedKg)}</option>`);
+  }
+  return opts.join('');
+}
+// [Epic H1] Switch display units. Storage stays kg: only rendering and input
+// parsing change. Equipment values still sitting at the OLD unit's defaults
+// follow to the new unit's defaults (an lb athlete almost certainly lifts with
+// a 45 lb bar and lb plates); anything customized is kept and renders converted.
+function applyUnits(u) {
+  const p = S.profile;
+  const from = UNIT_EQUIP_DEFAULTS[p.units === 'lb' ? 'lb' : 'kg'];
+  const to = UNIT_EQUIP_DEFAULTS[u];
+  if (!to || (p.units || 'kg') === u) return false;
+  const near = (a, b) => Math.abs(a - b) < 1e-6;
+  let swapped = false;
+  if (near(p.barWeight, from.barWeight)) { p.barWeight = to.barWeight; swapped = true; }
+  if (near(p.rounding, from.rounding)) { p.rounding = to.rounding; swapped = true; }
+  if (near(p.dbIncrement ?? 2.5, from.dbIncrement)) { p.dbIncrement = to.dbIncrement; swapped = true; }
+  if (near(p.machineStep ?? 5, from.machineStep)) { p.machineStep = to.machineStep; swapped = true; }
+  const samePlates = Array.isArray(p.plates) && p.plates.length === from.plates.length &&
+    p.plates.every((pl, i) => near(pl.w, from.plates[i].w) && pl.count === from.plates[i].count);
+  if (samePlates) { p.plates = JSON.parse(JSON.stringify(to.plates)); swapped = true; }
+  p.units = u;
+  return swapped;
+}
+function setUnits(u) {
+  if ((S.profile.units || 'kg') === u) return;
+  const swapped = applyUnits(u);
+  save(); render();
+  toast(t(swapped ? 'set.units_swapped' : 'set.units_saved', { u: t(u === 'lb' ? 'unit.lb' : 'unit.kg') }));
+}
+// [Epic H1] Effort display: RIR (default) or RPE. Storage stays RPE either way.
+function setIntensityDisplay(v) {
+  S.profile.intensityDisplay = v === 'rpe' ? 'rpe' : 'rir';
+  save(); render();
+  toast(t('set.intensity_saved'));
+}
 function saveSettings() {
+  const D = UNIT_EQUIP_DEFAULTS[isLb() ? 'lb' : 'kg'];
   S.profile.name = document.getElementById('st-name').value.trim();
-  S.profile.bodyweight = parseFloat(document.getElementById('st-bw').value) || null;
-  S.profile.barWeight = parseFloat(document.getElementById('st-bar').value) || 20;
-  S.profile.rounding = parseFloat(document.getElementById('st-round').value) || 2.5;
-  S.profile.dbIncrement = parseFloat(document.getElementById('st-dbinc').value) || 2.5;
-  S.profile.machineStep = parseFloat(document.getElementById('st-mcstep').value) || 5;
+  S.profile.bodyweight = fromDispW(parseFloat(document.getElementById('st-bw').value)) || null;
+  S.profile.barWeight = fromDispW(parseFloat(document.getElementById('st-bar').value)) || D.barWeight;
+  S.profile.rounding = fromDispW(parseFloat(document.getElementById('st-round').value)) || D.rounding;
+  S.profile.dbIncrement = fromDispW(parseFloat(document.getElementById('st-dbinc').value)) || D.dbIncrement;
+  S.profile.machineStep = fromDispW(parseFloat(document.getElementById('st-mcstep').value)) || D.machineStep;
   save(); toast(t('set.saved_toast'));
 }
 function openPlateConfig() { showModal(renderPlateConfig); }
 function renderPlateConfig(anim) {
   const rows = S.profile.plates.map((pl, i) => `
     <div class="row" style="padding:8px 0;border-bottom:1px solid var(--line)">
-      <span><i style="display:inline-block;width:14px;height:22px;border-radius:3px;background:${PLATE_COLORS[String(pl.w)] || '#6b7280'};vertical-align:middle;margin-right:10px"></i><b>${kg(pl.w)} kg</b></span>
+      <span><i style="display:inline-block;width:14px;height:22px;border-radius:3px;background:${plateColorFor(pl.w)};vertical-align:middle;margin-right:10px"></i><b>${fmtWU(pl.w)}</b></span>
       <span class="row" style="gap:14px">
         <button class="pm btn-ghost" style="font-size:1.4rem" onclick="plateCount(${i},-2)">−</button>
         <b id="pc-count-${i}">${pl.count}</b>

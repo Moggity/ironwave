@@ -12,6 +12,12 @@ const Engine = {
     return Math.round(w / r) * r;
   },
 
+  // [Epic H1] Unit conversion. Display/input only: every stored number stays kg.
+  // 1 lb is exactly KG_PER_LB kg, so kg -> lb -> kg round-trips losslessly
+  // (within float epsilon) at any rounding step.
+  kgToLb(kg) { return kg == null ? kg : kg / KG_PER_LB; },
+  lbToKg(lb) { return lb == null ? lb : lb * KG_PER_LB; },
+
   // Per-side plate breakdown. Returns {plates:[{w,color}], achieved, perSide}
   plateMath(total, barWeight, inventory) {
     const target = Math.max(0, total - barWeight) / 2;
