@@ -32,6 +32,7 @@ const I18N_EN = {
   'session.last_set': 'Last Set',
   'session.optional_tag': 'optional',
   'session.over_time_limit': 'Over your time limit. Do it if you have time, otherwise skip it.',
+  'session.injury_eased': 'Flagged. Loads eased 10%, no AMRAP.',
   'session.sets_x_reps': '{sets} sets x {reps} reps',
   'session.sets_x_reps_rir': '{sets} sets x {reps} reps @ {rir}',
   'session.notes': 'Notes',
@@ -846,6 +847,9 @@ const I18N_EN = {
   'note.hardest_week': 'Hardest week of the macrocycle, deload is next',
   'note.peak_week': 'Peak volume week, deload is next',
   'perf.wm_below_standard': 'Below standard, working max held. Consider recovery.',
+  'perf.wm_reset_title': 'Reset working max?',
+  'perf.wm_reset_msg': '{name}: 2 AMRAPs under standard. {from} → {to}.',
+  'perf.wm_reset_confirm': 'Reset',
   'perf.wm_standard_met': 'Standard met, working max held.',
 
   // --- day themes (generator regions + template names, phase 3) ---

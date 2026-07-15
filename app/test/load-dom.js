@@ -26,6 +26,7 @@ const EXPORTS = `
   doSwap, exById, allExercises, openVolumeDashboard,
   t, I18N, setAppLang, openPerf,
   setUnits, setIntensityDisplay, applyUnits,
+  obNext, obDays, obTrack, obExp, obTimeMode,
   get S() { return S; }, set S(v) { S = v; },
   get V() { return V; }, set V(v) { V = v; },
 };`;

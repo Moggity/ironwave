@@ -1,5 +1,39 @@
 # IRONWAVE — Changelog
 
+## [Epic H2: onboarding completeness + check-in honesty] (2026-07-15)
+
+Five small fixes from the veteran-athlete feedback, all "show, don't tell":
+compact UI doing its job, no explanatory copy.
+
+- **Powerbuilding onboarding card restored.** `OB_TRACKS` lists all three
+  tracks again (bodybuilding stays first); the app's default program was
+  unreachable from a fresh install. A render-smoke test drives the real
+  onboarding handlers and pins that the powerbuilding path produces the
+  EXACT golden-master program.
+- **Readiness digest chip.** The check-in fed a score that was never shown.
+  One chip on the dashboard (`readinessChipHTML`): score, colored and
+  arrowed against the athlete's own 28-day baseline (green up / amber
+  down), tap opens the volume screen's recovery trend. Empty until a first
+  check-in. The verbose hero stays behind `SHOW_READINESS_UI`.
+- **Injury flags act.** A lift flagged at check-in now trains eased
+  (`applyInjuryEasing`, session-draft only): AMRAP becomes a straight set,
+  weighted targets drop 10%, effort caps gain one RIR. The card shows a
+  compact amber strip with one-tap Swap; the session record stores
+  `injuries` (only when flagged) and the summary/history show 🩹 chips.
+  Mid-session swap/target-refresh rebuilds keep the easing.
+- **Muscle-named soreness sliders.** A generated bodybuilding day asks by
+  the day's actual muscles ("How are your Quads feeling") instead of the
+  lift-pattern groups ("upper pull"); strength tracks are untouched.
+  `muscleSignal` reads the muscle-keyed slider first, pattern group as the
+  fallback, so Cluster E autoreg keeps working across old and new check-ins.
+- **Working-max reset nudge.** Two consecutive below-standard AMRAPs on a
+  lift offer (never force) a WM reset to 90% of what the AMRAP actually
+  implied (`trackBelowStandard`, per-lift counter in `program.belowStd`,
+  additive + migrated). Any met/beaten standard re-arms the counter.
+- Tests: new `test/h2.test.js` (13 cases) + the onboarding parity smoke;
+  two `polish.test.js` check-in cases updated to the new muscle-key
+  contract. Golden master untouched. i18n keys in both catalogs.
+
 ## [Epic H1: lb display units + RIR/RPE effort display] (2026-07-15)
 
 The first epic off the veteran-athlete-feedback roadmap: a kg/lb unit

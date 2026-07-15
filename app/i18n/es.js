@@ -35,6 +35,7 @@ const I18N_ES = {
   'session.last_set': 'Última serie',
   'session.optional_tag': 'opcional',
   'session.over_time_limit': 'Excede tu límite de tiempo. Hazlo si te queda tiempo, si no sáltalo.',
+  'session.injury_eased': 'Marcado. Cargas al 90%, sin AMRAP.',
   'session.sets_x_reps': '{sets} series x {reps} reps',
   'session.sets_x_reps_rir': '{sets} series x {reps} reps @ {rir}',
   'session.notes': 'Notas',
@@ -849,6 +850,9 @@ const I18N_ES = {
   'note.hardest_week': 'La semana más dura del macrociclo, la descarga es la próxima',
   'note.peak_week': 'Semana de pico de volumen, la descarga es la próxima',
   'perf.wm_below_standard': 'Por debajo del estándar, tu máximo de trabajo se mantiene. Prioriza la recuperación.',
+  'perf.wm_reset_title': '¿Reiniciar máximo de trabajo?',
+  'perf.wm_reset_msg': '{name}: 2 AMRAP bajo el estándar. {from} → {to}.',
+  'perf.wm_reset_confirm': 'Reiniciar',
   'perf.wm_standard_met': 'Estándar cumplido, tu máximo de trabajo se mantiene.',
 
   // --- day themes (generator regions + template names, phase 3) ---
