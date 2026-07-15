@@ -424,6 +424,19 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .px-chip { padding: 5px 11px; border-radius: 999px; font-size: .8rem; cursor: pointer;
   background: transparent; border: 1.5px solid var(--line); color: var(--text-dim); }
 .px-chip.on { border-color: var(--blue); color: var(--text); background: rgba(75,141,248,0.08); }
+.px-chip.warn { border-color: var(--amber); color: var(--amber); }
+/* [Epic H5] Split editor: inline day-name input + per-slot day mover. */
+.se-name { flex: 1; min-width: 0; background: transparent; border: none; border-bottom: 1px dashed var(--line);
+  color: var(--text); font-weight: 700; font-size: 1rem; padding: 2px 0; }
+.se-move { background: var(--card-2); border: 1px solid var(--line); color: var(--text-dim);
+  border-radius: 7px; padding: 3px 6px; font-size: .8rem; }
+/* [Epic H6] Meet day: three attempt tiles per lift, opener outlined. */
+.meet-attempts { display: flex; align-items: center; gap: 8px; margin: 10px 0 8px; }
+.meet-attempt { flex: 1; text-align: center; padding: 8px 4px; border-radius: 9px;
+  background: var(--card-2); border: 1px solid var(--line); }
+.meet-attempt span { display: block; font-size: .7rem; color: var(--text-faint); }
+.meet-attempt b { font-size: 1.15rem; }
+.meet-attempt.opener { border-color: var(--blue); }
 /* [Epic H2] Readiness digest: one chip, colored against the athlete's own baseline. */
 .readiness-chip { display: inline-flex; align-items: center; gap: 5px; padding: 6px 13px; border-radius: 999px;
   background: var(--card); border: 1.5px solid var(--line); color: var(--text-dim); font-size: .84rem; cursor: pointer; }

@@ -241,6 +241,33 @@ test('macro report renders on a finished program', () => {
   assert.ok(/nav\('report'\)/.test(history), 'history links to the report');
 });
 
+// [Epic H5] The split editor + focus editor modals render for a bodybuilding
+// program; [Epic H6] a meet program renders its taper dashboard and meet day.
+test('split editor, focus editor, and meet day render', () => {
+  const ctx = fresh();
+  withProgram(ctx, 'bodybuilding');
+  renderView(ctx, 'program');
+  ctx.app.openSplitEditor();
+  let modal = ctx.document.getElementById('modal-root').innerHTML;
+  assert.ok(/se-move|se-name/.test(modal), 'split editor rendered');
+  ctx.app.openFocusEditor();
+  modal = ctx.document.getElementById('modal-root').innerHTML;
+  assert.ok(/fe-val-chest/.test(modal), 'focus editor rendered');
+
+  const s2 = ctx.app.defaultState();
+  ctx.app.S = s2;
+  ctx.app.V = Object.assign({}, ctx.baseV);
+  s2.program = ctx.app.makeProgram({ daysPerWeek: 4, track: 'powerlifting',
+    timeMode: 'unlimited', muscleFocus: { ...DEFAULT_FOCUS }, maxes: {},
+    meetDate: Date.now() + 12 * 7 * 864e5 });
+  s2.program.pointer.block = s2.program.blocks.length - 1; // the taper
+  const dash = renderView(ctx, 'dashboard');
+  assert.ok(/nav\('meet'\)/.test(dash), 'dashboard offers meet day during the taper');
+  const meet = renderView(ctx, 'meet');
+  assert.ok(/meet-attempt|chart\.empty|No data yet/.test(meet), 'meet day rendered');
+  renderView(ctx, 'workout'); // taper week renders without accessories
+});
+
 // [Epic H2] The powerbuilding card must produce EXACTLY the program the golden
 // master pins, driven through the real onboarding handlers. This is the
 // regression anchor for the default track being reachable from a fresh install.

@@ -1,5 +1,48 @@
 # IRONWAVE — Changelog
 
+## [Epics H5 + H6: split editing/re-spec + meet prep] (2026-07-15)
+
+The physique-track and strength-track finals from the athlete-feedback
+roadmap, shipped together (owner call).
+
+**H5 — the generated split is editable, not disposable (bodybuilding):**
+- **Split editor** (My Program > Edit split): rename a day (typed name wins
+  over generated themes), move any accessory to another day (mains and
+  secondaries stay anchored, ⚓), add or remove a day (current-week
+  completion marks re-key across the gap). Edits the SAME `days[].slots[]`
+  shape the generator emits; no parallel format. Live validation, no
+  prose: per-muscle frequency chips (trained days vs the slider target,
+  amber when short) and a per-day time estimate.
+- **Mid-macro focus re-spec** (My Program > Muscle focus): the sliders are
+  editable again; the new focus stores as `program.pendingFocus`
+  (transient, the deloadPlan pattern) and applies at the next block
+  boundary, where `endBlock` regenerates the split. Working maxes and
+  landmarks carry over untouched; volAdj was just reset (resensitization),
+  so the new split re-ramps from MEV.
+
+**H6 — meet prep, the powerlifting final state:**
+- **Per-block week count** (the open half of Epic G2): a block may carry
+  its own `weeks`; `blockWeeks`/`weeksBefore`/`totalProgramWeeks` replace
+  every fixed `block x weeksPerBlock` computation (pointer advance, global
+  week numbers, timeline, plan editor totals, history/summary labels).
+  Absent the field, every number is identical - the golden master holds.
+- **Meet date** (onboarding > Advanced, strength tracks): plans BACKWARD
+  from the date - standard blocks to fill the runway, then a real 2-week
+  taper placed last; the countdown now ends at the meet
+  (`program.meetDate`, additive).
+- **`jm2-peak`** via `Engine.registerScheme` (scheme isolation intact):
+  week 1 builds 3/2/1/1 to a crisp ~91% opener single, meet week is a
+  light primer; no secondary, no accessories, no AMRAP. Own percentages.
+- **Attempt selection** (`Engine.attempts`): opener ~91% / second ~97% /
+  third ~102% of the athlete's own e1RM (public coaching heuristics, our
+  numbers).
+- **Meet-day screen** (dashboard 🏆 during the taper): per lift, three
+  attempt tiles (opener outlined) and the warmup ladder to the opener,
+  plus one rest hint. Unit-aware like everything since H1.
+- Tests: `test/h5.test.js` (7) + `test/h6.test.js` (13) + render smoke for
+  the editors and the taper/meet views. Suite 368/368; golden master
+  untouched. i18n keys in both catalogs.
+
 ## [Epic H4: hypertrophy prescription depth] (2026-07-15)
 
 The bodybuilder persona's two loudest complaints. All bodybuilding-track

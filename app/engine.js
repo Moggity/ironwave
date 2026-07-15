@@ -741,6 +741,46 @@ Engine.schemes = {
 
 // Future methodologies (e.g. a pure hypertrophy program) plug in here.
 Engine.registerScheme = function (id, impl) { Engine.schemes[id] = impl; };
+
+// [Epic H6] Meet attempt suggestions from the athlete's own e1RM data. Attempt
+// heuristics are public coaching practice; these are OUR numbers: an opener you
+// could triple on a bad day (~91%), a second on near-certain ground (~97%), a
+// third that is the reach (~102%).
+Engine.attempts = function (e1, rounding) {
+  if (!(e1 > 0)) return null;
+  const r = p => Engine.roundLoad(e1 * p, rounding || 2.5);
+  return { opener: r(0.91), second: r(0.97), third: r(1.02) };
+};
+// [Epic H6] The meet taper: a genuine 1-2 week peak block (block.weeks = 2)
+// registered like any other scheme, so scheme isolation holds. Week 1 builds to
+// a crisp opener single off the implied max (wm = 0.9 x max); meet week is a
+// light primer. No accessories, no secondary, no AMRAP: fatigue leaves, skill
+// stays. Percentages are our own (openers ~91% is public coaching practice).
+Engine.registerScheme('jm2-peak', {
+  label: 'Meet taper',
+  short: 'Taper',
+  weekLabel(w) { return ['Week 1 · Openers', 'Week 2 · Meet week'][w] || ''; },
+  main(block, w, wm, rounding, pctMod = 1, experience) {
+    if (!wm) return Engine.calibrationRamp(3, experience);
+    const R = p => Engine.roundLoad((wm * pctMod / 0.9) * p, rounding);
+    if (w === 0) {
+      return [
+        { weight: R(0.70), reps: 3, noteKey: 'taper_build' },
+        { weight: R(0.80), reps: 2 },
+        { weight: R(0.88), reps: 1 },
+        { weight: R(0.91), reps: 1, noteKey: 'taper_opener' },
+      ];
+    }
+    return [
+      { weight: R(0.60), reps: 3, noteKey: 'taper_primer' },
+      { weight: R(0.70), reps: 1, noteKey: 'taper_primer' },
+    ];
+  },
+  secondary() { return []; },
+  accessory() { return []; },
+  weekVolume(block, w) { return w === 0 ? 7 : 4; },
+});
+
 Engine.schemeFor = function (block) {
   const id = block.scheme || (block.type === 'hypertrophy' ? 'jbb-hyp' : 'jm2-wave');
   return Engine.schemes[id] || Engine.schemes['jm2-wave'];
