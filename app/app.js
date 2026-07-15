@@ -3777,6 +3777,9 @@ function openPerf(ei, si) {
   PM = { ei, si, weight: w, reps: st.done ? st.reps : st.targetReps,
          rpe: st.done ? st.rpe : (st.targetRpe ?? 8),
          pump: st.done ? (st.pump ?? null) : null, tech: st.technique || null,
+         // Bodyweight counted by default; reopening a logged set restores what
+         // was stored. Only bodyweight-mode lifts ever read or write this.
+         bwCount: st.done ? st.bw != null : true,
          drops: hasKids ? dropSrc.map(d => ({ weight: d.weight, reps: d.reps })) : null };
   // A double-tap on a Performance button lands here twice: reuse the open modal
   // instead of stacking a second one (a stacked duplicate re-renders against a
@@ -3833,6 +3836,11 @@ function renderPerfModal(anim) {
   const bwMode = L.mode === 'bodyweight' || L.mode === 'band';
   const bwNote = bwMode
     ? `<div class="faint" style="font-size:.78rem;margin-top:2px">${esc(t('perf.bw_note'))}</div>` : '';
+  // Bodyweight-count toggle: on by default, tap to leave the body out of the
+  // tonnage for this set. Bodyweight mode only (bands do not load the body),
+  // and only when a bodyweight is on file so there is a number to count.
+  const bwToggle = L.mode === 'bodyweight' && S.profile.bodyweight > 0
+    ? `<button class="btn ${pm.bwCount ? 'btn-blue' : 'btn-outline'} mt8" id="pm-bw-toggle" onclick="pmBw()">${esc(t('perf.bw_toggle'))}</button>` : '';
   $modal.innerHTML = modalShell(anim, t('perf.title'), `
         <div class="stepper">
           <div class="lbl">${esc(bwMode ? t('perf.added_weight') : t('perf.weight'))}</div>
@@ -3844,6 +3852,7 @@ function renderPerfModal(anim) {
           </div>
           <div class="plate-viz" id="pm-plateviz">${viz}</div>
           ${bwNote}
+          ${bwToggle}
           <div class="plate-math-note" id="pm-platenote">${note}</div>
           ${L.showPlates ? `<button class="btn-ghost" onclick="openPlateConfig()">${esc(t('plates.configure'))}</button>` : ''}
         </div>
@@ -3942,6 +3951,17 @@ function pmRir(d) {
 }
 // Optional pump quick-tap: tapping the active level clears it (stays optional).
 function pmPump(n) { if (!PM) return; PM.pump = PM.pump === n ? null : n; rerenderTop(); }
+// Bodyweight-count toggle (bodyweight-mode lifts only): flips whether this
+// set's tonnage counts the athlete's bodyweight. Targeted update, no rebuild.
+function pmBw() {
+  if (!PM) return;
+  PM.bwCount = !PM.bwCount;
+  const btn = byId('pm-bw-toggle');
+  if (btn) {
+    btn.classList.toggle('btn-blue', PM.bwCount);
+    btn.classList.toggle('btn-outline', !PM.bwCount);
+  }
+}
 // Drop-set mini-set reps: weight stays the prescribed strip, the athlete logs reps.
 function pmDropReps(i, d) {
   if (!PM || !PM.drops || !PM.drops[i]) return;
@@ -3974,7 +3994,7 @@ function clearPerf() {
   if (!PM) return;
   const st = V.draft.entries[PM.ei].sets[PM.si];
   st.done = false; st.weight = st.reps = st.rpe = null; st.pump = null; st.drops = null;
-  delete st.skipped;
+  delete st.skipped; delete st.bw;
   closePerf(); render();
 }
 // Skip a set the athlete cannot or should not do today (cardio gone, a tweak,
@@ -3984,7 +4004,7 @@ function skipSet() {
   if (!PM) return;
   const st = V.draft.entries[PM.ei].sets[PM.si];
   st.done = false; st.weight = st.reps = st.rpe = null; st.pump = null; st.drops = null;
-  st.skipped = true;
+  st.skipped = true; delete st.bw;
   toast(t('perf.set_skipped'));
   closePerf(); render();
 }
@@ -4009,12 +4029,18 @@ function donePerf() {
   st.weight = PM.weight; st.reps = PM.reps; st.rpe = PM.rpe; st.pump = PM.pump; st.done = true;
   delete st.skipped; // logging a set un-skips it
   if (PM.drops) st.drops = PM.drops.map(d => ({ weight: d.weight, reps: d.reps }));
+  // Freeze the counted bodyweight into the set so historical tonnage never
+  // shifts when the athlete's weight changes. Optional field, written only
+  // when counted; weight stays ADDED load only (e1RM contract unchanged).
+  if (loadingFor(e.exId).mode === 'bodyweight' && PM.bwCount && S.profile.bodyweight > 0) st.bw = S.profile.bodyweight;
+  else delete st.bw;
   // Optional Cluster A/B fields are only written when set, so a plain straight set
   // logs the same record shape as before (persistence / golden master unaffected).
   const rec = { ts: Date.now(), weight: st.weight, reps: st.reps, rpe: st.rpe };
   if (st.pump != null) rec.pump = st.pump;
   if (st.technique) rec.technique = st.technique;
   if (st.drops) rec.drops = st.drops;
+  if (st.bw) rec.bw = st.bw;
   pushRecord(e.exId, rec);
 
   // AMRAP on a main lift → adjust working max (the JM 2.0 engine).

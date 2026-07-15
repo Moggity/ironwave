@@ -128,6 +128,7 @@ const I18N_ES = {
   'perf.weight': 'Peso',
   'perf.added_weight': 'Peso agregado',
   'perf.bw_note': 'Ejercicio de peso corporal. Cuenta solo el peso que agregas (chaleco, cinturón, mancuerna). Deja 0 si es solo peso corporal.',
+  'perf.bw_toggle': 'Peso corporal',
   'perf.reps': 'Reps',
   'perf.rir_label': 'Reps en reserva (RIR)',
   'perf.rir_hint': 'RIR es cuántas reps podrías hacer todavía.',

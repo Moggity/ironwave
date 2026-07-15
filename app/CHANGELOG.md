@@ -1,5 +1,40 @@
 # IRONWAVE — Changelog
 
+## [Bodyweight counted in tonnage for bodyweight lifts] (2026-07-15)
+
+Owner report: on bodyweight lifts (calf raises, pull-ups, dips) the logged
+number is added load only, so 3 sets at bodyweight 77 kg + 10 kg counted
+10 kg per rep and the session tonnage was wrong, with no UI signal that the
+body was (not) being counted.
+
+- **New optional per-set field `bw`**: the athlete's bodyweight
+  (`S.profile.bodyweight`) is frozen into the set and its history record at
+  log time, so historical tonnage never shifts when bodyweight changes.
+  Additive-field pattern: absent on every non-bodyweight lift and when the
+  toggle is off, so old saves and the default path are untouched. No
+  migration needed.
+- **`Engine.tonnage` counts body plus load**: `(weight + bw) * reps` per
+  done set, and drop mini-sets ride the parent's `bw` (the same body moves
+  on every mini-set). Byte-identical when no set carries `bw`. Intentional
+  change: a pure bodyweight set (added weight 0) now produces tonnage.
+  `Engine.volumeLoadTrend` counts `bw` on records the same way, so the
+  per-exercise volume chart agrees with session tonnage.
+- **One minimal control** (owner call: nothing verbose): a rounded accent
+  button reading "Bodyweight" in the perf modal, shown only for
+  bodyweight-mode lifts with a bodyweight on file. On by default (accent =
+  counted); tap to leave the body out of that set. Reopening a logged set
+  restores its stored state. Bands are excluded (a band does not load the
+  body). `clearPerf`/`skipSet` drop the frozen value.
+- **e1RM, records and progression still use ADDED load only** (`weight`
+  is unchanged; `bw` is inert everywhere except tonnage and the volume
+  trend), so prescriptions, the outlier guard and the golden master do not
+  move.
+- Tests: new `test/bodyweight-tonnage.test.js` (tonnage math incl. the
+  identity contract and drops, donePerf freeze, toggle-off re-log, null
+  bodyweight, non-bw lift, clear/skip cleanup, openPerf defaults); harness
+  shim exports `openPerf`/`donePerf`/`clearPerf`/`skipSet`/`pmBw` and a
+  `PM` accessor. One new i18n key per catalog (`perf.bw_toggle`).
+
 ## [Book-alignment: finisher periodization, hypertrophy secondary re-dose, rep-anchored prescriptions] (2026-07-14)
 
 Owner feedback round 6, grounded in the reference book (Israetel 2020,

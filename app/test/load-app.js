@@ -53,6 +53,8 @@ const EXPORTS = `return {
   applyTechnique, buildTechnique, lastWorkingSetIdx, entryHasDrop, entryTech, canDropEntry, finisherAllowed,
   armTapGuard, tapGuardActive,
   pumpBadge, PUMP_ICONS, cardHintFor, displaySetNote, setNoteText, dayTheme, blockDisplayLabel, suggestedWeight,
+  openPerf, donePerf, clearPerf, skipSet, pmBw,
+  get PM() { return PM; }, set PM(v) { PM = v; },
   recordsFor, pushRecord, deleteRecord, confirmResolve, setTargetLabel,
   sessionEntryFrom, refreshDraftTargets, previewSetLabel,
   restNotifySupported, showRestNotification, toggleRestNotify,
