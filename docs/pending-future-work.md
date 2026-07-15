@@ -465,9 +465,9 @@ model + timeline v2)**.
   the block list via `extendBlocks`/`blocksForWeeks` (cycle the template pattern to
   fit, renumber labels, re-stamp mesoIdx + phase); `testDate`/`daysOut`/the
   timeline derive from the result; the default (no choice) keeps the template
-  verbatim, so the golden master is untouched. **Still open:** variable *per-block*
-  week count (a deeper, scheme-level change to `weekType`/`JBB_HYP`; now planned
-  to land as **Epic H6**'s enabling slice, since a real taper needs it), an
+  verbatim, so the golden master is untouched. **Still open:** ~~variable *per-block*
+  week count~~ (SHIPPED 2026-07-15 as Epic H6's enabling slice:
+  `block.weeks`/`blockWeeks`), an
   explicit end-date picker (today it is weeks presets; H6's meet date covers the
   strength tracks), and smart phase auto-arrange (the cycled pattern is
   mechanical; intelligent phase placement is G4/G6 territory).
@@ -649,45 +649,27 @@ autoreg, reps = double progression. NOT taken: flipping the generator's
 default anchors to non-barbell (the swap now prices correctly, which is the
 "may lead" contract; a default flip is an owner product call).
 
-### Epic H5 - Split editing + mid-macro re-spec (priority 5, after H4)
+### ~~Epic H5 - Split editing + mid-macro re-spec~~ DONE (2026-07-15)
 
-- **What:** treat the generated split as editable, not disposable:
-  - a split editor: rename days, move a muscle's slot between days, insert
-    or remove a day, validated live against `SPLIT_FREQ` frequencies and the
-    per-session landmark caps (the volume tooling already computes both);
-  - **mid-macro focus re-spec:** re-run `generateBodybuildingDays` from
-    edited sliders at a block boundary (where the accessory rotation already
-    rebuilds days), preserving `wm`, landmarks, and `volAdj`. Today the
-    sliders are frozen for the whole macro and the only escape is a new
-    program.
-- **Why:** RP re-specs per mesocycle and Alpha/Boostcamp have real split
-  editors; the bodybuilder called this the third thing keeping his RP
-  subscription alive.
-- **Scalability:** the editor edits the same `days[].slots[]` shape the
-  generator emits; no parallel format, so `resolveSlot` and the tests never
-  learn a second representation.
+Shipped (see CHANGELOG): a split editor (rename days, move accessories
+between days with mains/secondaries anchored, add/remove a day with
+current-week completion re-keying, live per-muscle frequency chips + per-day
+time estimates) editing the same `days[].slots[]` shape the generator emits;
+and mid-macro focus re-spec via `program.pendingFocus` (transient), applied
+by `endBlock` at the block boundary with wm/landmarks preserved and volAdj
+resensitized as always.
 
-### Epic H6 - Meet prep: the powerlifting final state (priority 6; needs per-block weeks)
+### ~~Epic H6 - Meet prep: the powerlifting final state~~ DONE (2026-07-15)
 
-- **Absorbs:** the open half of Epic G2 (variable PER-BLOCK week count) as
-  its enabling slice; a real taper cannot exist while every block is 5
-  weeks.
-- **What:**
-  - a **meet date** input on strength-ending tracks replacing the derived
-    test date, with backward planning (`blocksForWeeks` from the date, taper
-    placed last);
-  - a genuine 1-2 week **taper/peak block** with its own scheme (e.g.
-    `jm2-peak` via `registerScheme`, keeping scheme isolation) instead of a
-    relabeled 3s wave;
-  - **attempt selection:** opener / second / third suggestions from the
-    AMRAP-driven e1RM data the app already collects, with our own
-    percentages and copy (attempt heuristics are public coaching practice);
-  - a meet-day screen: attempts, warmup timing, rest between attempts.
-- **Why:** "the app counts down to a test date it never programs" was the
-  powerlifter's sharpest line; JuggernautAI and KeyLifts both hand him
-  openers from less data than IRONWAVE stores.
-- **Cross-links:** pairs with sport-aware scheduling (named/dated days)
-  without depending on it; the 2-day templates item remains its own branch.
+Shipped (see CHANGELOG): per-block week counts (`block.weeks` +
+`blockWeeks`/`weeksBefore`, closing Epic G2's open half; default math
+byte-identical), a meet date on strength tracks planning backward with a
+real 2-week `jm2-peak` taper placed last (registerScheme, isolation intact:
+3/2/1/1 to a ~91% opener single, then a meet-week primer; no accessories,
+no AMRAP), `Engine.attempts` (91/97/102% of own e1RM), and a meet-day
+screen (attempt tiles + warmup ladder to the opener). Still open: warmup
+TIMING on meet day (attempt tiles + rest hint shipped; a clock-driven
+"warm up now" flow needs sport-aware scheduling's clock dependence).
 
 ### Epic H7 - Custom programming platform (gated capstone; needs G4 + H6's per-block weeks)
 

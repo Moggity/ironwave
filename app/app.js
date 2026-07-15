@@ -454,7 +454,8 @@ function commitPlan(program, lockedBlocks, draftBlocks) {
   stampMesoIdx(blocks);
   stampBlockPhase(blocks); // fills any missing phase; explicit ones are kept
   relabelBlocks(blocks);
-  const testDate = program.startDate + blocks.length * program.weeksPerBlock * 7 * 864e5;
+  const testDate = program.startDate +
+    blocks.reduce((a, b) => a + (b.weeks || program.weeksPerBlock), 0) * 7 * 864e5;
   return { blocks, testDate };
 }
 // [Epic G2] How many fixed-length blocks best fit a target macrocycle length in
@@ -468,19 +469,34 @@ function makeProgram(ob) {
   // powerbuilding so an onboarding without a track behaves exactly as before.
   const track = ob.track || 'powerbuilding';
   const tpl = PROGRAM_TEMPLATES[track] || PROGRAM_TEMPLATES.powerbuilding;
+  const start = Date.now();
+  // [Epic H6] A meet date on a strength-ending track plans BACKWARD from the
+  // date: enough standard blocks to fill the runway, then a real 2-week taper
+  // (scheme jm2-peak, block.weeks = 2) placed last, and the test date IS the
+  // meet date. Gated on ob.meetDate, so the default path is byte-identical.
+  let meetTs = null;
+  if (ob.meetDate && track !== 'bodybuilding') {
+    const ts = typeof ob.meetDate === 'number' ? ob.meetDate : Date.parse(ob.meetDate);
+    if (ts > start + 21 * 864e5) meetTs = ts; // needs at least a short block + taper
+  }
   // [Epic G2] A custom macrocycle length (weeks) rebuilds the block list to fit;
   // no length keeps the template verbatim, so the default path stays byte-identical.
-  const blocks = ob.macroWeeks
-    ? extendBlocks(tpl.blocks, blocksForWeeks(ob.macroWeeks, tpl.weeksPerBlock))
-    : JSON.parse(JSON.stringify(tpl.blocks));
+  const blocks = meetTs
+    ? extendBlocks(tpl.blocks, Math.max(1, Math.round(((meetTs - start) / (7 * 864e5) - 2) / tpl.weeksPerBlock)))
+    : ob.macroWeeks
+      ? extendBlocks(tpl.blocks, blocksForWeeks(ob.macroWeeks, tpl.weeksPerBlock))
+      : JSON.parse(JSON.stringify(tpl.blocks));
   stampMesoIdx(blocks);
   stampBlockPhase(blocks);
   markPeakBlock(blocks); // [Realism] strength-ending tracks taper into a peak
   // [Epic G6] A bodybuilding goal archetype overrides the default per-block phases
   // with its own sequence (lean-fast vs serious macro). Inert on other tracks.
   if (track === 'bodybuilding' && ob.goalArchetype) applyArchetypePhases(blocks, ob.goalArchetype);
-  const totalWeeks = blocks.length * tpl.weeksPerBlock;
-  const start = Date.now();
+  if (meetTs) {
+    blocks.push({ label: 'Meet taper', type: 'peaking', wave: '3s',
+      scheme: 'jm2-peak', weeks: 2, phase: 'peak', mesoIdx: 0 });
+  }
+  const totalWeeks = blocks.reduce((a, b) => a + (b.weeks || tpl.weeksPerBlock), 0);
   const wm = {};
   const increments = {};
   for (const lift of ['comp-squat','comp-bench','comp-deadlift','military-press']) {
@@ -506,7 +522,8 @@ function makeProgram(ob) {
     template: tpl.id, daysPerWeek: ob.daysPerWeek,
     methodology: tpl.methodology || 'Juggernaut + Bodybuilding',
     startDate: start,
-    testDate: ob.testDate || start + totalWeeks * 7 * 864e5,
+    testDate: ob.testDate || meetTs || start + totalWeeks * 7 * 864e5,
+    ...(meetTs ? { meetDate: meetTs } : {}),
     blocks,
     weeksPerBlock: tpl.weeksPerBlock,
     pointer: { block: 0, week: 0 },
@@ -682,12 +699,22 @@ function P() { return S.program; }
 // The one gate most non-default behavior hangs off: is this a bodybuilding program?
 function bbTrack() { const tc = P() && P().trainingConfig; return !!(tc && tc.track === 'bodybuilding'); }
 function dayKey(b, w, d) { return `${b}-${w}-${d}`; }
+// [Epic H6] Per-block week count: a block may carry its own `weeks` (the meet
+// taper is 2), everything else keeps the program-wide weeksPerBlock, so every
+// existing program computes exactly as before.
+function blockWeeks(b) { return (b && b.weeks) || P().weeksPerBlock; }
+function weeksBefore(bi) {
+  let n = 0;
+  for (let i = 0; i < bi && i < P().blocks.length; i++) n += blockWeeks(P().blocks[i]);
+  return n;
+}
+function totalProgramWeeks() { return weeksBefore(P().blocks.length); }
 function blockOf(i) { return P().blocks[i]; }
 function curBlock() { return blockOf(P().pointer.block); }
 function weekIdx() { return P().pointer.week; }
 function programDone() { return P().pointer.block >= P().blocks.length; }
 function daysOut() { return Math.max(0, Math.ceil((P().testDate - Date.now()) / 864e5)); }
-function globalWeekNum() { return P().pointer.block * P().weeksPerBlock + P().pointer.week + 1; }
+function globalWeekNum() { return weeksBefore(P().pointer.block) + P().pointer.week + 1; }
 // Day theme label (e.g. "Upper A", "Push") shown as a subtitle. Empty for the
 // plain "Day N" templates so we never render "Day 1 · Day 1".
 // [i18n phase 3] Day display theme. Preference order: a structured generator
@@ -795,7 +822,7 @@ function resolveSlot(slot, blockIdx, wIdx) {
   // week index below.
   const eIdx = effectiveWeekIdx(blockIdx, wIdx);
   // Change 2: the pending weekly modifier applies to exactly one global week.
-  const gWeek = blockIdx * P().weeksPerBlock + wIdx + 1;
+  const gWeek = weeksBefore(blockIdx) + wIdx + 1;
   const mod = (P().weekMod && P().weekMod.appliesToGlobalWeek === gWeek) ? P().weekMod : null;
   const modPct = mod ? mod.pctMod : 1;
   if (slot.type === 'main') {
@@ -969,7 +996,7 @@ function effectiveWeekIdx(blockIdx, wIdx) {
   const tc = p && p.trainingConfig;
   if (tc && tc.track === 'bodybuilding') {
     const ed = p.earlyDeload;
-    if (ed && ed.block === blockIdx && ed.week === wIdx) return p.weeksPerBlock - 1; // deload slot
+    if (ed && ed.block === blockIdx && ed.week === wIdx) return blockWeeks(blockOf(blockIdx)) - 1; // deload slot
   }
   return wIdx;
 }
@@ -1373,7 +1400,7 @@ function openTimeByWeek(di) {
   const p = P(), bi = p.pointer.block;
   const cap = (p.trainingConfig && p.trainingConfig.timeMode === 'custom') ? p.trainingConfig.timeCapMin : null;
   const rows = [];
-  for (let wk = 0; wk < p.weeksPerBlock; wk++) {
+  for (let wk = 0; wk < blockWeeks(blockOf(bi)); wk++) {
     const b = resolveDayEntries(di, bi, wk);
     const over = cap && b.coreMin > cap;
     const cur = wk === p.pointer.week;
@@ -1443,7 +1470,7 @@ function logReadiness(score) {
 const weekFeelLegend = v => t('week.feel_' + v);
 function nextPointer(b, w) {
   let nb = b, nw = w + 1;
-  if (nw >= P().weeksPerBlock) { nw = 0; nb = b + 1; }
+  if (nw >= blockWeeks(blockOf(b))) { nw = 0; nb = b + 1; }
   return { block: nb, week: nw };
 }
 // Count of PLAIN working sets a scheme normally prescribes for a slot kind,
@@ -1509,7 +1536,7 @@ function computeWeekMod(value, upBi, upWi, curBi, curWi) {
   const mainFinal = setVal === 1 ? Math.max(FLOOR_MAIN, Math.min(mainNext, mainPrev) - 1) : mainNext;
   const mainSetDelta = mainFinal - mainNext;
 
-  return { appliesToGlobalWeek: upBi * P().weeksPerBlock + upWi + 1, pctMod, accSetDelta, mainSetDelta };
+  return { appliesToGlobalWeek: weeksBefore(upBi) + upWi + 1, pctMod, accSetDelta, mainSetDelta };
 }
 
 // ------------------------------------------------------------
@@ -1525,7 +1552,7 @@ function render() {
       onboarding: vOnboarding, dashboard: vDashboard, workout: vWorkout,
       checkin: vCheckin, session: vSession, history: vHistory, summary: vSummary,
       more: vMore, exercises: vExercises, program: vProgram, settings: vSettings,
-      progress: vProgress, report: vReport,
+      progress: vProgress, report: vReport, meet: vMeet,
     };
     $app.innerHTML = (views[V.view] || vDashboard)();
     bindRangeLabels();
@@ -1719,7 +1746,11 @@ function vOnboarding() {
             <button class="${ob.macroWeeks==null?'on':''}" onclick="obMacro(null)">${esc(t('ob.standard'))}</button>
             ${[12,18,24,36].map(w => `<button class="${ob.macroWeeks===w?'on':''}" onclick="obMacro(${w})">${esc(t('ob.wk', { w }))}</button>`).join('')}
           </div>
-          <div class="focus-time">${esc(obMacroLine(ob))}</div>` : ''}` : ''}
+          <div class="focus-time">${esc(obMacroLine(ob))}</div>
+          ${ob.track !== 'bodybuilding' ? `
+            <div class="ob-sub mt8">${esc(t('ob.meet_title'))}</div>
+            <input type="date" id="ob-meet" value="${esc(ob.meetDate || '')}" onchange="obMeet(this.value)">
+            ${ob.meetDate ? `<div class="focus-time">${esc(obMeetLine(ob))}</div>` : ''}` : ''}` : ''}` : ''}
       <button class="btn btn-green mt16" onclick="obNext(2)" ${goalReady ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
   } else if (step === 3) {
     body = `
@@ -1806,6 +1837,21 @@ function obMacroLine(ob) {
   const blocks = ob.macroWeeks ? blocksForWeeks(ob.macroWeeks, tpl.weeksPerBlock) : tpl.blocks.length;
   return t('ob.macro_line', { blocks, weeks: blocks * tpl.weeksPerBlock });
 }
+// [Epic H6] Meet date (strength tracks): backward planning replaces the length
+// presets; a set date wins over macroWeeks in makeProgram.
+function obMeet(v) {
+  V.ob.meetDate = v || null;
+  if (v) V.ob.macroWeeks = null;
+  render();
+}
+function obMeetLine(ob) {
+  const ts = Date.parse(ob.meetDate);
+  if (!(ts > Date.now() + 21 * 864e5)) return t('ob.meet_too_soon');
+  const tpl = PROGRAM_TEMPLATES[ob.track] || PROGRAM_TEMPLATES.powerbuilding;
+  const weeks = Math.floor((ts - Date.now()) / (7 * 864e5));
+  const blocks = Math.max(1, Math.round((weeks - 2) / tpl.weeksPerBlock));
+  return t('ob.meet_line', { blocks, weeks: blocks * tpl.weeksPerBlock + 2 });
+}
 function obExp(id) { V.ob.experience = id; render(); }
 function obTimeMode(mode) { V.ob.timeMode = mode; render(); }
 // Store the cap as typed without a full re-render (which would blur the
@@ -1876,7 +1922,7 @@ function obNext(step) {
       logReadiness(computeReadiness());
       save().then(() => {
         V.tab = 'dashboard';
-        toast(t('ob.created', { weeks: P().blocks.length * P().weeksPerBlock }));
+        toast(t('ob.created', { weeks: totalProgramWeeks() }));
         nav('dashboard');
       }).catch(() => {
         toast(t('ob.save_failed'), true);
@@ -2004,6 +2050,7 @@ function weekLabelFor(block, w) {
   if (ed && ed.week === w && block === blockOf(ed.block)) return t('week.deload_early');
   // Translated per-scheme week labels ('week.hyp_0'.. / 'week.jm2_0'..); the
   // engine's own weekLabel/weekTypeLabel strings stay as the untranslated source.
+  if (blockScheme(block) === 'jm2-peak') return w <= 1 ? t(`week.peak_${w}`) : '';
   if (w >= 0 && w <= 4) return t(`week.${blockScheme(block) === 'jbb-hyp' ? 'hyp' : 'jm2'}_${w}`);
   return '';
 }
@@ -2044,7 +2091,7 @@ function timelineHTML(opts) {
   const editable = !opts || opts.editable !== false;
   const p = P();
   let maxV = 1;
-  p.blocks.forEach(b => { for (let w = 0; w < p.weeksPerBlock; w++) maxV = Math.max(maxV, weekVolume(b, w)); });
+  p.blocks.forEach(b => { for (let w = 0; w < blockWeeks(b); w++) maxV = Math.max(maxV, weekVolume(b, w)); });
   const emphases = {}; // which legend swatches this program actually uses
   const ed = p.earlyDeload;
   const bar = (b, bi, w) => {
@@ -2072,7 +2119,7 @@ function timelineHTML(opts) {
       else if (phase === 'peak') emphases.peak = 1;
       else if (PHASE_DEFICIT[phase]) emphases.cut = 1;
       else emphases.hypertrophy = 1;
-      for (let w = 0; w < p.weeksPerBlock; w++) bars.push(bar(b, bi, w));
+      for (let w = 0; w < blockWeeks(b); w++) bars.push(bar(b, bi, w));
       bi++;
     } while (bi < p.blocks.length && blockPhase(p.blocks[bi]) === phase);
     const pc = PHASE_COLORS[phase] || 'var(--blue)';
@@ -2131,7 +2178,7 @@ function openWeekPreview(bi, wi) {
     const techNote = tech
       ? `<p class="tl-finisher">${TECH_MARK[tech] || ''} ${esc(t('timeline.finisher_week', { tech: TECHNIQUE_LABELS[tech] ? t('tech.' + tech) : tech }))}</p>`
       : '';
-    $modal.innerHTML = modalShell(anim, `${esc(blockDisplayLabel(b))} · ${esc(t('common.week_n', { n: bi * p.weeksPerBlock + wi + 1 }))}`,
+    $modal.innerHTML = modalShell(anim, `${esc(blockDisplayLabel(b))} · ${esc(t('common.week_n', { n: weeksBefore(bi) + wi + 1 }))}`,
       `<p class="subtle" style="margin-bottom:10px">${weekLabelFor(b, wi)} · ${esc(t('preview.projected'))}</p>${techNote}${days}`);
   });
 }
@@ -2192,7 +2239,7 @@ function renderPlanEditor(anim) {
       </div>
     </div>`;
   }).join('');
-  const weeks = (locked + draft.length) * p.weeksPerBlock;
+  const weeks = p.blocks.slice(0, locked).concat(draft).reduce((a, b) => a + blockWeeks(b), 0);
   const body = `
     <p class="subtle">${esc(t('plan.intro'))}</p>
     ${lockedRows}
@@ -2231,7 +2278,7 @@ function planSave() {
   const { blocks, testDate } = commitPlan(p, locked, V.planDraft);
   p.blocks = blocks; p.testDate = testDate;
   V.planDraft = null; V.planLocked = null;
-  save(); closeAllModals(); toast(t('plan.updated_toast', { weeks: blocks.length * p.weeksPerBlock })); render();
+  save(); closeAllModals(); toast(t('plan.updated_toast', { weeks: blocks.reduce((a, b) => a + blockWeeks(b), 0) })); render();
 }
 
 // Explainer for the "Waiting for calibration" state. Stacks over the preview,
@@ -2295,6 +2342,7 @@ function vDashboard() {
     <div class="subtle">${fmtDateLong(p.testDate)}</div>
     ${timelineHTML({ editable: false })}
     ${weekSection}
+    ${!done && blockScheme(curBlock()) === 'jm2-peak' ? `<button class="btn btn-outline mt16" onclick="nav('meet')">🏆 ${esc(t('meet.title'))}</button>` : ''}
     ${done ? '' : `<button class="btn btn-outline mt16" onclick="openVolumeDashboard()">${esc(t('dash.weekly_volume_btn'))}</button>`}
     ${(done || (p.trainingConfig && p.trainingConfig.track === 'bodybuilding')) ? '' : `<button class="phase-chip mt8" onclick="openPhase()">${esc(t('dash.phase_chip', { phase: phaseLabel(currentPhase()) }))}</button>`}
   </div>${tabbar()}`;
@@ -2702,7 +2750,7 @@ function advanceWeek() {
     p.deloadPlan = Engine.deloadDepth(fatigueStatuses(), readinessTrendingDown());
   }
   p.pointer.week++;
-  if (p.pointer.week >= p.weeksPerBlock) endBlock(finishedBlock, bb);
+  if (p.pointer.week >= blockWeeks(blockOf(finishedBlock))) endBlock(finishedBlock, bb);
   else { V.dayIdx = null; save(); render(); }
 }
 // [Cluster D] Close out a finished block: evolve the athlete's volume landmarks
@@ -2724,6 +2772,25 @@ function endBlock(finishedBlock, bb) {
   p.pointer.week = 0;
   p.pointer.block++;
   if (p.pointer.block < p.blocks.length) {
+    // [Epic H5] Mid-macro focus re-spec lands HERE, at the block boundary: the
+    // split regenerates from the edited sliders. Working maxes and landmarks are
+    // untouched; volAdj was reset above, so the new split re-ramps from MEV. The
+    // fresh generation supersedes the accessory rotation below for this boundary.
+    if (bb && p.pendingFocus) {
+      const days = generateBodybuildingDays(p.pendingFocus, p.daysPerWeek);
+      if (days && days.length === p.daysPerWeek) {
+        p.days = days;
+        p.trainingConfig.muscleFocus = Object.assign({}, p.pendingFocus);
+        if (S.profile.training) S.profile.training.muscleFocus = Object.assign({}, p.pendingFocus);
+        p.pendingFocus = null;
+        toast(t('fe.applied'));
+        toast(t('week.new_block_toast', { label: blockDisplayLabel(p.blocks[p.pointer.block]) }));
+        V.dayIdx = null;
+        save(); render();
+        return;
+      }
+      p.pendingFocus = null; // generation could not fill the week: keep the old split
+    }
     // Clear block-scoped accessory selections so the user picks fresh each block.
     // [Cluster C] For bodybuilding, also rotate each generator-default accessory
     // to a fresh head-diverse pick from its muscle pool, so a new meso varies the
@@ -3529,7 +3596,7 @@ function vSession() {
   return `<header class="topbar">
       <button class="btn-ghost" onclick="abandonSession()">‹</button>
       <div class="col center"><span style="color:var(--blue);font-weight:600">${esc(blockDisplayLabel(block))}</span>
-      <span style="font-weight:700">${esc(t('session.week_day', { week: dr.b * P().weeksPerBlock + dr.w + 1, day: dr.d + 1 }))}</span></div>
+      <span style="font-weight:700">${esc(t('session.week_day', { week: weeksBefore(dr.b) + dr.w + 1, day: dr.d + 1 }))}</span></div>
       <span></span></header>
     <div class="view">
       ${restTimerHTML()}
@@ -4705,7 +4772,7 @@ function vHistory() {
     const maxT = Math.max(...sessions.map(s => s.tonnage || 0), 1);
     body = sessions.map(s => {
       const pct = Math.max(8, (s.tonnage || 0) / maxT * 100);
-      const label = `${blockOf(s.b)?.label || ''} · ${t('hist.wd', { w: s.b * P().weeksPerBlock + s.w + 1, d: s.d + 1 })}`;
+      const label = `${blockOf(s.b)?.label || ''} · ${t('hist.wd', { w: weeksBefore(s.b) + s.w + 1, d: s.d + 1 })}`;
       return `<button class="hist-row ${s.skipped ? 'skipped' : ''}" style="display:block;width:100%;text-align:left" onclick="openSessionDetail('${s.id}')">
         <div class="meta"><span>${fmtDate(s.ts)} · ${esc(label)}</span><span>${s.skipped ? esc(t('session.skipped')) : (s.rating ? esc(t('hist.rated', { n: s.rating })) : '')}</span></div>
         <div class="bar-track"><div class="bar" style="width:${s.skipped ? 100 : pct}%">${s.skipped ? '—' : fmtTonnage(s.tonnage)}</div></div>
@@ -4778,7 +4845,7 @@ function vSummary() {
   <div class="view">
     <div class="mt8">
       <div style="color:${BLOCK_COLORS[block?.type] || 'var(--blue)'};font-weight:600">${esc(block?.label || '')}</div>
-      <div style="font-size:1.6rem;font-weight:800">${esc(t('sum.day_done', { week: s.b * P().weeksPerBlock + s.w + 1, day: s.d + 1 }))}</div>
+      <div style="font-size:1.6rem;font-weight:800">${esc(t('sum.day_done', { week: weeksBefore(s.b) + s.w + 1, day: s.d + 1 }))}</div>
     </div>
     <div class="card accent mt8">
       <div class="row"><span class="subtle">${esc(t('sum.total_tonnage'))}</span><b>${fmtTonnage(s.tonnage)}</b></div>
@@ -5244,6 +5311,38 @@ function vReport() {
   </div>${tabbar()}`;
 }
 
+// ------------------------------------------------------------
+// [Epic H6] VIEW: MEET DAY. Attempts from the athlete's own e1RM data
+// (Engine.attempts), warmups built to the opener with the same plate-aware
+// math sessions use, one rest hint. Reachable while a taper block runs.
+// ------------------------------------------------------------
+function vMeet() {
+  if (!P()) return vOnboarding();
+  const p = P();
+  const cards = ['comp-squat', 'comp-bench', 'comp-deadlift'].map(id => {
+    const e1 = Engine.bestE1RM(recordsFor(id)) || (p.wm[id] ? p.wm[id] / 0.9 : null);
+    if (!e1) return '';
+    const L = loadingFor(id);
+    const at = Engine.attempts(e1, L.totalInc);
+    const wus = Engine.warmupSets(at.opener, L.barWeight || S.profile.barWeight, S.profile.rounding);
+    return `<div class="card">
+      <div class="row"><b>${esc(exDisplayName(exById(id)))}</b>
+        <span class="faint">e1RM ${fmtWU(Engine.roundLoad(e1, 0.5))}</span></div>
+      <div class="meet-attempts">
+        ${[at.opener, at.second, at.third].map((w, i) => `
+          <div class="meet-attempt ${i === 0 ? 'opener' : ''}"><span>${i + 1}</span><b>${dispW(w)}</b></div>`).join('')}
+        <span class="faint">${wUnit()}</span>
+      </div>
+      <div class="faint">↳ ${wus.map(s => `${dispW(s.weight)}×${s.reps}`).join(' · ')}</div>
+    </div>`;
+  }).filter(Boolean).join('');
+  return `${topbar(t('meet.title'))}<div class="view">
+    ${p.meetDate ? `<div class="subtle" style="margin:4px 0 2px">${fmtDateLong(p.meetDate)}</div>` : ''}
+    <p class="faint" style="margin-bottom:12px">${esc(t('meet.rest_hint'))}</p>
+    ${cards || `<p class="faint">${esc(t('chart.empty'))}</p>`}
+  </div>${tabbar()}`;
+}
+
 function vMore() {
   const link = (label, ic, fn) => `<button class="lib-item" onclick="${fn}">
     <span><span style="margin-right:10px">${ic}</span>${esc(label)}</span><span>›</span></button>`;
@@ -5260,12 +5359,146 @@ function vMore() {
   </div>${tabbar()}`;
 }
 
+// ------------------------------------------------------------
+// [Epic H5] SPLIT EDITOR (bodybuilding): the generated split is editable, not
+// disposable. Edits the SAME days[].slots[] shape the generator emits (no
+// parallel format), validated live: per-muscle weekly frequency vs the slider
+// target and a per-day time estimate. Mains/secondaries stay anchored (they
+// theme the day and key the working max); accessories move freely.
+// ------------------------------------------------------------
+// Slider-keyed muscles present on a day (same reverse map the generator uses).
+function splitDayMuscles(d) {
+  const out = new Set();
+  for (const sl of d.slots) {
+    const mv = (sl.type === 'main' || sl.type === 'secondary')
+      ? (exById(sl.ex || sl.lift) || {}).movement : sl.cat;
+    const key = MOVEMENT_SLIDER[mv];
+    if (key) out.add(key);
+  }
+  return out;
+}
+// Per-muscle chips: trained days vs the slider's frequency target, amber when short.
+function seFreqChips() {
+  const p = P();
+  const focus = (p.trainingConfig && p.trainingConfig.muscleFocus) || {};
+  const perDay = p.days.map(splitDayMuscles);
+  return `<div class="px-chips">${FOCUS_KEYS.filter(k => SPLIT_FREQ[focus[k]]).map(k => {
+    const target = SPLIT_FREQ[focus[k]];
+    const actual = perDay.filter(s => s.has(k)).length;
+    return `<span class="px-chip ${actual < target ? 'warn' : ''}">${esc(t('muscle.' + k))} ${actual}/${target}x</span>`;
+  }).join('')}</div>`;
+}
+function openSplitEditor() { showModal(renderSplitEditor); }
+function renderSplitEditor(anim) {
+  const p = P();
+  const b = p.pointer.block, w = p.pointer.week;
+  const cards = p.days.map((d, di) => {
+    const est = Math.round(estimateSessionSec(resolveDayEntries(di, b, w).items.map(x => x.rs), false) / 60);
+    const rows = d.slots.map((sl, si) => {
+      const rs = resolveSlot(sl, b, w);
+      if (rs.isRemoved) return '';
+      const nm = rs.exId ? exDisplayName(exById(rs.exId)) : mvLabel(sl.cat);
+      const anchored = sl.type === 'main' || sl.type === 'secondary';
+      const mover = anchored ? '<span class="faint">⚓</span>'
+        : `<select class="se-move" onchange="seMove(${di},${si},this.value)">
+            ${p.days.map((_, dj) => `<option value="${dj}" ${dj === di ? 'selected' : ''}>${esc(t('common.day_n', { n: dj + 1 }))}</option>`).join('')}
+          </select>`;
+      return `<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)">
+        <span>${esc(nm)}</span>${mover}</div>`;
+    }).join('');
+    return `<div class="card">
+      <div class="row" style="gap:8px">
+        <input class="se-name" value="${esc(dayTheme(d) || '')}" placeholder="${esc(t('common.day_n', { n: di + 1 }))}"
+          onchange="seRename(${di}, this.value)">
+        <span class="faint" style="white-space:nowrap">~${est}m</span>
+        ${p.days.length > 2 ? `<button class="btn-ghost" style="color:var(--red)" onclick="seRemoveDay(${di})">✕</button>` : ''}
+      </div>
+      ${rows}</div>`;
+  }).join('');
+  $modal.innerHTML = modalShell(anim, t('se.title'),
+    `${seFreqChips()}${cards}
+     <button class="btn btn-outline" onclick="seAddDay()">＋ ${esc(t('se.add_day'))}</button>`);
+}
+function seMove(di, si, dj) {
+  dj = parseInt(dj);
+  if (dj === di) return;
+  const p = P();
+  const [sl] = p.days[di].slots.splice(si, 1);
+  p.days[dj].slots.push(sl);
+  save(); rerenderTop();
+}
+function seRename(di, v) {
+  const d = P().days[di];
+  d.name = v.trim();
+  delete d.theme; delete d.nameKey; // the typed name wins everywhere dayTheme reads
+  save();
+}
+function seAddDay() {
+  const p = P();
+  p.days.push({ name: '', slots: [] });
+  p.daysPerWeek = p.days.length;
+  save(); rerenderTop();
+}
+function seRemoveDay(di) {
+  const p = P();
+  const doIt = () => {
+    p.days.splice(di, 1);
+    p.daysPerWeek = p.days.length;
+    // Re-key the current week's completion marks past the removed index so a
+    // finished day stays locked as the days shift left.
+    const b = p.pointer.block, w = p.pointer.week;
+    delete p.completedDays[dayKey(b, w, di)];
+    for (let i = di + 1; i <= p.days.length; i++) {
+      const v = p.completedDays[dayKey(b, w, i)];
+      delete p.completedDays[dayKey(b, w, i)];
+      if (v) p.completedDays[dayKey(b, w, i - 1)] = v;
+    }
+    if (V.dayIdx != null && V.dayIdx >= p.days.length) V.dayIdx = 0;
+    save(); rerenderTop();
+  };
+  if (!p.days[di].slots.length) return doIt();
+  confirmModal({ title: t('se.remove_title'), message: t('se.remove_msg'), danger: true,
+    confirmLabel: t('se.remove_confirm') }, doIt);
+}
+// ------------------------------------------------------------
+// [Epic H5] MID-MACRO FOCUS RE-SPEC: sliders are editable again. The new focus
+// is stored on the program (transient, like deloadPlan) and applied at the next
+// block boundary, where endBlock regenerates the split: working maxes and
+// landmarks are untouched, volAdj was just reset (resensitization), so the new
+// split re-ramps from MEV. No mid-block day mutation.
+// ------------------------------------------------------------
+function openFocusEditor() {
+  V.feDraft = Object.assign({}, (P().pendingFocus || P().trainingConfig.muscleFocus));
+  showModal(renderFocusEditor);
+}
+function renderFocusEditor(anim) {
+  const rows = FOCUS_KEYS.map(k => `
+    <div class="focus-row">
+      <div class="row"><span>${esc(t('muscle.' + k))}</span><b id="fe-val-${k}">${V.feDraft[k]}</b></div>
+      <input type="range" min="0" max="6" step="1" value="${V.feDraft[k]}" oninput="feSlider('${k}', this.value)">
+    </div>`).join('');
+  $modal.innerHTML = modalShell(anim, t('fe.title'), `
+    ${rows}
+    <p class="faint">${esc(t('fe.next_block'))}</p>
+    <button class="btn btn-blue" onclick="feSave()">${esc(t('common.save'))}</button>`);
+}
+function feSlider(k, v) {
+  V.feDraft[k] = parseInt(v);
+  const el = byId('fe-val-' + k); if (el) el.textContent = v;
+}
+function feSave() {
+  P().pendingFocus = Object.assign({}, V.feDraft);
+  V.feDraft = null;
+  save(); closeAllModals(); render();
+  toast(t('fe.saved'));
+}
+
 function vProgram() {
   if (!P()) return vOnboarding();
   const p = P();
   const lifts = ['comp-squat', 'comp-bench', 'comp-deadlift', 'military-press'];
   const blockRows = p.blocks.map((b, i) => {
-    const startW = i * p.weeksPerBlock + 1;
+    const startW = weeksBefore(i) + 1;
     const status = i < p.pointer.block ? '✓' : i === p.pointer.block && !programDone() ? '●' : '○';
     const sch = Engine.schemeFor(b);
     // Same emphasis color as the timeline bars (a cut block reads teal, a peak
@@ -5275,7 +5508,7 @@ function vProgram() {
     return `<div class="row" style="padding:10px 0 10px 8px;border-bottom:1px solid var(--line);border-left:3px solid ${c}">
       <span><b style="color:${c}">${status}</b> ${esc(b.label)}
         <span class="faint">· ${esc(t('common.wave', { w: b.wave }))} · ${esc(sch.short || sch.label)} · <span style="color:${c}">${esc(phaseLabel(ph))}</span></span></span>
-      <span class="subtle">${esc(t('prog.week_range', { a: startW, b: startW + p.weeksPerBlock - 1 }))}</span></div>`;
+      <span class="subtle">${esc(t('prog.week_range', { a: startW, b: startW + blockWeeks(b) - 1 }))}</span></div>`;
   }).join('');
   const track = (p.trainingConfig && p.trainingConfig.track) || 'powerbuilding';
   return `${topbar(t('dash.my_program'))}<div class="view">
@@ -5286,6 +5519,10 @@ function vProgram() {
       <div class="row mt8"><span class="subtle">${esc(t('prog.days_out_row'))}</span><b>${daysOut()}</b></div>
       <div class="row mt8"><span class="subtle">${esc(t('prog.days_week'))}</span><b>${p.daysPerWeek}</b></div>
     </div>
+    ${track === 'bodybuilding' ? `<div class="btn-row mt8">
+      <button class="btn btn-outline" onclick="openSplitEditor()">✎ ${esc(t('se.title'))}</button>
+      <button class="btn btn-outline" onclick="openFocusEditor()">${esc(t('fe.title'))}${p.pendingFocus ? ' ●' : ''}</button>
+    </div>` : ''}
     ${timelineHTML()}
     <div class="section-title" style="font-size:1.15rem">${esc(t('prog.blocks'))}</div>
     ${blockRows}
