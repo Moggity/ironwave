@@ -4,10 +4,16 @@ This documents the surfaces deliberately hidden in the 2026-07 copywriting
 pass, why, and how to bring each one back. None of the underlying mechanics
 were removed; everything hidden here keeps working under the hood.
 
-## 1. Powerbuilding is not an onboarding option
+## 1. ~~Powerbuilding is not an onboarding option~~ RESTORED (2026-07-15, Epic H2)
 
-**What changed.** `OB_TRACKS` in `app.js` no longer lists `'powerbuilding'`,
-so the goal step offers only Bodybuilding (Culturismo) and Powerlifting.
+`'powerbuilding'` is back in `OB_TRACKS` (bodybuilding still first, as
+`feedback-round3.test.js` pins). The athlete-feedback roadmap called the
+missing card out: the app's own default (and golden-master) program was
+unreachable from a fresh install. A render-smoke test now pins that the
+powerbuilding onboarding path produces the exact golden-master program.
+
+**Original entry (for history):** `OB_TRACKS` in `app.js` no longer lists
+`'powerbuilding'`, so the goal step offers only Bodybuilding and Powerlifting.
 
 **What did NOT change.** The track itself is fully supported:
 
@@ -44,6 +50,12 @@ the early-deload advisor all keep working. Only the number is invisible.
 
 **To restore.** Flip `SHOW_READINESS_UI` to `true`. The catalog keys
 (`dash.readiness*`, `week.readiness_ctx`, `week.ctx_*`) were kept for this.
+
+**Partial restore (2026-07-15, Epic H2).** The check-in no longer feeds a
+void: a one-chip readiness digest (`readinessChipHTML`, score colored and
+arrowed against the athlete's own 28-day baseline, tap opens the volume
+screen's recovery trend) shows on the dashboard once a check-in exists. The
+verbose hero + summary row stay behind `SHOW_READINESS_UI`.
 
 ## 3. "Tap a week to preview" hint removed
 

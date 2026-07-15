@@ -127,6 +127,7 @@ function migrateState(s) {
   if (p.restNotify == null) p.restNotify = false; // rest-done notification opt-in
   if (!Array.isArray(s.bodyweight)) s.bodyweight = []; // [Cluster F] bodyweight trend
   if (s.program && !s.program.volAdj) s.program.volAdj = {}; // [Cluster E] per-muscle autoreg
+  if (s.program && !s.program.belowStd) s.program.belowStd = {}; // [Epic H2] below-standard AMRAP counters
   if (s.program && !s.program.trainingConfig) {
     // Legacy programs predate tracks: stamp them as the powerbuilding default.
     s.program.trainingConfig = { track: 'powerbuilding', timeMode: 'unlimited', timeCapMin: null,
@@ -1554,7 +1555,9 @@ function topbar(title) {
 // 'track.<id>_desc', 'exp.<id>' / 'exp.<id>_desc'); these keep only the order.
 // 'powerbuilding' is hidden from onboarding for now (docs/hidden-ui.md); the
 // track itself stays fully supported (default state, migration, golden master).
-const OB_TRACKS = ['bodybuilding', 'powerlifting'];
+// [Epic H2] All three tracks pickable, including the app's own default
+// (powerbuilding was unreachable from a fresh install).
+const OB_TRACKS = ['bodybuilding', 'powerbuilding', 'powerlifting'];
 const OB_EXP = ['beginner', 'intermediate', 'advanced'];
 // The main lifts whose 1RM onboarding collects. The bodybuilding generator
 // never programs the deadlift (see removeBigLift, "not used in hypertrophy"),
@@ -1870,9 +1873,21 @@ function obNext(step) {
 const BLOCK_COLORS = { hypertrophy: '#5aa2f7', strength: '#e8883a', peaking: '#e2483d', bridge: '#2d9d8f' };
 
 // Readiness stays computed and keeps affecting prescriptions (check-ins, skip
-// penalties, autoregulation, early deload); only its score/trend UI is hidden
-// for now (docs/hidden-ui.md). Flip to true to restore every surface.
+// penalties, autoregulation, early deload); only its verbose score/trend UI is
+// hidden (docs/hidden-ui.md). Flip to true to restore every surface.
 const SHOW_READINESS_UI = false;
+// [Epic H2] The lighter cut of that hero: one chip, score colored and arrowed
+// against the athlete's own 28-day baseline. No prose; tap opens the volume
+// screen where the recovery trend chart lives. Empty until a first check-in,
+// so a fresh install shows nothing.
+function readinessChipHTML() {
+  if (!(S.readinessLog || []).length) return '';
+  const score = computeReadiness();
+  const ctx = readinessContext();
+  const dir = !ctx.hasBaseline ? 0 : score >= ctx.baseAvg * 1.02 ? 1 : score <= ctx.baseAvg * 0.95 ? -1 : 0;
+  return `<button class="readiness-chip${dir > 0 ? ' up' : dir < 0 ? ' down' : ''}" onclick="openVolumeDashboard()">
+    ⚡ ${esc(t('dash.readiness'))} <b>${score.toFixed(1)}</b>${dir > 0 ? ' ▲' : dir < 0 ? ' ▼' : ''}</button>`;
+}
 
 function sparklineHTML() {
   const log = S.readinessLog.slice(-30);
@@ -2207,7 +2222,7 @@ function vDashboard() {
         <span class="score-sm">${computeReadiness().toFixed(2)}</span>
       </div>
       ${sparklineHTML()}
-    </div>` : ''}
+    </div>` : readinessChipHTML()}
     <div class="section-title mt24">${esc(t('dash.my_program'))}</div>
     <div style="font-size:2rem;font-weight:800">${esc(t('dash.days_out', { n: daysOut() }))}</div>
     <div class="subtle">${fmtDateLong(p.testDate)}</div>
@@ -2363,7 +2378,10 @@ function muscleSignal(mv) {
   const performance = avgDiff >= 1 ? 1 : avgDiff <= -1 ? -1 : 0;
   const grp = checkinGroupForMovement(mv);
   const last = (S.checkins || []).length ? S.checkins[S.checkins.length - 1] : null;
-  const recovery = (last && grp && last.sliders && last.sliders[grp] != null) ? last.sliders[grp] : null;
+  // [Epic H2] Muscle-keyed sliders (bodybuilding check-in) win; the broad
+  // pattern group stays as the fallback for older check-ins and other tracks.
+  const sl = (last && last.sliders) || {};
+  const recovery = sl[mv] != null ? sl[mv] : (grp && sl[grp] != null ? sl[grp] : null);
   return { recovery, performance, pump: pumpN ? Math.round(pumpSum / pumpN) : null };
 }
 function volumeDashboardHTML() {
@@ -3050,6 +3068,21 @@ function doSkipWorkout(di) {
 function checkinGroupsForDay(day) {
   const groups = new Map();
   const bi = P().pointer.block, wi = P().pointer.week;
+  // [Epic H2] A generated bodybuilding day asks soreness by the day's actual
+  // muscles (the lift-pattern groups like "upper pull" read wrong on a split);
+  // strength tracks keep the pattern groups that match their day themes.
+  const tc = P().trainingConfig;
+  if (tc && tc.track === 'bodybuilding') {
+    const MAIN_MUSCLE = { bench: 'chest', press: 'shoulder', squat: 'quad', deadlift: 'ham' };
+    for (const slot of day.slots) {
+      if (resolveSlot(slot, bi, wi).isRemoved) continue;
+      const mv = slot.type === 'main' || slot.type === 'secondary'
+        ? exById(slot.lift)?.movement : slot.cat;
+      const m = MAIN_MUSCLE[mv] || (VOL_ORDER.includes(mv) ? mv : null);
+      if (m) groups.set(m, { key: m, muscle: true });
+    }
+    return [...groups.values()];
+  }
   for (const slot of day.slots) {
     // Skip slots a focus slider (set to 0) or a track rule has removed: a muscle
     // with no scheduled work needs no readiness slider. resolveSlot is the same
@@ -3105,7 +3138,7 @@ function vCheckin() {
     body = `${header}
       <div class="bodymap">🫀</div>
       <div class="slider-card">
-        <div class="q">${esc(t('ci.group_q', { group: t('ci.group_' + g.key) }))}</div>
+        <div class="q">${esc(t('ci.group_q', { group: g.muscle ? mvLabel(g.key) : t('ci.group_' + g.key) }))}</div>
         <div class="feeling">${t('ci.feeling', { word: `<b>${esc(feelWord(val))}</b>` })}</div>
         <input type="range" min="1" max="5" step="1" value="${val}"
           oninput="cd_slider('${g.key}', this.value)">
@@ -3160,13 +3193,35 @@ function beginSession() {
   // or optional for a time-capped athlete. All are logged; optional ones are
   // flagged so the session shows them and the block-end carryover can learn.
   const built = resolveDayEntries(di, b, w);
-  const entries = built.items.map(sessionEntryFrom);
+  const entries = built.items.map(x => applyInjuryEasing(sessionEntryFrom(x), cd.injuries));
   V.draft = { id: 's' + Date.now(), ts: Date.now(), b, w, d: di, entries,
               sleepHours: cd.sleepHours, mindset: cd.mindset, sliders: { ...cd.sliders } };
+  // Optional field, only written when used (session record marks the flags).
+  if (cd.injuries.length) V.draft.injuries = [...cd.injuries];
   clearRestTimer();
   save();
   nav('session');
 }
+// [Epic H2] A lift flagged at check-in still trains, but eased: the AMRAP
+// becomes a straight set (no grinding on a tweak), weighted sets drop 10%,
+// effort caps gain one RIR. Session-draft only, unlogged sets only, and inert
+// with no flags, so prescriptions and the golden master never move.
+const INJURY_MV = { Squat: 'squat', Bench: 'bench', Deadlift: 'deadlift' };
+function applyInjuryEasing(e, injuries) {
+  const flagged = (injuries || []).map(l => INJURY_MV[l]).filter(Boolean);
+  if (!flagged.includes((exById(e.exId) || {}).movement)) return e;
+  e.injured = true;
+  for (const st of e.sets) {
+    if (st.done || st.skipped || st.ramp) continue;
+    if (st.amrap) st.amrap = false;
+    if (st.targetRpe != null) st.targetRpe = Math.max(5, st.targetRpe - 1);
+    if (st.targetWeight != null) {
+      st.targetWeight = Engine.roundLoad(st.targetWeight * 0.9, loadingFor(e.exId).totalInc || 2.5);
+    }
+  }
+  return e;
+}
+
 // Build one session entry (logging shape) from a resolveDayEntries item. Shared by
 // session start and the mid-session swap rebuild so both stay in sync.
 function sessionEntryFrom(x) {
@@ -3202,7 +3257,7 @@ function refreshDraftTargets(exId) {
     if (e.exId !== exId && e.wmKey !== exId) return;
     const item = built.items.find(x => x.si === e.si && x.rs.exId === e.exId);
     if (!item) return;
-    const fresh = sessionEntryFrom(item);
+    const fresh = applyInjuryEasing(sessionEntryFrom(item), dr.injuries);
     fresh.notes = e.notes; fresh.notesOpen = e.notesOpen;
     fresh.sets = fresh.sets.map((s, j) => {
       const old = e.sets[j];
@@ -3468,6 +3523,7 @@ function liftCardHTML(e, ei, dr, shortSleep) {
   return `<div class="lift-card ${e.optional ? 'optional' : ''}">
       <h3>${esc(e.name)}${e.optional ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}</h3>
       ${e.optional ? `<p class="faint" style="margin:-4px 0 6px">${esc(t('session.over_time_limit'))}</p>` : ''}
+      ${e.injured ? `<div class="injury-strip">🩹 ${esc(t('session.injury_eased'))}<button onclick="openSwap(${dr.d},${e.si})">⇄ ${esc(t('common.swap'))}</button></div>` : ''}
       ${lastSetInfo(e.exId)}
       <div class="head-actions">
         <button onclick="openSwap(${dr.d},${e.si})" aria-label="${esc(t('session.swap_exercise'))}">⇄</button>
@@ -4071,6 +4127,29 @@ function skipSet() {
   toast(t('perf.set_skipped'));
   closePerf(); render();
 }
+// [Epic H2] Two consecutive below-standard AMRAPs mean the working max is
+// ahead of the athlete. Offer (never force) a reset to 90% of what the AMRAP
+// actually implied; declining re-arms the counter. Additive per-lift counter.
+function trackBelowStandard(e, st) {
+  const p = P();
+  p.belowStd = p.belowStd || {};
+  p.belowStd[e.wmKey] = (p.belowStd[e.wmKey] || 0) + 1;
+  if (p.belowStd[e.wmKey] < 2) return;
+  p.belowStd[e.wmKey] = 0;
+  const implied = Engine.roundLoad(Engine.e1rm(st.weight, st.reps, st.rpe ?? 10) * 0.9, 1.25);
+  if (!(implied > 0) || implied >= p.wm[e.wmKey]) return;
+  confirmModal({
+    title: t('perf.wm_reset_title'),
+    message: t('perf.wm_reset_msg', { name: e.name, from: fmtWU(p.wm[e.wmKey]), to: fmtWU(implied) }),
+    confirmLabel: t('perf.wm_reset_confirm'),
+  }, () => {
+    p.wm[e.wmKey] = implied;
+    refreshDraftTargets(e.wmKey);
+    save();
+    toast(t('perf.wm_calibrated', { name: e.name, w: dispW(implied), u: wUnit() }));
+    render(); rerenderTop();
+  });
+}
 function donePerf() {
   if (!PM) return;
   const e = V.draft.entries[PM.ei];
@@ -4116,7 +4195,14 @@ function donePerf() {
         P().wm[e.wmKey] = res.newWM;
         V.draft.wmChange = { name: e.name, from: res.newWM - res.delta, to: res.newWM, delta: res.delta, capped: res.capped };
         toast(t('perf.wm_up', { name: e.name, from: dispW(res.newWM - res.delta), to: dispW(res.newWM), u: wUnit() }) + (res.capped ? ' ' + t('perf.wm_capped') : ''));
-      } else toast(t(st.reps < wave.standard ? 'perf.wm_below_standard' : 'perf.wm_standard_met'), true);
+        if (P().belowStd) P().belowStd[e.wmKey] = 0;
+      } else if (st.reps < wave.standard) {
+        toast(t('perf.wm_below_standard'), true);
+        trackBelowStandard(e, st);
+      } else {
+        toast(t('perf.wm_standard_met'), true);
+        if (P().belowStd) P().belowStd[e.wmKey] = 0;
+      }
     } else {
       toast(t('perf.amrap_variation'));
     }
@@ -4471,7 +4557,7 @@ function doSwap(di, si, exId) {
     const built = resolveDayEntries(di, dr.b, dr.w);
     const item = built.items.find(x => x.si === si);
     const ei = dr.entries.findIndex(e => e.si === si);
-    if (item && ei >= 0) dr.entries[ei] = sessionEntryFrom(item);
+    if (item && ei >= 0) dr.entries[ei] = applyInjuryEasing(sessionEntryFrom(item), dr.injuries);
   }
   save(); closeAllModals(); render();
   toast(t('swap.set_for', { name: exName(exId), day: dayTheme(P().days[di]) || t('common.day_n', { n: di + 1 }) }));
@@ -4544,6 +4630,13 @@ function vHistory() {
     <p class="faint" style="margin-bottom:14px">${esc(t('hist.sub'))}</p>
     ${body}</div>${tabbar()}`;
 }
+// [Epic H2] The flags a session was trained under, as compact chips. Empty
+// string when none, so old sessions render exactly as before.
+function injuryChips(s) {
+  if (!s.injuries || !s.injuries.length) return '';
+  return `<div class="injury-chips">${s.injuries.map(l =>
+    `<span class="injury-chip">🩹 ${esc(t('lift.' + (INJURY_MV[l] || l)))}</span>`).join('')}</div>`;
+}
 // Shared per-lift rendering for the history modal and the post-workout summary.
 function sessionSetRowsHTML(e, withTarget) {
   const done = e.sets.filter(x => x.done);
@@ -4573,6 +4666,7 @@ function openSessionDetail(id) {
     $modal.innerHTML = modalShell(anim, fmtDate(s.ts), `
         <div class="row" style="margin-bottom:10px"><span class="subtle">${esc(t('sum.tonnage'))}</span><b>${fmtTonnage(s.tonnage)}</b></div>
         ${s.rating ? `<div class="row" style="margin-bottom:10px"><span class="subtle">${esc(t('sum.rating'))}</span><b>${s.rating} / 10</b></div>` : ''}
+        ${injuryChips(s)}
         ${s.mindset ? `<div class="card accent"><span class="faint">${esc(t('sum.focus'))}</span><div>${esc(s.mindset)}</div></div>` : ''}
         ${s.entries.map(e => sessionLiftCardHTML(e, false)).join('')}`);
   });
@@ -4604,6 +4698,7 @@ function vSummary() {
       ${SHOW_READINESS_UI ? `<div class="row mt8"><span class="subtle">${esc(t('dash.readiness'))}</span><b>${s.readiness != null ? s.readiness.toFixed(2) : '—'}</b></div>` : ''}
       ${wmc ? `<div class="row mt8"><span class="subtle">${esc(t('sum.wm_row', { name: wmc.name }))}</span><b style="color:var(--blue)">${dispW(wmc.from)} → ${fmtWU(wmc.to)}${wmc.capped ? ' ' + esc(t('sum.capped')) : ''}</b></div>` : ''}
     </div>
+    ${injuryChips(s)}
     <div class="section-title" style="font-size:1.2rem">${esc(t('sum.sets_logged'))} <span class="faint">${esc(t('sum.actual_vs_target'))}</span></div>
     ${s.entries.map(e => sessionLiftCardHTML(e, true)).join('')}
     <button class="btn btn-green mt16" onclick="nav('dashboard')">${esc(t('sum.back_dash'))}</button>

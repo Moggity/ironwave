@@ -76,6 +76,8 @@ const EXPORTS = `return {
   isLb, isRpe, toDispW, fromDispW, dispW, fmtWU, fmtTonnage, fmtW, fmtRir,
   displayWeight, wUnitFor, plateColorFor, plateTextFor,
   applyUnits, setUnits, setIntensityDisplay, presetOptions, pmEffort,
+  applyInjuryEasing, trackBelowStandard, injuryChips, INJURY_MV,
+  readinessChipHTML, computeReadiness, readinessContext, logReadiness,
   DEFAULT_ACC, SPLIT_FREQ, FOCUS_FACTOR, MOVEMENT_SLIDER,
   UPPER_MUSCLES, LOWER_MUSCLES, FOCUS_KEYS,
   t, I18N,

@@ -226,6 +226,30 @@ test('lb + RPE display: every navigation view and a live session render', () => 
   assert.ok(/RPE/.test(modal), 'perf modal shows the RPE stepper');
 });
 
+// [Epic H2] The powerbuilding card must produce EXACTLY the program the golden
+// master pins, driven through the real onboarding handlers. This is the
+// regression anchor for the default track being reachable from a fresh install.
+test('powerbuilding onboarding path produces the golden-master program', () => {
+  const ctx = fresh();
+  ctx.app.S = ctx.app.defaultState();
+  ctx.app.V = Object.assign({}, ctx.baseV, { view: 'onboarding', ob: ctx.app.obDefaults(), obStep: 0 });
+  ctx.app.render();
+  ctx.app.obNext(0);
+  ctx.app.obDays(4); ctx.app.obNext(1);
+  assert.ok(/obTrack\('powerbuilding'\)/.test(ctx.document.getElementById('app').innerHTML),
+    'the powerbuilding card renders on the goal step');
+  ctx.app.obTrack('powerbuilding'); ctx.app.obNext(2);
+  ctx.app.obExp('intermediate'); ctx.app.obNext(3);
+  ctx.app.obTimeMode('unlimited'); ctx.app.obNext(4); // skips focus for non-bb
+  ctx.app.obNext(6); // maxes left empty -> uncalibrated, like the golden default
+  const prog = ctx.app.S.program;
+  assert.ok(prog, 'program created');
+  const golden = ctx.app.makeProgram({ daysPerWeek: 4, track: 'powerbuilding',
+    experience: 'intermediate', timeMode: 'unlimited', muscleFocus: { ...DEFAULT_FOCUS }, maxes: {} });
+  const strip = p => { const c = JSON.parse(JSON.stringify(p)); delete c.startDate; delete c.testDate; return c; };
+  assert.deepStrictEqual(strip(prog), strip(golden), 'onboarding output = golden-master program');
+});
+
 test('lb mode: onboarding step 0 shows the unit toggle and lb bodyweight label', () => {
   const ctx = fresh();
   ctx.app.S = ctx.app.defaultState();

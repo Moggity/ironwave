@@ -35,7 +35,8 @@ test('check-in: a present muscle surfaces its readiness slider', () => {
   const prog = installProgram({ muscleFocus: { ...DEFAULT_FOCUS } });
   prog.days = [chestDay()];
   const groups = app.checkinGroupsForDay(prog.days[0]);
-  assert.ok(groups.some(g => g.key === 'bench'), 'chest work should ask the bench/pecs check-in');
+  // [Epic H2] Bodybuilding days ask by muscle now, not by lift pattern.
+  assert.ok(groups.some(g => g.key === 'chest'), 'chest work should ask the chest check-in');
 });
 
 test('check-in: a removed muscle (slider 0) drops its readiness slider', () => {
@@ -52,8 +53,9 @@ test('check-in: removing one muscle leaves the others intact', () => {
     { type: 'acc', cat: 'vpull', def: 'lat-pulldown' },   // kept (back)
   ] }];
   const keys = app.checkinGroupsForDay(prog.days[0]).map(g => g.key);
-  assert.ok(!keys.includes('bench'), 'removed chest must not ask the bench check-in');
-  assert.ok(keys.includes('upperpull'), 'remaining back work keeps its check-in');
+  // [Epic H2] Muscle-keyed on the bodybuilding track.
+  assert.ok(!keys.includes('chest'), 'removed chest must not ask its check-in');
+  assert.ok(keys.includes('vpull'), 'remaining back work keeps its check-in');
 });
 
 // ---------------------------------------------------------------------------

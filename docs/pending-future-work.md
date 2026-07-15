@@ -607,30 +607,20 @@ untouched. Note for later epics: the raw-state JSON export intentionally
 stays kg (it is a backup, not a display surface); H3's macro report is
 where display-unit export fields will matter.
 
-### Epic H2 - Onboarding completeness + check-in honesty (priority 2, no dependencies)
+### ~~Epic H2 - Onboarding completeness + check-in honesty~~ DONE (2026-07-15)
 
-Small, independent polish branches; ship early.
-
-- **Powerbuilding onboarding card.** `OB_TRACKS` omits the app's own default
-  template, so the hybrid track (and the golden-master program) is
-  unreachable from a fresh install. Add the third card; the powerbuilding
-  onboarding path must produce the exact golden-master program, which makes
-  it its own regression anchor.
-- **Check-in value.** The check-in feeds a readiness score that is never
-  shown (`SHOW_READINESS_UI = false`), which reads as five questions into a
-  void. Either surface a one-line readiness digest (a lighter cut of the
-  hidden hero) or trim the questions; decide, do not keep collecting
-  invisibly.
-- **Injury flags that do something.** The squat/bench/deadlift checkboxes
-  currently annotate nothing. Minimum: mark the session, hint a swap on the
-  flagged lift, and ease that day's top-set RPE with a visible note.
-- **Muscle-named soreness sliders on the bodybuilding track.** The
-  pattern-keyed groups ("upper pull") read wrong on generated bodybuilding
-  days; key them by the day's primary muscles instead (the
-  `checkinGroupsForDay` resolution already knows the slots).
-- **Working-max reset nudge.** Two consecutive below-standard AMRAPs on a
-  lift should offer a WM reduction (a confirm, athlete-controlled), not just
-  hold. `amrapAdjust` already detects below-standard; add a per-lift counter.
+All five shipped in one branch (owner call: show, don't tell — compact UI,
+no explanatory copy). See CHANGELOG for detail. Powerbuilding card restored
+to `OB_TRACKS` with an onboarding-equals-golden-master parity smoke; a
+one-chip readiness digest (score vs own 28-day baseline, tap for the trend)
+replaced the hidden hero's void; injury flags ease the flagged lift's draft
+(AMRAP off, -10%, +1 RIR) behind an amber strip with one-tap Swap and 🩹
+session chips; bodybuilding check-ins ask soreness by the day's muscles
+(`muscleSignal` reads muscle key first, pattern group fallback); and two
+below-standard AMRAPs offer an athlete-confirmed WM reset to the implied
+90% (`program.belowStd`, additive + migrated). `docs/hidden-ui.md` sections
+1-2 updated. Tests: `test/h2.test.js` + parity smoke; golden master
+untouched.
 
 ### Epic H3 - Progress analytics + macro report (priority 3, data already exists)
 
