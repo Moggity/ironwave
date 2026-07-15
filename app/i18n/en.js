@@ -125,6 +125,7 @@ const I18N_EN = {
   'perf.weight': 'Weight',
   'perf.added_weight': 'Added weight',
   'perf.bw_note': 'Bodyweight lift. Count only weight you add (vest, belt, dumbbell). Leave 0 for bodyweight only.',
+  'perf.bw_toggle': 'Bodyweight',
   'perf.reps': 'Reps',
   'perf.rir_label': 'Reps In Reserve (RIR)',
   'perf.rir_hint': 'RIR is how many reps you could still do.',

@@ -281,10 +281,14 @@ const Engine = {
   tonnage(entries) {
     let t = 0;
     for (const e of entries) for (const s of e.sets) {
-      if (s.done && s.weight > 0 && s.reps > 0) t += s.weight * s.reps;
-      // A logged drop set adds the volume of each mini-set it carried.
+      // Optional s.bw (bodyweight counted, frozen at log time): each rep moves
+      // the body plus the added load. Absent bw leaves the math unchanged.
+      const bw = s.bw > 0 ? s.bw : 0;
+      if (s.done && s.weight + bw > 0 && s.reps > 0) t += (s.weight + bw) * s.reps;
+      // A logged drop set adds the volume of each mini-set it carried; the same
+      // body moves on every mini-set, so the parent's bw rides along.
       if (s.done && Array.isArray(s.drops)) {
-        for (const d of s.drops) if (d.weight > 0 && d.reps > 0) t += d.weight * d.reps;
+        for (const d of s.drops) if (d.weight + bw > 0 && d.reps > 0) t += (d.weight + bw) * d.reps;
       }
     }
     return Math.round(t);
@@ -436,10 +440,11 @@ const Engine = {
     return this._recordsByDay(records, days).map(g =>
       ({ ts: g.ts, value: Math.max(...g.recs.map(r => this.e1rm(r.weight, r.reps, r.rpe))) }));
   },
-  // Total volume load (sum of weight * reps) each day.
+  // Total volume load (sum of weight * reps) each day. Records carrying the
+  // optional bw field (bodyweight counted at log time) move body plus load.
   volumeLoadTrend(records, days = 120) {
     return this._recordsByDay(records, days).map(g =>
-      ({ ts: g.ts, value: g.recs.reduce((a, r) => a + r.weight * r.reps, 0) }));
+      ({ ts: g.ts, value: g.recs.reduce((a, r) => a + (r.weight + (r.bw || 0)) * r.reps, 0) }));
   },
 
   // Dated max milestones for the Maxes tab, newest first: every set that put
