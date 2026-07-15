@@ -574,7 +574,68 @@ function pickAccessory(pool, used, usedHeads, rot = 0) {
 // ranked muscle on a day becomes its primary focus and gets a compound anchor.
 // Runs once at program creation; sliders are fixed for the cycle.
 // ------------------------------------------------------------
+// [2-day] Full-body mode. An upper/lower split at N <= 2 silently drops every
+// muscle to 1x/week and piles a week's whole per-muscle volume into one
+// session (which the per-session cap then trims with no other day to catch
+// it). Standard practice at that frequency is full-body days: each trained
+// muscle appears on min(freq, N) days, the two days lead with compounds from
+// DIFFERENT regions, and a 2x muscle's weekly sets naturally split across
+// both sessions.
+function generateFullBodyDays(focus, N) {
+  const freq = {};
+  for (const m of FOCUS_KEYS) if (SPLIT_FREQ[focus[m]]) freq[m] = Math.min(SPLIT_FREQ[focus[m]], N);
+  const ms = FOCUS_KEYS.filter(m => freq[m]);
+  if (!ms.length) return [];
+  const used = new Set(), headsUsed = {}, usedMains = new Set();
+  const pick = m => {
+    const hs = headsUsed[m] || (headsUsed[m] = new Set());
+    const id = pickAccessory(DEFAULT_ACC[m] || [], used, hs);
+    if (id) { used.add(id); const h = accHead(id); if (h) hs.add(h); }
+    return id;
+  };
+  const accSlot = m => { const id = pick(m); return id ? { type: 'acc', cat: (exById(id) || {}).movement, def: id } : null; };
+  // One lead per day, from different regions when both have one: the strongest
+  // anchor-capable upper muscle and the strongest lower one.
+  const canLead = m => ANCHOR_RANK[m] >= 2 && freq[m];
+  const best = arr => arr.filter(canLead).sort((a, b) => focus[b] - focus[a])[0];
+  const leads = [];
+  const upLead = best(UPPER_MUSCLES), loLead = best(LOWER_MUSCLES);
+  if (upLead) leads.push(upLead);
+  if (loLead && leads.length < N) leads.push(loLead);
+  while (leads.length < N) {
+    leads.push(FOCUS_KEYS.filter(canLead).find(m => !leads.includes(m)) || ms[0]);
+  }
+  const days = leads.slice(0, N).map(p => ({ primary: p, muscles: [], load: 1 }));
+  // Spread every muscle's frequency across the days, least-loaded first, never
+  // twice on one day (the lead day counts as one appearance).
+  for (const m of ms.slice().sort((a, b) => focus[b] - focus[a])) {
+    let r = freq[m] - days.filter(d => d.primary === m).length;
+    while (r-- > 0) {
+      const avail = days.map((_, i) => i).filter(i => days[i].primary !== m && !days[i].muscles.includes(m));
+      if (!avail.length) break;
+      const di = avail.sort((a, b) => days[a].load - days[b].load)[0];
+      days[di].muscles.push(m); days[di].load++;
+    }
+  }
+  return days.map(d => {
+    const slots = [];
+    const a = PRIMARY_ANCHOR[d.primary];
+    if (a && a.main) {
+      if (!usedMains.has(a.main)) { usedMains.add(a.main); slots.push({ type: 'main', lift: a.main }); }
+      else slots.push({ type: 'secondary', lift: a.main, baseLift: a.main });
+    } else if (a && a.acc && !used.has(a.acc)) {
+      used.add(a.acc); slots.push({ type: 'acc', cat: (exById(a.acc) || {}).movement, def: a.acc });
+    } else { const s = accSlot(d.primary); if (s) slots.push(s); }
+    for (const m of d.muscles) { const s = accSlot(m); if (s) slots.push(s); }
+    let g = 0;
+    while (slots.length < 4 && g++ < 6) { const s = accSlot(d.primary); if (!s) break; slots.push(s); }
+    return { name: `Full Body · ${FOCUS_LABELS[d.primary] || d.primary}`,
+             theme: { region: 'full', primary: d.primary },
+             slots, primary: d.primary };
+  });
+}
 function generateBodybuildingDays(focus, N) {
+  if (N <= 2) return generateFullBodyDays(focus, N); // [2-day] full-body, not upper/lower
   const freq = {};
   for (const m of FOCUS_KEYS) if (SPLIT_FREQ[focus[m]]) freq[m] = SPLIT_FREQ[focus[m]];
   const pts = ms => ms.reduce((s, m) => s + (focus[m] || 0), 0);
@@ -723,6 +784,8 @@ function globalWeekNum() { return weeksBefore(P().pointer.block) + P().pointer.w
 function dayTheme(d) {
   if (!d) return '';
   if (d.theme && d.theme.primary) {
+    // [2-day] A full-body day says so; the lead muscle alone would mislead.
+    if (d.theme.region === 'full') return `${t('day.full_body')} · ${t('muscle.' + d.theme.primary)}`;
     // Owner feedback: the Upper/Lower region tag reads as noise next to the
     // primary muscle, so themed days show the muscle alone.
     return t('muscle.' + d.theme.primary);
@@ -1719,8 +1782,9 @@ function vOnboarding() {
       <div class="ob-title">${esc(t('ob.days_title'))}</div>
       <p class="subtle">${esc(t('ob.days_sub'))}</p>
       <div class="seg mt16">
-        ${[3,4,5,6].map(n => `<button class="${ob.daysPerWeek===n?'on':''}" onclick="obDays(${n})">${n}</button>`).join('')}
+        ${[2,3,4,5,6].map(n => `<button class="${ob.daysPerWeek===n?'on':''}" onclick="obDays(${n})">${n}</button>`).join('')}
       </div>
+      ${ob.daysPerWeek === 2 ? `<p class="faint mt8">${esc(t('ob.two_day_note'))}</p>` : ''}
       <button class="btn btn-green mt24" onclick="obNext(1)" ${ob.daysPerWeek ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
   } else if (step === 2) {
     const goalReady = ob.track && (ob.track !== 'bodybuilding' || ob.goalArchetype);
@@ -5416,7 +5480,7 @@ function renderSplitEditor(anim) {
       ${rows}</div>`;
   }).join('');
   $modal.innerHTML = modalShell(anim, t('se.title'),
-    `${seFreqChips()}${cards}
+    `${bbTrack() ? seFreqChips() : ''}${cards}
      <button class="btn btn-outline" onclick="seAddDay()">＋ ${esc(t('se.add_day'))}</button>`);
 }
 function seMove(di, si, dj) {
@@ -5493,6 +5557,150 @@ function feSave() {
   toast(t('fe.saved'));
 }
 
+// ------------------------------------------------------------
+// [Epic H7] PROGRAM TEMPLATES: sharing a program is sharing a file. A
+// versioned JSON describes blocks (scheme / wave / weeks / phase) and
+// day/slot layouts and NOTHING else: templates CONFIGURE registered schemes,
+// set math never travels in a file (a new methodology is still a code-level
+// registerScheme), and there is no wm/records field by design, so a shared
+// template never carries someone else's numbers.
+// ------------------------------------------------------------
+const TEMPLATE_SCHEMA_VERSION = 1;
+// The template object for the CURRENT program (pure; the export button wraps
+// it in a file download).
+function programTemplate() {
+  const p = P();
+  const track = (p.trainingConfig && p.trainingConfig.track) || 'powerbuilding';
+  return {
+    schemaVersion: TEMPLATE_SCHEMA_VERSION,
+    name: `${t('track.' + track)} · ${p.daysPerWeek}d`,
+    track,
+    weeksPerBlock: p.weeksPerBlock,
+    blocks: p.blocks.map(b => Object.assign(
+      { type: b.type, wave: b.wave },
+      b.scheme ? { scheme: b.scheme } : {},
+      b.weeks ? { weeks: b.weeks } : {},
+      b.phase ? { phase: b.phase } : {},
+      b.label ? { label: b.label } : {})),
+    days: p.days.map(d => ({
+      name: dayTheme(d) || '',
+      slots: d.slots.map(sl => {
+        if (sl.type === 'main' || sl.type === 'secondary') {
+          return Object.assign({ type: sl.type, lift: sl.lift },
+            sl.baseLift ? { baseLift: sl.baseLift } : {}, sl.pctMod ? { pctMod: sl.pctMod } : {});
+        }
+        return Object.assign({ type: sl.type === 'select' ? 'select' : 'acc' },
+          sl.cat ? { cat: sl.cat } : {}, (sl.ex || sl.def) ? { def: sl.ex || sl.def } : {});
+      }),
+    })),
+  };
+}
+function exportProgramTemplate() {
+  const tpl = programTemplate();
+  const blob = new Blob([JSON.stringify(tpl, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `ironwave-template-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast(t('tpl.exported'));
+}
+// Imports validate against the schema version and the REGISTERED scheme ids /
+// wave tables / exercise catalog, and reject the rest with the reason.
+function validateTemplate(tpl) {
+  const bad = reason => ({ error: reason });
+  if (!tpl || typeof tpl !== 'object' || Array.isArray(tpl)) return bad('not a template object');
+  if (tpl.schemaVersion !== TEMPLATE_SCHEMA_VERSION) return bad(`schemaVersion ${tpl.schemaVersion}, expected ${TEMPLATE_SCHEMA_VERSION}`);
+  if (!Array.isArray(tpl.blocks) || !tpl.blocks.length || tpl.blocks.length > 24) return bad('blocks: 1 to 24 required');
+  for (const b of tpl.blocks) {
+    if (!b || typeof b !== 'object') return bad('block shape');
+    if (b.scheme && !Engine.schemes[b.scheme]) return bad(`unknown scheme "${b.scheme}"`);
+    if (!b.scheme && b.type !== 'hypertrophy' && b.type !== 'strength') return bad(`block type "${b.type}" needs an explicit scheme`);
+    if (!WAVES[b.wave]) return bad(`unknown wave "${b.wave}"`);
+    if (b.weeks != null && !(Number.isInteger(b.weeks) && b.weeks >= 1 && b.weeks <= 8)) return bad(`block weeks ${b.weeks}`);
+    if (b.phase && !PHASES.includes(b.phase) && b.phase !== 'peak' && b.phase !== 'gain') return bad(`unknown phase "${b.phase}"`);
+  }
+  if (!Array.isArray(tpl.days) || !tpl.days.length || tpl.days.length > 7) return bad('days: 1 to 7 required');
+  for (const d of tpl.days) {
+    if (!d || !Array.isArray(d.slots) || d.slots.length > 12) return bad('day slots: up to 12');
+    for (const sl of d.slots) {
+      if (!sl || typeof sl !== 'object') return bad('slot shape');
+      if (sl.type === 'main' || sl.type === 'secondary') {
+        if (!exById(sl.lift)) return bad(`unknown lift "${sl.lift}"`);
+      } else if (sl.type === 'acc' || sl.type === 'select') {
+        if (sl.def && !exById(sl.def)) return bad(`unknown exercise "${sl.def}"`);
+        if (sl.cat && !MOVEMENTS[sl.cat]) return bad(`unknown movement "${sl.cat}"`);
+        if (!sl.def && !sl.cat) return bad('slot needs def or cat');
+      } else return bad(`slot type "${sl.type}"`);
+    }
+  }
+  return { ok: true };
+}
+// A NEW program from a validated template plus the athlete's own profile.
+// Records and landmarks stay (they are the athlete's); working maxes start
+// null and recalibrate, exactly like a fresh onboarding without maxes.
+function programFromTemplate(tpl) {
+  const blocks = tpl.blocks.map(b => Object.assign(
+    { type: b.type, wave: b.wave },
+    b.scheme ? { scheme: b.scheme } : {},
+    b.weeks ? { weeks: b.weeks } : {},
+    b.phase ? { phase: b.phase } : {},
+    b.label ? { label: b.label } : {}));
+  stampMesoIdx(blocks);
+  stampBlockPhase(blocks);
+  relabelBlocks(blocks);
+  const start = Date.now();
+  const days = tpl.days.map((d, i) => ({ name: d.name || `Day ${i + 1}`,
+    slots: d.slots.map(sl => Object.assign({}, sl)) }));
+  const wm = {}, increments = {};
+  for (const lift of ['comp-squat', 'comp-bench', 'comp-deadlift', 'military-press']) {
+    wm[lift] = null;
+    increments[lift] = Engine.defaultIncrement(lift);
+  }
+  const track = OB_TRACKS.includes(tpl.track) ? tpl.track : 'powerbuilding';
+  const wpb = Number.isInteger(tpl.weeksPerBlock) && tpl.weeksPerBlock >= 2 && tpl.weeksPerBlock <= 8
+    ? tpl.weeksPerBlock : 5;
+  return {
+    template: 'custom', daysPerWeek: days.length,
+    methodology: 'Juggernaut + Bodybuilding',
+    startDate: start,
+    testDate: start + blocks.reduce((a, b) => a + (b.weeks || wpb), 0) * 7 * 864e5,
+    blocks, weeksPerBlock: wpb,
+    pointer: { block: 0, week: 0 },
+    days, wm, increments,
+    completedDays: {}, weekMod: null, volAdj: {}, belowStd: {},
+    trainingConfig: {
+      track, goalArchetype: null, timeMode: 'unlimited', timeCapMin: null,
+      muscleFocus: Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
+        (S.profile.training && S.profile.training.muscleFocus) || {}),
+    },
+  };
+}
+function importTemplate(input) {
+  const f = input.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const tpl = JSON.parse(reader.result);
+      const v = validateTemplate(tpl);
+      if (v.error) { toast(t('tpl.invalid', { err: v.error }), true); return; }
+      confirmModal({
+        title: t('tpl.import_title'),
+        message: t('tpl.import_msg', { name: tpl.name || '?', blocks: tpl.blocks.length, days: tpl.days.length }),
+        confirmLabel: t('tpl.import_confirm'), danger: true,
+      }, () => {
+        S.program = programFromTemplate(tpl);
+        V.dayIdx = null; V.draft = null;
+        save(); render();
+        toast(t('tpl.imported'));
+      });
+    } catch (e) { toast(t('tpl.invalid', { err: e.message }), true); }
+  };
+  reader.readAsText(f);
+  input.value = '';
+}
+
 function vProgram() {
   if (!P()) return vOnboarding();
   const p = P();
@@ -5519,10 +5727,15 @@ function vProgram() {
       <div class="row mt8"><span class="subtle">${esc(t('prog.days_out_row'))}</span><b>${daysOut()}</b></div>
       <div class="row mt8"><span class="subtle">${esc(t('prog.days_week'))}</span><b>${p.daysPerWeek}</b></div>
     </div>
-    ${track === 'bodybuilding' ? `<div class="btn-row mt8">
+    <div class="btn-row mt8">
       <button class="btn btn-outline" onclick="openSplitEditor()">✎ ${esc(t('se.title'))}</button>
-      <button class="btn btn-outline" onclick="openFocusEditor()">${esc(t('fe.title'))}${p.pendingFocus ? ' ●' : ''}</button>
-    </div>` : ''}
+      ${track === 'bodybuilding' ? `<button class="btn btn-outline" onclick="openFocusEditor()">${esc(t('fe.title'))}${p.pendingFocus ? ' ●' : ''}</button>` : ''}
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-outline" onclick="exportProgramTemplate()">${esc(t('tpl.export'))}</button>
+      <button class="btn btn-outline" onclick="document.getElementById('tpl-file').click()">${esc(t('tpl.import'))}</button>
+    </div>
+    <input type="file" id="tpl-file" accept=".json,application/json" style="display:none" onchange="importTemplate(this)">
     ${timelineHTML()}
     <div class="section-title" style="font-size:1.15rem">${esc(t('prog.blocks'))}</div>
     ${blockRows}

@@ -82,6 +82,8 @@ const EXPORTS = `return {
   vProgress, vReport, macroReportHTML, bandChartHTML, overlayChartHTML, trendChartHTML,
   seMove, seRename, seAddDay, seRemoveDay, seFreqChips, splitDayMuscles,
   blockWeeks, weeksBefore, totalProgramWeeks, vMeet, obMeetLine,
+  generateFullBodyDays, programTemplate, validateTemplate, programFromTemplate,
+  TEMPLATE_SCHEMA_VERSION,
   openSplitEditor, openFocusEditor, feSave, feSlider,
   BIG_LIFTS, VOL_ORDER, allExercises,
   DEFAULT_ACC, SPLIT_FREQ, FOCUS_FACTOR, MOVEMENT_SLIDER,

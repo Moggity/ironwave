@@ -9,7 +9,7 @@
 // repo, and it must be kept in step with CACHE_VERSION in sw.js (the service
 // worker only ships new code to installed PWAs when that cache name changes).
 // Bump this on any shell change (data/engine/app/styles/index/sw).
-const APP_VERSION = '1.14.0';
+const APP_VERSION = '1.15.0';
 
 // Movement categories (used for "Select X Exercise" slots & swaps)
 const MOVEMENTS = {
@@ -823,6 +823,23 @@ const SECONDARY_SCHEMES = {
 //             acc (fixed default exercise, swappable) ·
 //             select (empty "Select X Exercise" slot)
 const DAY_TEMPLATES = {
+  // [2-day] Paired mains (owner-approved pairing: squat+bench / deadlift+press):
+  // two waves in one session, two AMRAPs on realization day, one pull accessory
+  // each, trimmed selects. The minimum effective strength dose.
+  2: [
+    { name: 'Day 1', slots: [
+      { type:'main', lift:'comp-squat' },
+      { type:'main', lift:'comp-bench' },
+      { type:'acc', cat:'hpull', def:'chest-supported-row' },
+      { type:'select', cat:'abs' },
+    ]},
+    { name: 'Day 2', slots: [
+      { type:'main', lift:'comp-deadlift' },
+      { type:'main', lift:'military-press' },
+      { type:'acc', cat:'vpull', def:'lat-pulldown' },
+      { type:'select', cat:'bicep' },
+    ]},
+  ],
   3: [
     { name: 'Day 1', slots: [
       { type:'main', lift:'comp-squat' },
@@ -959,6 +976,23 @@ const DAY_TEMPLATES = {
 // movement (a pulldown or row, a leg press), with barbell as a swap.
 // ============================================================
 const BB_DAY_TEMPLATES = {
+  // [2-day] Fallback full-body pair if the generator cannot fill the week.
+  2: [
+    { name: 'Full Body A', nameKey: 'full_body_a', slots: [
+      { type:'main', lift:'comp-bench' },
+      { type:'acc', cat:'quad', def:'leg-press' },
+      { type:'acc', cat:'vpull', def:'lat-pulldown' },
+      { type:'acc', cat:'ham', def:'seated-leg-curl' },
+      { type:'select', cat:'shoulder' },
+    ]},
+    { name: 'Full Body B', nameKey: 'full_body_b', slots: [
+      { type:'main', lift:'comp-squat' },
+      { type:'acc', cat:'bench', def:'db-incline-bench' },
+      { type:'acc', cat:'hpull', def:'chest-supported-row' },
+      { type:'acc', cat:'calf', def:'standing-calf-raise' },
+      { type:'select', cat:'bicep' },
+    ]},
+  ],
   3: [
     { name: 'Full Body A', nameKey: 'full_body_a', slots: [
       { type:'main', lift:'comp-bench' },

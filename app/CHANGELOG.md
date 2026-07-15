@@ -1,5 +1,45 @@
 # IRONWAVE — Changelog
 
+## [Epic H7 + 2 training days per week] (2026-07-15)
+
+**H7 — custom programming platform (the gated capstone):** sharing a
+program is sharing a file.
+- **Versioned template JSON** (`schemaVersion: 1`): blocks (type / wave /
+  scheme / weeks / phase) and day/slot layouts, NOTHING else. Templates
+  CONFIGURE registered schemes; set math never travels in a file (a new
+  methodology is still a code-level `registerScheme`), and there is no
+  wm/records field by design, so a shared template never carries someone
+  else's numbers.
+- **Export / Import on My Program.** Imports validate against the schema
+  version, the registered scheme ids, the wave tables, the exercise
+  catalog and sane bounds, and reject the rest with the reason
+  (`validateTemplate`). Importing builds a NEW program
+  (`programFromTemplate`): records and landmarks stay (the athlete's),
+  working maxes start null and recalibrate like a fresh onboarding.
+- The split editor now opens on EVERY track (day-template-level builder;
+  the frequency chips stay bodybuilding-only).
+
+**2 training days per week** (owner request, pairing approved):
+- **Strength tracks**: `DAY_TEMPLATES[2]` with paired mains, Day A =
+  squat + bench, Day B = deadlift + press; two waves per session, two
+  AMRAPs on realization day, one pull accessory each, trimmed selects.
+- **Bodybuilding**: `generateFullBodyDays` (N <= 2) replaces the
+  upper/lower split that silently halved every muscle's frequency: two
+  FULL-BODY days led by compounds from different regions, each trained
+  muscle on min(freq, 2) days (a 2x muscle's weekly sets split across
+  both sessions), same-anchor demotion to a secondary when one muscle
+  leads both days. `BB_DAY_TEMPLATES[2]` is the fallback; days read
+  "Full body · Chest".
+- Onboarding days picker extends to 2..6 with a one-line minimum-dose
+  note.
+- Tests: `test/h7-twoday.test.js` (17 cases): generator invariants,
+  paired-mains resolution, a SIMULATED two-block 2-day run (logging +
+  advancing + landmark snapshots), template round-trip incl. a meet-prep
+  taper, an 11-way reject battery, and eccentric edges (calves-only
+  athlete, single-muscle week, all-zero sliders, a 24-block x 8-week
+  monster, a selects-only day, a 45-min-capped 2-day). Render smoke runs
+  both 2-day shapes. Suite 387/387; the 4-day golden master untouched.
+
 ## [Epics H5 + H6: split editing/re-spec + meet prep] (2026-07-15)
 
 The physique-track and strength-track finals from the athlete-feedback
