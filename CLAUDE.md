@@ -101,6 +101,12 @@ it for any new cluster work:
   autoreg (E) -> technique (B). The shared calibration ramp also threads
   `experience` through the scheme `main/secondary/accessory` entry points (it is
   the uncalibrated path, so changing it moves the golden master deliberately).
+  [Epic H4] follows the same threading pattern: `resolveSlot` passes an optional
+  rep `range` into `jbb-hyp.accessory` (bodybuilding only; absent = byte-identical
+  flat 12s) and routes a swapped bodybuilding lead through `jbb-hyp.mainE1RM`
+  (own-e1RM pricing, rep-PR peak instead of the WM AMRAP). Volume autoreg owns
+  SETS, double progression owns REPS; keeping the axes separate is what keeps
+  both loops convergent.
 - **The autoreg loop (E) must converge**: `updateAutoreg` (run on each week
   advance) nudges `volAdj` by `Engine.autoregVolume`'s add/hold/cut, clamped to a
   small range; the per-session landmark cap bounds the applied delta. `phase` (F)

@@ -9,7 +9,7 @@
 // repo, and it must be kept in step with CACHE_VERSION in sw.js (the service
 // worker only ships new code to installed PWAs when that cache name changes).
 // Bump this on any shell change (data/engine/app/styles/index/sw).
-const APP_VERSION = '1.12.0';
+const APP_VERSION = '1.13.0';
 
 // Movement categories (used for "Select X Exercise" slots & swaps)
 const MOVEMENTS = {
@@ -789,6 +789,21 @@ const JBB_HYP = {
   // roughly 75-85% 1RM; the old 5 reps at 60% of WM sat ~20 RIR from failure).
   secReps:  8, secRpe: [7, 7.5, 8, 9],
   deload:   { accSets: 2, accRpe: 6, secSets: 2, secPct: 0.45 },
+};
+
+// [Epic H4] Rep ranges by movement (our own numbers: big compound patterns
+// low, most direct muscle work moderate, arms/delts higher, metabolic work
+// high). A high-SFR pick (3, typically machines/isolation that tolerate reps
+// cheaply) trains 2 reps above its movement band; see Engine.repRangeFor.
+// Bodybuilding-track-only: the flat JBB_HYP.accReps stays the default-path
+// prescription, so the golden master never reads this table.
+const REP_RANGES = {
+  default:  [10, 15],
+  bench: [6, 10], press: [6, 10], squat: [6, 10], deadlift: [6, 10],
+  vpull: [8, 12], hpull: [8, 12], upperback: [8, 12],
+  chest: [8, 12], quad: [8, 12], ham: [8, 12], glute: [8, 12], lowback: [8, 12],
+  shoulder: [10, 15], bicep: [10, 15], tricep: [10, 15],
+  calf: [12, 20], abs: [12, 20],
 };
 
 // Accessory prescriptions by block type
