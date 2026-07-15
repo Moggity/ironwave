@@ -1,5 +1,35 @@
 # IRONWAVE — Changelog
 
+## [Epic H3: progress analytics + macro report] (2026-07-15)
+
+The longitudinal story both simulated veterans asked for: charts, not
+paragraphs. Everything derives from records/sessions/check-ins via pure
+seeded Engine helpers; read-only, golden master untouched.
+
+- **Landmark snapshots** (`S.landmarkLog`, the ONE new persisted shape,
+  additive + backfilled): `recalibrateLandmarks` now freezes the per-block
+  landmark values evolution used to overwrite, so "the landmarks of the
+  time" exist for history. Landed first so snapshots start accruing.
+- **Progress screen** (More hub > Progress): a big-lift e1RM overlay
+  (`overlayChartHTML`, four lifts on one time axis with a compact legend),
+  per-muscle weekly-sets trend drawn INSIDE the MEV..MRV band of the time
+  (`bandChartHTML` + muscle chip picker; `Engine.actualWeeklySets` tallies
+  logged working sets with the same compound attribution as the volume
+  bar), a PR feed (every new all-time e1RM high, any lift, newest first),
+  and pump + recovery-feel trends (`Engine.pumpSeries` /
+  `Engine.sorenessSeries`, logged since Cluster A but never rendered).
+- **Macro-end report**: a finished program's workout tab now shows the
+  whole cycle in numbers, and History gains a 🏁 link to the same report:
+  sessions done (+ skipped), total tonnage, start-to-finish e1RM per big
+  lift with direction, AMRAP count + best per lift, and MRV movement per
+  muscle ("Chest MRV 20 → 23"). The invisible landmark evolution finally
+  reads on screen.
+- `trendChartHTML`'s two hardcoded English strings moved to the catalogs
+  (`chart.empty` / `chart.one`).
+- Tests: `test/h3.test.js` (10 cases, seeded series + snapshot contract +
+  the read-only guarantee), render smoke for Progress and the finished-
+  program report. i18n keys in both catalogs.
+
 ## [Epic H2: onboarding completeness + check-in honesty] (2026-07-15)
 
 Five small fixes from the veteran-athlete feedback, all "show, don't tell":

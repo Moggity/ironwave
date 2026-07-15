@@ -473,6 +473,55 @@ const Engine = {
     }
     return out.reverse();
   },
+
+  // ---------- [Epic H3] longitudinal series (pure, derived from logs) ----------
+  // Actual logged working sets per muscle per program week, from finished
+  // sessions. attributionOf maps an exercise id to [{mv, f}] fractions (the app
+  // passes the same attribution the weekly volume bar uses), keeping this pure
+  // and seedable. Returns [{b, w, tally}] ordered by program position.
+  actualWeeklySets(sessions, attributionOf) {
+    const weeks = new Map();
+    for (const s of sessions || []) {
+      if (s.skipped || !s.entries) continue;
+      const key = s.b + ':' + s.w;
+      if (!weeks.has(key)) weeks.set(key, { b: s.b, w: s.w, tally: {} });
+      const tally = weeks.get(key).tally;
+      for (const e of s.entries) {
+        const n = (e.sets || []).filter(st => st.done && !st.ramp && !st.calib).length;
+        if (!n) continue;
+        for (const { mv, f } of attributionOf(e.exId) || []) {
+          tally[mv] = (tally[mv] || 0) + n * f;
+        }
+      }
+    }
+    const out = [...weeks.values()].sort((a, b) => a.b - b.b || a.w - b.w);
+    for (const wk of out) for (const mv in wk.tally) wk.tally[mv] = Math.round(wk.tally[mv] * 2) / 2;
+    return out;
+  },
+  // Average logged pump per session (sessions with no pump taps are skipped).
+  pumpSeries(sessions) {
+    const out = [];
+    for (const s of sessions || []) {
+      if (s.skipped || !s.entries) continue;
+      let sum = 0, n = 0;
+      for (const e of s.entries) for (const st of e.sets || []) {
+        if (st.done && st.pump != null) { sum += st.pump; n++; }
+      }
+      if (n) out.push({ ts: s.ts, value: Math.round(sum / n * 10) / 10 });
+    }
+    return out.sort((a, b) => a.ts - b.ts);
+  },
+  // Average check-in recovery slider per check-in (1 beat up .. 5 fresh).
+  sorenessSeries(checkins) {
+    const out = [];
+    for (const c of checkins || []) {
+      const vals = c.sliders ? Object.values(c.sliders) : [];
+      if (vals.length) {
+        out.push({ ts: c.ts, value: Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10 });
+      }
+    }
+    return out.sort((a, b) => a.ts - b.ts);
+  },
 };
 
 /* ============================================================

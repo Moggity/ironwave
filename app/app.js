@@ -34,6 +34,7 @@ function defaultState() {
                landmarks: {} },
     program: null,
     bodyweight: [],   // [Cluster F] [{ts, kg}] light trend, no macro tracking
+    landmarkLog: [],  // [Epic H3] [{ts, block, landmarks}] per-block snapshots (evolution history)
     records: {},      // exId -> [{ts, weight, reps, rpe, pump?, technique?}] (last 3 optional, Cluster A)
     loadingProfiles: {}, // exId -> { mode, count, barWeight } — per-exercise loading, persists across programs
     techniques: {},   // exId -> intensity technique id (e.g. 'drop'), Cluster B; empty = none
@@ -126,6 +127,7 @@ function migrateState(s) {
   if (!p.intensityDisplay) p.intensityDisplay = 'rir'; // [Epic H1] effort display
   if (p.restNotify == null) p.restNotify = false; // rest-done notification opt-in
   if (!Array.isArray(s.bodyweight)) s.bodyweight = []; // [Cluster F] bodyweight trend
+  if (!Array.isArray(s.landmarkLog)) s.landmarkLog = []; // [Epic H3] landmark snapshots
   if (s.program && !s.program.volAdj) s.program.volAdj = {}; // [Cluster E] per-muscle autoreg
   if (s.program && !s.program.belowStd) s.program.belowStd = {}; // [Epic H2] below-standard AMRAP counters
   if (s.program && !s.program.trainingConfig) {
@@ -1503,6 +1505,7 @@ function render() {
       onboarding: vOnboarding, dashboard: vDashboard, workout: vWorkout,
       checkin: vCheckin, session: vSession, history: vHistory, summary: vSummary,
       more: vMore, exercises: vExercises, program: vProgram, settings: vSettings,
+      progress: vProgress, report: vReport,
     };
     $app.innerHTML = (views[V.view] || vDashboard)();
     bindRangeLabels();
@@ -1906,8 +1909,8 @@ function sparklineHTML() {
 // volume load). Auto-scales to the series range; shows first -> last with a
 // direction marker. Colors are literals so it does not depend on theme vars.
 function trendChartHTML(points, color, fmt) {
-  if (!points || !points.length) return '<p class="faint">No data yet.</p>';
-  if (points.length === 1) return `<p class="faint">${fmt(points[0].value)} · one session so far</p>`;
+  if (!points || !points.length) return `<p class="faint">${esc(t('chart.empty'))}</p>`;
+  if (points.length === 1) return `<p class="faint">${esc(t('chart.one', { v: fmt(points[0].value) }))}</p>`;
   const W = 300, H = 64, pad = 8;
   const vals = points.map(p => p.value);
   const lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1;
@@ -1924,6 +1927,50 @@ function trendChartHTML(points, color, fmt) {
     </svg>
     <div class="row faint" style="margin:-2px 0 12px"><span>${fmt(first)}</span>
       <span style="color:${col}">${mark} ${fmt(last)}</span></div>`;
+}
+// [Epic H3] Weekly-sets line drawn inside the landmark band of the time.
+// points: [{value, lo, hi}] per program week (lo/hi = MEV/MRV then in force).
+function bandChartHTML(points, color, fmt) {
+  if (!points || points.length < 2) return trendChartHTML(points, color, fmt);
+  const W = 300, H = 84, pad = 8;
+  const vals = points.flatMap(p => [p.value, p.lo, p.hi]).filter(v => v != null);
+  const lo = Math.min(...vals), hi = Math.max(...vals), span = hi - lo || 1;
+  const x = i => pad + i * (W - 2 * pad) / (points.length - 1);
+  const y = v => H - pad - ((v - lo) / span) * (H - 2 * pad);
+  const banded = points.every(p => p.lo != null && p.hi != null);
+  const band = banded
+    ? `<path d="M ${points.map((p, i) => `${x(i).toFixed(1)} ${y(p.hi).toFixed(1)}`).join(' L ')}
+        L ${points.map((p, i) => `${x(i).toFixed(1)} ${y(p.lo).toFixed(1)}`).reverse().join(' L ')} Z"
+        fill="${color}" opacity="0.13"/>` : '';
+  const pts = points.map((p, i) => [x(i), y(p.value)]);
+  return `<svg class="spark-line" style="height:84px" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      ${band}
+      <polyline points="${pts.map(p => p.map(n => n.toFixed(1)).join(',')).join(' ')}"
+        fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      ${pts.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.4" fill="${color}"/>`).join('')}
+    </svg>
+    <div class="row faint" style="margin:-2px 0 4px"><span>${fmt(points[0].value)}</span>
+      <span>${fmt(points[points.length - 1].value)}</span></div>`;
+}
+// [Epic H3] Several [{ts, value}] series on one time axis (the big-lift e1RM
+// overlay). Shared x (time) and y (value) scales; a legend chip per series.
+function overlayChartHTML(seriesList, fmt) {
+  const live = (seriesList || []).filter(s => s.points.length >= 2);
+  if (!live.length) return `<p class="faint">${esc(t('chart.empty'))}</p>`;
+  const W = 300, H = 90, pad = 8;
+  const allPts = live.flatMap(s => s.points);
+  const t0 = Math.min(...allPts.map(p => p.ts)), t1 = Math.max(...allPts.map(p => p.ts));
+  const lo = Math.min(...allPts.map(p => p.value)), hi = Math.max(...allPts.map(p => p.value));
+  const spanT = t1 - t0 || 1, spanV = hi - lo || 1;
+  const x = ts => pad + (ts - t0) / spanT * (W - 2 * pad);
+  const y = v => H - pad - ((v - lo) / spanV) * (H - 2 * pad);
+  const lines = live.map(s => `<polyline points="${s.points.map(p =>
+      `${x(p.ts).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ')}"
+      fill="none" stroke="${s.color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
+  const legend = live.map(s => `<span class="ovl-key"><i style="background:${s.color}"></i>${esc(s.name)}
+      <b>${fmt(s.points[s.points.length - 1].value)}</b></span>`).join('');
+  return `<svg class="spark-line" style="height:90px" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${lines}</svg>
+    <div class="ovl-legend">${legend}</div>`;
 }
 // Tentative weekly volume index — routed through the block's scheme
 function weekVolume(block, w) {
@@ -2695,11 +2742,20 @@ function bumpTrainingAge() {
   if (!S.profile.trainingAge) S.profile.trainingAge = { startedTs: Date.now(), blocksCompleted: 0 };
   S.profile.trainingAge.blocksCompleted++;
 }
+// [Epic H3] Landmark evolution history: without a snapshot, each block's
+// recalibration overwrites the past and the "landmarks of the time" are lost.
+// One small record per finished block; additive (backfilled in migrateState).
+function logLandmarkSnapshot(blockIdx) {
+  if (!S.profile.landmarks) return;
+  S.landmarkLog = S.landmarkLog || [];
+  S.landmarkLog.push({ ts: Date.now(), block: blockIdx,
+    landmarks: JSON.parse(JSON.stringify(S.profile.landmarks)) });
+}
 function recalibrateLandmarks(blockIdx) {
   const lm = S.profile.landmarks;
   if (!lm) { bumpTrainingAge(); return; }
   const sessions = S.sessions.filter(s => !s.skipped && s.b === blockIdx && s.entries && s.entries.length);
-  if (!sessions.length) { bumpTrainingAge(); return; }
+  if (!sessions.length) { logLandmarkSnapshot(blockIdx); bumpTrainingAge(); return; }
   const down = readinessTrendingDown();
   // Mean (actual - target) RPE per movement over real working sets logged this block.
   const agg = {};
@@ -2726,6 +2782,7 @@ function recalibrateLandmarks(blockIdx) {
       L.mrv = Math.max(L.mev + 1, L.mrv - 1);
     }
   }
+  logLandmarkSnapshot(blockIdx); // [Epic H3] after evolution: the values now in force
   bumpTrainingAge();
 }
 // Carryover (one block): an accessory that was offered as optional (over the
@@ -2809,7 +2866,9 @@ function currentDayIdx() {
 function vWorkout() {
   if (!P()) return vOnboarding();
   if (programDone()) return `${topbar(t('tab.workout'))}<div class="view">
-    <div class="card accent mt16"><b>${esc(t('workout.done_title'))}</b><p class="subtle mt8">${esc(t('workout.done_body'))}</p></div></div>${tabbar()}`;
+    <div class="card accent mt16"><b>${esc(t('workout.done_title'))}</b><p class="subtle mt8">${esc(t('workout.done_body'))}</p></div>
+    ${macroReportHTML()}
+    <button class="btn btn-outline mt16" onclick="nav('progress')">📈 ${esc(t('px.title'))}</button></div>${tabbar()}`;
   const p = P();
   const di = currentDayIdx();
   const day = p.days[di];
@@ -4628,6 +4687,7 @@ function vHistory() {
   return `${topbar(t('tab.history'))}<div class="view">
     <div class="section-title">${esc(t('hist.title'))}</div>
     <p class="faint" style="margin-bottom:14px">${esc(t('hist.sub'))}</p>
+    ${programDone() ? `<button class="btn btn-outline" style="margin-bottom:12px" onclick="nav('report')">🏁 ${esc(t('rp.title'))}</button>` : ''}
     ${body}</div>${tabbar()}`;
 }
 // [Epic H2] The flags a session was trained under, as compact chips. Empty
@@ -5037,6 +5097,125 @@ function deleteCustomEx(id) {
 // ------------------------------------------------------------
 // VIEW: MORE (hub) / PROGRAM / SETTINGS
 // ------------------------------------------------------------
+// ------------------------------------------------------------
+// [Epic H3] VIEW: PROGRESS (longitudinal charts, all derived from logs)
+// ------------------------------------------------------------
+const BIG_LIFTS = [['comp-squat', '#e8883a'], ['comp-bench', '#4b8df8'],
+                   ['comp-deadlift', '#e2483d'], ['military-press', '#3e9a4d']];
+// The same fractional attribution the weekly volume bar uses, per exercise id:
+// a landmark movement counts in full, a compound spreads via SYNERGIST_COVERAGE.
+function exVolumeAttribution(exId) {
+  const ex = exById(exId);
+  if (!ex) return [];
+  if (VOLUME_LANDMARKS[ex.movement]) return [{ mv: ex.movement, f: 1 }];
+  const cov = SYNERGIST_COVERAGE[ex.movement];
+  return cov ? Object.entries(cov).map(([mv, f]) => ({ mv, f })) : [];
+}
+// Landmarks in force DURING block b: the snapshot taken at the end of the
+// previous block, else the earliest snapshot (closest known past), else the
+// live values when no history has accrued yet.
+function landmarksForBlock(b) {
+  const log = S.landmarkLog || [];
+  let best = null;
+  for (const snap of log) if (snap.block < b && (!best || snap.block > best.block)) best = snap;
+  if (best) return best.landmarks;
+  return log.length ? log[0].landmarks : (S.profile.landmarks || {});
+}
+function pxPick(mv) { V.pxMv = mv; render(); }
+function vProgress() {
+  if (!P()) return vOnboarding();
+  const overlay = overlayChartHTML(BIG_LIFTS.map(([id, color]) => ({
+    name: exDisplayName(exById(id)), color,
+    points: Engine.e1rmTrend(recordsFor(id), 3650).map(pt => ({ ts: pt.ts, value: Engine.roundLoad(pt.value, 0.5) })),
+  })), v => dispW(v));
+  const weeks = Engine.actualWeeklySets(S.sessions, exVolumeAttribution);
+  const muscles = VOL_ORDER.filter(m => weeks.some(wk => wk.tally[m]));
+  const mv = muscles.includes(V.pxMv) ? V.pxMv : muscles[0];
+  let setsCard = '';
+  if (mv) {
+    const chips = muscles.map(m => `<button class="px-chip ${m === mv ? 'on' : ''}" onclick="pxPick('${m}')">${esc(mvLabel(m))}</button>`).join('');
+    const pts = weeks.map(wk => {
+      const L = landmarksForBlock(wk.b)[mv] || {};
+      return { value: wk.tally[mv] || 0, lo: L.mev ?? null, hi: L.mrv ?? null };
+    });
+    setsCard = `<div class="section-title">${esc(t('px.sets'))} <span class="faint">${esc(t('px.band'))}</span></div>
+      <div class="px-chips">${chips}</div>
+      <div class="card">${bandChartHTML(pts, '#5aa2f7', v => kg(v))}</div>`;
+  }
+  // PR feed: every set that put a lift's estimated 1RM at a new all-time high.
+  const prs = [];
+  for (const e of allExercises()) {
+    for (const m of Engine.maxMilestones(recordsFor(e.id))) {
+      if (m.kind === 'new') prs.push({ ts: m.ts, value: m.value, name: exDisplayName(e) });
+    }
+  }
+  prs.sort((a, b) => b.ts - a.ts);
+  const prRows = prs.slice(0, 8).map(m => `<div class="row" style="padding:7px 0;border-bottom:1px solid var(--line)">
+      <span>🏅 ${esc(m.name)}</span><b>${fmtWU(Engine.roundLoad(m.value, 0.5))} <span class="faint">${fmtDate(m.ts)}</span></b></div>`).join('');
+  const pump = Engine.pumpSeries(S.sessions);
+  const sore = Engine.sorenessSeries(S.checkins);
+  return `${topbar(t('px.title'))}<div class="view">
+    <div class="section-title">${esc(t('px.e1rm'))} <span class="faint">${wUnit()}</span></div>
+    <div class="card">${overlay}</div>
+    ${setsCard}
+    ${prRows ? `<div class="section-title">${esc(t('px.prs'))}</div><div class="card">${prRows}</div>` : ''}
+    ${pump.length ? `<div class="section-title">${esc(t('perf.pump'))}</div><div class="card">${trendChartHTML(pump, '#e2557b', v => v)}</div>` : ''}
+    ${sore.length ? `<div class="section-title">${esc(t('px.recovery'))}</div><div class="card">${trendChartHTML(sore, '#4ad6a0', v => v)}</div>` : ''}
+  </div>${tabbar()}`;
+}
+// [Epic H3] Macro-end report: the whole cycle in numbers, all derived from
+// records/sessions/snapshots. Shown on the finished-program workout tab and on
+// its own view (reachable from History once done).
+function macroReportHTML() {
+  const p = P();
+  const done = S.sessions.filter(s => !s.skipped).length;
+  const skipped = S.sessions.filter(s => s.skipped).length;
+  const tonnage = S.sessions.reduce((a, s) => a + (s.tonnage || 0), 0);
+  const liftRows = BIG_LIFTS.map(([id, color]) => {
+    const tr = Engine.e1rmTrend(recordsFor(id).filter(r => r.ts >= p.startDate), 3650);
+    if (tr.length < 2) return '';
+    const a = Engine.roundLoad(tr[0].value, 0.5), b = Engine.roundLoad(tr[tr.length - 1].value, 0.5);
+    return `<div class="row" style="padding:5px 0"><span style="color:${color}">${esc(exDisplayName(exById(id)))}</span>
+      <b>${dispW(a)} → ${fmtWU(b)} <span style="color:${b >= a ? '#37c978' : '#e2557b'}">${b >= a ? '▲' : '▼'}</span></b></div>`;
+  }).filter(Boolean).join('');
+  const amraps = {};
+  for (const s of S.sessions) {
+    if (s.skipped) continue;
+    for (const e of s.entries || []) for (const st of e.sets || []) {
+      if (st.amrap && st.done && e.wmKey) {
+        const a = amraps[e.wmKey] = amraps[e.wmKey] || { n: 0, best: null };
+        a.n++;
+        const e1 = Engine.e1rm(st.weight, st.reps, st.rpe);
+        if (!a.best || e1 > a.best.e1) a.best = { w: st.weight, r: st.reps, e1 };
+      }
+    }
+  }
+  const amrapRows = Object.entries(amraps).map(([id, a]) => `<div class="row" style="padding:5px 0">
+      <span>${esc(exDisplayName(exById(id)))}</span><b>${a.n} × AMRAP · ${fmtW(id, a.best.w)} × ${a.best.r}</b></div>`).join('');
+  const log = S.landmarkLog || [];
+  const lm = S.profile.landmarks || {};
+  const mrvRows = log.length ? Object.keys(lm).map(m => {
+    const a = log[0].landmarks[m], b = lm[m];
+    if (!a || !b || a.mrv === b.mrv) return '';
+    return `<div class="row" style="padding:5px 0"><span>${esc(mvLabel(m))}</span>
+      <b>MRV ${a.mrv} → ${b.mrv} <span style="color:${b.mrv >= a.mrv ? '#37c978' : '#e2557b'}">${b.mrv >= a.mrv ? '▲' : '▼'}</span></b></div>`;
+  }).filter(Boolean).join('') : '';
+  return `
+    <div class="card accent mt8">
+      <div class="row"><span class="subtle">${esc(t('rp.sessions'))}</span><b>${done}${skipped ? ` <span class="faint">· ${esc(t('rp.skipped', { n: skipped }))}</span>` : ''}</b></div>
+      <div class="row mt8"><span class="subtle">${esc(t('sum.total_tonnage'))}</span><b>${fmtTonnage(tonnage)}</b></div>
+    </div>
+    ${liftRows ? `<div class="section-title">${esc(t('rp.e1rm'))} <span class="faint">${wUnit()}</span></div><div class="card">${liftRows}</div>` : ''}
+    ${amrapRows ? `<div class="section-title">${esc(t('rp.amraps'))}</div><div class="card">${amrapRows}</div>` : ''}
+    ${mrvRows ? `<div class="section-title">${esc(t('rp.mrv'))}</div><div class="card">${mrvRows}</div>` : ''}`;
+}
+function vReport() {
+  if (!P()) return vOnboarding();
+  return `${topbar(t('rp.title'))}<div class="view">${macroReportHTML()}
+    <button class="btn btn-outline mt16" onclick="nav('progress')">📈 ${esc(t('px.title'))}</button>
+  </div>${tabbar()}`;
+}
+
 function vMore() {
   const link = (label, ic, fn) => `<button class="lib-item" onclick="${fn}">
     <span><span style="margin-right:10px">${ic}</span>${esc(label)}</span><span>›</span></button>`;
@@ -5044,6 +5223,7 @@ function vMore() {
     <div class="section-title">${esc(S.profile.name || t('more.lifter'))}</div>
     <p class="faint" style="margin-bottom:14px">${esc(t('more.tagline'))}</p>
     ${link(t('dash.my_program'), '📈', "nav('program')")}
+    ${link(t('px.title'), '🏅', "nav('progress')")}
     ${link(t('vol.title'), '📊', 'openVolumeDashboard()')}
     ${link(t('phase.screen_title'), '🍽', 'openPhase()')}
     ${link(t('lib.title'), '🏋', "nav('exercises')")}

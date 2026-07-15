@@ -622,29 +622,17 @@ below-standard AMRAPs offer an athlete-confirmed WM reset to the implied
 1-2 updated. Tests: `test/h2.test.js` + parity smoke; golden master
 untouched.
 
-### Epic H3 - Progress analytics + macro report (priority 3, data already exists)
+### ~~Epic H3 - Progress analytics + macro report~~ DONE (2026-07-15)
 
-- **What:** the longitudinal story both personas asked for, one screen at a
-  time:
-  - per-muscle weekly-sets TREND across the macro, drawn against the
-    landmarks of the time;
-  - landmark evolution history (persist a small per-block snapshot at
-    `recalibrateLandmarks` time, additive + migrated: this is the one new
-    stored shape, since evolution otherwise overwrites the past);
-  - a multi-lift e1RM overlay (the big four on one chart);
-  - a PR feed (`maxMilestones` across lifts, newest first);
-  - pump and soreness history (already logged, never rendered);
-  - a **macro-end report** at `programDone`: start vs end e1RMs, total
-    tonnage, AMRAP history, MRV movement per muscle, sessions completed vs
-    skipped. Both athletes independently asked for this; everything derives
-    from existing records/sessions.
-- **Why:** retention surface every competitor has; also the payoff screen
-  that makes the invisible landmark evolution legible ("your chest MRV moved
-  20 -> 23").
-- **Order note:** land BEFORE the long H4/H6 macros so landmark snapshots
-  start accruing now.
-- **Tests:** pure Engine series helpers with seeded records; render smoke
-  for the new screens; golden master untouched (read-only).
+All six slices shipped (see CHANGELOG): `S.landmarkLog` per-block snapshots
+(the one new stored shape, written by `recalibrateLandmarks`, additive +
+migrated); a Progress screen (More hub) with the big-lift e1RM overlay,
+per-muscle weekly-sets trend inside the MEV..MRV band of the time
+(`Engine.actualWeeklySets` + `landmarksForBlock`), a PR feed, and pump +
+recovery trends; and the macro-end report on the finished-program workout
+tab (+ 🏁 from History): sessions/tonnage, start-to-finish e1RMs, AMRAP
+history, MRV movement. Pure seeded Engine helpers, read-only, golden master
+untouched. Landed before H4/H6 so snapshots accrue from now.
 
 ### Epic H4 - Hypertrophy prescription depth (priority 4; absorbs two pending items)
 
