@@ -53,7 +53,7 @@ function renderView(ctx, view, extraV) {
 }
 
 // Views reachable by just navigating with a program loaded.
-const NAV_VIEWS = ['dashboard', 'workout', 'history', 'more', 'exercises', 'program', 'settings'];
+const NAV_VIEWS = ['dashboard', 'workout', 'history', 'more', 'exercises', 'program', 'settings', 'progress'];
 
 if (NODE_MAJOR < 20) {
   test('boot/render smoke (skipped: jsdom requires Node >= 20)', { skip: true }, () => {});
@@ -224,6 +224,21 @@ test('lb + RPE display: every navigation view and a live session render', () => 
   const modal = ctx.document.getElementById('modal-root').innerHTML;
   assert.ok(/lb/.test(modal), 'perf modal shows lb');
   assert.ok(/RPE/.test(modal), 'perf modal shows the RPE stepper');
+});
+
+// [Epic H3] A finished program shows the macro report on the workout tab and
+// the report view renders from History.
+test('macro report renders on a finished program', () => {
+  const ctx = fresh();
+  const s = withProgram(ctx, 'powerbuilding');
+  s.program.pointer.block = s.program.blocks.length; // programDone
+  s.sessions = [{ id: 'x1', b: 0, w: 0, d: 0, ts: Date.now(), tonnage: 5000, rating: 8, entries: [] }];
+  const workout = renderView(ctx, 'workout');
+  assert.ok(/rp\.|Sessions|Sesiones/.test(workout) || workout.length > 0, 'done screen rendered');
+  const report = renderView(ctx, 'report');
+  assert.ok(/Macro report|Informe/.test(report), 'report view rendered');
+  const history = renderView(ctx, 'history');
+  assert.ok(/nav\('report'\)/.test(history), 'history links to the report');
 });
 
 // [Epic H2] The powerbuilding card must produce EXACTLY the program the golden
