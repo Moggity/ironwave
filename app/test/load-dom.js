@@ -25,6 +25,7 @@ const EXPORTS = `
   render, makeProgram, defaultState, obDefaults, startCheckin, beginSession,
   doSwap, exById, allExercises, openVolumeDashboard,
   t, I18N, setAppLang, openPerf,
+  setUnits, setIntensityDisplay, applyUnits,
   get S() { return S; }, set S(v) { S = v; },
   get V() { return V; }, set V(v) { V = v; },
 };`;

@@ -1,5 +1,45 @@
 # IRONWAVE — Changelog
 
+## [Epic H1: lb display units + RIR/RPE effort display] (2026-07-15)
+
+The first epic off the veteran-athlete-feedback roadmap: a kg/lb unit
+preference and an RIR/RPE effort display, both selectable on the first
+onboarding step (next to the language pick) and in Settings.
+
+- **kg stays the ONLY stored unit.** `profile.units` ('kg' | 'lb', additive
+  and backfilled in `migrateState`) is a render/input skin: every weight
+  render goes out through the new `toDispW`/`dispW`/`fmtWU`/`fmtW` helpers
+  and every weight input comes back through `fromDispW`
+  (`Engine.kgToLb`/`lbToKg`, exact at 0.45359237 kg per lb), so records,
+  maxes, plates, tonnage, the prescription math and the golden master never
+  see lb. Converted surfaces: set targets and rows, the perf modal (input,
+  stepper, plate visual and note), warmup modal, plate config, settings
+  equipment fields, onboarding bodyweight and maxes, exercise detail
+  (1RM/10RM seeds, working max, increment, light-bar weight), custom
+  exercise seeds, working-max toasts/notes, e1RM charts and milestones,
+  tonnage displays, and the bodyweight screen.
+- **lb equipment defaults.** A unit switch moves equipment values still
+  sitting at the old unit's defaults to the new unit's (45 lb bar, a
+  45/35/25/10/5/2.5 lb plate set stored in kg with its own colors keyed by
+  lb face value, 2.5 lb rounding, 5 lb dumbbell step, 10 lb machine step:
+  `DEFAULT_PLATES_LB` / `UNIT_EQUIP_DEFAULTS` / `PLATE_COLORS_LB`);
+  customized values are kept and simply render converted. Settings preset
+  lists (`UNIT_PRESETS`) show per-unit options and keep a non-preset stored
+  value visible instead of silently re-rounding it.
+- **Effort display** (`profile.intensityDisplay`, 'rir' default): the perf
+  modal stepper, hints and every effort string (`fmtRir`) can read RPE for
+  athletes who grew up on it. Storage stays RPE; the stepper edits the
+  displayed scale in the natural direction either way (`pmEffort`).
+- i18n: unit-bearing strings parameterized (`{u}`) in BOTH catalogs; new
+  `unit.lb`/`unit.lb_hand`/`unit.rpe`, onboarding/settings picker keys, and
+  RPE label/hint copy.
+- Tests: new `test/units.test.js` (exact conversion round-trips incl.
+  through the rounding grid, migration backfill, display helpers in both
+  modes, default-swap vs customized-equipment unit switch, 225 lb plate
+  math, preset options, kg strings byte-identical); render smoke runs the
+  full app + live session + perf modal in lb/RPE mode. Golden master
+  untouched.
+
 ## [Bodyweight counted in tonnage for bodyweight lifts] (2026-07-15)
 
 Owner report: on bodyweight lifts (calf raises, pull-ups, dips) the logged

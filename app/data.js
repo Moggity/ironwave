@@ -9,7 +9,7 @@
 // repo, and it must be kept in step with CACHE_VERSION in sw.js (the service
 // worker only ships new code to installed PWAs when that cache name changes).
 // Bump this on any shell change (data/engine/app/styles/index/sw).
-const APP_VERSION = '1.9.0';
+const APP_VERSION = '1.10.0';
 
 // Movement categories (used for "Select X Exercise" slots & swaps)
 const MOVEMENTS = {
@@ -1099,6 +1099,42 @@ const DEFAULT_PLATES = [
   { w: 25, count: 4 }, { w: 20, count: 2 }, { w: 15, count: 2 },
   { w: 10, count: 2 }, { w: 5, count: 2 }, { w: 2.5, count: 2 }, { w: 1.25, count: 2 },
 ];
+
+// [Epic H1] Unit display. kg is the ONLY stored unit everywhere (records, maxes,
+// plates, tonnage); pounds are a render/input skin. One pound is exactly
+// 0.45359237 kg, so a weight entered in lb converts to kg and back losslessly.
+const KG_PER_LB = 0.45359237;
+
+// Common US lb plate colors (rubber-plate convention), keyed by the plate's lb
+// face value for the plate-math visual.
+const PLATE_COLORS_LB = {
+  '55': '#e2483d', '45': '#3b6fe0', '35': '#f0b429', '25': '#3ba55d',
+  '10': '#e8e8ec', '5': '#d23c3c', '2.5': '#9aa0ae', '1.25': '#9aa0ae',
+};
+const PLATE_TEXT_LB = { '10': '#10162b', '2.5': '#10162b', '1.25': '#10162b' };
+
+// A standard lb plate set, stored (like everything) in kg.
+const DEFAULT_PLATES_LB = [
+  { w: 45 * KG_PER_LB, count: 4 }, { w: 35 * KG_PER_LB, count: 2 },
+  { w: 25 * KG_PER_LB, count: 2 }, { w: 10 * KG_PER_LB, count: 2 },
+  { w: 5 * KG_PER_LB, count: 2 }, { w: 2.5 * KG_PER_LB, count: 2 },
+];
+
+// Equipment defaults per unit: what a fresh install uses, and what a unit
+// switch moves still-untouched equipment values to. All values in kg.
+const UNIT_EQUIP_DEFAULTS = {
+  kg: { barWeight: 20, rounding: 2.5, dbIncrement: 2.5, machineStep: 5,
+        plates: DEFAULT_PLATES },
+  lb: { barWeight: 45 * KG_PER_LB, rounding: 2.5 * KG_PER_LB,
+        dbIncrement: 5 * KG_PER_LB, machineStep: 10 * KG_PER_LB,
+        plates: DEFAULT_PLATES_LB },
+};
+
+// Settings preset lists per unit, in DISPLAY units (stored converted to kg).
+const UNIT_PRESETS = {
+  kg: { rounding: [1.25, 2.5, 5], dbIncrement: [1, 2, 2.5], machineStep: [2.5, 5, 10] },
+  lb: { rounding: [1.25, 2.5, 5], dbIncrement: [2.5, 5], machineStep: [5, 10, 15] },
+};
 
 const RPE_DESCRIPTIONS = {
   10:  'Could not do any more reps',

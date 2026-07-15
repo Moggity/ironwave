@@ -590,24 +590,22 @@ athlete-facing copy lands in BOTH i18n catalogs; "inspired, not cloned".
   sw.js SHELL cache: a separate size-capped cache, lazy fetch, emoji
   fallback. The app shell stays instant and offline-safe.
 
-### Epic H1 - Units and intensity display (priority 1, no dependencies)
+### ~~Epic H1 - Units and intensity display~~ DONE (2026-07-15)
 
-- **What:** `profile.units` ('kg' | 'lb') converting at render and input
-  only: set targets, the perf modal, plate inventory (an lb plate set with
-  its own colors), bar weight, rounding/increment presets in lb
-  (5 / 2.5 / 1.25 lb), e1RM and tonnage displays, and the exports' display
-  fields. Plus `profile.intensityDisplay` ('rir' | 'rpe') so the perf modal
-  and set labels can read RPE for the athletes who grew up on it (storage
-  stays RPE; `rpeToRir` is already two-way).
-- **Why:** kg-only is the single biggest market blocker (the powerlifter
-  called it disqualifying for the US market); RIR-only display is constant
-  friction for RPE-native lifters. Every competitor toggles both.
-- **How:** route every weight render through the existing
-  `fmtW` / `displayWeight` choke points and every input through one shared
-  parse; round-trip unit tests (kg -> lb -> kg stable at each rounding).
-  Prescription math never sees lb.
-- **Golden master:** untouched (conversions are display-only). Render smoke
-  runs once in lb mode.
+Shipped as designed (see CHANGELOG). `profile.units` ('kg' | 'lb') and
+`profile.intensityDisplay` ('rir' | 'rpe'), both additive + backfilled,
+selectable on the FIRST onboarding step next to the language pick (owner
+call) and in Settings under "Units and display". kg stays the only stored
+unit: renders go out through `toDispW`/`dispW`/`fmtWU`/`fmtW`, inputs come
+back through `fromDispW` (`Engine.kgToLb`/`lbToKg`). A unit switch moves
+still-default equipment to the new unit's defaults (45 lb bar,
+`DEFAULT_PLATES_LB` with lb-face colors, lb rounding/increment presets via
+`UNIT_PRESETS`) and leaves customized values alone. Storage stays RPE; the
+perf-modal stepper edits the displayed scale (`pmEffort`). New
+`test/units.test.js` + an lb/RPE render-smoke pass; golden master
+untouched. Note for later epics: the raw-state JSON export intentionally
+stays kg (it is a backup, not a display surface); H3's macro report is
+where display-unit export fields will matter.
 
 ### Epic H2 - Onboarding completeness + check-in honesty (priority 2, no dependencies)
 
