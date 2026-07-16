@@ -241,25 +241,35 @@ test('macro report renders on a finished program', () => {
   assert.ok(/nav\('report'\)/.test(history), 'history links to the report');
 });
 
-// [2-day] Both 2-day shapes render end to end: the strength paired-mains day
-// and the bodybuilding full-body day, including a live session.
-for (const track of ['powerlifting', 'bodybuilding']) {
-  test(`2-day ${track}: views and a live session render`, () => {
-    const ctx = fresh();
-    const s = ctx.app.defaultState();
-    ctx.app.S = s;
-    ctx.app.V = Object.assign({}, ctx.baseV);
-    s.program = ctx.app.makeProgram({ daysPerWeek: 2, track, timeMode: 'unlimited',
-      muscleFocus: { ...DEFAULT_FOCUS },
-      maxes: { 'comp-squat': 140, 'comp-bench': 100, 'comp-deadlift': 180 } });
-    assert.strictEqual(s.program.days.length, 2);
-    for (const view of NAV_VIEWS) renderView(ctx, view);
-    ctx.app.startCheckin(0);
-    ctx.app.beginSession();
-    const html = ctx.document.getElementById('app').innerHTML;
-    assert.ok(html.length > 0, 'session rendered');
-  });
+// [2-day + 1/7-day] The frequency extremes render end to end for both the
+// strength and bodybuilding shapes, including a live session: paired mains (2),
+// the single all-mains day (1), and the 6+1 layouts (7).
+for (const n of [1, 2, 7]) {
+  for (const track of ['powerlifting', 'bodybuilding']) {
+    test(`${n}-day ${track}: views and a live session render`, () => {
+      const ctx = fresh();
+      const s = ctx.app.defaultState();
+      ctx.app.S = s;
+      ctx.app.V = Object.assign({}, ctx.baseV);
+      s.program = ctx.app.makeProgram({ daysPerWeek: n, track, timeMode: 'unlimited',
+        muscleFocus: { ...DEFAULT_FOCUS },
+        maxes: { 'comp-squat': 140, 'comp-bench': 100, 'comp-deadlift': 180 } });
+      assert.strictEqual(s.program.days.length, n);
+      for (const view of NAV_VIEWS) renderView(ctx, view);
+      ctx.app.startCheckin(0);
+      ctx.app.beginSession();
+      const html = ctx.document.getElementById('app').innerHTML;
+      assert.ok(html.length > 0, 'session rendered');
+    });
+  }
 }
+
+test('onboarding day picker offers 1 through 7', () => {
+  const ctx = fresh();
+  ctx.app.S = ctx.app.defaultState();
+  const html = renderView(ctx, 'onboarding', { ob: ctx.app.obDefaults(), obStep: 1 });
+  for (let n = 1; n <= 7; n++) assert.ok(html.includes(`obDays(${n})`), `day button ${n} renders`);
+});
 
 // [Epic H5] The split editor + focus editor modals render for a bodybuilding
 // program; [Epic H6] a meet program renders its taper dashboard and meet day.

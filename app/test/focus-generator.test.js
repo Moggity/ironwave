@@ -155,7 +155,7 @@ test('spaceSameMuscle: separates adjacent same-theme days', () => {
 
 test('generator: no two adjacent days share a theme on a balanced week', () => {
   app.S = app.defaultState();
-  for (const n of [4, 5, 6]) {
+  for (const n of [4, 5, 6, 7]) {
     const days = app.generateBodybuildingDays({ ...DEFAULT_FOCUS }, n);
     for (let i = 1; i < days.length; i++) {
       assert.notStrictEqual(days[i].primary, days[i - 1].primary,

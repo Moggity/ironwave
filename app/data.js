@@ -823,6 +823,20 @@ const SECONDARY_SCHEMES = {
 //             acc (fixed default exercise, swappable) ·
 //             select (empty "Select X Exercise" slot)
 const DAY_TEMPLATES = {
+  // [1-day] The absolute minimum strength dose (owner-approved layout): the three
+  // comp lifts keep their full wave and realization AMRAPs in one long session,
+  // and the press rides as permanent volume work (the 3-day precedent). One pull
+  // accessory and one select keep the tail trimmed.
+  1: [
+    { name: 'Day 1', slots: [
+      { type:'main', lift:'comp-squat' },
+      { type:'main', lift:'comp-bench' },
+      { type:'main', lift:'comp-deadlift' },
+      { type:'secondary', lift:'military-press' },
+      { type:'acc', cat:'hpull', def:'chest-supported-row' },
+      { type:'select', cat:'abs' },
+    ]},
+  ],
   // [2-day] Paired mains (owner-approved pairing: squat+bench / deadlift+press):
   // two waves in one session, two AMRAPs on realization day, one pull accessory
   // each, trimmed selects. The minimum effective strength dose.
@@ -963,19 +977,82 @@ const DAY_TEMPLATES = {
       { type:'select', cat:'calf' },
     ]},
   ],
+  // [7-day] Days 1-6 mirror the 6-day layout; Day 7 is the fatigue valve for a
+  // week with zero rest days: no mains, one moderate press exposure (the press is
+  // otherwise 1x while the other lifts get 2x), pump accessories only. It sits
+  // between the heaviest lower day and the week restart.
+  7: [
+    { name: 'Day 1', slots: [
+      { type:'main', lift:'comp-bench' },
+      { type:'acc', cat:'hpull', def:'db-row' },
+      { type:'select', cat:'tricep' },
+      { type:'select', cat:'abs' },
+    ]},
+    { name: 'Day 2', slots: [
+      { type:'main', lift:'comp-squat' },
+      { type:'acc', cat:'quad', def:'leg-extensions' },
+      { type:'select', cat:'ham' },
+      { type:'select', cat:'calf' },
+    ]},
+    { name: 'Day 3', slots: [
+      { type:'main', lift:'military-press' },
+      { type:'acc', cat:'vpull', def:'chinup' },
+      { type:'select', cat:'shoulder' },
+      { type:'select', cat:'bicep' },
+    ]},
+    { name: 'Day 4', slots: [
+      { type:'main', lift:'comp-deadlift' },
+      { type:'acc', cat:'hpull', def:'barbell-row' },
+      { type:'select', cat:'upperback' },
+      { type:'select', cat:'abs' },
+    ]},
+    { name: 'Day 5', slots: [
+      { type:'secondary', lift:'close-grip-bench', baseLift:'comp-bench', pctMod: 0.90 },
+      { type:'acc', cat:'chest', def:'db-incline-bench' },
+      { type:'select', cat:'shoulder' },
+      { type:'select', cat:'tricep' },
+    ]},
+    { name: 'Day 6', slots: [
+      { type:'secondary', lift:'deficit-deadlift-1', baseLift:'comp-deadlift', pctMod: 0.90 },
+      { type:'secondary', lift:'comp-squat', pctMod: 0.85 },
+      { type:'acc', cat:'quad', def:'leg-extensions' },
+      { type:'acc', cat:'ham', def:'hamstring-curls' },
+      { type:'select', cat:'glute' },
+      { type:'select', cat:'calf' },
+    ]},
+    { name: 'Day 7', slots: [
+      { type:'secondary', lift:'military-press', pctMod: 0.85 },
+      { type:'acc', cat:'shoulder', def:'lateral-raise' },
+      { type:'acc', cat:'upperback', def:'face-pull' },
+      { type:'select', cat:'bicep' },
+      { type:'select', cat:'tricep' },
+    ]},
+  ],
 };
 
 // ============================================================
 // BODYBUILDING DAY TEMPLATES (hypertrophy splits)
 // Used for the bodybuilding track instead of the strength-oriented
-// DAY_TEMPLATES above. Splits: 3 = full body x3, 4 = upper/lower x2,
-// 5 = push/pull/legs/upper/lower, 6 = push/pull/legs x2. No deadlift.
+// DAY_TEMPLATES above. Splits: 1 = single full body, 3 = full body x3,
+// 4 = upper/lower x2, 5 = push/pull/legs/upper/lower, 6 = push/pull/legs x2,
+// 7 = push/pull/legs x2 + pump day. No deadlift.
 // The barbell compounds (bench/squat/press) remain the working-max
 // anchors (the wave/AMRAP math needs the real lift for correct weights);
 // they are swappable. Non-anchor days lead with a big bodybuilding
 // movement (a pulldown or row, a leg press), with barbell as a swap.
 // ============================================================
 const BB_DAY_TEMPLATES = {
+  // [1-day] Fallback single full-body day if the generator cannot fill the week.
+  1: [
+    { name: 'Full Body', nameKey: 'full_body', slots: [
+      { type:'main', lift:'comp-squat' },
+      { type:'acc', cat:'bench', def:'db-incline-bench' },
+      { type:'acc', cat:'vpull', def:'lat-pulldown' },
+      { type:'acc', cat:'ham', def:'seated-leg-curl' },
+      { type:'acc', cat:'shoulder', def:'lateral-raise' },
+      { type:'select', cat:'bicep' },
+    ]},
+  ],
   // [2-day] Fallback full-body pair if the generator cannot fill the week.
   2: [
     { name: 'Full Body A', nameKey: 'full_body_a', slots: [
@@ -1119,6 +1196,53 @@ const BB_DAY_TEMPLATES = {
       { type:'acc', cat:'ham',  def:'seated-leg-curl' },
       { type:'acc', cat:'glute', def:'bb-hip-thrust' },
       { type:'acc', cat:'calf', def:'seated-calf-raise' },
+    ]},
+  ],
+  // [7-day] Fallback: the 6-day push/pull/legs x2 plus a light pump day, the
+  // fatigue valve for a week with zero rest days (isolation work only, no mains).
+  7: [
+    { name: 'Push A', nameKey: 'push_a', slots: [
+      { type:'main', lift:'comp-bench' },
+      { type:'acc', cat:'bench', def:'db-incline-bench' },
+      { type:'acc', cat:'shoulder', def:'lateral-raise' },
+      { type:'acc', cat:'tricep', def:'triceps-pushdown' },
+    ]},
+    { name: 'Pull A', nameKey: 'pull_a', slots: [
+      { type:'acc', cat:'vpull', def:'lat-pulldown' },
+      { type:'acc', cat:'hpull', def:'barbell-row' },
+      { type:'acc', cat:'upperback', def:'face-pull' },
+      { type:'acc', cat:'bicep', def:'ez-curl' },
+    ]},
+    { name: 'Legs A', nameKey: 'legs_a', slots: [
+      { type:'main', lift:'comp-squat' },
+      { type:'acc', cat:'ham',  def:'romanian-deadlift' },
+      { type:'acc', cat:'quad', def:'leg-extensions' },
+      { type:'acc', cat:'calf', def:'standing-calf-raise' },
+    ]},
+    { name: 'Push B', nameKey: 'push_b', slots: [
+      { type:'main', lift:'military-press' },
+      { type:'acc', cat:'bench', def:'machine-chest-press' },
+      { type:'acc', cat:'shoulder', def:'cable-lateral-raise' },
+      { type:'acc', cat:'tricep', def:'overhead-triceps-ext' },
+    ]},
+    { name: 'Pull B', nameKey: 'pull_b', slots: [
+      { type:'acc', cat:'vpull', def:'pullup' },
+      { type:'acc', cat:'hpull', def:'cable-row' },
+      { type:'acc', cat:'upperback', def:'rear-delt-fly' },
+      { type:'acc', cat:'bicep', def:'hammer-curl' },
+    ]},
+    { name: 'Legs B', nameKey: 'legs_b', slots: [
+      { type:'acc', cat:'quad', def:'leg-press' },
+      { type:'acc', cat:'ham',  def:'seated-leg-curl' },
+      { type:'acc', cat:'glute', def:'bb-hip-thrust' },
+      { type:'acc', cat:'calf', def:'seated-calf-raise' },
+    ]},
+    { name: 'Pump', nameKey: 'pump', slots: [
+      { type:'acc', cat:'shoulder', def:'front-raise' },
+      { type:'acc', cat:'bicep', def:'db-curl' },
+      { type:'acc', cat:'tricep', def:'skullcrusher' },
+      { type:'acc', cat:'calf', def:'leg-press-calf-raise' },
+      { type:'select', cat:'abs' },
     ]},
   ],
 };
