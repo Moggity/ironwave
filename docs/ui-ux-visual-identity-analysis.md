@@ -319,7 +319,7 @@ the no-build, offline-first constraints):
 Explicitly **not** Rive: set completion and timer (too frequent — must be
 zero-latency CSS), charts (must be data-true, not canned).
 
-**Jitter — marketing motion only [HUMAN]:** App Store preview video (30s), 
+**Jitter — marketing motion only [HUMAN]:** App Store preview video (30s),
 screenshot-panel motion, launch-page hero, share-card motion templates for the
 brand's own social posts, creator-partnership ad cuts. Jitter output is video/
 Lottie for *out-of-app* surfaces; keep it out of the runtime.
