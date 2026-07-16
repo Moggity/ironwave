@@ -110,13 +110,48 @@ Derived future branches, in dependency order:
   one-question-per-screen onboarding with the generated-split reveal, minified
   store bundle (also legal hygiene: comments must not ship). Extends the
   existing "iOS App Store build (far future)" checklist below.
+- **Epic L - the standalone free logger (L1-L5; BLOCKS M2 and M4).** Found
+  by owner review 2026-07-16: the entire GTM plans around a "genuinely good
+  free logger", but the codebase has no program-less state — `!P()` bounces
+  every view to onboarding, all logging flows through `resolveDayEntries`
+  (program slots resolved by the coach's scheme registry), and `S.sessions`
+  entries carry `b/w/d` program coordinates. Only `S.records` (exercise-id
+  keyed) is tier-neutral. The free logger is therefore a feature epic, not
+  a rendering fork (see the amendment in
+  `docs/monetization-operations-report.md` M2). All slices additive;
+  program path and golden master untouched; L1-L3 have no billing
+  dependency and are startable now (they also serve self-hosted users):
+  - **L1. Freestyle session logging:** start an empty session, add
+    exercises via the existing pickers, log through the existing perf
+    modal into the same `S.records`/`S.sessions` shapes (`b/w/d` become
+    optional on a session; history rendering gains a label fallback).
+    History, PRs, e1RM trends, and share surfaces work unchanged because
+    the records layer is already exercise-keyed.
+  - **L2. Routines:** a versioned, additive `S.routines[]` (name + ordered
+    exercise list + optional user-set rep/weight targets). CRUD reusing
+    the picker/split-editor patterns; start-a-session-from-routine feeds
+    L1's entry pipeline. Explicitly NOT a program: no blocks, weeks,
+    schemes, or prescription.
+  - **L3. Program-less app shell:** `!P()` renders a logger home
+    (routines + start-empty-session + history) instead of forcing
+    onboarding; the quiz becomes the coach's front door, reachable but
+    not mandatory. Render-smoke covers every view program-less.
+  - **L4. Tier transitions:** onboarding's "continue free" lands in L3
+    keeping the quiz answers for later; lapsed-coach degradation (M2)
+    snapshots the program's current week into routines ("your program,
+    as routines") instead of a bespoke rendering fork.
+  - **L5. Boundary tests:** un-entitled render-smoke across all views;
+    the monetization report's free/coach boundary table as an executable
+    checklist (free surfaces reachable, coach surfaces gated).
 - **Monetization slices M1-M8** (read
   `docs/monetization-operations-report.md` section 9 first; M1-M2 are pure
-  repo work startable now, M3+ need R2's platform adapter): M1 the
+  repo work startable now, M3+ need R2's platform adapter; **M2 and M4 are
+  blocked on Epic L above**): M1 the
   entitlement seam (`Platform.billing`, one `coach` entitlement; web/self-
   hosted always entitled so the prototype and test suite run unchanged; the
   engine stays billing-blind), M2 the nothing-held-hostage degraded mode on
-  trial expiry (rendering fork, not engine changes), M3 RevenueCat behind
+  trial expiry (rebuilt on Epic L's routines per the report's amendment,
+  not a bespoke rendering fork), M3 RevenueCat behind
   the seam with a 7-day offline entitlement grace, M4 the paywall surface
   (reveal + coach touchpoints, "continue free" always visible), M5 the
   day-12 trial reminder over R5 notifications, M6 the settings subscription

@@ -276,6 +276,24 @@ adapter) exists.
   prescribes from stored state on re-entitlement. This is mostly a
   rendering fork at `resolveDayEntries`/view level — NOT engine changes.
   Render-smoke tests cover entitled + degraded for both tracks.
+
+  **AMENDMENT (2026-07-16, post-review; supersedes the mechanism above.)**
+  An owner review caught this report assuming a free logger that does not
+  exist in the codebase. Today `app.js` bounces every view to onboarding
+  when no program exists (`if (!P()) return vOnboarding()`), all logging
+  flows through `resolveDayEntries` (program slots resolved by the scheme
+  registry — the coach), and `S.sessions` entries carry program
+  coordinates (`b/w/d`). Only `S.records` (exercise-id keyed) is
+  tier-neutral. So "falls back to free-logger rendering" described a
+  surface with nothing under it: a never-subscribed free user had NO
+  path at all, and a lapsed one had only a bespoke rendering fork.
+  The standalone logger is now specified as **Epic L (L1-L5) in
+  `docs/pending-future-work.md`**, which must land before M2/M4: M2's
+  degradation is rebuilt on it (the program's current week snapshots into
+  plain routines, "your program, as routines"), and M4's "continue with
+  the free logger" path finally has somewhere real to land. L1-L3 are
+  pure repo work with no billing dependency and improve the self-hosted
+  prototype too.
 - **M3. RevenueCat integration.** The native implementation of M1's seam:
   SDK init, entitlement `coach`, offline cache + the 7-day grace window
   (§5), restore purchases, purchase flows for all three products + intro
