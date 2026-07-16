@@ -9,6 +9,15 @@ them into focused branches rather than one large one (see the retrospective).
 - **Sport-aware scheduling** (the long-deferred epic): a sport -> muscle-fatigue
   dataset, "pick which weekdays you train" instead of a day count, calendar
   placement so high-fatigue sessions avoid game day, and named/dated days.
+- ~~**1 and 7 training days per week**~~ DONE (2026-07-16): onboarding picker
+  1..7. 1-day strength = three comp waves + press secondary in one session
+  (`DAY_TEMPLATES[1]`); 1-day bodybuilding via `generateFullBodyDays`. 7-day
+  strength = the 6-day layout + a light Day 7 (`DAY_TEMPLATES[7]`); 7-day
+  bodybuilding unlocks a 4th weekly exposure for slider-6 muscles
+  (`splitFreqFor`) with a frequency-aware per-session cap
+  (`perSessionCapDiv`), or closes with a generated Pump day when nothing is
+  at 6. Split editor bounds 1..7. Weekday mapping (which seven days) stays
+  with sport-aware scheduling above.
 - ~~**2 training days per week**~~ DONE (2026-07-15, shipped with Epic H7):
   `generateFullBodyDays` (two full-body days, leads from different regions,
   each muscle on min(freq, 2) days), `DAY_TEMPLATES[2]` with the approved

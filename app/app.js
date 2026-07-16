@@ -634,10 +634,42 @@ function generateFullBodyDays(focus, N) {
              slots, primary: d.primary };
   });
 }
+// [1/7-day] Slider -> weekly frequency, day-count aware: a 7-day week unlocks a
+// fourth weekly exposure for a maxed (slider 6) muscle. Gated on N >= 7 so every
+// existing 2-6 day program keeps the plain SPLIT_FREQ table (byte-identical).
+function splitFreqFor(sliderVal, N) {
+  return (SPLIT_FREQ[sliderVal] || 0) + (N >= 7 && sliderVal === 6 ? 1 : 0);
+}
+// [7-day] The generated pump day: light isolation work for the highest-focus
+// muscles, no mains. Used when a 7-day week has no slider at 6 (no muscle earns
+// a fourth exposure), so the seventh day becomes the week's fatigue valve.
+function generatePumpDay(focus) {
+  const used = new Set(), headsUsed = {};
+  const ms = FOCUS_KEYS.filter(m => SPLIT_FREQ[focus[m]])
+    .sort((a, b) => focus[b] - focus[a]).slice(0, 5);
+  const slots = [];
+  for (const m of ms) {
+    const hs = headsUsed[m] || (headsUsed[m] = new Set());
+    const id = pickAccessory(DEFAULT_ACC[m] || [], used, hs);
+    if (id) {
+      used.add(id); const h = accHead(id); if (h) hs.add(h);
+      slots.push({ type: 'acc', cat: (exById(id) || {}).movement, def: id });
+    }
+  }
+  return { name: 'Pump', nameKey: 'pump', slots };
+}
 function generateBodybuildingDays(focus, N) {
   if (N <= 2) return generateFullBodyDays(focus, N); // [2-day] full-body, not upper/lower
+  // [7-day] Without a slider-6 muscle nothing trains 4x, so a 7th split day would
+  // only thin the week out; generate the 6-day split and close with a pump day.
+  if (N >= 7 && !FOCUS_KEYS.some(m => focus[m] === 6 && SPLIT_FREQ[focus[m]])) {
+    const week = generateBodybuildingDays(focus, N - 1);
+    if (!week || !week.length) return week;
+    week.push(generatePumpDay(focus));
+    return week;
+  }
   const freq = {};
-  for (const m of FOCUS_KEYS) if (SPLIT_FREQ[focus[m]]) freq[m] = SPLIT_FREQ[focus[m]];
+  for (const m of FOCUS_KEYS) if (splitFreqFor(focus[m], N)) freq[m] = splitFreqFor(focus[m], N);
   const pts = ms => ms.reduce((s, m) => s + (focus[m] || 0), 0);
   const upPts = pts(UPPER_MUSCLES), loPts = pts(LOWER_MUSCLES);
   if (upPts + loPts === 0) return []; // everything removed -> fall back / empty-day guard
@@ -708,7 +740,10 @@ function generateBodybuildingDays(focus, N) {
       for (const m of d.acc) { const s = accSlot(m); if (s) slots.push(s); }
       if (focus[d.primary] >= 5) { const s = accSlot(d.primary); if (s) slots.push(s); }
       let g = 0;
-      while (slots.length < 3 && g++ < 6) { const s = accSlot(d.primary); if (!s) break; slots.push(s); }
+      // [7-day] Thin days are the point at 7/week (frequency spreads, volume does
+      // not inflate), so the pad floor drops to 2; N <= 6 keeps the floor of 3.
+      const floor = N >= 7 ? 2 : 3;
+      while (slots.length < floor && g++ < 6) { const s = accSlot(d.primary); if (!s) break; slots.push(s); }
       const upper = UPPER_MUSCLES.includes(d.primary);
       const region = upper ? 'Upper' : 'Lower';
       // `primary` is carried for the same-muscle spacing pass below; render reads
@@ -846,6 +881,17 @@ function applySetDelta(sets, delta) {
 // powerbuilding/powerlifting routines are byte-identical. Mains and secondaries
 // are never touched (they carry the wave math and working-max progression).
 // Returns { removed } or { delta } of plain working sets to apply via applySetDelta.
+// [7-day] Per-session landmark cap divisor. The historical mrv/2 assumes ~2
+// sessions/wk/muscle; a muscle trained 4x or more (only reachable on a 7-day
+// week with a slider at 6) divides by its real frequency so the weekly total
+// stays at or under MRV. Below 4x the divisor stays 2, byte-identical to every
+// existing program.
+function perSessionCapDiv(sliderKey) {
+  const p = P();
+  if (!sliderKey || !p || !Array.isArray(p.days)) return 2;
+  const wf = p.days.filter(d => splitDayMuscles(d).has(sliderKey)).length;
+  return wf >= 4 ? wf : 2;
+}
 function focusForAccessory(exId, sets) {
   const tc = P() && P().trainingConfig;
   if (!tc || tc.track !== 'bodybuilding' || !tc.muscleFocus) return { delta: 0 };
@@ -858,7 +904,7 @@ function focusForAccessory(exId, sets) {
   const plain = sets.filter(s => !s.amrap && !s.ramp && !s.calib).length;
   if (!plain) return { delta: 0 }; // a calibration ramp: nothing to scale yet
   const lm = (S.profile.landmarks && S.profile.landmarks[e.movement]) || VOLUME_LANDMARKS[e.movement];
-  const perSessionCap = lm ? Math.max(1, Math.round(lm.mrv / 2)) : 8; // ~2 sessions/wk/muscle
+  const perSessionCap = lm ? Math.max(1, Math.round(lm.mrv / perSessionCapDiv(key))) : 8;
   const target = Math.max(1, Math.min(Math.round(plain * FOCUS_FACTOR[v]), perSessionCap));
   return { delta: target - plain };
 }
@@ -1156,7 +1202,7 @@ function autoregForAccessory(exId, sets, wIdx) {
   const plain = sets.filter(s => !s.amrap && !s.ramp && !s.calib).length;
   if (!plain) return 0;
   const lm = (S.profile.landmarks && S.profile.landmarks[e.movement]) || VOLUME_LANDMARKS[e.movement];
-  const cap = lm ? Math.max(1, Math.round(lm.mrv / 2)) : 8;   // ~2 sessions/wk/muscle
+  const cap = lm ? Math.max(1, Math.round(lm.mrv / perSessionCapDiv(MOVEMENT_SLIDER[e.movement]))) : 8;
   const target = Math.max(1, Math.min(plain + offset, cap));
   return target - plain;
 }
@@ -1782,7 +1828,7 @@ function vOnboarding() {
       <div class="ob-title">${esc(t('ob.days_title'))}</div>
       <p class="subtle">${esc(t('ob.days_sub'))}</p>
       <div class="seg mt16">
-        ${[2,3,4,5,6].map(n => `<button class="${ob.daysPerWeek===n?'on':''}" onclick="obDays(${n})">${n}</button>`).join('')}
+        ${[1,2,3,4,5,6,7].map(n => `<button class="${ob.daysPerWeek===n?'on':''}" onclick="obDays(${n})">${n}</button>`).join('')}
       </div>
       ${ob.daysPerWeek === 2 ? `<p class="faint mt8">${esc(t('ob.two_day_note'))}</p>` : ''}
       <button class="btn btn-green mt24" onclick="obNext(1)" ${ob.daysPerWeek ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
@@ -5483,7 +5529,7 @@ function seFreqChips() {
   const focus = (p.trainingConfig && p.trainingConfig.muscleFocus) || {};
   const perDay = p.days.map(splitDayMuscles);
   return `<div class="px-chips">${FOCUS_KEYS.filter(k => SPLIT_FREQ[focus[k]]).map(k => {
-    const target = SPLIT_FREQ[focus[k]];
+    const target = splitFreqFor(focus[k], p.daysPerWeek || p.days.length);
     const actual = perDay.filter(s => s.has(k)).length;
     return `<span class="px-chip ${actual < target ? 'warn' : ''}">${esc(t('muscle.' + k))} ${actual}/${target}x</span>`;
   }).join('')}</div>`;
@@ -5511,13 +5557,13 @@ function renderSplitEditor(anim) {
         <input class="se-name" value="${esc(dayTheme(d) || '')}" placeholder="${esc(t('common.day_n', { n: di + 1 }))}"
           onchange="seRename(${di}, this.value)">
         <span class="faint" style="white-space:nowrap">~${est}m</span>
-        ${p.days.length > 2 ? `<button class="btn-ghost" style="color:var(--red)" onclick="seRemoveDay(${di})">✕</button>` : ''}
+        ${p.days.length > 1 ? `<button class="btn-ghost" style="color:var(--red)" onclick="seRemoveDay(${di})">✕</button>` : ''}
       </div>
       ${rows}</div>`;
   }).join('');
   $modal.innerHTML = modalShell(anim, t('se.title'),
     `${bbTrack() ? seFreqChips() : ''}${cards}
-     <button class="btn btn-outline" onclick="seAddDay()">＋ ${esc(t('se.add_day'))}</button>`);
+     ${p.days.length < 7 ? `<button class="btn btn-outline" onclick="seAddDay()">＋ ${esc(t('se.add_day'))}</button>` : ''}`);
 }
 function seMove(di, si, dj) {
   dj = parseInt(dj);
@@ -5535,6 +5581,7 @@ function seRename(di, v) {
 }
 function seAddDay() {
   const p = P();
+  if (p.days.length >= 7) { toast(t('se.max_days'), true); return; }
   p.days.push({ name: '', slots: [] });
   p.daysPerWeek = p.days.length;
   save(); rerenderTop();

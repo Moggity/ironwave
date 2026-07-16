@@ -1,5 +1,50 @@
 # IRONWAVE — Changelog
 
+## [1 and 7 training days per week] (2026-07-16)
+
+The onboarding frequency picker now covers the full week, 1..7 (owner
+request; the extremes serve real constraints: one day is a lifeline for
+a time-starved athlete, seven days needs deliberate fatigue balancing).
+
+- **1-day strength** (`DAY_TEMPLATES[1]`, owner-approved layout): the
+  three comp lifts keep their full Juggernaut wave and their realization
+  AMRAPs in ONE session; the press rides as a permanent secondary (the
+  3-day precedent), one pull accessory, trimmed selects. Week-rotating
+  mains was rejected: the wave keys off the week index, so an
+  alternate-week lift would skip wave weeks and never peak.
+- **1-day bodybuilding**: `generateFullBodyDays(focus, 1)` builds the one
+  full-body day (every trained muscle once); `BB_DAY_TEMPLATES[1]` is the
+  all-zero fallback.
+- **7-day strength** (`DAY_TEMPLATES[7]`): the 6-day layout verbatim plus
+  a light Day 7 (no mains, one press secondary at 0.85, pump
+  accessories), the fatigue valve for a week with zero rest days.
+- **7-day bodybuilding, the 4x unlock** (owner call): `splitFreqFor`
+  grants a muscle at slider 6 a FOURTH weekly exposure, only at 7 days
+  (the SPLIT_FREQ table itself is untouched). Without any slider 6 the
+  generator builds the 6-day split and closes with a generated Pump day
+  (isolation only). `BB_DAY_TEMPLATES[7]` (PPL x2 + Pump) is the
+  fallback.
+- **Frequency-aware per-session cap**: the accessory landmark cap
+  (`mrv/2`, which assumed ~2 sessions/wk/muscle) now divides by the real
+  weekly frequency once a muscle trains 4x or more
+  (`perSessionCapDiv`), so a 4x muscle's weekly total stays at or under
+  MRV instead of overshooting into perpetual early-deload nagging.
+  Below 4x the divisor stays 2, byte-identical to every existing
+  program.
+- **Split editor bounds**: days can shrink to 1 (was 2) and grow to 7,
+  no further (matches the template validator's 1..7 rule); the
+  frequency chips read the day-count-aware target.
+- The 7-day pad floor drops to 2 slots (thin days are the point when
+  frequency spreads without volume inflation); 2..6-day weeks keep the
+  floor of 3.
+- Tests: `test/one-seven-day.test.js` (21 cases): wave/AMRAP integrity at
+  both extremes, the 4x unlock + cap divisor + inertness pins, weekly
+  volume <= MRV at 7 days, simulated two-block runs (1-day powerbuilder,
+  7-day bodybuilder), split-editor bounds, template round-trips, and the
+  2..6 templates pinned unchanged. Render smoke covers 1/7-day on both
+  shapes and the 1..7 picker. Suite 419/419; the 4-day golden master
+  untouched.
+
 ## [Epic H8: exercise media plumbing] (2026-07-15)
 
 The code half of the media epic, fully inert until clips are recorded
