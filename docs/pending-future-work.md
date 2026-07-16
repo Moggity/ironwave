@@ -110,6 +110,20 @@ Derived future branches, in dependency order:
   one-question-per-screen onboarding with the generated-split reveal, minified
   store bundle (also legal hygiene: comments must not ship). Extends the
   existing "iOS App Store build (far future)" checklist below.
+- **Release engineering slices R1-R9** (read
+  `docs/release-engineering-report.md` section 10 first; R1-R3 need no store
+  accounts and can start now): R1 durable storage adapter
+  (`Platform.storage`, Filesystem JSON on native, web path byte-identical),
+  R2 `platform.js` adapter skeleton (ASO E2 and haptics implement against
+  it; SW registration becomes web-only), R3 release build lane (esbuild
+  minify/strip into `dist/`, version stamping from `APP_VERSION`, CI runs
+  the harness against the minified bundle on tags; also the legal
+  comments-must-not-ship fix), R4 the Capacitor wrap branch (committed
+  native projects, Android back button through `MSTACK`, splash/status
+  bar), R5 local notifications for the rest timer, R6 native media pipeline
+  (remote host + Filesystem capped cache), R7 Sentry crash/vitals, R8
+  HealthKit export, R9 pre-submission checklist automation. Nothing touches
+  prescription; golden master untouched.
 - **ASO instrumentation slice** (rides with or right after the productization
   epic; read `docs/aso-launch-report.md` section 9 first): real-time PR
   detection hook at set-log time (E1), the gated store-review prompt plumbing
@@ -145,10 +159,16 @@ Operators (launch-critical, in priority order):
    the ratings-engine design under the 3-prompts/year iOS quota, screenshot
    narrative, launch calendar, weekly operating loop. Engineer notes E1-E7
    absorbed as the "ASO instrumentation slice" derived branch above.
-2. **Mobile platform / release engineer.** Capacitor wrap risks (guideline
-   4.2 rejection, HealthKit, push, haptics), Play 12-tester/14-day gate,
-   crash/ANR vitals (an ASO ranking input), store review cycles, native-feel
-   bar for Apple featuring.
+2. ~~**Mobile platform / release engineer**~~ DONE (2026-07-16):
+   `docs/release-engineering-report.md`. What a release build is, the
+   inventory finding that state is already local-first (no backend port
+   needed, only a durability upgrade), the one-codebase/three-targets
+   Capacitor architecture behind a `platform.js` adapter, the risk register
+   (4.2, WKWebView storage eviction, keystore custody, target-API treadmill,
+   privacy manifests), signing/versioning policy, the tags-only release lane
+   that keeps dev no-build, phased-rollout/hotfix process (OTA updates
+   skipped at launch), device matrix, owner custody tasks. Engineer notes
+   R1-R9 absorbed as the "Release engineering slices" derived branch above.
 3. **Monetization / paywall operator.** RevenueCat configuration, 14-day
    trial flow, cancel/win-back flows, refund handling, receipt edge cases,
    the one-test-at-a-time A/B discipline (200-500 conversions per variant).
