@@ -546,6 +546,9 @@ input[type=range] { width: 100%; accent-color: var(--blue); height: 30px; }
   padding: 13px 0; color: var(--text-dim); font-weight: 700; font-size: 1.05rem;
 }
 .seg button.on { border-color: var(--blue); color: var(--blue); background: rgba(75,141,248,.08); }
+/* [Calendar days] Text-label segments (the specific-days / count mode switch)
+   need less height and a smaller face than the big numeric day buttons. */
+.seg.seg-sm button { font-size: .88rem; padding: 10px 4px; }
 
 /* ---------- bottom nav ---------- */
 .tabbar {
@@ -607,6 +610,32 @@ input[type=range] { width: 100%; accent-color: var(--blue); height: 30px; }
 }
 
 /* ---------- onboarding: track/experience pick cards + focus sliders ---------- */
+/* [Calendar days] Onboarding weekday picker: a vertical list of day rows. The
+   whole row is the tap target (>= 48px tall); selection shows as a highlighted
+   container PLUS a checkmark in the square box (state is never color alone).
+   The sport pill only appears inside a selected row (progressive disclosure). */
+.wd-list { display: flex; flex-direction: column; gap: 8px; }
+.wd-row {
+  display: flex; align-items: center; gap: 12px; min-height: 52px;
+  padding: 8px 14px; cursor: pointer;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  transition: border-color .12s, background .12s;
+}
+.wd-row.on { border-color: var(--blue); background: rgba(75,141,248,.08); }
+.wd-box {
+  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 6px;
+  border: 1.5px solid var(--line); background: var(--card-2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: .9rem; font-weight: 800; color: var(--blue);
+}
+.wd-row.on .wd-box { border-color: var(--blue); }
+.wd-name { flex: 1; font-size: 1rem; color: var(--text-dim); }
+.wd-row.on .wd-name { color: var(--text); font-weight: 700; }
+.wd-pill {
+  flex: 0 0 auto; padding: 9px 12px; border-radius: 999px; font-size: .8rem;
+  background: transparent; border: 1.5px solid var(--line); color: var(--text-dim);
+}
+.wd-pill.on { border-color: var(--amber); color: var(--amber); background: rgba(240,180,41,.12); }
 .pick-card {
   display: block; width: 100%; text-align: left; margin: 10px 0; padding: 14px 16px;
   background: var(--card); border: 1px solid var(--line); border-radius: 12px;

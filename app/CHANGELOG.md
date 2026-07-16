@@ -1,5 +1,48 @@
 # IRONWAVE — Changelog
 
+## [Calendar training days + sport-day flag] (2026-07-16)
+
+Onboarding now asks WHICH days you train, not just how many (the
+simulated-athlete feedback's loudest scheduling complaint). This is the
+UI-first slice that paves the way for the sport-aware scheduling epic;
+prescription math is untouched.
+
+- **Two modes, Fitbod-style** (owner call): a segmented switch offers
+  'Specific days' (default) and 'Days per week'. Specific days is a
+  vertical list of the seven weekdays (Monday first), the whole row is
+  the tap target, a square box shows a checkmark and the row's container
+  highlights when selected (state is never color alone). Days per week
+  keeps the plain 1..7 count row for athletes who prefer a floating
+  week; a count-mode program carries NO weekday schedule (the exact
+  legacy behavior, stale weekday picks included). Switching modes loses
+  nothing: the count seeds from the picked days and the weekday picks
+  survive a round trip. Pattern follows the Fitbod-settings / iOS-alarm
+  idiom; researched against Juggernaut AI, RP, Fitbod, Runna and
+  adjacent domains.
+- **Sport-day pill** (progressive disclosure): selecting a day reveals a
+  pill inside its row to mark "I compete or practice another sport this
+  day". No mainstream lifting app captures this; it is the input the
+  future sports epic will schedule around. Deselecting a day clears its
+  flag.
+- **No gaps versus the count picker**: `ob.daysPerWeek` stays the
+  DERIVED count (`trainingDays.length`), so the 1..7 templates, the
+  split generator, the continue gate, and the session estimate all keep
+  reading exactly what they read before.
+- **Storage is additive**: `program.schedule` (`[{ wd, sport }]`,
+  index-aligned with `days[]`, 0 = Monday) is written only when
+  onboarding supplied weekdays; a count-only build has NO schedule key,
+  so the golden master and every legacy save are byte-identical, and no
+  migration is needed. Dashboard day rows show the weekday (and a flag
+  on sport days) when a schedule exists; templates never carry a
+  schedule (athlete-personal, like maxes); the split editor keeps the
+  map index-aligned on add/remove; a new cycle carries it over.
+- Tests: `test/calendar-days.test.js` (14 cases: toggle logic, derived
+  count, mode switching, schedule storage incl. both frequency extremes
+  and the fallback week, editor alignment, template exclusion,
+  carryover, and count-mode/count-only inertness pins); render smoke
+  drives both modes, the pill disclosure, and the golden-path
+  onboarding equality. Suite 434/434; golden master untouched.
+
 ## [1 and 7 training days per week] (2026-07-16)
 
 The onboarding frequency picker now covers the full week, 1..7 (owner

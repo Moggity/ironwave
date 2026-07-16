@@ -518,12 +518,24 @@ function makeProgram(ob) {
   } else {
     days = JSON.parse(JSON.stringify(DAY_TEMPLATES[ob.daysPerWeek]));
   }
+  // [Calendar days] Weekday mapping, index-aligned with days[] (day i trains on
+  // schedule[i].wd; 0 = Monday). `sport` marks a competitive-sport day (captured
+  // now, consumed by the future sport-aware scheduling epic). Only written when
+  // onboarding supplied weekdays IN calendar mode, so a count-only ob (count
+  // mode, tests, legacy, golden master) builds a byte-identical program with no
+  // schedule key at all, even if a stale weekday pick lingers on the draft.
+  const schedule = ob.daysMode !== 'count'
+    && Array.isArray(ob.trainingDays) && ob.trainingDays.length
+    && ob.trainingDays.length === days.length
+    ? ob.trainingDays.map(wd => ({ wd, sport: (ob.sportDays || []).includes(wd) }))
+    : null;
   return {
     template: tpl.id, daysPerWeek: ob.daysPerWeek,
     methodology: tpl.methodology || 'Juggernaut + Bodybuilding',
     startDate: start,
     testDate: ob.testDate || meetTs || start + totalWeeks * 7 * 864e5,
     ...(meetTs ? { meetDate: meetTs } : {}),
+    ...(schedule ? { schedule } : {}),
     blocks,
     weeksPerBlock: tpl.weeksPerBlock,
     pointer: { block: 0, week: 0 },
@@ -1734,7 +1746,14 @@ const FOCUS_LABELS = { arms: 'Arms', chest: 'Chest', back: 'Back', shoulders: 'S
 // stays disabled until the athlete picks. The one exception is program length,
 // which defaults to the track's standard and hides under Advanced options.
 function obDefaults() {
-  return { name: '', bodyweight: '', daysPerWeek: null, track: null,
+  return { name: '', bodyweight: '', daysPerWeek: null,
+           // [Calendar days] Weekday indices (0 = Monday .. 6 = Sunday) the athlete
+           // trains, plus the subset flagged as competitive-sport days. daysPerWeek
+           // stays the derived count so everything downstream is untouched.
+           // daysMode 'calendar' (default) picks specific days; 'count' keeps the
+           // plain how-many row and builds a floating, unscheduled week.
+           trainingDays: [], sportDays: [], daysMode: 'calendar',
+           track: null,
            experience: null, timeMode: null, timeCapMin: '',
            macroWeeks: null, // [Epic G2] null = standard template length
            goalArchetype: null, // [Epic G6] bodybuilding only
@@ -1824,12 +1843,38 @@ function vOnboarding() {
         <input id="ob-bw" type="number" inputmode="decimal" value="${esc(ob.bodyweight)}" placeholder="${isLb() ? 220 : 100}"></div>
       <button class="btn btn-green mt16" onclick="obNext(0)">${esc(t('ob.continue'))}</button>`;
   } else if (step === 1) {
-    body = `
-      <div class="ob-title">${esc(t('ob.days_title'))}</div>
-      <p class="subtle">${esc(t('ob.days_sub'))}</p>
+    // [Calendar days] Two modes, Fitbod-style: 'Specific days' (default; a
+    // vertical weekday list, square selectors, whole row is the tap target, a
+    // selected row progressively discloses the competitive-sport pill) and
+    // 'Days per week' (the plain 1..7 count row for athletes who prefer a
+    // floating week; a count-mode program carries no weekday schedule).
+    const calMode = ob.daysMode !== 'count';
+    const tds = Array.isArray(ob.trainingDays) ? ob.trainingDays : [];
+    const sds = Array.isArray(ob.sportDays) ? ob.sportDays : [];
+    const picker = calMode ? `
+      <div class="wd-list mt16">
+        ${[0,1,2,3,4,5,6].map(wd => {
+          const on = tds.includes(wd), sport = sds.includes(wd);
+          return `<div class="wd-row ${on ? 'on' : ''}" role="checkbox" aria-checked="${on}" onclick="obToggleDay(${wd})">
+            <span class="wd-box">${on ? '✓' : ''}</span>
+            <span class="wd-name">${esc(t('wd.' + wd))}</span>
+            ${on ? `<button class="wd-pill ${sport ? 'on' : ''}" aria-pressed="${sport}"
+              onclick="obToggleSport(event, ${wd})">${sport ? '⚑ ' : ''}${esc(t('ob.sport_pill'))}</button>` : ''}
+          </div>`;
+        }).join('')}
+      </div>
+      ${sds.length ? '' : `<p class="faint mt8">${esc(t('ob.sport_hint'))}</p>`}` : `
       <div class="seg mt16">
         ${[1,2,3,4,5,6,7].map(n => `<button class="${ob.daysPerWeek===n?'on':''}" onclick="obDays(${n})">${n}</button>`).join('')}
+      </div>`;
+    body = `
+      <div class="ob-title">${esc(t('ob.days_title'))}</div>
+      <p class="subtle">${esc(t(calMode ? 'ob.days_sub' : 'ob.days_sub_count'))}</p>
+      <div class="seg seg-sm mt16">
+        <button class="${calMode ? 'on' : ''}" onclick="obDaysMode('calendar')">${esc(t('ob.mode_calendar'))}</button>
+        <button class="${calMode ? '' : 'on'}" onclick="obDaysMode('count')">${esc(t('ob.mode_count'))}</button>
       </div>
+      ${picker}
       ${ob.daysPerWeek === 2 ? `<p class="faint mt8">${esc(t('ob.two_day_note'))}</p>` : ''}
       <button class="btn btn-green mt24" onclick="obNext(1)" ${ob.daysPerWeek ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
   } else if (step === 2) {
@@ -1930,7 +1975,48 @@ function obUnits(u) {
   applyUnits(u);
   save(); render();
 }
+// [Calendar days] Count mode: pick a plain number of days (the floating week).
 function obDays(n) { V.ob.daysPerWeek = n; render(); }
+// [Calendar days] Switch between 'calendar' (specific days) and 'count' modes.
+// Each mode keeps its own selection: entering calendar re-derives the count from
+// the picked weekdays; entering count seeds from whatever count is already set
+// (which IS the derived count when coming from calendar), so nothing is lost by
+// flipping back and forth.
+function obDaysMode(mode) {
+  const ob = V.ob;
+  if (ob.daysMode === mode) return;
+  ob.daysMode = mode;
+  if (mode === 'calendar') ob.daysPerWeek = (ob.trainingDays || []).length || null;
+  render();
+}
+// [Calendar days] Toggle a weekday on/off. The day count stays a derived value
+// (trainingDays.length, null when empty) so the continue gate, the templates,
+// and the generator all keep reading ob.daysPerWeek exactly as before.
+function obToggleDay(wd) {
+  const ob = V.ob;
+  if (!Array.isArray(ob.trainingDays)) ob.trainingDays = [];
+  if (!Array.isArray(ob.sportDays)) ob.sportDays = [];
+  const i = ob.trainingDays.indexOf(wd);
+  if (i >= 0) {
+    ob.trainingDays.splice(i, 1);
+    ob.sportDays = ob.sportDays.filter(d => d !== wd); // a deselected day loses its flag
+  } else {
+    ob.trainingDays.push(wd);
+    ob.trainingDays.sort((a, b) => a - b);
+  }
+  ob.daysPerWeek = ob.trainingDays.length || null;
+  render();
+}
+// [Calendar days] Toggle the competitive-sport flag on a selected day. Stops the
+// click from bubbling to the row so flagging never deselects the day.
+function obToggleSport(ev, wd) {
+  if (ev && ev.stopPropagation) ev.stopPropagation();
+  const ob = V.ob;
+  if (!Array.isArray(ob.sportDays)) ob.sportDays = [];
+  const i = ob.sportDays.indexOf(wd);
+  if (i >= 0) ob.sportDays.splice(i, 1); else ob.sportDays.push(wd);
+  render();
+}
 function obTrack(id) { V.ob.track = id; render(); }
 function obMacro(weeks) { V.ob.macroWeeks = weeks; render(); }
 // [Epic G6] Picking a goal archetype also seeds its default length (the athlete
@@ -2425,8 +2511,14 @@ function vDashboard() {
       const st = p.completedDays[k];
       const cls = st ? 'done' : '';
       const mark = st === 'skipped' ? '⤼' : st ? '✓' : '○';
+      // [Calendar days] A scheduled program names its days by weekday (with a
+      // flag on competitive-sport days); an unscheduled one keeps 'Day n'.
+      const sch = Array.isArray(p.schedule) ? p.schedule[i] : null;
+      const dayLabel = sch && sch.wd != null
+        ? `${t('wd.s' + sch.wd)}${sch.sport ? ' ⚑' : ''}`
+        : t('common.day_n', { n: i + 1 });
       return `<button class="day-row ${cls}" onclick="openDay(${i})">
-        <span class="mark">${mark}</span> <span>${esc(t('common.day_n', { n: i + 1 }))}${dayTheme(d) ? ` <span class="faint">${esc(dayTheme(d))}</span>` : ''}</span> <span class="chev">›</span></button>`;
+        <span class="mark">${mark}</span> <span>${esc(dayLabel)}${dayTheme(d) ? ` <span class="faint">${esc(dayTheme(d))}</span>` : ''}</span> <span class="chev">›</span></button>`;
     }).join('');
     const allDone = p.days.every((d, i) => p.completedDays[dayKey(p.pointer.block, w, i)]);
     weekSection = `
@@ -5584,6 +5676,9 @@ function seAddDay() {
   if (p.days.length >= 7) { toast(t('se.max_days'), true); return; }
   p.days.push({ name: '', slots: [] });
   p.daysPerWeek = p.days.length;
+  // [Calendar days] Keep the weekday map index-aligned; a hand-added day starts
+  // unscheduled (wd null) until the sports epic gives it a placement UI.
+  if (Array.isArray(p.schedule)) p.schedule.push({ wd: null, sport: false });
   save(); rerenderTop();
 }
 function seRemoveDay(di) {
@@ -5591,6 +5686,7 @@ function seRemoveDay(di) {
   const doIt = () => {
     p.days.splice(di, 1);
     p.daysPerWeek = p.days.length;
+    if (Array.isArray(p.schedule)) p.schedule.splice(di, 1); // [Calendar days] stay index-aligned
     // Re-key the current week's completion marks past the removed index so a
     // finished day stays locked as the days shift left.
     const b = p.pointer.block, w = p.pointer.week;
@@ -5844,8 +5940,14 @@ function doNewProgram() {
   // Carry the athlete's track and focus into the new cycle (landmarks/trainingAge
   // persist on profile and keep evolving; we do not reseed them here).
   const tr = S.profile.training || {};
+  // [Calendar days] Carry the weekday map and sport flags into the new cycle,
+  // like the day count; a legacy program without one stays count-only.
+  const sched = Array.isArray(P()?.schedule) ? P().schedule.filter(x => x && x.wd != null) : [];
   V.ob = { name: S.profile.name, bodyweight: S.profile.bodyweight,
            daysPerWeek: P()?.daysPerWeek || 4, maxes: keepMaxes,
+           trainingDays: sched.map(x => x.wd),
+           sportDays: sched.filter(x => x.sport).map(x => x.wd),
+           daysMode: sched.length ? 'calendar' : 'count',
            track: tr.track || 'powerbuilding',
            goalArchetype: tr.goalArchetype || null,
            experience: S.profile.experience || 'intermediate',
