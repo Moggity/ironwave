@@ -84,6 +84,8 @@ const EXPORTS = `return {
   blockWeeks, weeksBefore, totalProgramWeeks, vMeet, obMeetLine,
   generateFullBodyDays, programTemplate, validateTemplate, programFromTemplate,
   TEMPLATE_SCHEMA_VERSION,
+  ensureMediaManifest, exMediaSrc, exMediaHTML, openExDetail,
+  get MEDIA() { return MEDIA; }, set MEDIA(v) { MEDIA = v; },
   openSplitEditor, openFocusEditor, feSave, feSlider,
   BIG_LIFTS, VOL_ORDER, allExercises,
   DEFAULT_ACC, SPLIT_FREQ, FOCUS_FACTOR, MOVEMENT_SLIDER,

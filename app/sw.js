@@ -9,7 +9,7 @@
    Bump CACHE_VERSION whenever a shell file changes so clients fetch the new
    build instead of serving stale assets from cache. Keep the version suffix in
    step with APP_VERSION in data.js. */
-const CACHE_VERSION = 'ironwave-shell-v1.15.0';
+const CACHE_VERSION = 'ironwave-shell-v1.16.0';
 const SHELL = [
   './',
   './index.html',
@@ -32,19 +32,69 @@ self.addEventListener('install', (event) => {
   );
 });
 
+/* [Epic H8] Exercise media lives in its OWN cache: clips must never bloat the
+   shell (the shell stays instant and offline-safe), and the media cache must
+   SURVIVE shell version bumps (activate keeps it). Size-capped below. */
+const MEDIA_CACHE = 'ironwave-media-v1';
+const MEDIA_MAX_ENTRIES = 80;
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys
+        .filter((k) => k !== CACHE_VERSION && k !== MEDIA_CACHE)
+        .map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
+
+// Drop the oldest cached clips past the cap (cache keys keep insertion order).
+function trimMediaCache(cache) {
+  return cache.keys().then((keys) => {
+    const clips = keys.filter((k) => !k.url.endsWith('manifest.json'));
+    if (clips.length <= MEDIA_MAX_ENTRIES) return;
+    return Promise.all(clips.slice(0, clips.length - MEDIA_MAX_ENTRIES).map((k) => cache.delete(k)));
+  });
+}
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;                 // never cache writes
   const url = new URL(req.url);
   if (url.pathname.startsWith('/api/')) return;      // let API hit the network (or fail) untouched
+
+  // [Epic H8] Media routes to its own capped cache, never the shell cache
+  // below. Range requests (video seeks) go straight to the network: caching a
+  // 206 partial would corrupt playback. Clips are immutable by convention
+  // (rename the file to bust), so they are cache-first; the manifest is the
+  // one mutable file, network-first so a fresh upload shows without a version
+  // bump, with the cached copy as the offline fallback.
+  if (url.origin === self.location.origin && url.pathname.includes('/media/')) {
+    if (req.headers.get('range')) return;
+    if (url.pathname.endsWith('manifest.json')) {
+      event.respondWith(
+        fetch(req).then((res) => {
+          if (res && res.status === 200) {
+            const copy = res.clone();
+            caches.open(MEDIA_CACHE).then((cache) => cache.put(req, copy));
+          }
+          return res;
+        }).catch(() => caches.match(req))
+      );
+    } else {
+      event.respondWith(
+        caches.open(MEDIA_CACHE).then((cache) =>
+          cache.match(req).then((hit) => hit || fetch(req).then((res) => {
+            if (res && res.status === 200) {
+              cache.put(req, res.clone()).then(() => trimMediaCache(cache));
+            }
+            return res;
+          }))
+        )
+      );
+    }
+    return;
+  }
 
   // Stale-while-revalidate for the shell: serve the cached copy instantly (so
   // the app still launches with no signal), but in the background re-fetch and

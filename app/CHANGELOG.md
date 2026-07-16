@@ -1,5 +1,33 @@
 # IRONWAVE — Changelog
 
+## [Epic H8: exercise media plumbing] (2026-07-15)
+
+The code half of the media epic, fully inert until clips are recorded
+(the owner records at their own pace; the emoji placeholder is the
+contract meanwhile). Recording/compression/upload guide:
+`docs/exercise-media.md`.
+
+- **Manifest-keyed clips**: `app/media/manifest.json` (`schemaVersion: 1`,
+  `items: { exerciseId: filename }`) maps ids to plain basenames
+  (validated; a hostile manifest cannot path-traverse). Adding a clip =
+  drop the file in `app/media/` + one manifest line + push; no version
+  bump (the manifest is fetched network-first at runtime).
+- **Lazy everywhere**: nothing is fetched until an exercise detail modal
+  opens (`ensureMediaManifest`, one fetch per session, failure degrades
+  silently); the clip renders as a muted looping `preload="metadata"`
+  video atop the detail modal, `onerror` removes a broken file so the
+  placeholder stays the visible state.
+- **Never in the app shell**: the service worker routes `media/` to its
+  own cache (`ironwave-media-v1`), capped at 80 clips with oldest-first
+  eviction, kept across shell version bumps; Range requests bypass the
+  cache (a stored 206 partial would corrupt playback); the SHELL list is
+  untouched, so the app stays instant and offline-safe with 0 or 179
+  clips.
+- Tests: `test/media.test.js` (manifest degradation, id/basename
+  validation incl. traversal attempts, video markup, and file-level
+  service-worker contract checks). Suite 393/393; golden master
+  untouched (display-only).
+
 ## [Epic H7 + 2 training days per week] (2026-07-15)
 
 **H7 — custom programming platform (the gated capstone):** sharing a

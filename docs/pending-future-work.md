@@ -664,17 +664,16 @@ templates configure schemes, set math stays code-level `registerScheme`.
 Round-trip + reject battery + monster-template edge tests in
 `test/h7-twoday.test.js`.
 
-### Epic H8 - Exercise media (independent; content project more than code)
+### Epic H8 - Exercise media: CODE SHIPPED (2026-07-15), content pending
 
-- **What:** a per-exercise visual (license-clean line art or short loops,
-  our own or licensed assets, never scraped), keyed by exercise id in a
-  small manifest; lazy-loaded into a separate size-capped cache (never the
-  sw.js SHELL); the emoji placeholder stays the fallback so the library
-  works media-less; custom exercises can attach their own image.
-- **Why:** the emoji placeholder undermines an otherwise pro-grade library
-  (720 bilingual cue sentences); every competitor ships demos, and text
-  cues alone do not serve the less-experienced training partner.
-- **Runs in parallel** with any other epic as assets become available.
+The plumbing is live and inert (see CHANGELOG + `docs/exercise-media.md`
+for the recording/compression/upload guide): manifest-keyed clips
+(`app/media/manifest.json`), lazy detail-modal fetch, a separate 80-clip
+capped service-worker cache that never touches the SHELL, emoji fallback
+throughout. REMAINING: the content itself - the owner records one-rep 3-5s
+clips over time and adds them file-by-file (each push lights up its clip,
+no release needed). Custom-exercise athlete-attached images stay future
+work (needs a local-file storage decision).
 
 ### Folded into existing clusters (not new epics)
 

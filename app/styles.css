@@ -430,6 +430,9 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   color: var(--text); font-weight: 700; font-size: 1rem; padding: 2px 0; }
 .se-move { background: var(--card-2); border: 1px solid var(--line); color: var(--text-dim);
   border-radius: 7px; padding: 3px 6px; font-size: .8rem; }
+/* [Epic H8] Exercise media: a short one-rep clip atop the detail modal. */
+.ex-media { display: block; width: 100%; max-height: 300px; border-radius: 12px;
+  background: var(--card-2); object-fit: cover; margin-bottom: 10px; }
 /* [Epic H6] Meet day: three attempt tiles per lift, opener outlined. */
 .meet-attempts { display: flex; align-items: center; gap: 8px; margin: 10px 0 8px; }
 .meet-attempt { flex: 1; text-align: center; padding: 8px 4px; border-radius: 9px;

@@ -5048,8 +5048,44 @@ function exCues(e) {
   const pfx = perEx ? `cue.${e.id}_` : `cues.${CUES[e.movement] ? e.movement : 'default'}_`;
   return base.map((c, i) => cat.strings[pfx + i] || c);
 }
+// ------------------------------------------------------------
+// [Epic H8] EXERCISE MEDIA. A short one-rep clip per exercise id, listed in
+// media/manifest.json and lazy-fetched only when a detail modal opens. The
+// service worker keeps clips in a separate size-capped cache, NEVER the app
+// shell, so the shell stays instant and offline-safe. No manifest, no file,
+// or no network: the emoji placeholder stands in, exactly as before.
+// Recording/compression/upload guide: docs/exercise-media.md.
+// ------------------------------------------------------------
+let MEDIA = null; // null = not fetched yet; { items } after (possibly empty)
+function ensureMediaManifest() {
+  if (MEDIA) return;
+  MEDIA = { items: {} }; // set first so a failed fetch never re-loops
+  fetch('media/manifest.json')
+    .then(r => (r.ok ? r.json() : null))
+    .then(m => {
+      if (m && m.schemaVersion === 1 && m.items && typeof m.items === 'object') {
+        MEDIA = { items: m.items };
+        rerenderTop(); // an open detail modal picks its clip up
+      }
+    })
+    .catch(() => {});
+}
+// media/<file> for a listed id; null otherwise. The filename is validated to a
+// plain basename so a hostile manifest can never path-traverse.
+function exMediaSrc(id) {
+  const f = MEDIA && MEDIA.items && MEDIA.items[id];
+  return (typeof f === 'string' && /^[\w][\w.-]*$/.test(f)) ? 'media/' + f : null;
+}
+// The clip, or '' so the caller keeps the emoji placeholder. A broken file
+// removes itself and the placeholder behind it stays the visible state.
+function exMediaHTML(id) {
+  const src = exMediaSrc(id);
+  if (!src) return '';
+  return `<video class="ex-media" src="${src}" autoplay muted loop playsinline preload="metadata" onerror="this.remove()"></video>`;
+}
 function openExDetail(id, tab) {
   XD = { id, tab: tab || 'info' };
+  ensureMediaManifest();
   showModal(renderExDetail);
 }
 function renderExDetail(anim) {
@@ -5061,7 +5097,7 @@ function renderExDetail(anim) {
   let body = '';
   if (XD.tab === 'info') {
     const cues = exCues(e);
-    body = `<div class="placeholder-media">🏋</div>
+    body = `${exMediaHTML(e.id) || '<div class="placeholder-media">🏋</div>'}
       <p class="subtle">${esc(mvLabel(e.movement))} · ${EQUIP_LABEL[e.equipment] ? esc(t('equip.' + e.equipment)) : ''}${e.isMain ? ' · ' + esc(t('xd.main_lift')) : ''}</p>
       ${exMetaCardHTML(e)}
       <div class="section-title" style="font-size:1.1rem">${esc(t('xd.cues_title'))}</div>
