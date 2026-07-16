@@ -66,6 +66,57 @@ them into focused branches rather than one large one (see the retrospective).
   auto-correction rather than an RIR feeler ramp; ours is the bridge for athletes
   without a known max).
 
+## Commercialization groundwork (marketing + legal reports, 2026-07-16)
+
+Two owner-commissioned analyses shipped as docs on the
+`claude/training-app-marketing-analysis` branch. Premise for both: the current
+self-hosted PWA is the prototype stage; the market product is a closed
+commercial app (store-distributed, accounts, billing), built bootstrapped.
+Future dev agents: read the reports before starting any item below; they carry
+the file:line detail and the acceptance criteria.
+
+- **`docs/marketing-analysis.md` (v2)** - segments, competitor teardown,
+  monetization ruling (free logger tier + coaching engine behind a 14-day trial,
+  $12.99/mo / $79.99/yr / $249 lifetime, IAP-primary at the 15% small-business
+  rate), platform ranking, flagship-athlete evidence, phased GTM with kill/scale
+  gates.
+- **`docs/legal-compliance-report.md`** - risk register R1-R10, per-domain
+  analysis (IP, trademark, licensing, privacy, consumer, platform, liability),
+  the minimum-change doctrine (engine and scheme ids stay; strings, labels,
+  comments, README, license, and the bundled PDF change), and an ordered
+  dev-agent handoff with grep-gate acceptance criteria.
+
+Derived future branches, in dependency order:
+
+- **Immediate one-commit fixes** (legal report items 1-2): delete the bundled
+  book PDF (+ owner decision on history rewrite) and replace the MIT license
+  with a proprietary notice. No code, no tests affected.
+- **`legal-scrub` branch** (legal report items 3-5): athlete-facing string and
+  label renames (i18n taglines, `program.methodology` label + one-line
+  `migrateState` rename with a `migration.test.js` case, engine scheme `label`,
+  manifest/package metadata), comment/test rewording to concept language, README
+  rewrite. Verified: `golden-master.json` contains none of these strings, so the
+  sweep must land with the golden master byte-identical (any diff is a bug in
+  the sweep). Grep gate: zero case-insensitive juggernaut / renaissance
+  periodization / israetel matches under `app/` outside `CHANGELOG.md`.
+- **Landmark seed migration** (legal report item 6): blend/derive our own
+  `VOLUME_LANDMARKS` values (extends the existing "Migrate off the seeded RP
+  grid" item below). The one legal item that legitimately moves the golden
+  master; regenerate deliberately and review the diff.
+- **Productization epic** (marketing v2 section 2): Capacitor store wrap (local
+  assets, push, haptics, HealthKit export; guideline 4.2 mitigations), accounts
+  + sync (Supabase; the Express/`database.json` layer maps onto Postgres),
+  RevenueCat subscriptions, share cards, PR-moment ratings prompt, staged
+  one-question-per-screen onboarding with the generated-split reveal, minified
+  store bundle (also legal hygiene: comments must not ship). Extends the
+  existing "iOS App Store build (far future)" checklist below.
+- **Launch gates (owner + attorney, non-coding):** name clearance for the launch
+  brand (TSDR/EUIPO, backup name), privacy policy + ToS/EULA + health
+  disclaimer, consent/analytics flow, store privacy labels and data-safety
+  forms, subscription/auto-renewal disclosures incl. the founding-price intro
+  offer, age gate, encryption declaration. Blocking for store submission, not
+  for the branches above.
+
 ## Hardcore hypertrophy roadmap (epics, clusters, dependencies)
 
 From a domain review: what a professional hypertrophy athlete (think a Mike
