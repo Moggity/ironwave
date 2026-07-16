@@ -110,6 +110,18 @@ Derived future branches, in dependency order:
   one-question-per-screen onboarding with the generated-split reveal, minified
   store bundle (also legal hygiene: comments must not ship). Extends the
   existing "iOS App Store build (far future)" checklist below.
+- **Monetization slices M1-M8** (read
+  `docs/monetization-operations-report.md` section 9 first; M1-M2 are pure
+  repo work startable now, M3+ need R2's platform adapter): M1 the
+  entitlement seam (`Platform.billing`, one `coach` entitlement; web/self-
+  hosted always entitled so the prototype and test suite run unchanged; the
+  engine stays billing-blind), M2 the nothing-held-hostage degraded mode on
+  trial expiry (rendering fork, not engine changes), M3 RevenueCat behind
+  the seam with a 7-day offline entitlement grace, M4 the paywall surface
+  (reveal + coach touchpoints, "continue free" always visible), M5 the
+  day-12 trial reminder over R5 notifications, M6 the settings subscription
+  section, M7 minimal funnel events, M8 the stubbed web win-back seam.
+  Golden master untouched.
 - **Release engineering slices R1-R9** (read
   `docs/release-engineering-report.md` section 10 first; R1-R3 need no store
   accounts and can start now): R1 durable storage adapter
@@ -169,9 +181,16 @@ Operators (launch-critical, in priority order):
    that keeps dev no-build, phased-rollout/hotfix process (OTA updates
    skipped at launch), device matrix, owner custody tasks. Engineer notes
    R1-R9 absorbed as the "Release engineering slices" derived branch above.
-3. **Monetization / paywall operator.** RevenueCat configuration, 14-day
-   trial flow, cancel/win-back flows, refund handling, receipt edge cases,
-   the one-test-at-a-time A/B discipline (200-500 conversions per variant).
+3. ~~**Monetization / paywall operator**~~ DONE (2026-07-16):
+   `docs/monetization-operations-report.md`. How store billing actually
+   works (products, entitlements, receipts, RevenueCat), the free/coach
+   feature boundary with four gray-zone owner calls, nothing-held-hostage
+   trial-expiry behavior with a day-12 reminder, the anti-dark-pattern
+   paywall anatomy, 7-day offline entitlement grace (the basement-gym
+   rule), pricing ops (intro offers, lifetime as non-consumable,
+   grandfathered price-raise path), sandbox testing + the gate metrics.
+   Engineer notes M1-M8 absorbed as the "Monetization slices" derived
+   branch above; engine stays billing-blind.
 4. **Analytics / instrumentation specialist.** Event schema BEFORE launch so
    the kill/scale gates are measurable (cost-per-trial, trial-to-paid,
    month-1 cancel), retention cohorts, PostHog setup, privacy-respecting
