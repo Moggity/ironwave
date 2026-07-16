@@ -7,8 +7,15 @@ them into focused branches rather than one large one (see the retrospective).
 ## Larger features (each its own branch)
 
 - **Sport-aware scheduling** (the long-deferred epic): a sport -> muscle-fatigue
-  dataset, "pick which weekdays you train" instead of a day count, calendar
-  placement so high-fatigue sessions avoid game day, and named/dated days.
+  dataset, calendar placement so high-fatigue sessions avoid game day, and
+  named/dated days. **The 2026-07-16 calendar-days release paved the way**: the
+  onboarding already captures which weekdays the athlete trains AND which are
+  competitive-sport days (`program.schedule`, `[{ wd, sport }]` index-aligned
+  with `days[]`, 0 = Monday), shown on the dashboard. What remains for the epic:
+  the fatigue dataset, placement logic that consumes the `sport` flags (e.g.
+  no heavy lower day before game day), day-type awareness in prescription, a
+  reschedule UI outside onboarding, and per-sport metadata (which sport, at
+  what intensity).
 - ~~**1 and 7 training days per week**~~ DONE (2026-07-16): onboarding picker
   1..7. 1-day strength = three comp waves + press secondary in one session
   (`DAY_TEMPLATES[1]`); 1-day bodybuilding via `generateFullBodyDays`. 7-day

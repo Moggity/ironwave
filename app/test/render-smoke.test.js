@@ -264,11 +264,24 @@ for (const n of [1, 2, 7]) {
   }
 }
 
-test('onboarding day picker offers 1 through 7', () => {
+test('onboarding weekday picker lists all 7 days; a selected day discloses the sport pill', () => {
   const ctx = fresh();
   ctx.app.S = ctx.app.defaultState();
-  const html = renderView(ctx, 'onboarding', { ob: ctx.app.obDefaults(), obStep: 1 });
-  for (let n = 1; n <= 7; n++) assert.ok(html.includes(`obDays(${n})`), `day button ${n} renders`);
+  let html = renderView(ctx, 'onboarding', { ob: ctx.app.obDefaults(), obStep: 1 });
+  for (let wd = 0; wd < 7; wd++) assert.ok(html.includes(`obToggleDay(${wd})`), `weekday row ${wd} renders`);
+  assert.ok(!/wd-pill/.test(html), 'no sport pill before any day is selected');
+  ctx.app.obToggleDay(2); // select Wednesday
+  html = ctx.document.getElementById('app').innerHTML;
+  assert.ok(/wd-row on/.test(html), 'the selected row highlights');
+  assert.ok(/wd-pill/.test(html), 'the sport pill appears inside the selected row');
+  assert.strictEqual(ctx.app.V.ob.daysPerWeek, 1, 'the day count stays derived');
+  ctx.app.obToggleSport(null, 2);
+  html = ctx.document.getElementById('app').innerHTML;
+  assert.ok(/wd-pill on/.test(html), 'the sport pill shows its on state');
+  assert.deepStrictEqual([...ctx.app.V.ob.sportDays], [2]); // spread: jsdom-realm array
+  ctx.app.obToggleDay(2); // deselecting the day clears its sport flag
+  assert.deepStrictEqual([...ctx.app.V.ob.sportDays], []);
+  assert.strictEqual(ctx.app.V.ob.daysPerWeek, null, 'empty selection re-disables continue');
 });
 
 // [Epic H5] The split editor + focus editor modals render for a bodybuilding
@@ -307,7 +320,8 @@ test('powerbuilding onboarding path produces the golden-master program', () => {
   ctx.app.V = Object.assign({}, ctx.baseV, { view: 'onboarding', ob: ctx.app.obDefaults(), obStep: 0 });
   ctx.app.render();
   ctx.app.obNext(0);
-  ctx.app.obDays(4); ctx.app.obNext(1);
+  for (const wd of [0, 1, 3, 4]) ctx.app.obToggleDay(wd); // Mon/Tue/Thu/Fri
+  ctx.app.obNext(1);
   assert.ok(/obTrack\('powerbuilding'\)/.test(ctx.document.getElementById('app').innerHTML),
     'the powerbuilding card renders on the goal step');
   ctx.app.obTrack('powerbuilding'); ctx.app.obNext(2);
@@ -319,7 +333,12 @@ test('powerbuilding onboarding path produces the golden-master program', () => {
   const golden = ctx.app.makeProgram({ daysPerWeek: 4, track: 'powerbuilding',
     experience: 'intermediate', timeMode: 'unlimited', muscleFocus: { ...DEFAULT_FOCUS }, maxes: {} });
   const strip = p => { const c = JSON.parse(JSON.stringify(p)); delete c.startDate; delete c.testDate; return c; };
-  assert.deepStrictEqual(strip(prog), strip(golden), 'onboarding output = golden-master program');
+  // [Calendar days] The schedule rides alongside the program (weekday labels
+  // only); the prescription itself must still equal the count-only golden build.
+  assert.deepStrictEqual(strip(prog).schedule,
+    [0, 1, 3, 4].map(wd => ({ wd, sport: false })), 'the weekday map is stored');
+  const noSched = p => { const c = strip(p); delete c.schedule; return c; };
+  assert.deepStrictEqual(noSched(prog), noSched(golden), 'onboarding output = golden-master program');
 });
 
 test('lb mode: onboarding step 0 shows the unit toggle and lb bodyweight label', () => {
