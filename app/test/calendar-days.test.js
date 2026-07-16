@@ -70,6 +70,30 @@ test('obToggleSport: flags a day; deselecting the day clears its flag', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Dual mode: specific days (default) vs days per week
+// ---------------------------------------------------------------------------
+test('obDaysMode: switching modes carries the count and keeps each selection', () => {
+  const ob = freshV();
+  assert.strictEqual(ob.daysMode, 'calendar', 'specific days is the default');
+  app.obToggleDay(1); app.obToggleDay(3);
+  app.obDaysMode('count');
+  assert.strictEqual(ob.daysPerWeek, 2, 'the derived count seeds count mode');
+  app.obDays(5);
+  assert.strictEqual(ob.daysPerWeek, 5);
+  app.obDaysMode('calendar');
+  assert.strictEqual(ob.daysPerWeek, 2, 'calendar re-derives from the kept weekdays');
+  assert.deepStrictEqual(ob.trainingDays, [1, 3], 'the weekday picks survived the round trip');
+});
+
+test('count mode never attaches a schedule, even with stale weekday picks', () => {
+  app.S = app.defaultState();
+  const p = app.makeProgram(baseOb({ daysMode: 'count', daysPerWeek: 3,
+    trainingDays: [0, 2, 4], sportDays: [2] }));
+  assert.strictEqual(p.days.length, 3);
+  assert.ok(!('schedule' in p), 'a floating week carries no weekday map');
+});
+
+// ---------------------------------------------------------------------------
 // makeProgram: the schedule rides alongside, count-only stays identical
 // ---------------------------------------------------------------------------
 test('makeProgram stores an index-aligned weekday map with sport flags', () => {

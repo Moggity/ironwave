@@ -284,6 +284,22 @@ test('onboarding weekday picker lists all 7 days; a selected day discloses the s
   assert.strictEqual(ctx.app.V.ob.daysPerWeek, null, 'empty selection re-disables continue');
 });
 
+test('the days-per-week mode swaps the weekday list for the 1..7 count row', () => {
+  const ctx = fresh();
+  ctx.app.S = ctx.app.defaultState();
+  let html = renderView(ctx, 'onboarding', { ob: ctx.app.obDefaults(), obStep: 1 });
+  assert.ok(html.includes("obDaysMode('count')"), 'the mode switch renders');
+  assert.ok(/wd-row/.test(html) && !/obDays\(4\)/.test(html), 'calendar mode by default');
+  ctx.app.obDaysMode('count');
+  html = ctx.document.getElementById('app').innerHTML;
+  assert.ok(!/wd-row/.test(html), 'the weekday list is gone in count mode');
+  for (let n = 1; n <= 7; n++) assert.ok(html.includes(`obDays(${n})`), `count button ${n} renders`);
+  ctx.app.obDays(2);
+  html = ctx.document.getElementById('app').innerHTML;
+  assert.ok(html.includes(ctx.app.t('ob.two_day_note')), 'the two-day note still keys off the count');
+  assert.strictEqual(ctx.app.V.ob.daysPerWeek, 2);
+});
+
 // [Epic H5] The split editor + focus editor modals render for a bodybuilding
 // program; [Epic H6] a meet program renders its taper dashboard and meet day.
 test('split editor, focus editor, and meet day render', () => {

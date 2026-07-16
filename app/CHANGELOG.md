@@ -7,12 +7,18 @@ simulated-athlete feedback's loudest scheduling complaint). This is the
 UI-first slice that paves the way for the sport-aware scheduling epic;
 prescription math is untouched.
 
-- **Weekday picker** replaces the 1..7 count row: a vertical list of the
-  seven weekdays (Monday first), the whole row is the tap target, a
-  square box shows a checkmark and the row's container highlights when
-  selected (state is never color alone). Pattern follows the
-  Fitbod-settings / iOS-alarm idiom; researched against Juggernaut AI,
-  RP, Fitbod, Runna and adjacent domains.
+- **Two modes, Fitbod-style** (owner call): a segmented switch offers
+  'Specific days' (default) and 'Days per week'. Specific days is a
+  vertical list of the seven weekdays (Monday first), the whole row is
+  the tap target, a square box shows a checkmark and the row's container
+  highlights when selected (state is never color alone). Days per week
+  keeps the plain 1..7 count row for athletes who prefer a floating
+  week; a count-mode program carries NO weekday schedule (the exact
+  legacy behavior, stale weekday picks included). Switching modes loses
+  nothing: the count seeds from the picked days and the weekday picks
+  survive a round trip. Pattern follows the Fitbod-settings / iOS-alarm
+  idiom; researched against Juggernaut AI, RP, Fitbod, Runna and
+  adjacent domains.
 - **Sport-day pill** (progressive disclosure): selecting a day reveals a
   pill inside its row to mark "I compete or practice another sport this
   day". No mainstream lifting app captures this; it is the input the
@@ -30,12 +36,12 @@ prescription math is untouched.
   on sport days) when a schedule exists; templates never carry a
   schedule (athlete-personal, like maxes); the split editor keeps the
   map index-aligned on add/remove; a new cycle carries it over.
-- Tests: `test/calendar-days.test.js` (12 cases: toggle logic, derived
-  count, schedule storage incl. both frequency extremes and the
-  fallback week, editor alignment, template exclusion, carryover, and
-  count-only inertness pins); render smoke drives the picker, the pill
-  disclosure, and the golden-path onboarding equality. Suite 431/431;
-  golden master untouched.
+- Tests: `test/calendar-days.test.js` (14 cases: toggle logic, derived
+  count, mode switching, schedule storage incl. both frequency extremes
+  and the fallback week, editor alignment, template exclusion,
+  carryover, and count-mode/count-only inertness pins); render smoke
+  drives both modes, the pill disclosure, and the golden-path
+  onboarding equality. Suite 434/434; golden master untouched.
 
 ## [1 and 7 training days per week] (2026-07-16)
 

@@ -11,7 +11,10 @@ them into focused branches rather than one large one (see the retrospective).
   named/dated days. **The 2026-07-16 calendar-days release paved the way**: the
   onboarding already captures which weekdays the athlete trains AND which are
   competitive-sport days (`program.schedule`, `[{ wd, sport }]` index-aligned
-  with `days[]`, 0 = Monday), shown on the dashboard. What remains for the epic:
+  with `days[]`, 0 = Monday), shown on the dashboard. A 'Days per week' mode
+  remains for athletes who prefer a floating week; those programs carry no
+  schedule, so the epic must keep treating an absent schedule as "float".
+  What remains for the epic:
   the fatigue dataset, placement logic that consumes the `sport` flags (e.g.
   no heavy lower day before game day), day-type awareness in prescription, a
   reschedule UI outside onboarding, and per-sport metadata (which sport, at

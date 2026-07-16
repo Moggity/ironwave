@@ -546,6 +546,9 @@ input[type=range] { width: 100%; accent-color: var(--blue); height: 30px; }
   padding: 13px 0; color: var(--text-dim); font-weight: 700; font-size: 1.05rem;
 }
 .seg button.on { border-color: var(--blue); color: var(--blue); background: rgba(75,141,248,.08); }
+/* [Calendar days] Text-label segments (the specific-days / count mode switch)
+   need less height and a smaller face than the big numeric day buttons. */
+.seg.seg-sm button { font-size: .88rem; padding: 10px 4px; }
 
 /* ---------- bottom nav ---------- */
 .tabbar {
