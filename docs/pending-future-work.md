@@ -110,12 +110,86 @@ Derived future branches, in dependency order:
   one-question-per-screen onboarding with the generated-split reveal, minified
   store bundle (also legal hygiene: comments must not ship). Extends the
   existing "iOS App Store build (far future)" checklist below.
+- **ASO instrumentation slice** (rides with or right after the productization
+  epic; read `docs/aso-launch-report.md` section 9 first): real-time PR
+  detection hook at set-log time (E1), the gated store-review prompt plumbing
+  with additive `S.review` state and a web no-op adapter (E2), local milestone
+  counters (E3), a deterministic screenshot staging state (E4), keyword-aware
+  IAP display naming when RevenueCat lands (E5), and keeping the prototype
+  noindexed through productization (E6). Nothing touches prescription; golden
+  master untouched.
 - **Launch gates (owner + attorney, non-coding):** name clearance for the launch
   brand (TSDR/EUIPO, backup name), privacy policy + ToS/EULA + health
   disclaimer, consent/analytics flow, store privacy labels and data-safety
   forms, subscription/auto-renewal disclosures incl. the founding-price intro
   offer, age gate, encryption declaration. Blocking for store submission, not
   for the branches above.
+
+## Launch consultation call sheet (owner directive 2026-07-16, CRITICAL priority)
+
+The owner is assembling the launch and post-launch plan by consulting one
+expert persona at a time, the way Marketing, Legal, UI/UX
+(`docs/ui-ux-visual-identity-analysis.md`), and the two veteran athletes
+(`docs/athlete-feedback-simulation.md`) already ran. Work the list top to
+bottom; strike an entry through when its report ships as a doc under `docs/`.
+Every report follows the house pattern: grounded in the prior reports,
+educational for the owner, ending with tagged owner tasks and engineer-agent
+notes whenever app changes are warranted (which then get absorbed into this
+file's epics, as the ASO slice above was).
+
+Operators (launch-critical, in priority order):
+
+1. ~~**ASO / store-growth specialist**~~ DONE (2026-07-16):
+   `docs/aso-launch-report.md`. Keyword tiers (own "powerbuilding" + the
+   utility long tail), the title formula constraint on the Phase 0 rename,
+   the ratings-engine design under the 3-prompts/year iOS quota, screenshot
+   narrative, launch calendar, weekly operating loop. Engineer notes E1-E7
+   absorbed as the "ASO instrumentation slice" derived branch above.
+2. **Mobile platform / release engineer.** Capacitor wrap risks (guideline
+   4.2 rejection, HealthKit, push, haptics), Play 12-tester/14-day gate,
+   crash/ANR vitals (an ASO ranking input), store review cycles, native-feel
+   bar for Apple featuring.
+3. **Monetization / paywall operator.** RevenueCat configuration, 14-day
+   trial flow, cancel/win-back flows, refund handling, receipt edge cases,
+   the one-test-at-a-time A/B discipline (200-500 conversions per variant).
+4. **Analytics / instrumentation specialist.** Event schema BEFORE launch so
+   the kill/scale gates are measurable (cost-per-trial, trial-to-paid,
+   month-1 cancel), retention cohorts, PostHog setup, privacy-respecting
+   defaults.
+5. **Privacy / data-protection specialist.** GDPR/CCPA for accounts + sync,
+   Apple privacy nutrition labels / Play data-safety forms, health-adjacent
+   data handling, export/deletion flows. Complements the legal report's IP
+   focus.
+6. **Support & community manager.** Review-response cadence (feeds ASO),
+   refund macros, bug triage SLAs, Discord, beta-cohort management.
+
+Credibility and coverage:
+
+7. **Sports-science / S&C coach advisor.** Audit engine claims, terminology,
+   and coaching copy for scientific defensibility; keep readiness/fatigue
+   language out of medical territory (ties to the legal report's
+   health-claims item).
+8. **Athlete panel round-out** (three more simulated athletes): a woman
+   entering powerlifting (S3, the fastest-growing segment), a LatAm
+   Spanish-speaking lifter (run in Spanish against the es.js catalog, not
+   translated), and an accessibility-constrained user (VoiceOver, large
+   text, motor precision).
+
+Adversaries worth simulating:
+
+9. **Paywall-cynical Redditor / churned RP subscriber.** Pressure-test the
+   paywall copy, trial framing, and lifetime tier; write the 1-star review
+   before a real one does.
+10. **Apple App Review reviewer.** Run the build adversarially through
+    guidelines 4.2 (minimum functionality) and 3.1 (payments) before
+    submission, not after rejection.
+11. **YouTube creator partner.** Simulate the counterparty: would a 50K-sub
+    evidence-based channel actually take the permissioned-program deal at
+    20% recurring affiliate?
+
+Lower priority, do not skip forever: a finance/ops advisor (entity,
+liability insurance, IAP tax treatment, Small Business Program enrollment)
+and a QA / device-matrix persona before the September-equivalent beta.
 
 ## Hardcore hypertrophy roadmap (epics, clusters, dependencies)
 
