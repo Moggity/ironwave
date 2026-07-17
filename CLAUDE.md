@@ -35,6 +35,11 @@ you.
   **scheme registry** (`Engine.schemes`, `registerScheme`, `schemeFor`). Nothing
   here reads `S`/`V`; everything takes its inputs as arguments and returns set
   objects. This is the heavily-tested half. See `golden-master`/`engine` tests.
+  It also hosts **`Engine.coach`, the master coach arbitrator**: the single
+  source of truth when an input or an auto-built routine does not make sense
+  (bodyweight/1RM plausibility bounds, meet-plan arbitration, focus sanity).
+  New plausibility rules and coaching judgment calls go THERE, consulted from
+  `validateIntake`/generators — never scattered as ad hoc UI checks.
 - **`app.js`** — everything stateful: migration, the routine generators, slot
   resolution, all rendering, and all event handlers. This is the lightly-tested
   half (smoke only).

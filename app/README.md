@@ -146,4 +146,4 @@ with 2.5 kg/rep for lower-body lifts and 1.25 kg/rep for upper-body (editable pe
 - New methodologies (e.g. a pure hypertrophy program): `Engine.registerScheme('my-id', {...})` in `engine.js`, then a `PROGRAM_TEMPLATES` entry whose blocks reference that scheme id. The resolver consults only `block.scheme` — existing schemes are never touched or blended.
 - New programs on existing schemes: add an entry to `PROGRAM_TEMPLATES` and day layouts to `DAY_TEMPLATES` in `data.js`.
 
-*Non-commercial personal project. The Juggernaut Method 2.0 is Chad Wesley Smith's work — buy the book.*
+*Proprietary software, all rights reserved (see `LICENSE`). The Juggernaut Method 2.0 is Chad Wesley Smith's work — buy the book.*

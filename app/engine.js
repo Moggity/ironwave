@@ -562,6 +562,97 @@ const Engine = {
     return out.sort((a, b) => a.ts - b.ts);
   },
 
+  // ---------- [Epic I5] THE MASTER COACH (arbitrator) ----------
+  // The single source of truth when an input or an auto-built routine does
+  // not make sense. Bounds and judgment calls that used to live scattered
+  // in the UI (or nowhere) are declared here once; validators, generators,
+  // and edit surfaces consult the coach instead of hardcoding their own
+  // idea of plausible. Pure and stateless like the rest of the Engine:
+  // values in, verdicts out. Grown rule by rule as owner rulings land.
+  coach: {
+    bounds: {
+      // Owner ruling 2026-07-17: a trainable human bodyweight. Enforced at
+      // every surface that logs or changes bodyweight, not just onboarding.
+      bodyweightKg: [25, 300],
+      // Intake-QA F3: 1000 kg was accepted as a 1RM and 2 kg prescribed
+      // 0 kg x5. Outside this band the number is a typo, not a max; the
+      // athlete can always leave the field blank and calibrate in week 1.
+      oneRmKg: [20, 500],
+      meetTaperWeeks: 2,   // the jm2-peak block appended before the meet
+      // Owner ruling 2026-07-17: with a meet 49..75 days out, the volume
+      // (accumulation) lead-in is 2 weeks at most; the runway belongs to
+      // strength work and the taper, not a 4-5 week accumulation block.
+      meetShortRunwayMaxDays: 75,
+      meetLeadMaxWeeks: 2,
+    },
+    // The shortest meet runway that fits one full block plus the taper.
+    // TRACK_SPEC declares the same number (49 at weeksPerBlock 5) so the
+    // intake validator refuses anything shorter before makeProgram runs.
+    minMeetRunwayDays(weeksPerBlock) {
+      return ((weeksPerBlock || 5) + this.bounds.meetTaperWeeks) * 7;
+    },
+    // null = plausible; otherwise an issue in the validateIntake shape.
+    // Weight params are kg (storage canon); wKg tells the render layer to
+    // convert them to the athlete's display unit.
+    checkBodyweight(kg) {
+      const [lo, hi] = this.bounds.bodyweightKg;
+      if (Number.isFinite(kg) && kg >= lo && kg <= hi) return null;
+      return { key: 'val.bw_range', params: { lo, hi, wKg: true } };
+    },
+    checkMax(lift, kg) {
+      // 0 is a legitimate answer, not a typo: the athlete moves only their
+      // bodyweight on this lift. It is falsy, so makeProgram already treats
+      // it as "no working max" and week 1 calibrates from feel.
+      if (kg === 0) return null;
+      const [lo, hi] = this.bounds.oneRmKg;
+      if (Number.isFinite(kg) && kg >= lo && kg <= hi) return null;
+      return { key: 'val.max_range', params: { lo, hi, lift, wKg: true } };
+    },
+    // Intake-QA F4: every slider at 0 builds a program with nothing in it.
+    checkFocus(focus) {
+      if (!focus) return null;
+      const vals = Object.values(focus);
+      if (vals.length && vals.every(v => v === 0)) return { key: 'val.focus_all_zero' };
+      return null;
+    },
+    // [IQ1 + IQ2] The arbitrated meet plan. Fills the runway BACKWARD from
+    // the meet: the taper is reserved, full 5-week strength blocks come
+    // first (sampled across the template's wave progression so one block
+    // is the heaviest 3s wave and two are 5s -> 3s), then full hypertrophy
+    // blocks, and any leftover weeks become a truncated volume lead-in
+    // (block.weeks) capped at 2 weeks on a short (<= 75 day) runway per
+    // the owner ruling. The plan never extends past the meet: at worst it
+    // runs up to one week short in the 70-76 day sliver, which the athlete
+    // absorbs by resting or repeating a week (weeks advance by pointer,
+    // not by calendar). A runway of one full template reproduces the
+    // template's own block order. Returns blocks WITHOUT the taper; the
+    // caller appends it (and relabels).
+    meetBlockPlan(daysOut, tplBlocks, weeksPerBlock) {
+      const wpb = weeksPerBlock || 5;
+      const clone = b => JSON.parse(JSON.stringify(b));
+      const avail = Math.floor(daysOut / 7) - this.bounds.meetTaperWeeks;
+      const strengthTpl = tplBlocks.filter(b => b.type === 'strength');
+      const hypTpl = tplBlocks.filter(b => b.type !== 'strength');
+      const nStrength = Math.min(strengthTpl.length, Math.max(0, Math.floor(avail / wpb)));
+      let rem = avail - nStrength * wpb;
+      const nHyp = hypTpl.length ? Math.floor(rem / wpb) : 0;
+      rem -= nHyp * wpb;
+      const leadCap = daysOut <= this.bounds.meetShortRunwayMaxDays
+        ? this.bounds.meetLeadMaxWeeks : wpb - 1;
+      const lead = Math.min(Math.max(rem, 0), leadCap);
+      const out = [];
+      if (lead > 0 && hypTpl.length) out.push(Object.assign(clone(hypTpl[0]), { weeks: lead }));
+      for (let i = 0; i < nHyp; i++) out.push(clone(hypTpl[i % hypTpl.length]));
+      for (let i = 0; i < nStrength; i++) {
+        // evenly spaced sample of the strength progression, always ending
+        // on its last (heaviest) wave
+        const idx = Math.floor((i + 1) * strengthTpl.length / nStrength) - 1;
+        out.push(clone(strengthTpl[idx]));
+      }
+      return out.length ? out : [clone(tplBlocks[0])];
+    },
+  },
+
   // ---------- [Epic I1] intake validation (pure, spec-driven) ----------
   // Validates an onboarding draft against a track's contract (TRACK_SPEC
   // entry). Pure: the spec and the current timestamp come in as arguments,
@@ -574,6 +665,24 @@ const Engine = {
     const issues = [];
     if (!ob || !spec) return issues;
     const c = spec.intake || {};
+    const coachIssue = (field, iss) => {
+      if (iss) issues.push(Object.assign({ field, level: 'error' }, iss));
+    };
+    // [I5] Bodyweight is required and bounded by the master coach. The draft
+    // holds '' until the athlete types; anything present must be plausible.
+    if (ob.bodyweight == null || ob.bodyweight === '') {
+      issues.push({ field: 'welcome', level: 'error', key: 'val.bw_required' });
+    } else {
+      coachIssue('welcome', this.coach.checkBodyweight(parseFloat(ob.bodyweight)));
+    }
+    // [I5] Any entered 1RM must be plausible (blank stays the calibration path).
+    for (const lift of Object.keys(ob.maxes || {})) {
+      coachIssue('maxes', this.coach.checkMax(lift, parseFloat(ob.maxes[lift])));
+    }
+    // [I5] The all-zero focus builds a program with nothing in it: hard block.
+    if ((spec.obSteps || []).includes('focus')) {
+      coachIssue('focus', this.coach.checkFocus(ob.muscleFocus));
+    }
     if (ob.timeMode === 'custom') {
       const cap = parseInt(ob.timeCapMin, 10);
       if (!(cap > 0)) {

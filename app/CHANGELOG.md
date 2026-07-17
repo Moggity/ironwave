@@ -1,5 +1,50 @@
 # IRONWAVE — Changelog
 
+## [The master coach: intake plausibility + arbitrated meet plans (Epic I5)] (2026-07-17)
+
+From the intake-QA findings F1-F5 and the owner rulings of 2026-07-17. The
+app now has a **master coach** (`Engine.coach`): the single source of truth
+when an input or an auto-built routine does not make sense. Bounds and
+judgment calls live there once; validators, generators, and edit surfaces
+consult it instead of hardcoding their own idea of plausible.
+
+- **Meet runway floor is 49 days** (`TRACK_SPEC.meetMinDaysOut`, derived as
+  one full block + the 2-week taper via `Engine.coach.minMeetRunwayDays`).
+  The old 28-day floor admitted meets whose taper landed AFTER the meet
+  (intake-QA F1).
+- **Arbitrated meet plans** (`Engine.coach.meetBlockPlan`): a meet program's
+  blocks now fill strength-first BACKWARD from the meet (waves sampled
+  across the template progression, so one block is the heaviest 3s wave and
+  two run 5s into 3s), hypertrophy fills the front, and leftover weeks
+  become a truncated volume lead-in (`block.weeks`). Owner ruling: with a
+  meet 49-75 days out the volume (accumulation) lead-in is **2 weeks at
+  most**. The plan never extends past the meet, and a short powerlifting
+  runway no longer builds hypertrophy-only prep (intake-QA F2).
+  `makeProgram` and the onboarding meet summary line both read the same
+  plan, so they can never disagree.
+- **Bodyweight is required and bounded, 25-300 kg, at every surface** that
+  logs or changes it (owner ruling): the onboarding welcome step now gates
+  Continue on it, and the Phase & bodyweight screen refuses an implausible
+  log (intake-QA F5).
+- **1RM plausibility, 20-500 kg** (`Engine.coach.checkMax`): onboarding
+  maxes outside the band block program creation with the reason; blank
+  still means calibrate in week 1 (intake-QA F3: 1000 kg was accepted, and
+  2 kg prescribed 0 kg x 5). A typed **0 is a legitimate answer**, not a
+  typo: the athlete moves only their bodyweight on that lift, and it lands
+  on the same calibration path (owner ruling).
+- **The all-zero focus is a hard block**, not a warning: every slider at 0
+  refuses to continue instead of building a 0-exercise program (intake-QA
+  F4), with its own banner replacing the misleading rebalance copy.
+- `Engine.validateIntake` routes the new rules (the I1 chokepoint holds);
+  weight-typed messages render in the athlete's display unit. New
+  `test/master-coach.test.js` (bounds, meet-plan properties across the
+  whole 49-366 day range, makeProgram composition); the intake battery
+  extended. Both i18n catalogs extended (`val.bw_*`, `val.max_range`,
+  `val.focus_all_zero`). Golden master untouched (meet programs are not in
+  it; the default path never enters the coach). APP_VERSION and the shell
+  cache bump to 1.19.0. Still open from I5: IQ6 specialization-week honesty
+  (pairs with Cluster C's generator half).
+
 ## [Track contracts: intake validation + track-driven onboarding (Epic I1+I2)] (2026-07-17)
 
 From the owner's intake critique (2026-07-17): onboarding performed a coach's

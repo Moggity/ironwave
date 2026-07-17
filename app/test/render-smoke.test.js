@@ -359,6 +359,8 @@ test('powerbuilding onboarding path produces the golden-master program', () => {
   ctx.app.render();
   // [Epic I2] Track-driven pipeline: welcome -> goal -> days -> meet ->
   // experience -> time -> maxes for the strength tracks.
+  // [Epic I5] Bodyweight is required on the welcome step (master coach).
+  ctx.document.getElementById('ob-bw').value = '80';
   ctx.app.obNext(0);
   assert.ok(/obTrack\('powerbuilding'\)/.test(ctx.document.getElementById('app').innerHTML),
     'the powerbuilding card renders on the goal step');
