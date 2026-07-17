@@ -300,6 +300,18 @@ Adversaries worth simulating:
 11. **YouTube creator partner.** Simulate the counterparty: would a 50K-sub
     evidence-based channel actually take the permissioned-program deal at
     20% recurring affiliate?
+12. ~~**Adversarial intake QA.**~~ DONE (2026-07-17):
+    `docs/intake-qa-simulation.md`. Onboards every track trying to produce
+    a nonsense program; first run against v1.18.0, right after Epic I's
+    I1+I2 landed. The new gates all held (time floors, meet runway,
+    required meet answer, stale-tap guard, slider volume caps). Six
+    findings: a 28-48 day meet builds a taper scheduled AFTER the meet
+    (F1), short meet runways carry zero strength blocks (F2), maxes accept
+    1000 kg and a 2 kg max prescribes 0 kg x5 sets (F3), all-zero sliders
+    build a 0-exercise program (F4), bodyweight is unvalidated (F5),
+    beginner + lean-asap remains banner-only (F6, re-affirmed known gap).
+    Engineer notes IQ1-IQ5 absorbed as Epic I slice I5 below; re-run the
+    battery after any onboarding change (the report carries the protocol).
 
 Lower priority, do not skip forever: a finance/ops advisor (entity,
 liability insurance, IAP tax treatment, Small Business Program enrollment)
@@ -960,6 +972,96 @@ H8 (media)       -- independent, content-driven, parallel to anything
 Suggested order: H1 -> H2 -> H3 -> H4, then H5 (physique track) and H6
 (strength track) as parallel efforts, then H7; H8 runs alongside whenever
 assets exist. One epic per branch group, one slice per branch, as usual.
+
+## Epic I - Track contracts and intake integrity (owner critique, 2026-07-17)
+
+Source: an owner review of the onboarding-to-program pipeline. The finding, in
+the owner's framing: the app has track-gated MATH but no track CONTRACT. The
+golden-master discipline ("non-default tracks are inert by absence") protects
+prescription bytes but says nothing about what each track must ask, refuse, or
+show, so "powerlifting" as a product experience was an emergent property of
+scattered string comparisons. The four concrete symptoms found:
+
+1. The meet date (H6's headline feature) hid under the goal step's Advanced
+   disclosure, was never required, and a too-soon date was **silently
+   dropped** by `makeProgram` (the program built as if no meet existed).
+2. A custom time cap had no floor: 10 minutes per session was accepted for
+   powerlifting. A custom cap left empty fell through as unlimited. The
+   "estimate on the time step for every track" item marked DONE in the
+   2026-06-22 polish bundle had also regressed (focus-step-only again).
+3. Onboarding was one hardcoded step chain with per-track `if` decorations,
+   not per-track flows; nothing declared "this track requires this question".
+4. Hypertrophy surfaces leak to strength athletes: the More hub links the
+   Weekly volume dashboard and the Phase & bodyweight screen unconditionally.
+
+The fix follows the codebase's strongest pattern: declarative tables in
+`data.js`, pure validators in `engine.js`, consumption in `app.js`. Slices:
+
+- ~~**I1. Track contract + intake validator.**~~ DONE (2026-07-17, see
+  CHANGELOG): `TRACK_SPEC` (data.js) declares each track's onboarding steps
+  and intake constraints (45 min session floor on strength tracks, 30 min
+  bodybuilding; meet runway 28..366 days). `Engine.validateIntake(ob, spec,
+  now)` is pure and seeded, emits i18n keys + params (the `noteKey` pattern),
+  and gates the onboarding Continue loudly; `makeProgram`'s >21 day guard
+  stays as engine defense. Absurd inputs are now test fixtures
+  (`test/intake.test.js`).
+- ~~**I2. Track-driven onboarding.**~~ DONE (2026-07-17): the step pipeline
+  walks `TRACK_SPEC.obSteps` (no skip arithmetic); goal moved to step 1 so
+  the tail can differ per track. Strength tracks get an explicit REQUIRED
+  meet step ("No meet planned" or a validated date, rejection reasons
+  inline); bodybuilding keeps focus/archetype and never sees it. The session
+  estimate is restored on the time step for every track, live with the typed
+  cap. The onboarding-equals-golden-master parity smoke held (default path
+  byte-identical). Bodybuilding-side intake depth (the "do you manage your
+  diet" phase question) belongs to Cluster F's nutrition layer, not here.
+- **I3. Surface registry (PARKED, owner sequencing 2026-07-17: land after
+  the tier debug implementation for the pay/free subscription preview fully
+  wraps).** Extend each `TRACK_SPEC` entry with the surfaces the track owns
+  and route every UI gate through one `trackHas(feature)` helper: More hub
+  links (volume dashboard and phase screen for a powerlifter today),
+  dashboard chips, settings sections, plan-editor phase options. Replaces
+  the scattered `track === 'bodybuilding'` comparisons with one auditable
+  matrix. Rendering-only, golden-master-irrelevant. Coordinate with the
+  tier lock cards (L0), which gate some of the same screens by entitlement;
+  track-fit and tier-fit are independent axes, which is exactly why this
+  waits for the tier work to settle first.
+- **I4. The boundary made executable (PARKED with I3, same ruling).** The
+  track counterpart of L5's free/coach boundary checklist: a track boundary
+  table (every screen, chip, and question x track: show/hide/require) as a
+  doc section, then a test that walks it (per-track render-smoke asserting
+  forbidden surfaces absent, plus re-running the I1 validator battery
+  whenever constraints change). After this, "powerlifter sees muscle
+  landmarks" is a red CI check. Best written once, against the settled
+  post-tier surface set.
+- ~~**Process rider:** add an adversarial **intake-QA persona** to the
+  launch call sheet: onboard on every track trying to produce a nonsense
+  program; rerun whenever onboarding changes.~~ DONE (2026-07-17): call
+  sheet entry 12, report at `docs/intake-qa-simulation.md`. The first run
+  validated every I1/I2 gate and produced findings F1-F6, absorbed here:
+- **I5. Intake plausibility hardening (from the intake-QA report; blocked
+  on the owner rulings tagged in it).** IQ1 meet runway coherence: the
+  validator floor (28 days) is below the shortest buildable plan (one
+  block + taper = 49 days), so a 28-48 day meet gets its taper scheduled
+  after the meet; either derive the floor from the template
+  (`(weeksPerBlock + 2) * 7`) or have `makeProgram` shrink the first block
+  via `block.weeks` (H6 already supports it). IQ2 meet-aware block
+  selection: `extendBlocks` cycles from the template START, so the shortest
+  valid meet plan is hypertrophy base -> taper with zero strength blocks;
+  short runways should fill strength-first. IQ3 maxes plausibility bounds
+  (today 1000 kg is accepted and prescribes 630 kg x5; a 2 kg max
+  prescribes 0 kg x5). IQ4 hard-block the all-zero focus (today it builds
+  a 4-day program with 0 exercises, warning-only) and fix the warning copy
+  for that case. IQ5 bodyweight range (negative and 10000 accepted today).
+  All are additive rules behind the I1 chokepoint; golden master untouched
+  (meet programs are not in it; cover IQ1/IQ2 in `test/h6.test.js` and
+  `test/intake.test.js`).
+
+Constraints held throughout: the default/powerbuilding golden master stays
+byte-identical (validation happens before `makeProgram`; surface gating is
+render-only); new draft fields (`meetChoice`) are ephemeral onboarding state,
+so no migration; copy lands in BOTH i18n catalogs; re-validation on later
+EDIT surfaces (plan editor meet changes, settings time-cap changes) rides
+with I3/I4, since today those surfaces cannot set the values I1 validates.
 
 ## Internationalization (i18n) plan (owner request, 2026-07-08)
 

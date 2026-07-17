@@ -9,7 +9,7 @@
 // repo, and it must be kept in step with CACHE_VERSION in sw.js (the service
 // worker only ships new code to installed PWAs when that cache name changes).
 // Bump this on any shell change (data/engine/app/styles/index/sw).
-const APP_VERSION = '1.17.0';
+const APP_VERSION = '1.18.0';
 
 // Movement categories (used for "Select X Exercise" slots & swaps)
 const MOVEMENTS = {
@@ -757,6 +757,34 @@ const PROGRAM_TEMPLATES = {
       { type: 'strength',    wave: '3s', label: 'Strength 4',        scheme: 'jm2-wave' },
     ],
     weeksPerBlock: 5,
+  },
+};
+
+// ============================================================
+// [Epic I] TRACK CONTRACTS
+// The single source of truth for what each track's onboarding asks
+// and the intake constraints Engine.validateIntake enforces. The
+// onboarding step pipeline is data-driven from obSteps (app.js walks
+// this list; there is no hardcoded step order), so a track that needs
+// a question simply declares it here. Constraints:
+//   minSessionMin   floor for a custom time cap (a strength session
+//                   cannot warm up + hit heavy top sets in less)
+//   meetMinDaysOut  shortest meet runway: one block + the 2-week taper
+//   meetMaxDaysOut  a meet past this is a later program's goal
+// Slice I3 will extend each entry with the surfaces the track owns.
+// ============================================================
+const TRACK_SPEC = {
+  bodybuilding: {
+    obSteps: ['welcome', 'goal', 'days', 'experience', 'time', 'focus', 'maxes'],
+    intake: { minSessionMin: 30 },
+  },
+  powerbuilding: {
+    obSteps: ['welcome', 'goal', 'days', 'meet', 'experience', 'time', 'maxes'],
+    intake: { minSessionMin: 45, meetMinDaysOut: 28, meetMaxDaysOut: 366 },
+  },
+  powerlifting: {
+    obSteps: ['welcome', 'goal', 'days', 'meet', 'experience', 'time', 'maxes'],
+    intake: { minSessionMin: 45, meetMinDaysOut: 28, meetMaxDaysOut: 366 },
   },
 };
 
