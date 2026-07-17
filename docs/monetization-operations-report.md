@@ -118,14 +118,14 @@ The design:
   stat is mostly *surprise* — this kills the surprise). Apple now also
   sends its own reminders for longer trials; ours arrives earlier and in
   our voice.
-- On expiry WITHOUT purchase: the program's remaining weeks stop
-  prescribing; every session already trained keeps its full history; the
-  workout view degrades to the free logger (the athlete can keep training
-  the same exercises, logging freely); export works; a single honest line
-  on the dashboard offers the coach back. **Nothing is deleted, blurred,
-  or held hostage.** If they subscribe later, the program resumes where the
-  wave math says it should (the engine can re-prescribe from stored state —
-  it does this every render anyway).
+- On expiry WITHOUT purchase (**owner ruling, 2026-07-17 — the logger
+  detaches from the coach completely**): a card announces the lapse; the
+  NEXT week arrives as a clone of last week's exercises (structure only,
+  no prescriptions) so the athlete is not stranded mid-routine; every
+  week after that is empty and the athlete logs by hand, Strong-style
+  (Epic L's freestyle logging). History and export are untouched. **Nothing
+  is deleted, blurred, or held hostage.** If they subscribe later, the
+  coach re-engages from stored state.
 - Existing self-hosted/prototype users and the owner's own instance: the
   web build never gates (M1) — there is no billing on the self-hosted
   target at all, which also keeps the whole test suite entitlement-free.
@@ -289,11 +289,11 @@ adapter) exists.
   path at all, and a lapsed one had only a bespoke rendering fork.
   The standalone logger is now specified as **Epic L (L1-L5) in
   `docs/pending-future-work.md`**, which must land before M2/M4: M2's
-  degradation is rebuilt on it (the program's current week snapshots into
-  plain routines, "your program, as routines"), and M4's "continue with
-  the free logger" path finally has somewhere real to land. L1-L3 are
-  pure repo work with no billing dependency and improve the self-hosted
-  prototype too.
+  degradation is rebuilt on it per the §3 owner ruling (announce card,
+  one cloned week of exercises, then empty weeks with manual logging),
+  and M4's "continue with the free logger" path finally has somewhere
+  real to land. L1-L3 are pure repo work with no billing dependency and
+  improve the self-hosted prototype too.
 - **M3. RevenueCat integration.** The native implementation of M1's seam:
   SDK init, entitlement `coach`, offline cache + the 7-day grace window
   (§5), restore purchases, purchase flows for all three products + intro
