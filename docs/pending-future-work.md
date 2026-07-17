@@ -961,6 +961,73 @@ Suggested order: H1 -> H2 -> H3 -> H4, then H5 (physique track) and H6
 (strength track) as parallel efforts, then H7; H8 runs alongside whenever
 assets exist. One epic per branch group, one slice per branch, as usual.
 
+## Epic I - Track contracts and intake integrity (owner critique, 2026-07-17)
+
+Source: an owner review of the onboarding-to-program pipeline. The finding, in
+the owner's framing: the app has track-gated MATH but no track CONTRACT. The
+golden-master discipline ("non-default tracks are inert by absence") protects
+prescription bytes but says nothing about what each track must ask, refuse, or
+show, so "powerlifting" as a product experience was an emergent property of
+scattered string comparisons. The four concrete symptoms found:
+
+1. The meet date (H6's headline feature) hid under the goal step's Advanced
+   disclosure, was never required, and a too-soon date was **silently
+   dropped** by `makeProgram` (the program built as if no meet existed).
+2. A custom time cap had no floor: 10 minutes per session was accepted for
+   powerlifting. A custom cap left empty fell through as unlimited. The
+   "estimate on the time step for every track" item marked DONE in the
+   2026-06-22 polish bundle had also regressed (focus-step-only again).
+3. Onboarding was one hardcoded step chain with per-track `if` decorations,
+   not per-track flows; nothing declared "this track requires this question".
+4. Hypertrophy surfaces leak to strength athletes: the More hub links the
+   Weekly volume dashboard and the Phase & bodyweight screen unconditionally.
+
+The fix follows the codebase's strongest pattern: declarative tables in
+`data.js`, pure validators in `engine.js`, consumption in `app.js`. Slices:
+
+- ~~**I1. Track contract + intake validator.**~~ DONE (2026-07-17, see
+  CHANGELOG): `TRACK_SPEC` (data.js) declares each track's onboarding steps
+  and intake constraints (45 min session floor on strength tracks, 30 min
+  bodybuilding; meet runway 28..366 days). `Engine.validateIntake(ob, spec,
+  now)` is pure and seeded, emits i18n keys + params (the `noteKey` pattern),
+  and gates the onboarding Continue loudly; `makeProgram`'s >21 day guard
+  stays as engine defense. Absurd inputs are now test fixtures
+  (`test/intake.test.js`).
+- ~~**I2. Track-driven onboarding.**~~ DONE (2026-07-17): the step pipeline
+  walks `TRACK_SPEC.obSteps` (no skip arithmetic); goal moved to step 1 so
+  the tail can differ per track. Strength tracks get an explicit REQUIRED
+  meet step ("No meet planned" or a validated date, rejection reasons
+  inline); bodybuilding keeps focus/archetype and never sees it. The session
+  estimate is restored on the time step for every track, live with the typed
+  cap. The onboarding-equals-golden-master parity smoke held (default path
+  byte-identical). Bodybuilding-side intake depth (the "do you manage your
+  diet" phase question) belongs to Cluster F's nutrition layer, not here.
+- **I3. Surface registry.** Extend each `TRACK_SPEC` entry with the surfaces
+  the track owns and route every UI gate through one `trackHas(feature)`
+  helper: More hub links (volume dashboard and phase screen for a
+  powerlifter today), dashboard chips, settings sections, plan-editor phase
+  options. Replaces the scattered `track === 'bodybuilding'` comparisons
+  with one auditable matrix. Rendering-only, golden-master-irrelevant.
+  Coordinate with the tier lock cards (L0) which gate some of the same
+  screens by entitlement; track-fit and tier-fit are independent axes.
+- **I4. The boundary made executable.** The track counterpart of L5's
+  free/coach boundary checklist: a track boundary table (every screen, chip,
+  and question x track: show/hide/require) as a doc section, then a test
+  that walks it (per-track render-smoke asserting forbidden surfaces absent,
+  plus re-running the I1 validator battery whenever constraints change).
+  After this, "powerlifter sees muscle landmarks" is a red CI check.
+- **Process rider:** add an adversarial **intake-QA persona** to the launch
+  call sheet (below the current operators): onboard on every track trying to
+  produce a nonsense program; rerun whenever onboarding changes. The
+  validator battery is its executable residue.
+
+Constraints held throughout: the default/powerbuilding golden master stays
+byte-identical (validation happens before `makeProgram`; surface gating is
+render-only); new draft fields (`meetChoice`) are ephemeral onboarding state,
+so no migration; copy lands in BOTH i18n catalogs; re-validation on later
+EDIT surfaces (plan editor meet changes, settings time-cap changes) rides
+with I3/I4, since today those surfaces cannot set the values I1 validates.
+
 ## Internationalization (i18n) plan (owner request, 2026-07-08)
 
 Goal: a language switch in Settings, and a translator workflow where one file is

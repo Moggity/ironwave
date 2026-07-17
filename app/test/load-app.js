@@ -60,6 +60,8 @@ const EXPORTS = `return {
   restNotifySupported, showRestNotification, toggleRestNotify,
   obDefaults, OB_TRACKS, timelineHTML, exDisplayName, exMatches, exCues, EX_CUES,
   obToggleDay, obToggleSport, obDays, obDaysMode, doNewProgram,
+  TRACK_SPEC, obStepList, obNext, obTrack, obExp, obTimeMode, obTimeInput,
+  obMeet, obMeetChoice, obIntakeIssues,
   FINISHER_TECHS, SAME_WEIGHT_TECHS, TIMED_REST_TECHS,
   EXERCISES, SFR_LABELS, HEAD_LABELS, EX_META,
   weeklyVolumeByMuscle, weeklyVolumeByHead, SYNERGIST_COVERAGE,

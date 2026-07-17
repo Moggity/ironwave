@@ -561,6 +561,50 @@ const Engine = {
     }
     return out.sort((a, b) => a.ts - b.ts);
   },
+
+  // ---------- [Epic I1] intake validation (pure, spec-driven) ----------
+  // Validates an onboarding draft against a track's contract (TRACK_SPEC
+  // entry). Pure: the spec and the current timestamp come in as arguments,
+  // i18n keys (+ params) go out and the UI translates at render (the
+  // noteKey/reasonKey pattern). Returns [{ field, level, key, params }];
+  // an empty array means the intake is coherent. 'error' issues gate the
+  // onboarding Continue; the app refuses loudly here instead of letting
+  // makeProgram filter a bad value silently downstream.
+  validateIntake(ob, spec, now) {
+    const issues = [];
+    if (!ob || !spec) return issues;
+    const c = spec.intake || {};
+    if (ob.timeMode === 'custom') {
+      const cap = parseInt(ob.timeCapMin, 10);
+      if (!(cap > 0)) {
+        issues.push({ field: 'time', level: 'error', key: 'val.time_required' });
+      } else if (c.minSessionMin && cap < c.minSessionMin) {
+        issues.push({ field: 'time', level: 'error', key: 'val.time_min',
+                      params: { min: c.minSessionMin } });
+      }
+    }
+    if ((spec.obSteps || []).includes('meet')) {
+      if (ob.meetChoice === 'date' || (ob.meetChoice == null && ob.meetDate)) {
+        const ts = typeof ob.meetDate === 'number' ? ob.meetDate : Date.parse(ob.meetDate);
+        if (!ob.meetDate) {
+          issues.push({ field: 'meet', level: 'error', key: 'val.meet_date_required' });
+        } else if (!(ts > 0)) {
+          issues.push({ field: 'meet', level: 'error', key: 'val.meet_invalid' });
+        } else {
+          const days = Math.floor((ts - now) / 864e5);
+          if (c.meetMinDaysOut && days < c.meetMinDaysOut) {
+            issues.push({ field: 'meet', level: 'error', key: 'val.meet_too_soon',
+                          params: { days: Math.max(0, days), min: c.meetMinDaysOut } });
+          } else if (c.meetMaxDaysOut && days > c.meetMaxDaysOut) {
+            issues.push({ field: 'meet', level: 'error', key: 'val.meet_too_far' });
+          }
+        }
+      } else if (!ob.meetChoice) {
+        issues.push({ field: 'meet', level: 'error', key: 'val.meet_choice' });
+      }
+    }
+    return issues;
+  },
 };
 
 /* ============================================================

@@ -180,8 +180,8 @@ test('i18n: every onboarding step renders under the Spanish catalog', () => {
     // looser pattern would false-positive on onclick code like 'V.ob.show...'.
     assert.ok(!/>(ob|track|goal|exp|muscle)\.[a-z_0-9]+</.test(html), `no raw i18n keys on step ${step}`);
   }
-  const step2 = renderView(ctx, 'onboarding', { ob, obStep: 2 });
-  assert.ok(/déficit agresivo/.test(step2), 'the lean-asap warning rendered in Spanish');
+  const goalStep = renderView(ctx, 'onboarding', { ob, obStep: 1 }); // [Epic I2] goal is step 1
+  assert.ok(/déficit agresivo/.test(goalStep), 'the lean-asap warning rendered in Spanish');
 });
 
 test('onboarding renders for a brand-new user (no program)', () => {
@@ -267,7 +267,8 @@ for (const n of [1, 2, 7]) {
 test('onboarding weekday picker lists all 7 days; a selected day discloses the sport pill', () => {
   const ctx = fresh();
   ctx.app.S = ctx.app.defaultState();
-  let html = renderView(ctx, 'onboarding', { ob: ctx.app.obDefaults(), obStep: 1 });
+  // [Epic I2] The days step sits after welcome -> goal on every pipeline.
+  let html = renderView(ctx, 'onboarding', { ob: ctx.app.obDefaults(), obStep: 2 });
   for (let wd = 0; wd < 7; wd++) assert.ok(html.includes(`obToggleDay(${wd})`), `weekday row ${wd} renders`);
   assert.ok(!/wd-pill/.test(html), 'no sport pill before any day is selected');
   ctx.app.obToggleDay(2); // select Wednesday
@@ -287,7 +288,7 @@ test('onboarding weekday picker lists all 7 days; a selected day discloses the s
 test('the days-per-week mode swaps the weekday list for the 1..7 count row', () => {
   const ctx = fresh();
   ctx.app.S = ctx.app.defaultState();
-  let html = renderView(ctx, 'onboarding', { ob: ctx.app.obDefaults(), obStep: 1 });
+  let html = renderView(ctx, 'onboarding', { ob: ctx.app.obDefaults(), obStep: 2 });
   assert.ok(html.includes("obDaysMode('count')"), 'the mode switch renders');
   assert.ok(/wd-row/.test(html) && !/obDays\(4\)/.test(html), 'calendar mode by default');
   ctx.app.obDaysMode('count');
@@ -298,6 +299,27 @@ test('the days-per-week mode swaps the weekday list for the 1..7 count row', () 
   html = ctx.document.getElementById('app').innerHTML;
   assert.ok(html.includes(ctx.app.t('ob.two_day_note')), 'the two-day note still keys off the count');
   assert.strictEqual(ctx.app.V.ob.daysPerWeek, 2);
+});
+
+// [Epic I2] The strength-track meet step: both answer cards render, a
+// too-soon date shows the validator's reason and keeps Continue disabled.
+test('the meet step renders its cards and blocks a too-soon date', () => {
+  const ctx = fresh();
+  ctx.app.S = ctx.app.defaultState();
+  const ob = Object.assign(ctx.app.obDefaults(), { track: 'powerlifting', daysPerWeek: 4 });
+  let html = renderView(ctx, 'onboarding', { ob, obStep: 3 });
+  assert.ok(html.includes("obMeetChoice('none')") && html.includes("obMeetChoice('date')"),
+    'both meet cards render');
+  ctx.app.obMeetChoice('date');
+  ctx.app.obMeet(new Date(Date.now() + 2 * 864e5).toISOString().slice(0, 10));
+  html = ctx.document.getElementById('app').innerHTML;
+  assert.ok(/banner-warn/.test(html) && /days to that date/.test(html),
+    'the too-soon reason renders');
+  assert.ok(/onclick="obNext\(3\)" disabled/.test(html), 'Continue stays disabled');
+  ctx.app.obMeet(new Date(Date.now() + 70 * 864e5).toISOString().slice(0, 10));
+  html = ctx.document.getElementById('app').innerHTML;
+  assert.ok(!/banner-warn/.test(html), 'a valid date clears the warning');
+  assert.ok(/2 week taper/.test(html), 'the plan summary line renders');
 });
 
 // [Epic H5] The split editor + focus editor modals render for a bodybuilding
@@ -335,14 +357,17 @@ test('powerbuilding onboarding path produces the golden-master program', () => {
   ctx.app.S = ctx.app.defaultState();
   ctx.app.V = Object.assign({}, ctx.baseV, { view: 'onboarding', ob: ctx.app.obDefaults(), obStep: 0 });
   ctx.app.render();
+  // [Epic I2] Track-driven pipeline: welcome -> goal -> days -> meet ->
+  // experience -> time -> maxes for the strength tracks.
   ctx.app.obNext(0);
-  for (const wd of [0, 1, 3, 4]) ctx.app.obToggleDay(wd); // Mon/Tue/Thu/Fri
-  ctx.app.obNext(1);
   assert.ok(/obTrack\('powerbuilding'\)/.test(ctx.document.getElementById('app').innerHTML),
     'the powerbuilding card renders on the goal step');
-  ctx.app.obTrack('powerbuilding'); ctx.app.obNext(2);
-  ctx.app.obExp('intermediate'); ctx.app.obNext(3);
-  ctx.app.obTimeMode('unlimited'); ctx.app.obNext(4); // skips focus for non-bb
+  ctx.app.obTrack('powerbuilding'); ctx.app.obNext(1);
+  for (const wd of [0, 1, 3, 4]) ctx.app.obToggleDay(wd); // Mon/Tue/Thu/Fri
+  ctx.app.obNext(2);
+  ctx.app.obMeetChoice('none'); ctx.app.obNext(3); // the explicit meet answer
+  ctx.app.obExp('intermediate'); ctx.app.obNext(4);
+  ctx.app.obTimeMode('unlimited'); ctx.app.obNext(5);
   ctx.app.obNext(6); // maxes left empty -> uncalibrated, like the golden default
   const prog = ctx.app.S.program;
   assert.ok(prog, 'program created');

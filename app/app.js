@@ -1744,14 +1744,17 @@ function topbar(title) {
 // ------------------------------------------------------------
 // VIEW: ONBOARDING
 // ------------------------------------------------------------
-// Step indices. The muscle-focus step (5) is shown only for the bodybuilding
-// track; obNext skips it otherwise, so other tracks keep the legacy-length flow.
+// [Epic I2] The step pipeline is data-driven from the track contract
+// (TRACK_SPEC in data.js): after the shared head (welcome -> goal) each
+// track walks its own declared step list, so a track that needs a question
+// (the strength-track meet date, the bodybuilding focus sliders) declares
+// it there instead of branching a hardcoded index chain. V.obStep indexes
+// into obStepList(ob). Intake gates run through Engine.validateIntake
+// (I1): an error blocks Continue loudly, nothing is filtered silently.
 // Bodybuilding leads (owner call: it is the app's primary audience) and the
 // copy stays to one short line per card; the picker does the explaining.
 // Track and experience copy lives in the i18n catalogs ('track.<id>' /
 // 'track.<id>_desc', 'exp.<id>' / 'exp.<id>_desc'); these keep only the order.
-// 'powerbuilding' is hidden from onboarding for now (docs/hidden-ui.md); the
-// track itself stays fully supported (default state, migration, golden master).
 // [Epic H2] All three tracks pickable, including the app's own default
 // (powerbuilding was unreachable from a fresh install).
 const OB_TRACKS = ['bodybuilding', 'powerbuilding', 'powerlifting'];
@@ -1783,9 +1786,38 @@ function obDefaults() {
            experience: null, timeMode: null, timeCapMin: '',
            macroWeeks: null, // [Epic G2] null = standard template length
            goalArchetype: null, // [Epic G6] bodybuilding only
+           // [Epic I2] The strength-track meet step: an explicit answer is
+           // required ('none' or 'date' + a validated meetDate). Starts
+           // unanswered like every other choice step.
+           meetChoice: null, meetDate: null,
            showAdvanced: false, // program-length presets tucked away
            muscleFocus: { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
            maxes: {} };
+}
+// [Epic I2] The onboarding step pipeline for the draft's track, from the
+// track contract. Before a track is picked only the shared head of the flow
+// (welcome -> goal) is reachable, so the fallback tail is never rendered; it
+// exists so a step id always resolves (defensive renders, tests).
+const OB_FALLBACK_STEPS = ['welcome', 'goal', 'days', 'experience', 'time', 'maxes'];
+function obStepList(ob) {
+  const spec = ob && TRACK_SPEC[ob.track];
+  return (spec && spec.obSteps) || OB_FALLBACK_STEPS;
+}
+function obStepId(ob) {
+  const list = obStepList(ob);
+  return list[Math.min(V.obStep, list.length - 1)];
+}
+// [Epic I1] Intake issues for the current draft against its track contract,
+// optionally filtered to one field. Engine.validateIntake is pure; the app
+// supplies the spec and the clock and translates the returned keys at render.
+function obIntakeIssues(ob, field) {
+  const spec = TRACK_SPEC[ob.track];
+  if (!spec) return [];
+  const all = Engine.validateIntake(ob, spec, Date.now());
+  return field ? all.filter(i => i.field === field) : all;
+}
+function obIssueBanners(issues) {
+  return issues.map(i => `<div class="banner-warn mt8">${esc(t(i.key, i.params))}</div>`).join('');
 }
 // Warning copy for any slider at the extremes (0 = removed, 6 = maxed).
 function obFocusWarning(focus) {
@@ -1847,9 +1879,10 @@ function vOnboarding() {
   if (!V.ob) V.ob = obDefaults();
   const ob = V.ob;
   const step = V.obStep;
+  const id = obStepId(ob);
   let body = '';
 
-  if (step === 0) {
+  if (id === 'welcome') {
     body = `
       <div class="ob-title">${esc(t('ob.welcome'))}<br>IRON<span style="color:var(--blue)">WAVE</span></div>
       <p class="subtle">${esc(t('ob.welcome_sub'))}</p>
@@ -1867,8 +1900,8 @@ function vOnboarding() {
         <input id="ob-name" value="${esc(ob.name)}" placeholder="${esc(t('ob.name_ph'))}"></div>
       <div class="field"><label>${esc(t('ob.bodyweight', { u: wUnit() }))}</label>
         <input id="ob-bw" type="number" inputmode="decimal" value="${esc(ob.bodyweight)}" placeholder="${isLb() ? 220 : 100}"></div>
-      <button class="btn btn-green mt16" onclick="obNext(0)">${esc(t('ob.continue'))}</button>`;
-  } else if (step === 1) {
+      <button class="btn btn-green mt16" onclick="obNext(${step})">${esc(t('ob.continue'))}</button>`;
+  } else if (id === 'days') {
     // [Calendar days] Two modes, Fitbod-style: 'Specific days' (default; a
     // vertical weekday list, square selectors, whole row is the tap target, a
     // selected row progressively discloses the competitive-sport pill) and
@@ -1902,8 +1935,8 @@ function vOnboarding() {
       </div>
       ${picker}
       ${ob.daysPerWeek === 2 ? `<p class="faint mt8">${esc(t('ob.two_day_note'))}</p>` : ''}
-      <button class="btn btn-green mt24" onclick="obNext(1)" ${ob.daysPerWeek ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
-  } else if (step === 2) {
+      <button class="btn btn-green mt24" onclick="obNext(${step})" ${ob.daysPerWeek ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
+  } else if (id === 'goal') {
     const goalReady = ob.track && (ob.track !== 'bodybuilding' || ob.goalArchetype);
     body = `
       <div class="ob-title">${esc(t('ob.goal_title'))}</div>
@@ -1927,31 +1960,59 @@ function vOnboarding() {
             <button class="${ob.macroWeeks==null?'on':''}" onclick="obMacro(null)">${esc(t('ob.standard'))}</button>
             ${[12,18,24,36].map(w => `<button class="${ob.macroWeeks===w?'on':''}" onclick="obMacro(${w})">${esc(t('ob.wk', { w }))}</button>`).join('')}
           </div>
-          <div class="focus-time">${esc(obMacroLine(ob))}</div>
-          ${ob.track !== 'bodybuilding' ? `
-            <div class="ob-sub mt8">${esc(t('ob.meet_title'))}</div>
-            <input type="date" id="ob-meet" value="${esc(ob.meetDate || '')}" onchange="obMeet(this.value)">
-            ${ob.meetDate ? `<div class="focus-time">${esc(obMeetLine(ob))}</div>` : ''}` : ''}` : ''}` : ''}
-      <button class="btn btn-green mt16" onclick="obNext(2)" ${goalReady ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
-  } else if (step === 3) {
+          <div class="focus-time">${esc(obMacroLine(ob))}</div>` : ''}` : ''}
+      <button class="btn btn-green mt16" onclick="obNext(${step})" ${goalReady ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
+  } else if (id === 'meet') {
+    // [Epic I2] The meet question, explicit and gated (it used to hide under
+    // Advanced on the goal step, where a powerlifter could finish onboarding
+    // without ever seeing it). An answer is required: no meet, or a date the
+    // validator accepts. A too-soon date blocks here with the reason instead
+    // of being silently dropped by makeProgram downstream.
+    const meetIssues = ob.meetChoice === 'date'
+      ? obIntakeIssues(ob, 'meet').filter(i => i.key !== 'val.meet_choice') : [];
+    const meetReady = ob.meetChoice === 'none'
+      || (ob.meetChoice === 'date' && ob.meetDate && !meetIssues.length);
+    body = `
+      <div class="ob-title">${esc(t('ob.meet_title'))}</div>
+      <p class="subtle">${esc(t('ob.meet_sub'))}</p>
+      <button class="pick-card ${ob.meetChoice==='none'?'on':''}" onclick="obMeetChoice('none')">
+        <b>${esc(t('ob.meet_none'))}</b><span class="faint">${esc(t('ob.meet_none_desc'))}</span></button>
+      <button class="pick-card ${ob.meetChoice==='date'?'on':''}" onclick="obMeetChoice('date')">
+        <b>${esc(t('ob.meet_have'))}</b><span class="faint">${esc(t('ob.meet_have_desc'))}</span></button>
+      ${ob.meetChoice === 'date' ? `
+        <div class="field mt16"><label>${esc(t('ob.meet_title'))}</label>
+          <input type="date" id="ob-meet" value="${esc(ob.meetDate || '')}" onchange="obMeet(this.value)"></div>
+        ${obIssueBanners(meetIssues)}
+        ${ob.meetDate && !meetIssues.length ? `<div class="focus-time">${esc(obMeetLine(ob))}</div>` : ''}` : ''}
+      <button class="btn btn-green mt16" onclick="obNext(${step})" ${meetReady ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
+  } else if (id === 'experience') {
     body = `
       <div class="ob-title">${esc(t('ob.exp_title'))}</div>
       <p class="subtle">${esc(t('ob.exp_sub'))}</p>
-      ${OB_EXP.map(id => `
-        <button class="pick-card ${ob.experience===id?'on':''}" onclick="obExp('${id}')">
-          <b>${esc(t('exp.' + id))}</b><span class="faint">${esc(t('exp.' + id + '_desc'))}</span></button>`).join('')}
-      <button class="btn btn-green mt16" onclick="obNext(3)" ${ob.experience ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
-  } else if (step === 4) {
+      ${OB_EXP.map(x => `
+        <button class="pick-card ${ob.experience===x?'on':''}" onclick="obExp('${x}')">
+          <b>${esc(t('exp.' + x))}</b><span class="faint">${esc(t('exp.' + x + '_desc'))}</span></button>`).join('')}
+      <button class="btn btn-green mt16" onclick="obNext(${step})" ${ob.experience ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
+  } else if (id === 'time') {
+    // [Epic I1] A custom cap is validated against the track's floor live (a
+    // 10 minute powerlifting session is refused, not accepted), and the
+    // session estimate renders here for every track, so the athlete sees
+    // what their cap means before committing.
+    const timeIssues = ob.timeMode === 'custom'
+      ? obIntakeIssues(ob, 'time').filter(i => i.key !== 'val.time_required') : [];
     body = `
       <div class="ob-title">${esc(t('ob.time_title'))}</div>
+      <p class="subtle">${esc(t('ob.time_sub'))}</p>
       <div class="seg mt16">
         <button class="${ob.timeMode==='unlimited'?'on':''}" onclick="obTimeMode('unlimited')">${esc(t('ob.time_unlimited'))}</button>
         <button class="${ob.timeMode==='custom'?'on':''}" onclick="obTimeMode('custom')">${esc(t('ob.time_custom'))}</button>
       </div>
       ${ob.timeMode==='custom' ? `<div class="field mt16"><label>${esc(t('ob.time_minutes'))}</label>
-        <input id="ob-time" type="number" inputmode="numeric" value="${esc(ob.timeCapMin)}" placeholder="60" oninput="obTimeInput(this.value)"></div>` : ''}
-      <button class="btn btn-green mt24" onclick="obNext(4)" ${ob.timeMode ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
-  } else if (step === 5) {
+        <input id="ob-time" type="number" inputmode="numeric" value="${esc(ob.timeCapMin)}" placeholder="60" oninput="obTimeInput(this.value)"></div>
+        <div id="ob-time-val">${obIssueBanners(timeIssues)}</div>
+        <div id="ob-time-est" class="focus-time">${esc(focusTimeLine(ob))}</div>` : ''}
+      <button class="btn btn-green mt24" onclick="obNext(${step})" ${ob.timeMode ? '' : 'disabled'}>${esc(t('ob.continue'))}</button>`;
+  } else if (id === 'focus') {
     body = `
       <div class="ob-title">${esc(t('ob.focus_title'))}</div>
       ${FOCUS_KEYS.map(k => `
@@ -1961,8 +2022,8 @@ function vOnboarding() {
         </div>`).join('')}
       <div id="mf-warn">${obFocusWarning(ob.muscleFocus)}</div>
       <div id="mf-time" class="focus-time">${esc(focusTimeLine(ob))}</div>
-      <button class="btn btn-green mt16" onclick="obNext(5)">${esc(t('ob.continue'))}</button>`;
-  } else if (step === 6) {
+      <button class="btn btn-green mt16" onclick="obNext(${step})">${esc(t('ob.continue'))}</button>`;
+  } else if (id === 'maxes') {
     const lifts = obMainLifts(ob.track);
     body = `
       <div class="ob-title">${esc(t('ob.maxes_title'))}</div>
@@ -1971,7 +2032,7 @@ function vOnboarding() {
         <div class="field"><label>${esc(t('ob.rm_label', { name: exName(id), u: wUnit() }))}</label>
           <input id="ob-max-${id}" type="number" inputmode="decimal"
             value="${ob.maxes[id] != null ? dispW(ob.maxes[id]) : ''}" placeholder="${esc(t('ob.calib_ph'))}"></div>`).join('')}
-      <button class="btn btn-green mt16" onclick="obNext(6)">${esc(t('ob.create'))}</button>`;
+      <button class="btn btn-green mt16" onclick="obNext(${step})">${esc(t('ob.create'))}</button>`;
   }
   return `${topbar()}<div class="view">${body}</div>`;
 }
@@ -2066,9 +2127,18 @@ function obMeet(v) {
   if (v) V.ob.macroWeeks = null;
   render();
 }
+// [Epic I2] The explicit meet answer. 'none' keeps the standard length;
+// 'date' discloses the date field (validated by Engine.validateIntake).
+function obMeetChoice(c) {
+  V.ob.meetChoice = c;
+  if (c === 'none') V.ob.meetDate = null;
+  render();
+}
+// One-line summary of the plan a valid meet date builds. Validation (too
+// soon, too far) lives in Engine.validateIntake [Epic I1], not here.
 function obMeetLine(ob) {
   const ts = Date.parse(ob.meetDate);
-  if (!(ts > Date.now() + 21 * 864e5)) return t('ob.meet_too_soon');
+  if (!(ts > 0)) return '';
   const tpl = PROGRAM_TEMPLATES[ob.track] || PROGRAM_TEMPLATES.powerbuilding;
   const weeks = Math.floor((ts - Date.now()) / (7 * 864e5));
   const blocks = Math.max(1, Math.round((weeks - 2) / tpl.weeksPerBlock));
@@ -2077,9 +2147,15 @@ function obMeetLine(ob) {
 function obExp(id) { V.ob.experience = id; render(); }
 function obTimeMode(mode) { V.ob.timeMode = mode; render(); }
 // Store the cap as typed without a full re-render (which would blur the
-// number input mid-entry). The estimate line only shows on the focus step.
+// number input mid-entry); refresh the inline floor warning and session
+// estimate imperatively [Epic I1], same pattern as the focus sliders.
 function obTimeInput(v) {
   V.ob.timeCapMin = v === '' ? '' : (parseInt(v) || '');
+  const val = byId('ob-time-val');
+  if (val) val.innerHTML = obIssueBanners(
+    obIntakeIssues(V.ob, 'time').filter(i => i.key !== 'val.time_required'));
+  const est = byId('ob-time-est');
+  if (est) est.textContent = focusTimeLine(V.ob);
 }
 // Update slider value + warning live, without a full re-render (keeps the drag smooth).
 function obSlider(k, v) {
@@ -2090,33 +2166,37 @@ function obSlider(k, v) {
 }
 function obNext(step) {
   const ob = V.ob;
+  if (step !== V.obStep) return; // a stale button never advances another step
+  const id = obStepList(ob)[step];
   // Belt and braces with the disabled Continue buttons: nothing advances past a
-  // choice step without an explicit pick (owner call: no silent defaults).
-  if (step === 0) {
+  // choice step without an explicit pick (owner call: no silent defaults), and
+  // [Epic I1] no step advances past an intake error. The step order itself is
+  // the track contract's obSteps list; there is no skip arithmetic here.
+  if (id === 'welcome') {
     ob.name = document.getElementById('ob-name').value.trim();
     ob.bodyweight = fromDispW(parseFloat(document.getElementById('ob-bw').value)) || null;
-    V.obStep = 1;
-  } else if (step === 1) {
-    if (!ob.daysPerWeek) { toast(t('ob.pick_days'), true); return; }
-    V.obStep = 2;
-  } else if (step === 2) {
+  } else if (id === 'goal') {
     if (!ob.track) { toast(t('ob.pick_goal'), true); return; }
     if (ob.track === 'bodybuilding' && !ob.goalArchetype) { toast(t('ob.pick_bb_goal'), true); return; }
-    V.obStep = 3;
-  } else if (step === 3) {
+  } else if (id === 'days') {
+    if (!ob.daysPerWeek) { toast(t('ob.pick_days'), true); return; }
+  } else if (id === 'meet') {
+    const issues = obIntakeIssues(ob, 'meet');
+    if (issues.length) { toast(t(issues[0].key, issues[0].params), true); return; }
+  } else if (id === 'experience') {
     if (!ob.experience) { toast(t('ob.pick_exp'), true); return; }
-    V.obStep = 4;
-  } else if (step === 4) {
+  } else if (id === 'time') {
     if (!ob.timeMode) { toast(t('ob.pick_time'), true); return; }
     if (ob.timeMode === 'custom') {
+      // Re-read the input as belt and braces; obTimeInput already synced the
+      // draft on every keystroke, which also covers DOM-less harness runs.
       const el = document.getElementById('ob-time');
-      ob.timeCapMin = el ? (parseInt(el.value) || '') : '';
+      const typed = el ? parseInt(el.value) : NaN;
+      ob.timeCapMin = typed > 0 ? typed : (parseInt(ob.timeCapMin) || '');
+      const issues = obIntakeIssues(ob, 'time');
+      if (issues.length) { toast(t(issues[0].key, issues[0].params), true); return; }
     }
-    // Skip the muscle-focus step unless this is the bodybuilding track.
-    V.obStep = ob.track === 'bodybuilding' ? 5 : 6;
-  } else if (step === 5) {
-    V.obStep = 6;
-  } else if (step === 6) {
+  } else if (id === 'maxes') {
     try {
       for (const [id] of obMainLifts(ob.track)) {
         const el = document.getElementById('ob-max-' + id);
@@ -2155,6 +2235,7 @@ function obNext(step) {
     }
     return;
   }
+  V.obStep = step + 1;
   render();
 }
 

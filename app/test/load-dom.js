@@ -27,6 +27,7 @@ const EXPORTS = `
   t, I18N, setAppLang, openPerf,
   setUnits, setIntensityDisplay, applyUnits,
   obNext, obToggleDay, obToggleSport, obDays, obDaysMode, obTrack, obExp, obTimeMode,
+  obMeet, obMeetChoice, obTimeInput, obStepList, TRACK_SPEC,
   openSplitEditor, openFocusEditor,
   get S() { return S; }, set S(v) { S = v; },
   get V() { return V; }, set V(v) { V = v; },

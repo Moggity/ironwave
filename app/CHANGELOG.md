@@ -1,5 +1,42 @@
 # IRONWAVE — Changelog
 
+## [Track contracts: intake validation + track-driven onboarding (Epic I1+I2)] (2026-07-17)
+
+From the owner's intake critique (2026-07-17): onboarding performed a coach's
+interview without a coach's judgment. The meet date hid under Advanced options
+and a too-soon date was silently dropped by `makeProgram`; a 10 minute
+powerlifting time cap was accepted without comment; and every track walked the
+same hardcoded step chain. The app now has a **track contract**:
+
+- **`TRACK_SPEC` (data.js)** is the single source of truth for what each
+  track's onboarding asks (`obSteps`) and the intake constraints it enforces
+  (`intake`: session-minutes floor, meet runway min/max). Slice I3 will extend
+  it with the surfaces each track owns.
+- **`Engine.validateIntake(ob, spec, now)`** (pure, seeded, i18n keys +
+  params out, the `noteKey`/`reasonKey` pattern): refuses a custom cap below
+  the track floor (45 min strength tracks, 30 min bodybuilding), a custom
+  mode with no minutes entered (it used to fall through as unlimited), a
+  meet date closer than 28 days or further than a year, and an unanswered
+  meet question. Errors gate the onboarding Continue with the reason; nothing
+  is filtered silently. `makeProgram`'s own >21 day guard stays as engine
+  defense (pinned by `test/h6.test.js`).
+- **The step pipeline is data-driven** from `obSteps`; there is no skip
+  arithmetic. The goal step moves to position 1 (right after welcome), so
+  every later question can be track-specific. Strength tracks get an
+  **explicit, required meet step**: "No meet planned" or a validated date,
+  with the plan summary on a valid date and the validator's reason on a bad
+  one. Bodybuilding keeps focus/archetype and never sees the meet question.
+- **The session estimate is back on the time step** (it had regressed to the
+  bodybuilding focus step only) and refreshes live with the typed cap, next
+  to the live floor warning.
+- Both i18n catalogs extended (`ob.meet_*`, `val.*`); the superseded
+  `ob.meet_too_soon` key removed. New `test/intake.test.js` (contract shape,
+  validator battery over the absurd inputs, handler-level gate tests, full
+  strength/bodybuilding flow shapes); render-smoke's parity test reworked to
+  the new step order and a meet-step render test added. Golden master
+  untouched; the onboarding-equals-golden-master parity smoke still passes.
+  APP_VERSION and the shell cache bump to 1.18.0.
+
 ## [Tier debug harness: free/coach preview] (2026-07-17)
 
 Groundwork for the commercial free-logger/paid-coach split (see
