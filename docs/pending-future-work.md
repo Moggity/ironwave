@@ -300,6 +300,18 @@ Adversaries worth simulating:
 11. **YouTube creator partner.** Simulate the counterparty: would a 50K-sub
     evidence-based channel actually take the permissioned-program deal at
     20% recurring affiliate?
+12. ~~**Adversarial intake QA.**~~ DONE (2026-07-17):
+    `docs/intake-qa-simulation.md`. Onboards every track trying to produce
+    a nonsense program; first run against v1.18.0, right after Epic I's
+    I1+I2 landed. The new gates all held (time floors, meet runway,
+    required meet answer, stale-tap guard, slider volume caps). Six
+    findings: a 28-48 day meet builds a taper scheduled AFTER the meet
+    (F1), short meet runways carry zero strength blocks (F2), maxes accept
+    1000 kg and a 2 kg max prescribes 0 kg x5 sets (F3), all-zero sliders
+    build a 0-exercise program (F4), bodyweight is unvalidated (F5),
+    beginner + lean-asap remains banner-only (F6, re-affirmed known gap).
+    Engineer notes IQ1-IQ5 absorbed as Epic I slice I5 below; re-run the
+    battery after any onboarding change (the report carries the protocol).
 
 Lower priority, do not skip forever: a finance/ops advisor (entity,
 liability insurance, IAP tax treatment, Small Business Program enrollment)
@@ -1002,24 +1014,47 @@ The fix follows the codebase's strongest pattern: declarative tables in
   cap. The onboarding-equals-golden-master parity smoke held (default path
   byte-identical). Bodybuilding-side intake depth (the "do you manage your
   diet" phase question) belongs to Cluster F's nutrition layer, not here.
-- **I3. Surface registry.** Extend each `TRACK_SPEC` entry with the surfaces
-  the track owns and route every UI gate through one `trackHas(feature)`
-  helper: More hub links (volume dashboard and phase screen for a
-  powerlifter today), dashboard chips, settings sections, plan-editor phase
-  options. Replaces the scattered `track === 'bodybuilding'` comparisons
-  with one auditable matrix. Rendering-only, golden-master-irrelevant.
-  Coordinate with the tier lock cards (L0) which gate some of the same
-  screens by entitlement; track-fit and tier-fit are independent axes.
-- **I4. The boundary made executable.** The track counterpart of L5's
-  free/coach boundary checklist: a track boundary table (every screen, chip,
-  and question x track: show/hide/require) as a doc section, then a test
-  that walks it (per-track render-smoke asserting forbidden surfaces absent,
-  plus re-running the I1 validator battery whenever constraints change).
-  After this, "powerlifter sees muscle landmarks" is a red CI check.
-- **Process rider:** add an adversarial **intake-QA persona** to the launch
-  call sheet (below the current operators): onboard on every track trying to
-  produce a nonsense program; rerun whenever onboarding changes. The
-  validator battery is its executable residue.
+- **I3. Surface registry (PARKED, owner sequencing 2026-07-17: land after
+  the tier debug implementation for the pay/free subscription preview fully
+  wraps).** Extend each `TRACK_SPEC` entry with the surfaces the track owns
+  and route every UI gate through one `trackHas(feature)` helper: More hub
+  links (volume dashboard and phase screen for a powerlifter today),
+  dashboard chips, settings sections, plan-editor phase options. Replaces
+  the scattered `track === 'bodybuilding'` comparisons with one auditable
+  matrix. Rendering-only, golden-master-irrelevant. Coordinate with the
+  tier lock cards (L0), which gate some of the same screens by entitlement;
+  track-fit and tier-fit are independent axes, which is exactly why this
+  waits for the tier work to settle first.
+- **I4. The boundary made executable (PARKED with I3, same ruling).** The
+  track counterpart of L5's free/coach boundary checklist: a track boundary
+  table (every screen, chip, and question x track: show/hide/require) as a
+  doc section, then a test that walks it (per-track render-smoke asserting
+  forbidden surfaces absent, plus re-running the I1 validator battery
+  whenever constraints change). After this, "powerlifter sees muscle
+  landmarks" is a red CI check. Best written once, against the settled
+  post-tier surface set.
+- ~~**Process rider:** add an adversarial **intake-QA persona** to the
+  launch call sheet: onboard on every track trying to produce a nonsense
+  program; rerun whenever onboarding changes.~~ DONE (2026-07-17): call
+  sheet entry 12, report at `docs/intake-qa-simulation.md`. The first run
+  validated every I1/I2 gate and produced findings F1-F6, absorbed here:
+- **I5. Intake plausibility hardening (from the intake-QA report; blocked
+  on the owner rulings tagged in it).** IQ1 meet runway coherence: the
+  validator floor (28 days) is below the shortest buildable plan (one
+  block + taper = 49 days), so a 28-48 day meet gets its taper scheduled
+  after the meet; either derive the floor from the template
+  (`(weeksPerBlock + 2) * 7`) or have `makeProgram` shrink the first block
+  via `block.weeks` (H6 already supports it). IQ2 meet-aware block
+  selection: `extendBlocks` cycles from the template START, so the shortest
+  valid meet plan is hypertrophy base -> taper with zero strength blocks;
+  short runways should fill strength-first. IQ3 maxes plausibility bounds
+  (today 1000 kg is accepted and prescribes 630 kg x5; a 2 kg max
+  prescribes 0 kg x5). IQ4 hard-block the all-zero focus (today it builds
+  a 4-day program with 0 exercises, warning-only) and fix the warning copy
+  for that case. IQ5 bodyweight range (negative and 10000 accepted today).
+  All are additive rules behind the I1 chokepoint; golden master untouched
+  (meet programs are not in it; cover IQ1/IQ2 in `test/h6.test.js` and
+  `test/intake.test.js`).
 
 Constraints held throughout: the default/powerbuilding golden master stays
 byte-identical (validation happens before `makeProgram`; surface gating is
