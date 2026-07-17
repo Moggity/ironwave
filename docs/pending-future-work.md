@@ -143,35 +143,34 @@ Derived future branches, in dependency order:
     (routines + start-empty-session + history) instead of forcing
     onboarding; the quiz becomes the coach's front door, reachable but
     not mandatory. Render-smoke covers every view program-less.
-  - **L4. Tier transitions:** onboarding's "continue free" lands in L3
-    keeping the quiz answers for later; lapsed-coach degradation (M2)
-    snapshots the program's current week into routines ("your program,
-    as routines") instead of a bespoke rendering fork.
+  - **L4. Tier transitions (owner ruling 2026-07-17: full detachment):**
+    onboarding's "continue free" lands in L3 keeping the quiz answers for
+    later. On subscription lapse the logger detaches from the coach
+    completely: a card announces it, the NEXT week arrives as a clone of
+    last week's exercises (structure only, no prescriptions), and every
+    week after that is empty for manual Strong-style logging (L1).
+    History/export untouched; re-subscribing re-engages the coach from
+    stored state. Supersedes the earlier "your program, as routines"
+    snapshot design.
   - **L5. Boundary tests:** un-entitled render-smoke across all views;
     the monetization report's free/coach boundary table as an executable
     checklist (free surfaces reachable, coach surfaces gated).
-- **Tier boundary hardening TB1-TB8** (from the adversarial pass in
-  `docs/tier-usage-analysis.md` section 9; threat model = casual honesty,
-  not DRM — the moat is the adaptation loop, so the one load-bearing
-  property is that coach value stops ACCRUING on lapse): TB1 the brain
-  pauses un-entitled (no advanceWeek effects: no updateAutoreg, no WM
-  corrections from AMRAPs, no recalibration, no deload sizing; degradation
-  snapshots only the current week into routines, the rest of the macro
-  stays stored but locked) — lands with L4/M2; TB2 owner call on capping
-  detailed week-preview depth during trial (current block + next) — the
-  free-mode preview leak itself was FIXED 2026-07-17 (openWeekPreview
-  gated); TB3 generation gates at the function level (makeProgram /
-  doNewProgram / programFromTemplate / importTemplate check entitlement
-  themselves; circulated template JSONs land as structure, not live
-  programs) — with M4/H7; TB4 entitlement cache and tier fields live in
-  device-scoped storage, never in S, and production import sanitizes
-  entitlement-shaped fields incl. debugTier — with R1/M3; TB5 store builds
-  ignore S.debugTier and hide the Settings toggle behind a dev flag — with
-  M1/R3; TB6 element-gate coach-derived picker hints (SFR ordering,
-  adds-head, over-MRV, time-cost) in free routine editing — with L2; TB7
-  gate vReport and every T1 receipt surface from birth — with T3/T1; TB8
-  offline grace keys off a device-stored last-verified timestamp, clock
-  rollback = expired-pending-check — with M3.
+- **Tier boundary constraints TB3-TB8 (LAUNCH builds only — the prototype
+  enforces nothing, owner ruling 2026-07-17;** see
+  `docs/tier-usage-analysis.md` section 9. L4's full-detachment ruling
+  subsumed the old TB1, and TB2 was dropped as a non-problem; a
+  prototype-side week-preview gate was reverted the same day): TB3
+  generation gates at the function level (makeProgram / doNewProgram /
+  programFromTemplate / importTemplate; circulated template JSONs land as
+  structure, not live programs) — with M4/H7; TB4 entitlement cache in
+  device-scoped storage, never in S; production import ignores
+  entitlement-shaped fields incl. debugTier — with R1/M3; TB5 store
+  builds ignore S.debugTier and hide the Settings toggle behind a dev
+  flag — with M1/R3; TB6 element-gate coach-derived picker hints (SFR
+  ordering, adds-head, over-MRV, time-cost) in free routine editing —
+  with L2; TB7 gate vReport and every T1 receipt surface from birth —
+  with T3/T1; TB8 offline grace keys off a device-stored last-verified
+  timestamp, clock rollback = expired-pending-check — with M3.
 - **Tier value slices T1-T3** (read `docs/tier-usage-analysis.md` section 7
   first; the "make the paid sub worth it" work): T1 decision receipts (no
   silent decisions on the coach tier: AMRAP → WM change, autoreg
