@@ -312,6 +312,16 @@ Adversaries worth simulating:
     beginner + lean-asap remains banner-only (F6, re-affirmed known gap).
     Engineer notes IQ1-IQ5 absorbed as Epic I slice I5 below; re-run the
     battery after any onboarding change (the report carries the protocol).
+    **Second run (same day, owner power grant):** the specialization split
+    probe (ONE slider at 6, all others 0, 6 days, judged per muscle like a
+    coach; standing tool at `app/test/intake-qa-probes.js`, runnable for
+    any muscle group whenever relevant). Found F7 (the frequency contract
+    breaks at the day-lead level: the lone muscle leads all 6 days with
+    zero recovery days, and head awareness collapses after the planned
+    exposures, e.g. arms days 2-5 are 100% biceps) and F8 (pool exhaustion
+    repeats `DEFAULT_ACC[m][0]` up to 16 of 18 weekly slots, including
+    three times within one day, never consulting the full library).
+    Absorbed: IQ6 -> Epic I slice I5; IQ7-IQ8 -> Cluster C (still open).
 
 Lower priority, do not skip forever: a finance/ops advisor (entity,
 liability insurance, IAP tax treatment, Small Business Program enrollment)
@@ -478,6 +488,21 @@ and the product moat are the same move.
   a first cut; some heads tolerate more than an even share), and a deeper
   delt-rear-vs-shoulders grouping (rear delts currently roll up to Upper back,
   matching where those exercises already sit).
+  **Specialization split intelligence (from the intake-QA second run,
+  2026-07-17; IQ7-IQ8 in `docs/intake-qa-simulation.md`, repro via
+  `node test/intake-qa-probes.js spec`):** a one-muscle-at-6 week
+  degenerates after the planned exposures. IQ7: cap day-lead assignment at
+  the muscle's `splitFreqFor` target, and rotate a specializing multi-head
+  muscle's day emphasis across its heads (arms alternates biceps/triceps
+  days; back lat-width/upper-thickness) so each head gets a rest day
+  between exposures, reusing `muscleHeads`/`HEAD_MUSCLE`. IQ8:
+  `pickAccessory` must never repeat an id within one day, must cycle
+  least-recently-used on pool exhaustion instead of constant-repeating
+  `pool[0]`, and should extend candidates past `DEFAULT_ACC` into the
+  library's muscle-matching exercises SFR-ordered (the swap picker's
+  machinery) before any repeat. Bodybuilding-generator-only, golden
+  master untouched; pin regressions in `focus-generator.test.js` with the
+  one-slider-six seeds. The intake-honesty half (IQ6) lives in Epic I5.
   *Note (found while building rotation):* "cross-meso rotation for athlete-picked
   (select) slots" is near-empty as scoped: `generateBodybuildingDays` assigns a
   `def` to every accessory slot, so def-less select slots do not occur on a
@@ -1052,6 +1077,11 @@ The fix follows the codebase's strongest pattern: declarative tables in
   prescribes 0 kg x5). IQ4 hard-block the all-zero focus (today it builds
   a 4-day program with 0 exercises, warning-only) and fix the warning copy
   for that case. IQ5 bodyweight range (negative and 10000 accepted today).
+  IQ6 (from the second run) specialization-week honesty at the focus/days
+  steps: when the muscles with points cannot fill the chosen day count
+  without breaking `splitFreqFor`, warn or gate with the arithmetic;
+  pairs with IQ4 as the two focus-step rules (the generator half of that
+  finding, IQ7-IQ8, lives in Cluster C).
   All are additive rules behind the I1 chokepoint; golden master untouched
   (meet programs are not in it; cover IQ1/IQ2 in `test/h6.test.js` and
   `test/intake.test.js`).
