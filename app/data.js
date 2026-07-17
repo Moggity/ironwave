@@ -9,7 +9,7 @@
 // repo, and it must be kept in step with CACHE_VERSION in sw.js (the service
 // worker only ships new code to installed PWAs when that cache name changes).
 // Bump this on any shell change (data/engine/app/styles/index/sw).
-const APP_VERSION = '1.18.0';
+const APP_VERSION = '1.19.0';
 
 // Movement categories (used for "Select X Exercise" slots & swaps)
 const MOVEMENTS = {
@@ -769,7 +769,10 @@ const PROGRAM_TEMPLATES = {
 // a question simply declares it here. Constraints:
 //   minSessionMin   floor for a custom time cap (a strength session
 //                   cannot warm up + hit heavy top sets in less)
-//   meetMinDaysOut  shortest meet runway: one block + the 2-week taper
+//   meetMinDaysOut  shortest meet runway that actually fits a plan: one
+//                   full block + the 2-week taper = (5 + 2) * 7 = 49 days
+//                   (Engine.coach.minMeetRunwayDays; the old 28-day floor
+//                   scheduled the taper AFTER the meet, intake-QA F1)
 //   meetMaxDaysOut  a meet past this is a later program's goal
 // Slice I3 will extend each entry with the surfaces the track owns.
 // ============================================================
@@ -780,11 +783,11 @@ const TRACK_SPEC = {
   },
   powerbuilding: {
     obSteps: ['welcome', 'goal', 'days', 'meet', 'experience', 'time', 'maxes'],
-    intake: { minSessionMin: 45, meetMinDaysOut: 28, meetMaxDaysOut: 366 },
+    intake: { minSessionMin: 45, meetMinDaysOut: 49, meetMaxDaysOut: 366 },
   },
   powerlifting: {
     obSteps: ['welcome', 'goal', 'days', 'meet', 'experience', 'time', 'maxes'],
-    intake: { minSessionMin: 45, meetMinDaysOut: 28, meetMaxDaysOut: 366 },
+    intake: { minSessionMin: 45, meetMinDaysOut: 49, meetMaxDaysOut: 366 },
   },
 };
 

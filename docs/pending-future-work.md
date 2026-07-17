@@ -1067,28 +1067,27 @@ The fix follows the codebase's strongest pattern: declarative tables in
   program; rerun whenever onboarding changes.~~ DONE (2026-07-17): call
   sheet entry 12, report at `docs/intake-qa-simulation.md`. The first run
   validated every I1/I2 gate and produced findings F1-F6, absorbed here:
-- **I5. Intake plausibility hardening (from the intake-QA report; blocked
-  on the owner rulings tagged in it).** IQ1 meet runway coherence: the
-  validator floor (28 days) is below the shortest buildable plan (one
-  block + taper = 49 days), so a 28-48 day meet gets its taper scheduled
-  after the meet; either derive the floor from the template
-  (`(weeksPerBlock + 2) * 7`) or have `makeProgram` shrink the first block
-  via `block.weeks` (H6 already supports it). IQ2 meet-aware block
-  selection: `extendBlocks` cycles from the template START, so the shortest
-  valid meet plan is hypertrophy base -> taper with zero strength blocks;
-  short runways should fill strength-first. IQ3 maxes plausibility bounds
-  (today 1000 kg is accepted and prescribes 630 kg x5; a 2 kg max
-  prescribes 0 kg x5). IQ4 hard-block the all-zero focus (today it builds
-  a 4-day program with 0 exercises, warning-only) and fix the warning copy
-  for that case. IQ5 bodyweight range (negative and 10000 accepted today).
-  IQ6 (from the second run) specialization-week honesty at the focus/days
-  steps: when the muscles with points cannot fill the chosen day count
-  without breaking `splitFreqFor`, warn or gate with the arithmetic;
-  pairs with IQ4 as the two focus-step rules (the generator half of that
-  finding, IQ7-IQ8, lives in Cluster C).
-  All are additive rules behind the I1 chokepoint; golden master untouched
-  (meet programs are not in it; cover IQ1/IQ2 in `test/h6.test.js` and
-  `test/intake.test.js`).
+- **I5. Intake plausibility hardening — SHIPPED except IQ6 (2026-07-17,
+  owner rulings received the same day; see CHANGELOG 1.19.0).** The rulings
+  also created **`Engine.coach`, the MASTER COACH arbitrator**: the single
+  source of truth when an input or an auto-built routine does not make
+  sense (bounds + judgment calls declared once; validators, generators, and
+  edit surfaces consult it — extend it, do not scatter new plausibility
+  rules). Shipped: IQ1 meet runway floor raised to 49 days (derived one
+  block + taper, `coach.minMeetRunwayDays`); IQ2 meet-aware block selection
+  via `coach.meetBlockPlan` (strength-first backward fill, wave progression
+  sampled, truncated volume lead-in via `block.weeks`, and the owner ruling
+  that a 49-75 day meet gets AT MOST a 2-week accumulation phase; the plan
+  never extends past the meet); IQ3 1RM bounds 20..500 kg; IQ4 all-zero
+  focus hard-blocked; IQ5 bodyweight required + 25..300 kg at EVERY
+  bodyweight surface (onboarding welcome gate + the Phase & bodyweight
+  screen). Tests: `test/master-coach.test.js` + the extended intake
+  battery. **Still open: IQ6** specialization-week honesty at the
+  focus/days steps (when the muscles with points cannot fill the chosen
+  day count without breaking `splitFreqFor`, warn or gate with the
+  arithmetic) — it pairs with the generator half (IQ7-IQ8) in Cluster C,
+  so land them together. Per the intake-QA report protocol, re-run the QA
+  battery on the next onboarding change.
 
 Constraints held throughout: the default/powerbuilding golden master stays
 byte-identical (validation happens before `makeProgram`; surface gating is

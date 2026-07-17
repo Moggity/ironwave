@@ -507,8 +507,14 @@ function makeProgram(ob) {
   }
   // [Epic G2] A custom macrocycle length (weeks) rebuilds the block list to fit;
   // no length keeps the template verbatim, so the default path stays byte-identical.
+  // [Epic I5] A meet runway is arbitrated by the master coach: strength blocks
+  // fill backward from the meet, hypertrophy fills the front, leftover weeks
+  // become a short volume lead-in (2 weeks at most on a <= 75 day runway), and
+  // the plan never extends past the meet (the old rounding scheduled the taper
+  // AFTER a short meet, intake-QA F1/F2).
   const blocks = meetTs
-    ? extendBlocks(tpl.blocks, Math.max(1, Math.round(((meetTs - start) / (7 * 864e5) - 2) / tpl.weeksPerBlock)))
+    ? relabelBlocks(Engine.coach.meetBlockPlan(
+        Math.floor((meetTs - start) / 864e5), tpl.blocks, tpl.weeksPerBlock))
     : ob.macroWeeks
       ? extendBlocks(tpl.blocks, blocksForWeeks(ob.macroWeeks, tpl.weeksPerBlock))
       : JSON.parse(JSON.stringify(tpl.blocks));
@@ -1811,16 +1817,31 @@ function obStepId(ob) {
 // optionally filtered to one field. Engine.validateIntake is pure; the app
 // supplies the spec and the clock and translates the returned keys at render.
 function obIntakeIssues(ob, field) {
-  const spec = TRACK_SPEC[ob.track];
-  if (!spec) return [];
-  const all = Engine.validateIntake(ob, spec, Date.now());
+  // [Epic I5] Before a track is picked only the shared head of the flow is
+  // reachable; the fallback spec carries the track-independent rules
+  // (bodyweight) so the welcome gate works on step 0 too.
+  const spec = TRACK_SPEC[ob.track] || { obSteps: OB_FALLBACK_STEPS, intake: {} };
+  const all = Engine.validateIntake(ob, spec, Date.now()).map(i => {
+    // [Epic I5] Weight-typed params come back in kg (storage canon); show
+    // them in the athlete's unit, and name the lift where one is flagged.
+    if (!i.params || !i.params.wKg) return i;
+    const p = Object.assign({}, i.params, {
+      lo: dispW(i.params.lo), hi: dispW(i.params.hi), u: wUnit() });
+    if (p.lift) p.name = exName(p.lift);
+    return Object.assign({}, i, { params: p });
+  });
   return field ? all.filter(i => i.field === field) : all;
 }
 function obIssueBanners(issues) {
   return issues.map(i => `<div class="banner-warn mt8">${esc(t(i.key, i.params))}</div>`).join('');
 }
 // Warning copy for any slider at the extremes (0 = removed, 6 = maxed).
+// [Epic I5] All zeros is not a warning, it is a blocked program (nothing to
+// train); the master coach's error renders instead and Continue refuses.
 function obFocusWarning(focus) {
+  if (Engine.coach.checkFocus(focus)) {
+    return `<div class="banner-warn mt8">${esc(t('val.focus_all_zero'))}</div>`;
+  }
   const removed = FOCUS_KEYS.filter(k => focus[k] === 0).map(k => t('muscle.' + k));
   const maxed = FOCUS_KEYS.filter(k => focus[k] === 6).map(k => t('muscle.' + k));
   if (!removed.length && !maxed.length) return '';
@@ -2140,9 +2161,13 @@ function obMeetLine(ob) {
   const ts = Date.parse(ob.meetDate);
   if (!(ts > 0)) return '';
   const tpl = PROGRAM_TEMPLATES[ob.track] || PROGRAM_TEMPLATES.powerbuilding;
-  const weeks = Math.floor((ts - Date.now()) / (7 * 864e5));
-  const blocks = Math.max(1, Math.round((weeks - 2) / tpl.weeksPerBlock));
-  return t('ob.meet_line', { blocks, weeks: blocks * tpl.weeksPerBlock + 2 });
+  // [Epic I5] Preview the same plan the master coach will build, so the
+  // summary line and makeProgram can never disagree.
+  const days = Math.floor((ts - Date.now()) / 864e5);
+  const plan = Engine.coach.meetBlockPlan(days, tpl.blocks, tpl.weeksPerBlock);
+  const weeks = plan.reduce((a, b) => a + (b.weeks || tpl.weeksPerBlock), 0)
+    + Engine.coach.bounds.meetTaperWeeks;
+  return t('ob.meet_line', { blocks: plan.length, weeks });
 }
 function obExp(id) { V.ob.experience = id; render(); }
 function obTimeMode(mode) { V.ob.timeMode = mode; render(); }
@@ -2173,8 +2198,21 @@ function obNext(step) {
   // [Epic I1] no step advances past an intake error. The step order itself is
   // the track contract's obSteps list; there is no skip arithmetic here.
   if (id === 'welcome') {
-    ob.name = document.getElementById('ob-name').value.trim();
-    ob.bodyweight = fromDispW(parseFloat(document.getElementById('ob-bw').value)) || null;
+    const nameEl = document.getElementById('ob-name');
+    if (nameEl) ob.name = nameEl.value.trim();
+    // [Epic I5] Bodyweight is required and bounded (master coach: 25-300 kg).
+    // A typed value is kept even when absurd so the range error can name it;
+    // an empty input leaves the draft's value standing (harness runs and the
+    // athlete stepping back through a finished welcome).
+    const bwEl = document.getElementById('ob-bw');
+    if (bwEl && bwEl.value !== '') {
+      const typed = fromDispW(parseFloat(bwEl.value));
+      ob.bodyweight = Number.isFinite(typed) ? typed : null;
+    } else if (ob.bodyweight === '') {
+      ob.bodyweight = null;
+    }
+    const issues = obIntakeIssues(ob, 'welcome');
+    if (issues.length) { toast(t(issues[0].key, issues[0].params), true); return; }
   } else if (id === 'goal') {
     if (!ob.track) { toast(t('ob.pick_goal'), true); return; }
     if (ob.track === 'bodybuilding' && !ob.goalArchetype) { toast(t('ob.pick_bb_goal'), true); return; }
@@ -2196,13 +2234,26 @@ function obNext(step) {
       const issues = obIntakeIssues(ob, 'time');
       if (issues.length) { toast(t(issues[0].key, issues[0].params), true); return; }
     }
+  } else if (id === 'focus') {
+    // [Epic I5] All sliders at zero is a program with nothing in it: the
+    // master coach blocks it here instead of building a 0-exercise week.
+    const issues = obIntakeIssues(ob, 'focus');
+    if (issues.length) { toast(t(issues[0].key, issues[0].params), true); return; }
   } else if (id === 'maxes') {
     try {
       for (const [id] of obMainLifts(ob.track)) {
         const el = document.getElementById('ob-max-' + id);
-        const v = el ? fromDispW(parseFloat(el.value)) : NaN;
-        if (v > 0) ob.maxes[id] = v;
+        // An empty input leaves the draft's value standing (harness runs);
+        // a typed value is kept as typed so the coach can refuse it below.
+        if (!el || el.value === '') continue;
+        const v = fromDispW(parseFloat(el.value));
+        ob.maxes[id] = Number.isFinite(v) ? v : NaN; // NaN: unreadable, refused
       }
+      // [Epic I5] The last gate before the program is built: any implausible
+      // 1RM (master coach bounds) or an issue that slipped an earlier step
+      // blocks creation with the reason.
+      const issues = obIntakeIssues(ob);
+      if (issues.length) { toast(t(issues[0].key, issues[0].params), true); return; }
       S.profile.name = ob.name;
       S.profile.bodyweight = ob.bodyweight;
       S.profile.experience = ob.experience;
@@ -2986,7 +3037,14 @@ function setPhase(ph) {
 }
 function logBodyweight() {
   const v = fromDispW(parseFloat(byId('bw-input') && byId('bw-input').value));
-  if (!(v > 0)) { toast(t('phase.bw_enter'), true); return; }
+  if (!Number.isFinite(v)) { toast(t('phase.bw_enter'), true); return; }
+  // [Epic I5] Same master-coach bounds as onboarding: every surface that
+  // logs or changes bodyweight refuses an implausible value.
+  const bad = Engine.coach.checkBodyweight(v);
+  if (bad) {
+    toast(t(bad.key, { lo: dispW(bad.params.lo), hi: dispW(bad.params.hi), u: wUnit() }), true);
+    return;
+  }
   S.bodyweight = S.bodyweight || [];
   S.bodyweight.push({ ts: Date.now(), kg: v });
   S.profile.bodyweight = v;
