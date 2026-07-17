@@ -121,6 +121,7 @@ function migrateState(s) {
   if (!p.landmarks || !Object.keys(p.landmarks).length) p.landmarks = Engine.seedLandmarks(p.experience);
   if (!s.techniques) s.techniques = {}; // Cluster B opt-in map, additive and inert when empty
   if (!s.flags) s.flags = {};           // one-time UI flags, additive
+  if (!s.debugTier) s.debugTier = 'coach'; // [Tier debug] free/coach preview, coach = today's behavior
   if (!p.phase) p.phase = 'lean-gain';  // [Cluster F] training phase
   if (!p.lang) p.lang = 'en';           // [i18n] app language, English by default
   if (!p.units) p.units = 'kg';         // [Epic H1] display units (storage stays kg)
@@ -266,6 +267,31 @@ function exMatches(e, q) {
 }
 function recordsFor(id) { return S.records[id] || []; }
 function pushRecord(id, rec) { (S.records[id] = S.records[id] || []).push(rec); }
+
+// ------------------------------------------------------------
+// [Tier debug] The free/coach entitlement seam, debug edition.
+// hasCoach() is the ONE gate every coach surface checks. Today its truth is
+// the Settings tier-preview toggle (S.debugTier); the monetization epic's M1
+// swaps this body for the real billing adapter without touching a call site.
+// 'coach' is the default and the migration backfill, so every existing save
+// and the whole test suite behave exactly as before this feature.
+// Boundary source of truth: docs/tier-usage-analysis.md (the surface map) and
+// docs/monetization-operations-report.md section 2.
+// ------------------------------------------------------------
+function hasCoach() { return !S || S.debugTier !== 'free'; }
+function setDebugTier(v) {
+  S.debugTier = v === 'free' ? 'free' : 'coach';
+  save(); render();
+  toast(t(S.debugTier === 'free' ? 'tier.free_on' : 'tier.coach_on'));
+}
+// The lock treatment: an honest card, no blur tricks (identity report rule).
+function coachLockHTML() {
+  return `<div class="card accent"><b>${esc(t('tier.locked_title'))}</b>
+    <p class="subtle" style="margin-top:6px">${esc(t('tier.locked_note'))}</p></div>`;
+}
+function coachLockView(title) {
+  return `${topbar(title)}<div class="view">${coachLockHTML()}</div>${tabbar()}`;
+}
 
 // ------------------------------------------------------------
 // LOADING PROFILES (Change 1)
@@ -2341,6 +2367,14 @@ function timelineHTML(opts) {
 function openWeekPreview(bi, wi) {
   const p = P();
   const b = p.blocks[bi];
+  // [Tier debug] The preview resolves full prescriptions for ANY week, so an
+  // ungated tap on the dashboard timeline would leak the whole macro's coach
+  // output in free mode (the year-in-advance loophole, TB1/TB2 in
+  // docs/tier-usage-analysis.md). The timeline stays visible; the numbers do not.
+  if (!hasCoach()) {
+    showModal(anim => { $modal.innerHTML = modalShell(anim, t('preview.title'), coachLockHTML()); });
+    return;
+  }
   showModal(anim => {
     const days = p.days.map((d, di) => {
       const rows = d.slots.map(slot => {
@@ -2532,6 +2566,7 @@ function vDashboard() {
   }
   return `${topbar()}
   <div class="view">
+    ${hasCoach() ? '' : `<div class="banner-warn">${esc(t('tier.free_banner'))}</div>`}
     ${SHOW_READINESS_UI ? `<div class="readiness-hero">
       <div class="row">
         <span class="label">${esc(t('dash.readiness'))} <span class="faint">ⓘ 0–30</span></span>
@@ -2836,7 +2871,9 @@ function volumeDashboardHTML() {
 }
 function openVolumeDashboard() {
   if (!P()) { toast(t('common.start_program_first'), true); return; }
-  showModal(anim => { $modal.innerHTML = modalShell(anim, t('vol.title'), volumeDashboardHTML()); });
+  // [Tier debug] The volume dashboard is the paid tier's control panel.
+  showModal(anim => { $modal.innerHTML = modalShell(anim, t('vol.title'),
+    hasCoach() ? volumeDashboardHTML() : coachLockHTML()); });
 }
 // [Cluster F] Current training phase, with a safe default.
 function currentPhase() { return (S.profile && S.profile.phase) || 'lean-gain'; }
@@ -2865,7 +2902,9 @@ function phaseScreenHTML() {
     <p class="faint mt16">${esc(t('phase.bw_note'))}</p>`;
 }
 function openPhase() {
-  showModal(anim => { $modal.innerHTML = modalShell(anim, t('phase.screen_title'), phaseScreenHTML()); });
+  // [Tier debug] Phase drives the autoregulator: coach tier.
+  showModal(anim => { $modal.innerHTML = modalShell(anim, t('phase.screen_title'),
+    hasCoach() ? phaseScreenHTML() : coachLockHTML()); });
 }
 function setPhase(ph) {
   if (!PHASES.includes(ph)) return;
@@ -5465,7 +5504,11 @@ function vProgress() {
   const muscles = VOL_ORDER.filter(m => weeks.some(wk => wk.tally[m]));
   const mv = muscles.includes(V.pxMv) ? V.pxMv : muscles[0];
   let setsCard = '';
-  if (mv) {
+  if (mv && !hasCoach()) {
+    // [Tier debug] The landmark band reads MEV/MRV data only the coach
+    // computes; the PR feed and e1RM overlay above/below stay free.
+    setsCard = `<div class="section-title">${esc(t('px.sets'))}</div>${coachLockHTML()}`;
+  } else if (mv) {
     const chips = muscles.map(m => `<button class="px-chip ${m === mv ? 'on' : ''}" onclick="pxPick('${m}')">${esc(mvLabel(m))}</button>`).join('');
     const pts = weeks.map(wk => {
       const L = landmarksForBlock(wk.b)[mv] || {};
@@ -5556,6 +5599,7 @@ function vReport() {
 // ------------------------------------------------------------
 function vMeet() {
   if (!P()) return vOnboarding();
+  if (!hasCoach()) return coachLockView(t('meet.title')); // [Tier debug]
   const p = P();
   const cards = ['comp-squat', 'comp-bench', 'comp-deadlift'].map(id => {
     const e1 = Engine.bestE1RM(recordsFor(id)) || (p.wm[id] ? p.wm[id] / 0.9 : null);
@@ -5882,6 +5926,7 @@ function importTemplate(input) {
 
 function vProgram() {
   if (!P()) return vOnboarding();
+  if (!hasCoach()) return coachLockView(t('dash.my_program')); // [Tier debug]
   const p = P();
   const lifts = ['comp-squat', 'comp-bench', 'comp-deadlift', 'military-press'];
   const blockRows = p.blocks.map((b, i) => {
@@ -6014,6 +6059,12 @@ function vSettings() {
     ${CHIME_CONFIGS.map(c => `
       <button class="btn btn-outline mt8" onclick="playTestChime('${c.id}')">${esc(c.label)}</button>
       <p class="faint" style="margin:4px 0 0">${esc(c.desc)}</p>`).join('')}
+    <div class="section-title">${esc(t('set.dev_tier'))}</div>
+    <p class="faint" style="margin-bottom:10px">${esc(t('set.dev_tier_note'))}</p>
+    <div class="seg seg-sm">
+      <button class="${hasCoach() ? 'on' : ''}" onclick="setDebugTier('coach')">${esc(t('tier.coach'))}</button>
+      <button class="${hasCoach() ? '' : 'on'}" onclick="setDebugTier('free')">${esc(t('tier.free'))}</button>
+    </div>
   </div>${tabbar()}`;
 }
 // Force the service worker to look for a newer build and, if one installs, take

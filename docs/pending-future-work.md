@@ -110,12 +110,201 @@ Derived future branches, in dependency order:
   one-question-per-screen onboarding with the generated-split reveal, minified
   store bundle (also legal hygiene: comments must not ship). Extends the
   existing "iOS App Store build (far future)" checklist below.
+- **Epic L - the standalone free logger (L1-L5; BLOCKS M2 and M4).** Found
+  by owner review 2026-07-16: the entire GTM plans around a "genuinely good
+  free logger", but the codebase has no program-less state — `!P()` bounces
+  every view to onboarding, all logging flows through `resolveDayEntries`
+  (program slots resolved by the coach's scheme registry), and `S.sessions`
+  entries carry `b/w/d` program coordinates. Only `S.records` (exercise-id
+  keyed) is tier-neutral. The free logger is therefore a feature epic, not
+  a rendering fork (see the amendment in
+  `docs/monetization-operations-report.md` M2). All slices additive;
+  program path and golden master untouched; L1-L3 have no billing
+  dependency and are startable now (they also serve self-hosted users):
+  - **L0. Tier debug harness** SHIPPED (2026-07-17, see CHANGELOG and
+    `docs/tier-usage-analysis.md`): `S.debugTier` + the `hasCoach()`
+    entitlement seam + Settings > Debug: tier preview + lock cards on the
+    coach screens (program, meet, volume, phase, landmark band) +
+    `test/tier-debug.test.js`. Every later L/M/T slice gates through
+    `hasCoach()` and tests through this toggle; M1 replaces only the
+    seam's body.
+  - **L1. Freestyle session logging:** start an empty session, add
+    exercises via the existing pickers, log through the existing perf
+    modal into the same `S.records`/`S.sessions` shapes (`b/w/d` become
+    optional on a session; history rendering gains a label fallback).
+    History, PRs, e1RM trends, and share surfaces work unchanged because
+    the records layer is already exercise-keyed.
+  - **L2. Routines:** a versioned, additive `S.routines[]` (name + ordered
+    exercise list + optional user-set rep/weight targets). CRUD reusing
+    the picker/split-editor patterns; start-a-session-from-routine feeds
+    L1's entry pipeline. Explicitly NOT a program: no blocks, weeks,
+    schemes, or prescription.
+  - **L3. Program-less app shell:** `!P()` renders a logger home
+    (routines + start-empty-session + history) instead of forcing
+    onboarding; the quiz becomes the coach's front door, reachable but
+    not mandatory. Render-smoke covers every view program-less.
+  - **L4. Tier transitions:** onboarding's "continue free" lands in L3
+    keeping the quiz answers for later; lapsed-coach degradation (M2)
+    snapshots the program's current week into routines ("your program,
+    as routines") instead of a bespoke rendering fork.
+  - **L5. Boundary tests:** un-entitled render-smoke across all views;
+    the monetization report's free/coach boundary table as an executable
+    checklist (free surfaces reachable, coach surfaces gated).
+- **Tier boundary hardening TB1-TB8** (from the adversarial pass in
+  `docs/tier-usage-analysis.md` section 9; threat model = casual honesty,
+  not DRM — the moat is the adaptation loop, so the one load-bearing
+  property is that coach value stops ACCRUING on lapse): TB1 the brain
+  pauses un-entitled (no advanceWeek effects: no updateAutoreg, no WM
+  corrections from AMRAPs, no recalibration, no deload sizing; degradation
+  snapshots only the current week into routines, the rest of the macro
+  stays stored but locked) — lands with L4/M2; TB2 owner call on capping
+  detailed week-preview depth during trial (current block + next) — the
+  free-mode preview leak itself was FIXED 2026-07-17 (openWeekPreview
+  gated); TB3 generation gates at the function level (makeProgram /
+  doNewProgram / programFromTemplate / importTemplate check entitlement
+  themselves; circulated template JSONs land as structure, not live
+  programs) — with M4/H7; TB4 entitlement cache and tier fields live in
+  device-scoped storage, never in S, and production import sanitizes
+  entitlement-shaped fields incl. debugTier — with R1/M3; TB5 store builds
+  ignore S.debugTier and hide the Settings toggle behind a dev flag — with
+  M1/R3; TB6 element-gate coach-derived picker hints (SFR ordering,
+  adds-head, over-MRV, time-cost) in free routine editing — with L2; TB7
+  gate vReport and every T1 receipt surface from birth — with T3/T1; TB8
+  offline grace keys off a device-stored last-verified timestamp, clock
+  rollback = expired-pending-check — with M3.
+- **Tier value slices T1-T3** (read `docs/tier-usage-analysis.md` section 7
+  first; the "make the paid sub worth it" work): T1 decision receipts (no
+  silent decisions on the coach tier: AMRAP → WM change, autoreg
+  add/hold/cut via its existing `reasonKey`, deload timing/depth, injury
+  easing, all surfaced as short athlete-facing receipts at session time
+  and a week-boundary digest; `noteKey`/`noteParams` pattern, display-only,
+  golden-master-safe; land before the September beta so trial users SEE
+  the differentiator), T2 the plateau card on free data (pure seeded
+  helper over `e1rmTrend`, one dismissible card capped per ~5 weeks, free
+  mode only; the honest organic upsell), T3 the coach report card
+  (receipts ledger extending `macroReportHTML`; gate `vReport` behind
+  `hasCoach()` when it lands).
+- **Monetization slices M1-M8** (read
+  `docs/monetization-operations-report.md` section 9 first; M1-M2 are pure
+  repo work startable now, M3+ need R2's platform adapter; **M2 and M4 are
+  blocked on Epic L above**): M1 the
+  entitlement seam (`Platform.billing`, one `coach` entitlement; web/self-
+  hosted always entitled so the prototype and test suite run unchanged; the
+  engine stays billing-blind), M2 the nothing-held-hostage degraded mode on
+  trial expiry (rebuilt on Epic L's routines per the report's amendment,
+  not a bespoke rendering fork), M3 RevenueCat behind
+  the seam with a 7-day offline entitlement grace, M4 the paywall surface
+  (reveal + coach touchpoints, "continue free" always visible), M5 the
+  day-12 trial reminder over R5 notifications, M6 the settings subscription
+  section, M7 minimal funnel events, M8 the stubbed web win-back seam.
+  Golden master untouched.
+- **Release engineering slices R1-R9** (read
+  `docs/release-engineering-report.md` section 10 first; R1-R3 need no store
+  accounts and can start now): R1 durable storage adapter
+  (`Platform.storage`, Filesystem JSON on native, web path byte-identical),
+  R2 `platform.js` adapter skeleton (ASO E2 and haptics implement against
+  it; SW registration becomes web-only), R3 release build lane (esbuild
+  minify/strip into `dist/`, version stamping from `APP_VERSION`, CI runs
+  the harness against the minified bundle on tags; also the legal
+  comments-must-not-ship fix), R4 the Capacitor wrap branch (committed
+  native projects, Android back button through `MSTACK`, splash/status
+  bar), R5 local notifications for the rest timer, R6 native media pipeline
+  (remote host + Filesystem capped cache), R7 Sentry crash/vitals, R8
+  HealthKit export, R9 pre-submission checklist automation. Nothing touches
+  prescription; golden master untouched.
+- **ASO instrumentation slice** (rides with or right after the productization
+  epic; read `docs/aso-launch-report.md` section 9 first): real-time PR
+  detection hook at set-log time (E1), the gated store-review prompt plumbing
+  with additive `S.review` state and a web no-op adapter (E2), local milestone
+  counters (E3), a deterministic screenshot staging state (E4), keyword-aware
+  IAP display naming when RevenueCat lands (E5), and keeping the prototype
+  noindexed through productization (E6). Nothing touches prescription; golden
+  master untouched.
 - **Launch gates (owner + attorney, non-coding):** name clearance for the launch
   brand (TSDR/EUIPO, backup name), privacy policy + ToS/EULA + health
   disclaimer, consent/analytics flow, store privacy labels and data-safety
   forms, subscription/auto-renewal disclosures incl. the founding-price intro
   offer, age gate, encryption declaration. Blocking for store submission, not
   for the branches above.
+
+## Launch consultation call sheet (owner directive 2026-07-16, CRITICAL priority)
+
+The owner is assembling the launch and post-launch plan by consulting one
+expert persona at a time, the way Marketing, Legal, UI/UX
+(`docs/ui-ux-visual-identity-analysis.md`), and the two veteran athletes
+(`docs/athlete-feedback-simulation.md`) already ran. Work the list top to
+bottom; strike an entry through when its report ships as a doc under `docs/`.
+Every report follows the house pattern: grounded in the prior reports,
+educational for the owner, ending with tagged owner tasks and engineer-agent
+notes whenever app changes are warranted (which then get absorbed into this
+file's epics, as the ASO slice above was).
+
+Operators (launch-critical, in priority order):
+
+1. ~~**ASO / store-growth specialist**~~ DONE (2026-07-16):
+   `docs/aso-launch-report.md`. Keyword tiers (own "powerbuilding" + the
+   utility long tail), the title formula constraint on the Phase 0 rename,
+   the ratings-engine design under the 3-prompts/year iOS quota, screenshot
+   narrative, launch calendar, weekly operating loop. Engineer notes E1-E7
+   absorbed as the "ASO instrumentation slice" derived branch above.
+2. ~~**Mobile platform / release engineer**~~ DONE (2026-07-16):
+   `docs/release-engineering-report.md`. What a release build is, the
+   inventory finding that state is already local-first (no backend port
+   needed, only a durability upgrade), the one-codebase/three-targets
+   Capacitor architecture behind a `platform.js` adapter, the risk register
+   (4.2, WKWebView storage eviction, keystore custody, target-API treadmill,
+   privacy manifests), signing/versioning policy, the tags-only release lane
+   that keeps dev no-build, phased-rollout/hotfix process (OTA updates
+   skipped at launch), device matrix, owner custody tasks. Engineer notes
+   R1-R9 absorbed as the "Release engineering slices" derived branch above.
+3. ~~**Monetization / paywall operator**~~ DONE (2026-07-16):
+   `docs/monetization-operations-report.md`. How store billing actually
+   works (products, entitlements, receipts, RevenueCat), the free/coach
+   feature boundary with four gray-zone owner calls, nothing-held-hostage
+   trial-expiry behavior with a day-12 reminder, the anti-dark-pattern
+   paywall anatomy, 7-day offline entitlement grace (the basement-gym
+   rule), pricing ops (intro offers, lifetime as non-consumable,
+   grandfathered price-raise path), sandbox testing + the gate metrics.
+   Engineer notes M1-M8 absorbed as the "Monetization slices" derived
+   branch above; engine stays billing-blind.
+4. **Analytics / instrumentation specialist.** Event schema BEFORE launch so
+   the kill/scale gates are measurable (cost-per-trial, trial-to-paid,
+   month-1 cancel), retention cohorts, PostHog setup, privacy-respecting
+   defaults.
+5. **Privacy / data-protection specialist.** GDPR/CCPA for accounts + sync,
+   Apple privacy nutrition labels / Play data-safety forms, health-adjacent
+   data handling, export/deletion flows. Complements the legal report's IP
+   focus.
+6. **Support & community manager.** Review-response cadence (feeds ASO),
+   refund macros, bug triage SLAs, Discord, beta-cohort management.
+
+Credibility and coverage:
+
+7. **Sports-science / S&C coach advisor.** Audit engine claims, terminology,
+   and coaching copy for scientific defensibility; keep readiness/fatigue
+   language out of medical territory (ties to the legal report's
+   health-claims item).
+8. **Athlete panel round-out** (three more simulated athletes): a woman
+   entering powerlifting (S3, the fastest-growing segment), a LatAm
+   Spanish-speaking lifter (run in Spanish against the es.js catalog, not
+   translated), and an accessibility-constrained user (VoiceOver, large
+   text, motor precision).
+
+Adversaries worth simulating:
+
+9. **Paywall-cynical Redditor / churned RP subscriber.** Pressure-test the
+   paywall copy, trial framing, and lifetime tier; write the 1-star review
+   before a real one does.
+10. **Apple App Review reviewer.** Run the build adversarially through
+    guidelines 4.2 (minimum functionality) and 3.1 (payments) before
+    submission, not after rejection.
+11. **YouTube creator partner.** Simulate the counterparty: would a 50K-sub
+    evidence-based channel actually take the permissioned-program deal at
+    20% recurring affiliate?
+
+Lower priority, do not skip forever: a finance/ops advisor (entity,
+liability insurance, IAP tax treatment, Small Business Program enrollment)
+and a QA / device-matrix persona before the September-equivalent beta.
 
 ## Hardcore hypertrophy roadmap (epics, clusters, dependencies)
 

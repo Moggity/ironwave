@@ -9,7 +9,7 @@
 // repo, and it must be kept in step with CACHE_VERSION in sw.js (the service
 // worker only ships new code to installed PWAs when that cache name changes).
 // Bump this on any shell change (data/engine/app/styles/index/sw).
-const APP_VERSION = '1.16.0';
+const APP_VERSION = '1.17.0';
 
 // Movement categories (used for "Select X Exercise" slots & swaps)
 const MOVEMENTS = {
