@@ -105,6 +105,67 @@ persona confirms the banner stops nobody: two taps and a beginner is in an
 aggressive-deficit plan. Not re-counted as a new finding; re-affirmed with
 a repro.
 
+## Second run (owner grant, 2026-07-17): the specialization split power
+
+The owner extended the persona's powers the same day: set ONE slider to 6
+and every other slider to 0, pick 6 days, then read each generated day
+like a coach and judge two things. One, does the algorithm understand
+fatigue: for arms, are there biceps days, triceps days, and hybrid days so
+each head recovers, or does one head absorb the whole week? Two, does the
+algorithm run out of ideas and lazily repeat the same exercise, or does it
+go find variations? The power is standing: run it for any muscle group
+whenever it is relevant, via the committed probe kit
+(`node test/intake-qa-probes.js spec [muscle|all] [days]`), which prints
+each day plus FREQ / VARIETY / HEADS verdict lines.
+
+First run of the power, all seven groups, 6 days each. The pattern is
+identical everywhere: the first 1-2 days are genuinely good (head-diverse,
+varied, exactly what Cluster C's `pickAccessory` promises), then the
+generator collapses.
+
+- **arms:** d0 `ez-curl, triceps-pushdown, db-curl` and d1
+  `overhead-ext, hammer-curl, skullcrusher` are real hybrid arm days.
+  Days 2-5 are each `ez-curl x3, ez-curl x3, ez-curl x3`: nine sets of
+  one biceps curl, four days in a row. Triceps get 2 exposures all week;
+  biceps get 6 straight days. ez-curl appears 13 times in 18 slots.
+- **back:** same shape; `lat-pulldown` 13 of 18 slots, days 2-5 all-lats.
+- **glutes:** `bb-hip-thrust` 15 of 18. **calves:** `standing-calf-raise`
+  16 of 18. **shoulders:** `lateral-raise` 8 plus `military-press` as the
+  anchor six days running. **chest:** `comp-bench` anchors all six days
+  (a 6x/week barbell bench for an intermediate is its own fatigue
+  problem) with `dips` 7 as filler. **legs:** `comp-squat` anchors six
+  days with `leg-extensions` 7 as filler.
+
+Answers to the owner's two questions: **no and no.** The head/fatigue
+awareness is real but only lasts as long as the muscle's planned
+`SPLIT_FREQ` exposures; there is no week-level alternation design (no
+bi/tri day rotation), and beyond the planned exposures the routine is
+structurally senseless. And the generator is lazy by construction once
+its curated pool runs dry: it does not consult the ~179-exercise library
+at all.
+
+### F7. Single-muscle specialization breaks the frequency contract: no recovery days
+
+`SPLIT_FREQ[6] = 3`: a maxed muscle is designed to train 3x/week (the
+7-day feature deliberately unlocks only a 4th exposure). But
+`buildRegion` assigns a PRIMARY to every day with no frequency cap
+(`app.js`, step 1 of the region build), so the only muscle with points
+leads all 6 days: six consecutive sessions of one muscle, zero recovery
+days, and after the first exposures every day is the same single head
+(arms days 2-5 are 100% biceps). The generator's own frequency model says
+this week should not exist.
+
+### F8. Pool exhaustion repeats one exercise forever, including within a day
+
+`pickAccessory`'s exhaustion fallback is `|| order[0]`: once the 3-6
+curated `DEFAULT_ACC` ids are used (week-global), every later pick
+returns the pool's first entry, ignoring both the used-set and the
+same-day duplicates (hence `ez-curl x3` three times in ONE day). The
+pools never extend to the full exercise library, so "out of ideas" hits
+after two days even for muscles with a dozen shipped variations
+(preacher/incline/cable/concentration/Bayesian curls all exist and are
+never used).
+
 ## Why this matters for the launch
 
 The GTM premise is "the coaching engine is the paid differentiator" and
@@ -136,6 +197,20 @@ architecture.
 - [ ] **F6:** schedule the already-open hard confirm for beginner +
       lean-asap (Cluster F's deeper onboarding item covers the full
       version; a typed confirm is a cheap interim).
+- [ ] **F7 ruling:** what should "one muscle at 6, 6 days" build? Two
+      directions, combinable: (a) intake honesty at the focus/days steps
+      (warn or gate: "one trained muscle fills 3 of your 6 days; pick 3
+      days or add muscles"), which is cheap and Epic I5 flavored; (b) the
+      coach-grade fix: a head-alternating specialization week (arms:
+      biceps day / triceps day rotation; back: lat width / upper
+      thickness; chest: upper / lower emphasis) that respects per-head
+      recovery while honoring the requested day count. Recommendation:
+      (a) now, (b) as the Cluster C item below.
+- [ ] **F8 ruling:** confirm the variety direction: never duplicate an
+      exercise within a day, exhaustion cycles the pool instead of
+      constant-repeating its first entry, and pools extend past
+      `DEFAULT_ACC` into the library's muscle-matching exercises ordered
+      by SFR (the swap picker's machinery, already built).
 
 ## Engineer notes (absorb into Epic I as slice I5)
 
@@ -154,7 +229,25 @@ architecture.
   (`val.focus_empty`), and fix the warning copy for the all-removed case.
 - **IQ5 (F5):** bodyweight range rule in `validateIntake`, welcome step
   inline banner. Warn tier per owner ruling.
-- All five are additive validation/generation rules behind the I1
+- **IQ6 (F7, intake half -> Epic I5):** a specialization-week sanity rule
+  in `validateIntake` / the focus step: when the muscles with points
+  cannot fill the chosen day count without breaking `splitFreqFor`, warn
+  or gate with the arithmetic ("N days, but your sliders fill only M").
+  Pairs with IQ4 (all-zero gate) as the two focus-step rules.
+- **IQ7 (F7, generator half -> Cluster C):** cap lead-day assignment at
+  the muscle's `splitFreqFor` target and, for a multi-head muscle asked
+  to specialize, rotate day emphasis across its heads
+  (`muscleHeads`/`HEAD_MUSCLE` already exist) so each head gets at least
+  one rest day between exposures; arms alternates biceps/triceps days the
+  way a coach writes an arm block.
+- **IQ8 (F8 -> Cluster C):** `pickAccessory` fixes: never return an id
+  already used on the SAME day; on pool exhaustion cycle least-recently-
+  used instead of `order[0]`; and extend the candidate pool past
+  `DEFAULT_ACC` with library exercises for the muscle, SFR-ordered,
+  before any repeat. All bodybuilding-generator-only, golden master
+  untouched; cover in `focus-generator.test.js` with the one-slider-six
+  seeds.
+- IQ1-IQ5 are additive validation/generation rules behind the I1
   chokepoint; the default powerbuilding path never sets these values, so
   the golden master is untouched except IQ1/IQ2's deliberate short-runway
   meet changes (meet programs are not in the golden master; cover with
@@ -162,7 +255,18 @@ architecture.
 
 ## Re-run protocol
 
-This report is repeatable: the "what held" list plus F1-F5 repro steps are
-encoded as harness probes. When Epic I5 lands (or any onboarding change
+This report is repeatable, and the persona's powers are committed tools:
+
+- The F1-F6 intake repros from the first run are pinned as assertions in
+  `test/intake.test.js` (the gates) and documented above (the open holes).
+- The specialization split power lives in `test/intake-qa-probes.js`
+  (`node test/intake-qa-probes.js spec [muscle|all] [days]`), runnable
+  for any muscle group whenever it is relevant: after any change to the
+  split generator, `pickAccessory`, `DEFAULT_ACC`, `SPLIT_FREQ`, or the
+  focus sliders. It is a judgment probe, deliberately not a CI test;
+  when IQ6-IQ8 land, their regressions become `focus-generator.test.js`
+  assertions and the probe stays as the coach's-eye review.
+
+When Epic I5 or the Cluster C fixes land (or any onboarding change
 ships), re-run the battery and update this report rather than writing a
 new one. Slice I4 will turn the surviving rules into permanent CI checks.
