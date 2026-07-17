@@ -600,6 +600,10 @@ const Engine = {
       return { key: 'val.bw_range', params: { lo, hi, wKg: true } };
     },
     checkMax(lift, kg) {
+      // 0 is a legitimate answer, not a typo: the athlete moves only their
+      // bodyweight on this lift. It is falsy, so makeProgram already treats
+      // it as "no working max" and week 1 calibrates from feel.
+      if (kg === 0) return null;
       const [lo, hi] = this.bounds.oneRmKg;
       if (Number.isFinite(kg) && kg >= lo && kg <= hi) return null;
       return { key: 'val.max_range', params: { lo, hi, lift, wKg: true } };

@@ -259,6 +259,9 @@ test('a 1000 kg or 2 kg 1RM is refused; blank stays the calibration path', () =>
     Engine.validateIntake({ ...base, maxes: { 'comp-bench': 100 } }, PL, NOW), []);
   assert.deepStrictEqual(
     Engine.validateIntake({ ...base, maxes: {} }, PL, NOW), []);
+  assert.deepStrictEqual(
+    Engine.validateIntake({ ...base, maxes: { 'comp-bench': 0 } }, PL, NOW), [],
+    '0 means bodyweight only: the calibration path, not an error');
 });
 
 test('an all-zero focus is a hard block on bodybuilding, not a warning', () => {

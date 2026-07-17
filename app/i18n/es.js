@@ -358,7 +358,7 @@ const I18N_ES = {
   'val.time_min': 'Este plan necesita al menos {min} minutos por sesión para el calentamiento y el trabajo principal.',
   'val.bw_required': 'Escribe tu peso corporal para continuar.',
   'val.bw_range': 'Ese peso corporal no parece correcto. Escribe entre {lo} y {hi} {u}.',
-  'val.max_range': '{name}: ese 1RM no parece correcto. Escribe entre {lo} y {hi} {u}, o déjalo vacío para calibrar en la semana 1.',
+  'val.max_range': '{name}: ese 1RM no parece correcto. Escribe entre {lo} y {hi} {u}, o déjalo vacío (o 0 si solo mueves tu peso corporal) para calibrar en la semana 1.',
   'val.focus_all_zero': 'Todos los músculos están en 0, así que no hay nada que entrenar. Sube al menos un control.',
   'week.peak_0': 'Semana 1 · Aperturas',
   'week.peak_1': 'Semana de competencia',

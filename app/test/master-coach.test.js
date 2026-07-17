@@ -37,11 +37,22 @@ test('checkBodyweight: 25..300 kg passes, everything else is refused', () => {
 
 test('checkMax: 20..500 kg passes, the intake-QA absurdities are refused', () => {
   assert.strictEqual(coach.checkMax('comp-bench', 100), null);
-  for (const bad of [1000, 2, 0, -50, NaN]) {
+  for (const bad of [1000, 2, -50, NaN]) {
     const iss = coach.checkMax('comp-squat', bad);
     assert.ok(iss && iss.key === 'val.max_range', `${bad} kg refused`);
     assert.strictEqual(iss.params.lift, 'comp-squat', 'the flagged lift is named');
   }
+});
+
+test('checkMax: 0 means bodyweight only and lands on the calibration path', () => {
+  assert.strictEqual(coach.checkMax('comp-squat', 0), null, '0 is a legitimate answer');
+  // makeProgram already treats a falsy max as "no working max": week 1 calibrates
+  app.S = app.defaultState();
+  const p = app.makeProgram({ daysPerWeek: 4, track: 'powerlifting',
+    experience: 'intermediate', timeMode: 'unlimited', muscleFocus: { ...FOCUS },
+    maxes: { 'comp-squat': 0, 'comp-bench': 100 } });
+  assert.strictEqual(p.wm['comp-squat'], null, 'a 0 max stays uncalibrated');
+  assert.ok(p.wm['comp-bench'] > 0, 'a real max still seeds the working max');
 });
 
 test('checkFocus: only the all-zero week is refused', () => {

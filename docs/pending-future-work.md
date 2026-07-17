@@ -1078,7 +1078,8 @@ The fix follows the codebase's strongest pattern: declarative tables in
   via `coach.meetBlockPlan` (strength-first backward fill, wave progression
   sampled, truncated volume lead-in via `block.weeks`, and the owner ruling
   that a 49-75 day meet gets AT MOST a 2-week accumulation phase; the plan
-  never extends past the meet); IQ3 1RM bounds 20..500 kg; IQ4 all-zero
+  never extends past the meet); IQ3 1RM bounds 20..500 kg (typed 0 = the
+  athlete moves only bodyweight, lands on the calibration path); IQ4 all-zero
   focus hard-blocked; IQ5 bodyweight required + 25..300 kg at EVERY
   bodyweight surface (onboarding welcome gate + the Phase & bodyweight
   screen). Tests: `test/master-coach.test.js` + the extended intake

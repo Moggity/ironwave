@@ -29,7 +29,9 @@ consult it instead of hardcoding their own idea of plausible.
 - **1RM plausibility, 20-500 kg** (`Engine.coach.checkMax`): onboarding
   maxes outside the band block program creation with the reason; blank
   still means calibrate in week 1 (intake-QA F3: 1000 kg was accepted, and
-  2 kg prescribed 0 kg x 5).
+  2 kg prescribed 0 kg x 5). A typed **0 is a legitimate answer**, not a
+  typo: the athlete moves only their bodyweight on that lift, and it lands
+  on the same calibration path (owner ruling).
 - **The all-zero focus is a hard block**, not a warning: every slider at 0
   refuses to continue instead of building a 0-exercise program (intake-QA
   F4), with its own banner replacing the misleading rebalance copy.
