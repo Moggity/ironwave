@@ -2367,6 +2367,14 @@ function timelineHTML(opts) {
 function openWeekPreview(bi, wi) {
   const p = P();
   const b = p.blocks[bi];
+  // [Tier debug] The preview resolves full prescriptions for ANY week, so an
+  // ungated tap on the dashboard timeline would leak the whole macro's coach
+  // output in free mode (the year-in-advance loophole, TB1/TB2 in
+  // docs/tier-usage-analysis.md). The timeline stays visible; the numbers do not.
+  if (!hasCoach()) {
+    showModal(anim => { $modal.innerHTML = modalShell(anim, t('preview.title'), coachLockHTML()); });
+    return;
+  }
   showModal(anim => {
     const days = p.days.map((d, di) => {
       const rows = d.slots.map(slot => {

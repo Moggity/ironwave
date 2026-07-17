@@ -252,8 +252,86 @@ first block-end any beta cohort reaches.
    now, so disagreements are one-line fixes today and contract disputes
    later.
 
+## 9. Adversarial pass (2026-07-17): loopholes and rulings
+
+Owner red-team directive after the debug slice shipped: "I could plan my
+training a year in advance and never pay." Correct — and worth a full
+sweep. Findings, each logged as a **TB** (tier boundary) hardening item in
+`docs/pending-future-work.md`.
+
+**The threat model, ruled first:** we enforce *casual honesty*, not DRM.
+Client-side JS (even minified) can be patched by a determined user; a
+percentage spreadsheet of any wave program is already free on the
+internet. What the paid tier sells that cannot be copied out is the
+**adaptation loop**: AMRAP-driven max corrections, weekly per-muscle
+autoreg, fatigue-sized deloads, recalibrating landmarks. A screenshot of
+week 37 taken on trial day 3 is stale the first time an AMRAP over- or
+under-shoots. Hardening therefore concentrates on ONE property — **coach
+value must stop accruing the moment entitlement lapses** — and stays
+proportionate everywhere else (never punishing the paying, offline
+athlete).
+
+The loopholes:
+
+1. **The year-in-advance dump (the owner's).** Prescriptions are computed
+   at render time (`resolveSlot`), so the program file does not contain a
+   year of numbers — but `openWeekPreview` resolves ANY block/week on
+   demand, and the dashboard timeline (visible in free mode) opened it.
+   **Fixed in this slice** (preview gated). Residual: an entitled trial
+   user can still tap through every week and screenshot. Bounded by the
+   staleness defense above; TB2 leaves a further product option (cap
+   detailed preview depth to the current block + next) as an owner call.
+2. **The brain must pause on lapse (TB1, the load-bearing item).** L4's
+   degraded mode must stop the WHOLE adaptation loop, not just hide
+   targets: no `advanceWeek` effects (no `updateAutoreg`, no WM
+   corrections from logged AMRAPs, no landmark recalibration, no deload
+   sizing) while un-entitled. Otherwise a lapsed user logs freely and the
+   engine keeps coaching silently — the exact value we sell, unpaid.
+   Records write; judgment sleeps; everything resumes cleanly on
+   re-entitlement. Also: degradation snapshots only the CURRENT week's
+   structure into routines — the rest of the macro stays stored (data is
+   never deleted) but renders locked, so a 52-week plan does not survive
+   lapse as a browsable coach artifact.
+3. **Entitlement must never ride the export (TB4).** The raw-JSON
+   export/import is free and sacred — so the entitlement cache (M3) and
+   any tier field must live in device-scoped storage (R1), never inside
+   `S`; production import sanitizes anything entitlement-shaped
+   (including `debugTier`). Otherwise import-a-crafted-JSON = free coach,
+   or a 7-day-grace loop via re-import.
+4. **The debug toggle itself (TB5).** Today Settings can flip anyone to
+   coach — correct for the prototype, a hole in a store build. M1's seam
+   swap must make production ignore `S.debugTier` entirely, and the
+   Settings section hides behind a dev/build flag.
+5. **Generation gates belong on functions, not buttons (TB3).**
+   `makeProgram` / `doNewProgram` / `programFromTemplate` /
+   `importTemplate` must check entitlement themselves: import paths
+   multiply (H7 template JSONs WILL circulate on Reddit), and a template
+   import that builds a prescribing program is generation by another
+   door. An imported template without entitlement lands as structure
+   (routines), not as a live coach program.
+6. **Picker intelligence leaks (TB6).** The swap/add pickers carry
+   coach-derived hints: SFR ordering, "adds <head>" gap hints, per-head
+   over-MRV warnings, time-cost tags against the cap. In free routine
+   editing (L2) those must element-gate away (plain browse/filter
+   remains), or the free tier quietly ships the landmark engine.
+7. **Ungated coach remnants (TB7).** `vReport` (macro report) is mapped
+   Coach but not yet gated (T3 gates it with the report card); the
+   week-boundary "feel" modal's next-week line and any receipt surfaces
+   from T1 must check the seam from birth.
+8. **Offline grace vs clock games (TB8).** The 7-day grace window keys
+   off a device-stored last-verified timestamp; treat a device clock
+   BEHIND the stored timestamp as expired-pending-check rather than
+   granting time. Proportionate: bounded theft is 7 days, and the
+   paying basement-gym athlete stays unharmed.
+
+Store-level trial farming (new accounts, refund cycling) is enforced by
+the stores' one-intro-offer-per-account machinery and stays out of scope.
+
 **The one-sentence version:** free is a perfect memory and coach is
 judgment; make every act of judgment visible as a receipt so the trial can
 prove what $79.99 buys, let the free user meet the coach only through
-honest moments on their own data, and keep the whole boundary behind one
-`hasCoach()` seam that the Settings debug toggle already flips today.
+honest moments on their own data, keep the whole boundary behind one
+`hasCoach()` seam that the Settings debug toggle already flips today, and
+harden exactly one property — judgment stops accruing the moment payment
+does — because the adaptation loop, not the numbers it prints, is the
+thing nobody can screenshot.

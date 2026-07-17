@@ -23,6 +23,13 @@ walkable in the prototype, before any billing exists.
   renders, byte-identical coach default). Golden master untouched; all
   changes are rendering-level. Both i18n catalogs extended (`tier.*`,
   `set.dev_tier*`). APP_VERSION and the shell cache bump to 1.17.0.
+- **Adversarial follow-up (same day):** the dashboard timeline stayed
+  visible in free mode but its taps opened `openWeekPreview`, which
+  resolves full prescriptions for ANY block/week — the whole macro's coach
+  output, ungated (the "plan a year in advance" loophole). The preview now
+  locks in free mode; the timeline itself stays visible. The full loophole
+  sweep and rulings live in `docs/tier-usage-analysis.md` section 9, logged
+  as hardening items TB1-TB8 in `docs/pending-future-work.md`.
 
 ## [Calendar training days + sport-day flag] (2026-07-16)
 
