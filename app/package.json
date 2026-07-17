@@ -23,7 +23,7 @@
     "vanilla-js"
   ],
   "author": "Martin Arocha",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "private": true,
   "dependencies": {
     "cors": "^2.8.5",

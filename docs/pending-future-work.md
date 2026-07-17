@@ -88,9 +88,13 @@ the file:line detail and the acceptance criteria.
 
 Derived future branches, in dependency order:
 
-- **Immediate one-commit fixes** (legal report items 1-2): delete the bundled
+- ~~**Immediate one-commit fixes** (legal report items 1-2): delete the bundled
   book PDF (+ owner decision on history rewrite) and replace the MIT license
-  with a proprietary notice. No code, no tests affected.
+  with a proprietary notice. No code, no tests affected.~~ DONE (2026-07-17):
+  PDF deleted, `app/LICENSE` is a proprietary all-rights-reserved notice,
+  `package.json` license is UNLICENSED, README footer updated. STILL OPEN for
+  the owner: the git-history rewrite decision (the PDF remains in history;
+  legal report recommends `git filter-repo` + force-push + re-clone).
 - **`legal-scrub` branch** (legal report items 3-5): athlete-facing string and
   label renames (i18n taglines, `program.methodology` label + one-line
   `migrateState` rename with a `migration.test.js` case, engine scheme `label`,
