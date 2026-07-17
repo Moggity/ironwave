@@ -121,6 +121,13 @@ Derived future branches, in dependency order:
   `docs/monetization-operations-report.md` M2). All slices additive;
   program path and golden master untouched; L1-L3 have no billing
   dependency and are startable now (they also serve self-hosted users):
+  - **L0. Tier debug harness** SHIPPED (2026-07-17, see CHANGELOG and
+    `docs/tier-usage-analysis.md`): `S.debugTier` + the `hasCoach()`
+    entitlement seam + Settings > Debug: tier preview + lock cards on the
+    coach screens (program, meet, volume, phase, landmark band) +
+    `test/tier-debug.test.js`. Every later L/M/T slice gates through
+    `hasCoach()` and tests through this toggle; M1 replaces only the
+    seam's body.
   - **L1. Freestyle session logging:** start an empty session, add
     exercises via the existing pickers, log through the existing perf
     modal into the same `S.records`/`S.sessions` shapes (`b/w/d` become
@@ -143,6 +150,18 @@ Derived future branches, in dependency order:
   - **L5. Boundary tests:** un-entitled render-smoke across all views;
     the monetization report's free/coach boundary table as an executable
     checklist (free surfaces reachable, coach surfaces gated).
+- **Tier value slices T1-T3** (read `docs/tier-usage-analysis.md` section 7
+  first; the "make the paid sub worth it" work): T1 decision receipts (no
+  silent decisions on the coach tier: AMRAP → WM change, autoreg
+  add/hold/cut via its existing `reasonKey`, deload timing/depth, injury
+  easing, all surfaced as short athlete-facing receipts at session time
+  and a week-boundary digest; `noteKey`/`noteParams` pattern, display-only,
+  golden-master-safe; land before the September beta so trial users SEE
+  the differentiator), T2 the plateau card on free data (pure seeded
+  helper over `e1rmTrend`, one dismissible card capped per ~5 weeks, free
+  mode only; the honest organic upsell), T3 the coach report card
+  (receipts ledger extending `macroReportHTML`; gate `vReport` behind
+  `hasCoach()` when it lands).
 - **Monetization slices M1-M8** (read
   `docs/monetization-operations-report.md` section 9 first; M1-M2 are pure
   repo work startable now, M3+ need R2's platform adapter; **M2 and M4 are

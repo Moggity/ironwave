@@ -94,6 +94,7 @@ const EXPORTS = `return {
   DEFAULT_ACC, SPLIT_FREQ, FOCUS_FACTOR, MOVEMENT_SLIDER,
   UPPER_MUSCLES, LOWER_MUSCLES, FOCUS_KEYS,
   t, I18N,
+  hasCoach, setDebugTier, coachLockHTML, vProgram,
   get S() { return S; }, set S(v) { S = v; },
   get V() { return V; }, set V(v) { V = v; },
 };`;

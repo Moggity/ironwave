@@ -1,5 +1,29 @@
 # IRONWAVE — Changelog
 
+## [Tier debug harness: free/coach preview] (2026-07-17)
+
+Groundwork for the commercial free-logger/paid-coach split (see
+`docs/tier-usage-analysis.md` for the full surface map): the tiers are now
+walkable in the prototype, before any billing exists.
+
+- **`hasCoach()` is the one entitlement seam.** Today it reads
+  `S.debugTier` (additive, backfilled to `'coach'` in `migrateState`, so
+  every existing save and the default render are byte-identical); the
+  monetization epic's M1 will swap its body for the billing adapter
+  without touching call sites.
+- **Settings > Debug: tier preview** (under the debug chime section): a
+  Coach/Free segment that persists, toasts the switch, and re-renders.
+- **Free mode locks the coach surfaces** with an honest lock card (no
+  blur): My Program, Meet day, the Weekly volume modal, the Phase &
+  bodyweight modal, and the Progress screen's landmark band (the e1RM
+  overlay, PR feed, and pump/recovery trends stay free). The dashboard
+  carries a banner naming the preview state. The logger-home half of the
+  free tier is Epic L, not this slice.
+- New `test/tier-debug.test.js` (migration backfill, seam flip, lock/free
+  renders, byte-identical coach default). Golden master untouched; all
+  changes are rendering-level. Both i18n catalogs extended (`tier.*`,
+  `set.dev_tier*`). APP_VERSION and the shell cache bump to 1.17.0.
+
 ## [Calendar training days + sport-day flag] (2026-07-16)
 
 Onboarding now asks WHICH days you train, not just how many (the
