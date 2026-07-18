@@ -157,7 +157,8 @@ Derived future branches, in dependency order:
     week after that is empty for manual Strong-style logging (L1).
     History/export untouched; re-subscribing re-engages the coach from
     stored state. Supersedes the earlier "your program, as routines"
-    snapshot design.
+    snapshot design. The detachment card also carries CS2's optional
+    churn micro-survey (support report, one enum tap, no free text).
   - **L5. Boundary tests:** un-entitled render-smoke across all views;
     the monetization report's free/coach boundary table as an executable
     checklist (free surfaces reachable, coach surfaces gated).
@@ -260,6 +261,18 @@ Derived future branches, in dependency order:
   HealthKit write-only via `Platform.health`, PD8 the store-form answer
   sheet + Sentry PII scrubbing + the breach runbook. Golden master
   untouched; the engine computes, it never phones.
+- **Support/community slices CS1-CS4** (read
+  `docs/support-community-report.md` sections 2-5 and 11 first; CS1 rides
+  productization and MUST be in the September beta build, CS2 rides Epic
+  L's L4, CS3 lands before the AN catalog's beta freeze, CS4 rides R9):
+  CS1 the in-app Help & Support screen (bundled FAQ both catalogs,
+  Contact composing email with the PD6 redacted diagnostic + version
+  prefilled, the honest one-person SLA line, policy + M6 subscription
+  links), CS2 the churn micro-survey as one optional enum tap on the L4
+  detachment card (no free text, once per lapse, `S.flags` timestamp),
+  CS3 two additive AN-catalog events pre-freeze (`support_opened(topic)`
+  for the deflection metric, `churn_reason(reason)`), CS4 release-notes
+  + FAQ-freshness lines on the R9 checklist. Golden master untouched.
 - **ASO instrumentation slice** (rides with or right after the productization
   epic; read `docs/aso-launch-report.md` section 9 first): real-time PR
   detection hook at set-log time (E1), the gated store-review prompt plumbing
@@ -345,10 +358,23 @@ Operators (launch-critical, in priority order):
    offers erasure, country-only GeoIP, versioned consent records).
    Engineer notes PD1-PD8 absorbed as the "Privacy/data-protection
    slices" derived branch above.
-6. **Support & community manager.** Review-response cadence (feeds ASO),
-   refund macros, bug triage SLAs, Discord, beta-cohort management.
-   **Inherits PD6 (the redacted diagnostic export) as the support
-   tooling baseline: support never receives raw state.**
+6. ~~**Support & community manager.**~~ DONE (2026-07-18):
+   `docs/support-community-report.md`. The last launch-critical
+   operator. Channel architecture (in-app Help & Support as the missing
+   deflection layer, one `support@` inbox, twice-weekly review window,
+   beta-only invite-first Discord with the public server gated on the
+   month-6 metrics), the support boundaries (no coaching or medical
+   advice from the inbox, MED-1 deflection per legal Domain G; no
+   billing arguments; PD6 diagnostic only, never raw state), the macro
+   library EN+ES, a P0/P1/P2 severity ladder aligned to the 48h hotfix
+   lane, reviews-as-roadmap operationalized (3+ mentions/month =
+   `[from-support]` roadmap line), and September beta-cohort management
+   as the support rehearsal. Challenges: public Discord at launch
+   rejected; support starts at beta so the help surface ships in the
+   beta build; the cancel survey moved in-product onto L4's detachment
+   card as an enum micro-survey; receipts (T1) claimed as support
+   infrastructure. Engineer notes CS1-CS4 absorbed as the
+   "Support/community slices" derived branch above.
 
 Credibility and coverage:
 
