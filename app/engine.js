@@ -946,8 +946,9 @@ Engine.schemeFor = function (block) {
    (Powerbuilding / unlimited-time) user, so legacy output is intact.
    ============================================================ */
 
-// Seed a fresh per-athlete landmark grid from the published RP grid, scaled by
-// training experience. Stored on profile.landmarks, then evolved over time.
+// Seed a fresh per-athlete landmark grid from the derived VOLUME_LANDMARKS
+// model, scaled by training experience. Stored on profile.landmarks, then
+// evolved over time until the seed is only a weak prior.
 Engine.seedLandmarks = function (experience) {
   const f = (typeof EXPERIENCE_FACTOR !== 'undefined' && EXPERIENCE_FACTOR[experience]) || 0.85;
   const out = {};
@@ -959,6 +960,15 @@ Engine.seedLandmarks = function (experience) {
     out[m] = { mv, mev, mrv };
   }
   return out;
+};
+
+// [B1/SS1] Step size for a block-end landmark recalibration. The default nudge
+// is 1 set per block; with strong evidence (at least 6 scoring sets logged for
+// the muscle this block AND a peak week that actually trained near the current
+// ceiling) the landmark moves 2, so the athlete's own data dominates the
+// seeded prior within about two mesos. Pure.
+Engine.landmarkStep = function (nScored, peakSets, mrv) {
+  return nScored >= 6 && peakSets >= mrv - 2 ? 2 : 1;
 };
 
 // [Cluster D] Classify a muscle's weekly working sets against its landmarks.

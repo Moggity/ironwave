@@ -1,5 +1,41 @@
 # IRONWAVE — Changelog
 
+## [The volume table is ours: parametric landmark derivation (B1 / SS1)] (2026-07-18)
+
+The first engine branch on the launch line (`docs/launch-roundtable-plan.md`
+Station B): the volume-landmark seed stops being a competitor's published
+grid and becomes the output of our own documented model. Legal report item 6;
+promoted to a September-beta gate by the paywall-cynic report (CYN4).
+
+- **`VOLUME_LANDMARKS` is now derived, not copied** (`data.js`): each muscle
+  carries two traits (`LANDMARK_TRAITS`) — a *need* class (high 10 /
+  moderate 8 / low 6 / covered 0 direct weekly sets, covered reserved for
+  muscles the compounds train indirectly: glutes, abs, low back) and a
+  *recovery* class (MRV span +14 / +12 / +10). MEV = need, MV = 0.6 x MEV,
+  MRV = MEV + span, all snapped to a 2-set grid. Every value sits inside
+  the consensus dose-response reading; every triple differs from the
+  retired seed. The old SOURCE comment is gone with the table it described.
+- **The divergence contract is a test** (`test/landmark-divergence.test.js`):
+  no muscle's (mv, mev, mrv) may equal the retired external triple, every
+  value must be reproducible from the trait tables (hand-tweaks that bypass
+  the model fail CI), and the consensus bounds are asserted. This is the
+  automated proof Gate 4 and CYN4 asked for.
+- **The seed matters less** (SS1 step 3): block-end recalibration now steps
+  a landmark **2 sets instead of 1 on strong evidence** — at least 6 scoring
+  sets for the muscle that block AND a peak week within 2 sets of the
+  current ceiling (`Engine.landmarkStep`, pure + unit-tested;
+  `recalibrateLandmarks` tallies peak achieved weekly sets with the same
+  synergist attribution as the volume bars). Athlete data dominates the
+  prior within about two mesos.
+- **Existing athletes are untouched**: evolved `profile.landmarks` are never
+  migrated; only fresh seeds and `VOLUME_LANDMARKS` fallbacks change.
+  `EXPERIENCE_FACTOR` and the `seedLandmarks` floors stay as they were.
+- **Golden master: deliberately regenerated, byte-identical.** The seed
+  feeds the bodybuilding volume machinery, not default Powerbuilding slot
+  output. Full suite green (490 tests).
+- Owner review sheet: `docs/landmark-derivation-note.md` (the Gate 4
+  before/after, per muscle, with reasoning).
+
 ## [The master coach: intake plausibility + arbitrated meet plans (Epic I5)] (2026-07-17)
 
 From the intake-QA findings F1-F5 and the owner rulings of 2026-07-17. The

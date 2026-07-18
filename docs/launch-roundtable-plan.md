@@ -199,10 +199,14 @@ start until some of it exists. Step by step:
 The last training-engine work before the platform push. Order
 matters; each is one branch.
 
-- **B1. The volume-table replacement** (landmark-seed migration, SS1
-  methodology; the only step that changes default training output —
-  regenerated golden master, reviewed diff, divergence test proving
-  the new numbers are ours). Gates the beta AND creator outreach.
+- ~~**B1. The volume-table replacement**~~ DONE (2026-07-18): landmark
+  seed derived from our own trait model, divergence test green on every
+  build, faster recalibration, comment scrub. Golden master regenerated
+  deliberately and came back byte-identical (the seed feeds bodybuilding
+  volume machinery, not default slot output — the "changes default
+  output" expectation did not materialize, which only makes Gate 4
+  easier). Review sheet: `docs/landmark-derivation-note.md`. **Gate 4
+  is now waiting on the owner.**
 - **B2. The wording scrub** (legal-scrub branch: competitor names and
   borrowed phrasing out of athlete-facing strings, comments, README;
   grep-gate green; golden master byte-identical by construction).

@@ -1401,27 +1401,54 @@ const MOVEMENT_SLIDER = (() => {
   return m;
 })();
 
-// Per-muscle weekly working-set landmarks. SOURCE: Renaissance Periodization's
-// classic published "Training Tips for Hypertrophy" grid (rpstrength.com),
-// EXTERNAL to the 2020 book. Intermediate/advanced baseline; used only as a
-// SEED — each athlete's evolving copy lives in profile.landmarks (see engine.js).
-const VOLUME_LANDMARKS = {
-  chest:     { mv: 8, mev: 10, mrv: 22 },
-  vpull:     { mv: 8, mev: 10, mrv: 25 },   // RP "Back" applied across the back movements
-  hpull:     { mv: 8, mev: 10, mrv: 25 },
-  upperback: { mv: 8, mev: 10, mrv: 25 },
-  quad:      { mv: 6, mev: 8,  mrv: 20 },
-  ham:       { mv: 4, mev: 6,  mrv: 20 },
-  glute:     { mv: 0, mev: 0,  mrv: 16 },   // MEV 0: covered indirectly by squats/deadlifts
-  bicep:     { mv: 4, mev: 8,  mrv: 26 },
-  tricep:    { mv: 4, mev: 6,  mrv: 18 },
-  shoulder:  { mv: 6, mev: 8,  mrv: 26 },   // side delts (main aesthetic head)
-  calf:      { mv: 6, mev: 8,  mrv: 20 },
-  abs:       { mv: 0, mev: 0,  mrv: 25 },   // MEV 0: covered by bracing on compounds
-  lowback:   { mv: 0, mev: 0,  mrv: 12 },   // covered by squats/deadlifts; rarely direct
+// Per-muscle weekly working-set landmarks (MV maintenance / MEV minimum
+// effective / MRV maximum recoverable). Derived from our own coarse parametric
+// model of two muscle traits, not from any published table:
+//   need     - direct weekly sets where growth reliably starts, set by muscle
+//              size AND how much the big compounds already cover it (high 10,
+//              moderate 8, low 6; covered 0 for muscles the main lifts train
+//              indirectly every week - see SYNERGIST_COVERAGE).
+//   recovery - how wide the productive window stretches above MEV before
+//              recoverable capacity runs out (fast +14, medium +12, slow +10;
+//              axially/systemically fatiguing work is slow, and heavy indirect
+//              volume from the compounds also consumes the window).
+// From the traits: MEV = need, MV = 0.6 x MEV, MRV = MEV + recovery span, all
+// snapped to a 2-set grid. The consensus dose-response reading bounds every
+// output (a handful of weekly sets maintains, roughly 8-12 is a solid growth
+// default, past ~20-25 returns diminish for most). Used only as a SEED - each
+// athlete's evolving copy lives in profile.landmarks (see engine.js) and the
+// block-end recalibration lets logged data dominate this prior within about
+// two mesos. test/landmark-divergence.test.js asserts the derivation stays
+// ours: no muscle's triple may equal the retired external seed.
+const LANDMARK_NEED = { high: 10, moderate: 8, low: 6, covered: 0 };
+const LANDMARK_SPAN = { fast: 14, medium: 12, slow: 10 };
+const LANDMARK_TRAITS = {
+  chest:     { need: 'high',     recovery: 'medium' }, // big mover; pressing is locally costly
+  vpull:     { need: 'high',     recovery: 'fast' },   // lats/back tolerate volume well
+  hpull:     { need: 'high',     recovery: 'fast' },
+  upperback: { need: 'high',     recovery: 'fast' },
+  quad:      { need: 'moderate', recovery: 'slow' },   // squatting is systemically expensive
+  ham:       { need: 'low',      recovery: 'slow' },   // hinges cover much of it; axial cost
+  glute:     { need: 'covered',  recovery: 'fast' },   // squats/hinges train it weekly
+  bicep:     { need: 'moderate', recovery: 'fast' },   // rows do NOT cover it; small, quick to recover
+  tricep:    { need: 'low',      recovery: 'slow' },   // heavy indirect work from all pressing
+  shoulder:  { need: 'moderate', recovery: 'fast' },   // side delts (main aesthetic head)
+  calf:      { need: 'moderate', recovery: 'medium' },
+  abs:       { need: 'covered',  recovery: 'fast' },   // bracing on every compound
+  lowback:   { need: 'covered',  recovery: 'slow' },   // erectors: covered, slow to recover
 };
+const VOLUME_LANDMARKS = (() => {
+  const snap2 = x => 2 * Math.round(x / 2);
+  const out = {};
+  for (const m in LANDMARK_TRAITS) {
+    const mev = LANDMARK_NEED[LANDMARK_TRAITS[m].need];
+    out[m] = { mv: snap2(mev * 0.6), mev, mrv: mev + LANDMARK_SPAN[LANDMARK_TRAITS[m].recovery] };
+  }
+  return out;
+})();
 
-// Seeds the landmark grid by training experience (the RP grid is intermediate+).
+// Seeds the landmark grid by training experience (the derived grid above is an
+// intermediate/advanced baseline).
 const EXPERIENCE_FACTOR = { beginner: 0.65, intermediate: 0.85, advanced: 1.0 };
 
 // Movement categories a compound already trains indirectly, with a coverage

@@ -3228,17 +3228,39 @@ function recalibrateLandmarks(blockIdx) {
       }
     }
   }
+  // [B1/SS1] Peak achieved weekly sets per landmark muscle this block: evidence
+  // that the current ceiling was actually tested. Done non-warmup sets, direct
+  // or synergist-fractional, mirroring weeklyVolumeByMuscle's attribution.
+  const wkVol = {};
+  for (const s of sessions) for (const e of s.entries) {
+    const ex = exById(e.exId);
+    if (!ex || !e.sets) continue;
+    const n = e.sets.filter(st => st.done && !st.ramp).length;
+    if (!n) continue;
+    const t = wkVol[s.w] = wkVol[s.w] || {};
+    const add = (m, v) => { if (lm[m]) t[m] = (t[m] || 0) + v; };
+    if (lm[ex.movement]) add(ex.movement, n);
+    else {
+      const cov = SYNERGIST_COVERAGE[ex.movement];
+      if (cov) for (const m in cov) add(m, n * cov[m]);
+    }
+  }
+  const peak = {};
+  for (const w in wkVol) for (const m in wkVol[w]) peak[m] = Math.max(peak[m] || 0, wkVol[w][m]);
   for (const mv in agg) {
     if (agg[mv].n < 3) continue;                       // not enough signal to move a landmark
     const delta = agg[mv].sum / agg[mv].n;             // <0 easier than target, >0 harder
     const L = lm[mv];
     const seed = VOLUME_LANDMARKS[mv] || L;
     const ceil = Math.round(seed.mrv * 1.4);           // do not let it run away
+    // [B1/SS1] Strong signal moves the landmark 2 sets instead of 1, so the
+    // athlete's own data dominates the seeded prior within about two mesos.
+    const step = Engine.landmarkStep(agg[mv].n, peak[mv] || 0, L.mrv);
     if (delta <= 0.5 && !down) {                        // tolerated: room to grow
-      L.mrv = Math.min(ceil, L.mrv + 1);
+      L.mrv = Math.min(ceil, L.mrv + step);
       if (L.mrv - L.mev > 12) L.mev = L.mev + 1;        // let the productive window follow up slowly
     } else if (delta >= 1.0 || down) {                  // overreached: back off
-      L.mrv = Math.max(L.mev + 1, L.mrv - 1);
+      L.mrv = Math.max(L.mev + 1, L.mrv - step);
     }
   }
   logLandmarkSnapshot(blockIdx); // [Epic H3] after evolution: the values now in force
