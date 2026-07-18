@@ -109,7 +109,9 @@ Derived future branches, in dependency order:
   master; regenerate deliberately and review the diff.
 - **Productization epic** (marketing v2 section 2): Capacitor store wrap (local
   assets, push, haptics, HealthKit export; guideline 4.2 mitigations), accounts
-  + sync (Supabase; the Express/`database.json` layer maps onto Postgres),
+  + sync (Supabase; the Express/`database.json` layer maps onto Postgres —
+  amended by the privacy report: accounts OPTIONAL, sync opt-in as one
+  consented RLS blob row, never a relational mirror of training data; PD4),
   RevenueCat subscriptions, share cards, PR-moment ratings prompt, staged
   one-question-per-screen onboarding with the generated-split reveal, minified
   store bundle (also legal hygiene: comments must not ship). Extends the
@@ -155,7 +157,8 @@ Derived future branches, in dependency order:
     week after that is empty for manual Strong-style logging (L1).
     History/export untouched; re-subscribing re-engages the coach from
     stored state. Supersedes the earlier "your program, as routines"
-    snapshot design.
+    snapshot design. The detachment card also carries CS2's optional
+    churn micro-survey (support report, one enum tap, no free text).
   - **L5. Boundary tests:** un-entitled render-smoke across all views;
     the monetization report's free/coach boundary table as an executable
     checklist (free surfaces reachable, coach surfaces gated).
@@ -182,7 +185,10 @@ Derived future branches, in dependency order:
   easing, all surfaced as short athlete-facing receipts at session time
   and a week-boundary digest; `noteKey`/`noteParams` pattern, display-only,
   golden-master-safe; land before the September beta so trial users SEE
-  the differentiator), T2 the plateau card on free data (pure seeded
+  the differentiator; acceptance criteria extended by the analytics
+  report section 8: every receipt carries a `kind` and increments
+  countable session/week counters, so receipt exposure vs trial
+  conversion is measurable from birth, the AN3 coordination), T2 the plateau card on free data (pure seeded
   helper over `e1rmTrend`, one dismissible card capped per ~5 weeks, free
   mode only; the honest organic upsell), T3 the coach report card
   (receipts ledger extending `macroReportHTML`; gate `vReport` behind
@@ -199,7 +205,9 @@ Derived future branches, in dependency order:
   the seam with a 7-day offline entitlement grace, M4 the paywall surface
   (reveal + coach touchpoints, "continue free" always visible), M5 the
   day-12 trial reminder over R5 notifications, M6 the settings subscription
-  section, M7 minimal funnel events, M8 the stubbed web win-back seam.
+  section, M7 minimal funnel events (client half superseded by analytics
+  slice AN3; the no-duplicate-purchase-tracking rule stands), M8 the
+  stubbed web win-back seam.
   Golden master untouched.
 - **Release engineering slices R1-R9** (read
   `docs/release-engineering-report.md` section 10 first; R1-R3 need no store
@@ -213,8 +221,58 @@ Derived future branches, in dependency order:
   native projects, Android back button through `MSTACK`, splash/status
   bar), R5 local notifications for the rest timer, R6 native media pipeline
   (remote host + Filesystem capped cache), R7 Sentry crash/vitals, R8
-  HealthKit export, R9 pre-submission checklist automation. Nothing touches
+  HealthKit export (write-only per privacy report PD7), R9 pre-submission
+  checklist automation. Nothing touches
   prescription; golden master untouched.
+- **Analytics instrumentation slices AN1-AN6** (read
+  `docs/analytics-instrumentation-report.md` sections 5-6 and 11 first;
+  AN1 is pure adapter work startable with R2, AN2-AN4 ride productization
+  alongside R4-R7 / M3-M4, AN6 rides R9 before the September beta): AN1
+  `Platform.analytics` face + the closed event catalog with dev-time
+  validation and the banned-property health-data lint (web/self-hosted =
+  permanent no-op, so prototype and tests never phone home), AN2 the
+  consent gate (opt-in before SDK init, device-scoped storage, never in
+  `S`), AN3 lifecycle/funnel instrumentation (onboarding steps keyed by
+  `TRACK_SPEC.obSteps`, session lifecycle on `finishSession`, receipt
+  counters coordinated with T1, lock/plateau events, review-prompt yield;
+  supersedes M7's client half), AN4 the pseudonymous install-ID join
+  across PostHog/RevenueCat/Sentry with aliasing at account creation, AN5
+  the metrics dictionary + gate-scoreboard dashboards, AN6 the beta
+  dress-rehearsal checklist with a schema freeze at beta. Amends the
+  pre-committed gates (retention gates added, WAU defined, attribution =
+  ASA + Play referrer + offer codes, no MMP) and raises R7's SDK ceiling
+  to exactly three (Sentry, PostHog, RevenueCat). Golden master untouched;
+  engine stays analytics-blind.
+- **Privacy/data-protection slices PD1-PD8** (read
+  `docs/privacy-data-protection-report.md` sections 2-4 and 12 first; PD1
+  is pure repo work startable now and useful to the prototype, PD2-PD3
+  ride productization's onboarding/consent surface, PD4-PD5 ride the
+  Supabase epic, PD7 rides R8, PD8 rides R9): PD1 local erase ("Delete
+  all data on this device") + the living `docs/data-inventory.md` with a
+  CI test that every top-level `S` key is classified, PD2 onboarding
+  minimization (typed name optional) + the 16+ no-DOB age gate via
+  `TRACK_SPEC.obSteps` (re-run the intake-QA battery), PD3 consent
+  orchestration + Settings > Privacy (wires AN2; withdrawal offers
+  analytics-data deletion), PD4 sync as one consented RLS blob row the
+  server never parses (binding constraint on the Supabase epic; accounts
+  stay optional) + dormant-account deletion, PD5 in-app account deletion
+  + DSR wiring (Apple 5.1.1(v) review blocker), PD6 the redacted
+  diagnostic export for support (no H-class fields, no free text), PD7
+  HealthKit write-only via `Platform.health`, PD8 the store-form answer
+  sheet + Sentry PII scrubbing + the breach runbook. Golden master
+  untouched; the engine computes, it never phones.
+- **Support/community slices CS1-CS4** (read
+  `docs/support-community-report.md` sections 2-5 and 11 first; CS1 rides
+  productization and MUST be in the September beta build, CS2 rides Epic
+  L's L4, CS3 lands before the AN catalog's beta freeze, CS4 rides R9):
+  CS1 the in-app Help & Support screen (bundled FAQ both catalogs,
+  Contact composing email with the PD6 redacted diagnostic + version
+  prefilled, the honest one-person SLA line, policy + M6 subscription
+  links), CS2 the churn micro-survey as one optional enum tap on the L4
+  detachment card (no free text, once per lapse, `S.flags` timestamp),
+  CS3 two additive AN-catalog events pre-freeze (`support_opened(topic)`
+  for the deflection metric, `churn_reason(reason)`), CS4 release-notes
+  + FAQ-freshness lines on the R9 checklist. Golden master untouched.
 - **ASO instrumentation slice** (rides with or right after the productization
   epic; read `docs/aso-launch-report.md` section 9 first): real-time PR
   detection hook at set-log time (E1), the gated store-review prompt plumbing
@@ -270,16 +328,78 @@ Operators (launch-critical, in priority order):
    grandfathered price-raise path), sandbox testing + the gate metrics.
    Engineer notes M1-M8 absorbed as the "Monetization slices" derived
    branch above; engine stays billing-blind.
-4. **Analytics / instrumentation specialist.** Event schema BEFORE launch so
-   the kill/scale gates are measurable (cost-per-trial, trial-to-paid,
-   month-1 cancel), retention cohorts, PostHog setup, privacy-respecting
-   defaults.
-5. **Privacy / data-protection specialist.** GDPR/CCPA for accounts + sync,
-   Apple privacy nutrition labels / Play data-safety forms, health-adjacent
-   data handling, export/deletion flows. Complements the legal report's IP
-   focus.
-6. **Support & community manager.** Review-response cadence (feeds ASO),
-   refund macros, bug triage SLAs, Discord, beta-cohort management.
+4. ~~**Analytics / instrumentation specialist.**~~ DONE (2026-07-18):
+   `docs/analytics-instrumentation-report.md`. The four data planes with
+   one source of truth each (store consoles / RevenueCat / PostHog Cloud
+   EU / Sentry; auto-capture and replay permanently off; no MMP), a
+   closed sub-25-event schema with a banned-property health-data
+   exclusion rule, one pseudonymous install ID joining all three SDKs,
+   consent-before-init with the prototype shipping zero analytics
+   forever, and a gate audit that found three gates unmeasurable as
+   ruled plus NO retention gate at all — amended with a WAU definition,
+   free-cohort week-4 and coach-cohort week-5 retention gates, and the
+   receipt-exposure leading indicator (the T1 conversion hypothesis made
+   testable). Engineer notes AN1-AN6 absorbed as the "Analytics
+   instrumentation slices" derived branch above; M7's client half is
+   superseded by AN3; R7's one-SDK ceiling is amended to exactly three.
+5. ~~**Privacy / data-protection specialist.**~~ DONE (2026-07-18):
+   `docs/privacy-data-protection-report.md`. Turns the legal report's
+   Domain D obligations into architecture: the data inventory with an
+   H/P/T/D classification of every persisted field (typed name,
+   bodyweight, phase, check-ins incl. sleep and injuries, free-text
+   notes), the on-device-by-default ruling (accounts OPTIONAL, sync as
+   an opt-in versioned blob the server never parses, E2EE consciously
+   deferred with the upgrade path preserved), unbundled consent
+   choreography (analytics opt-in, sync consent as the Art. 9 moment,
+   in-context notifications, never ATT), rights machinery (local erase,
+   in-app account deletion, export), retention schedule, HealthKit
+   write-only, the 16+ no-DOB age gate, the Brazil/PT scoping decision,
+   and the audit of the analytics report's §6 (endorsed; withdrawal
+   offers erasure, country-only GeoIP, versioned consent records).
+   Engineer notes PD1-PD8 absorbed as the "Privacy/data-protection
+   slices" derived branch above.
+6. ~~**Support & community manager.**~~ DONE (2026-07-18):
+   `docs/support-community-report.md`. The last launch-critical
+   operator. Channel architecture (in-app Help & Support as the missing
+   deflection layer, one `support@` inbox, twice-weekly review window,
+   beta-only invite-first Discord with the public server gated on the
+   month-6 metrics), the support boundaries (no coaching or medical
+   advice from the inbox, MED-1 deflection per legal Domain G; no
+   billing arguments; PD6 diagnostic only, never raw state), the macro
+   library EN+ES, a P0/P1/P2 severity ladder aligned to the 48h hotfix
+   lane, reviews-as-roadmap operationalized (3+ mentions/month =
+   `[from-support]` roadmap line), and September beta-cohort management
+   as the support rehearsal. Challenges: public Discord at launch
+   rejected; support starts at beta so the help surface ships in the
+   beta build; the cancel survey moved in-product onto L4's detachment
+   card as an enum micro-survey; receipts (T1) claimed as support
+   infrastructure. Engineer notes CS1-CS4 absorbed as the
+   "Support/community slices" derived branch above.
+
+**Synergy re-pass (owner directive 2026-07-18, do after the credibility
+tier or before the September beta, whichever comes first):** re-consult
+the first three operators (ASO, release engineering, monetization) as
+short delta reviews now that consultations 4-6 amended their plans after
+the fact. Each re-pass reads its original report plus the later reports'
+challenge ledgers and answers only: what changes, what breaks, what new
+synergy exists. Known agenda per persona: **ASO** — accounts now optional
+(a "no account needed" honesty line is store-listing copy; does it join
+the first-three-lines pitch?), the deflection/help surface and review
+macros feeding the ratings loop, the privacy-forward posture ("data
+never leaves your phone") as a differentiating keyword/screenshot angle,
+CS4's what's-new discipline. **Release engineering** — the SDK ceiling
+raised to three (R7 wording), HealthKit narrowed to write-only (R8),
+consent screens + age gate joining the first-run sequence (R4 wrap
+scope), CS1 in the beta build, the R9 checklist grown (PD8 labels, AN6
+dress rehearsal, CS4 notes), iOS file-protection class on R1's state
+file. **Monetization** — M7's client half superseded by AN3, the cancel
+survey relocated to L4's card (CS2), accounts-optional restore flows
+(purchases without login), the receipts-as-deflection dependency (T1
+before beta now has three reports leaning on it), and whether the
+paywall's free-tier line item list should name the privacy posture.
+Deltas land as amendments inside the ORIGINAL reports (dated, like the
+monetization M2 amendment), not as new documents; strike this paragraph
+when all three are done.
 
 Credibility and coverage:
 
