@@ -109,7 +109,9 @@ Derived future branches, in dependency order:
   master; regenerate deliberately and review the diff.
 - **Productization epic** (marketing v2 section 2): Capacitor store wrap (local
   assets, push, haptics, HealthKit export; guideline 4.2 mitigations), accounts
-  + sync (Supabase; the Express/`database.json` layer maps onto Postgres),
+  + sync (Supabase; the Express/`database.json` layer maps onto Postgres —
+  amended by the privacy report: accounts OPTIONAL, sync opt-in as one
+  consented RLS blob row, never a relational mirror of training data; PD4),
   RevenueCat subscriptions, share cards, PR-moment ratings prompt, staged
   one-question-per-screen onboarding with the generated-split reveal, minified
   store bundle (also legal hygiene: comments must not ship). Extends the
@@ -218,7 +220,8 @@ Derived future branches, in dependency order:
   native projects, Android back button through `MSTACK`, splash/status
   bar), R5 local notifications for the rest timer, R6 native media pipeline
   (remote host + Filesystem capped cache), R7 Sentry crash/vitals, R8
-  HealthKit export, R9 pre-submission checklist automation. Nothing touches
+  HealthKit export (write-only per privacy report PD7), R9 pre-submission
+  checklist automation. Nothing touches
   prescription; golden master untouched.
 - **Analytics instrumentation slices AN1-AN6** (read
   `docs/analytics-instrumentation-report.md` sections 5-6 and 11 first;
@@ -239,6 +242,24 @@ Derived future branches, in dependency order:
   ASA + Play referrer + offer codes, no MMP) and raises R7's SDK ceiling
   to exactly three (Sentry, PostHog, RevenueCat). Golden master untouched;
   engine stays analytics-blind.
+- **Privacy/data-protection slices PD1-PD8** (read
+  `docs/privacy-data-protection-report.md` sections 2-4 and 12 first; PD1
+  is pure repo work startable now and useful to the prototype, PD2-PD3
+  ride productization's onboarding/consent surface, PD4-PD5 ride the
+  Supabase epic, PD7 rides R8, PD8 rides R9): PD1 local erase ("Delete
+  all data on this device") + the living `docs/data-inventory.md` with a
+  CI test that every top-level `S` key is classified, PD2 onboarding
+  minimization (typed name optional) + the 16+ no-DOB age gate via
+  `TRACK_SPEC.obSteps` (re-run the intake-QA battery), PD3 consent
+  orchestration + Settings > Privacy (wires AN2; withdrawal offers
+  analytics-data deletion), PD4 sync as one consented RLS blob row the
+  server never parses (binding constraint on the Supabase epic; accounts
+  stay optional) + dormant-account deletion, PD5 in-app account deletion
+  + DSR wiring (Apple 5.1.1(v) review blocker), PD6 the redacted
+  diagnostic export for support (no H-class fields, no free text), PD7
+  HealthKit write-only via `Platform.health`, PD8 the store-form answer
+  sheet + Sentry PII scrubbing + the breach runbook. Golden master
+  untouched; the engine computes, it never phones.
 - **ASO instrumentation slice** (rides with or right after the productization
   epic; read `docs/aso-launch-report.md` section 9 first): real-time PR
   detection hook at set-log time (E1), the gated store-review prompt plumbing
@@ -308,13 +329,26 @@ Operators (launch-critical, in priority order):
    testable). Engineer notes AN1-AN6 absorbed as the "Analytics
    instrumentation slices" derived branch above; M7's client half is
    superseded by AN3; R7's one-SDK ceiling is amended to exactly three.
-5. **Privacy / data-protection specialist.** GDPR/CCPA for accounts + sync,
-   Apple privacy nutrition labels / Play data-safety forms, health-adjacent
-   data handling, export/deletion flows. Complements the legal report's IP
-   focus. **Primary audit artifact: the analytics report's §6 privacy
-   rules and event schema (consultation #4 sequenced this handoff).**
+5. ~~**Privacy / data-protection specialist.**~~ DONE (2026-07-18):
+   `docs/privacy-data-protection-report.md`. Turns the legal report's
+   Domain D obligations into architecture: the data inventory with an
+   H/P/T/D classification of every persisted field (typed name,
+   bodyweight, phase, check-ins incl. sleep and injuries, free-text
+   notes), the on-device-by-default ruling (accounts OPTIONAL, sync as
+   an opt-in versioned blob the server never parses, E2EE consciously
+   deferred with the upgrade path preserved), unbundled consent
+   choreography (analytics opt-in, sync consent as the Art. 9 moment,
+   in-context notifications, never ATT), rights machinery (local erase,
+   in-app account deletion, export), retention schedule, HealthKit
+   write-only, the 16+ no-DOB age gate, the Brazil/PT scoping decision,
+   and the audit of the analytics report's §6 (endorsed; withdrawal
+   offers erasure, country-only GeoIP, versioned consent records).
+   Engineer notes PD1-PD8 absorbed as the "Privacy/data-protection
+   slices" derived branch above.
 6. **Support & community manager.** Review-response cadence (feeds ASO),
    refund macros, bug triage SLAs, Discord, beta-cohort management.
+   **Inherits PD6 (the redacted diagnostic export) as the support
+   tooling baseline: support never receives raw state.**
 
 Credibility and coverage:
 
