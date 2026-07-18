@@ -158,7 +158,11 @@ Derived future branches, in dependency order:
   - **L3. Program-less app shell:** `!P()` renders a logger home
     (routines + start-empty-session + history) instead of forcing
     onboarding; the quiz becomes the coach's front door, reachable but
-    not mandatory. Render-smoke covers every view program-less.
+    not mandatory. Render-smoke covers every view program-less. Born
+    accessible (panel #8): the ACC1 announcer and ACC2 modal contract
+    are L3 prerequisites, render-smoke asserts dialog semantics on the
+    new surfaces, and the VoiceOver logging-loop pass runs at this
+    boundary (owner ruling pending, challenge 9), not as a retrofit.
   - **L4. Tier transitions (owner ruling 2026-07-17: full detachment):**
     onboarding's "continue free" lands in L3 keeping the quiz answers for
     later. On subscription lapse the logger detaches from the coach
@@ -206,7 +210,13 @@ Derived future branches, in dependency order:
   sports-science audit: SS7's receipts language contract governs every
   receipt string — athlete's own data first, app rules owned as app
   rules, hedged or absent mechanisms, never diagnostic — enforced by a
-  banned-vocabulary lint test), T2 the plateau card on free data (pure seeded
+  banned-vocabulary lint test; and by athlete panel #8: every receipt
+  is announceable via the ACC1 aria-live announcer and persists on a
+  card surface (toasts alone do not satisfy no-silent-decisions and
+  corrupt AN3's exposure metric), receipt strings are authored in BOTH
+  catalogs in the same PR with the SS7 lint running on es.js too, and
+  small-load correctness (FPL1/FPL3 + SS3) gates receipt credibility
+  for light lifters), T2 the plateau card on free data (pure seeded
   helper over `e1rmTrend`, one dismissible card capped per ~5 weeks, free
   mode only; the honest organic upsell), T3 the coach report card
   (receipts ledger extending `macroReportHTML`; gate `vReport` behind
@@ -261,7 +271,11 @@ Derived future branches, in dependency order:
   comments-must-not-ship fix; fails on a fourth SDK in native lockfiles),
   R4 the Capacitor wrap branch (committed
   native projects, Android back button through `MSTACK`, splash/status
-  bar; first-run scope grown, see R10), R5 local notifications for the
+  bar; first-run scope grown, see R10; also owns the WebView a11y
+  bridge per panel #8: the text-scale submission gate — OS scaling
+  works or an in-app text-size setting ships in the same build — iOS
+  Dynamic Type / Android fontScale mapped onto the rem root, and the
+  textZoom double-scale check), R5 local notifications for the
   rest timer, R6 native media pipeline
   (remote host + Filesystem capped cache), R7 Sentry crash/vitals
   (ceiling: exactly THREE shipped SDKs — Sentry, PostHog, RevenueCat —
@@ -494,13 +508,31 @@ Credibility and coverage:
    legal-scrub, Cluster C/E, Epic I5, T1, and the tuning list; owner
    decisions pending on SS3 (advisory WM-raise cross-check), SS6, SS8
    (beginner + lean-asap confirm-gate), and the copy reframes.
-8. **Athlete panel round-out** (three more simulated athletes): a woman
-   entering powerlifting (S3, the fastest-growing segment), a LatAm
-   Spanish-speaking lifter (run in Spanish against the es.js catalog, not
-   translated), and an accessibility-constrained user (VoiceOver, large
-   text, motor precision). Brief the panel from the sports-science
-   report's female/masters science questions (its section on gaps) so
-   the panel tests the science, not just the UI.
+8. ~~**Athlete panel round-out**~~ DONE (2026-07-18):
+   `docs/athlete-panel-roundout-report.md`. Three simulated athletes,
+   all three would pay for the coach, all three found the same law: the
+   engine's core is excellent and its failures live where the implicit
+   default athlete ends. The S3 powerlifter (63 kg) verified her press
+   wave prescribes loads below the empty 20 kg bar that `plateMath`
+   silently "achieves" (her deload does not exist), rounding collapses
+   her progression, meet attempts degenerate at her numbers, and the
+   20 kg 1RM floor rejects real athletes; she ANSWERS the sports-science
+   female briefing: keep no sex input (the self-referential engine is
+   the right architecture), fix the male-scale absolute defaults. The
+   es-MX lifter rules the Spanish register launch-grade (two notches
+   above Hevy) but inventories English leaks (history block labels,
+   superset toasts, "Meet taper", `<html lang>`) and accent-blind
+   alias-less search. The accessibility lifter found unusually good
+   bones (real buttons, 64px steppers, ghost-tap guard) behind four
+   structural blockers: full-render focus loss after every logged set,
+   zero aria-live regions (every coach decision is inaudible), no modal
+   semantics, and disabled text scaling. All three converge on T1:
+   receipts need small-load correctness, native Spanish in the same PR,
+   and an announceable persistent surface. Engineer notes FPL1-9 /
+   ESM1-9 / ACC1-8 absorbed below (Athlete panel roadmap section, the
+   i18n queue, T1, L3, R4); a 10-item challenge ledger awaits owner
+   rulings (Musculación before the ES listing, text scaling as a
+   submission gate, the T1 channel, the 1RM floor).
 
 Adversaries worth simulating:
 
@@ -1222,6 +1254,58 @@ Suggested order: H1 -> H2 -> H3 -> H4, then H5 (physique track) and H6
 (strength track) as parallel efforts, then H7; H8 runs alongside whenever
 assets exist. One epic per branch group, one slice per branch, as usual.
 
+## Athlete panel roadmap (panel #8, 2026-07-18)
+
+Source: `docs/athlete-panel-roundout-report.md` (three simulated
+athletes completing the panel started by the H-epics simulation). The
+ESM series (Spanish product) lives in the i18n queue as its item 6; the
+other two groups land here. Standing constraints as always: additive,
+both catalogs, golden master untouched (every panel note is
+display/coach-rule/markup-side).
+
+- **Small-load correctness group (FPL1-FPL9, the S3 fix; the paid tier
+  is not defensible to the sport's fastest-growing segment without
+  it):** FPL1 below-bar guard (an `Engine.coach` rule + session/plate
+  warning when a prescribed barbell load rounds below `barWeight`,
+  offering the lighter bar or a swap, never silently loading the empty
+  bar; rides Epic I5), FPL2 the onboarding equipment micro-step (bar
+  weight + smallest plate; 15 kg bar preset; 0.5 kg microplates in the
+  presets and rounding), FPL3 the low-max coach rule (main 1RM under
+  ~50 kg suggests 1.25 kg rounding and surfaces the wave-collapse
+  warning at program creation; rides I5), FPL4 the 1RM floor lowered to
+  ~10 kg with a soft confirm below 20 (owner decision, loosens
+  intake-QA F3), FPL5 competition-grid attempts (2.5 kg grid regardless
+  of gym rounding, third attempt never at or below the entered max,
+  optional weight-class field; rides the H6 follow-up), FPL6 dedupe the
+  `jm2-peak` week-1 ladder when rounding collapses singles (H6
+  follow-up), FPL7 `warmupSets` emits a bar ramp instead of [] when the
+  top set sits near the bar, FPL8 first-AMRAP safety copy (form
+  breakdown, no-spotter bench line; rides the legal-scrub copy branch),
+  FPL9 intake copy clarifiers (why bodyweight is asked; experience =
+  barbell training age).
+- **Accessibility group (ACC1-ACC8; ACC1-ACC3 are the store-build
+  spine and ACC1-ACC2 are L3 prerequisites):** ACC1 the `announce()`
+  helper + persistent aria-live region routing `toast()` and the
+  rest-timer done state (lands BEFORE T1; receipts build on it), ACC2
+  the central modal contract in `modalShell`/MSTACK (dialog role,
+  focus-in/return, Escape; pairs with R4's back-button routing), ACC3
+  logging keeps focus (`donePerf`/`skipSet` update the set row in
+  place instead of full `render()`; `cd_slider` copies `cd_sleep`'s
+  targeted update), ACC4 text scaling (drop `user-scalable=no` on web
+  now; the native mapping is R4's a11y bridge and the submission gate),
+  ACC5 the label pass on the logging loop (stepper aria-labels, `for=`
+  on labels, named check-in ranges, `aria-pressed`, the naked glyph
+  buttons), ACC6 non-gesture equivalents (visible Remove without the
+  swipe; up/down reorder on all cards; keyboard-reachable weekday
+  rows), ACC7 timeline weeks become labeled buttons (or a labeled
+  week-list fallback), ACC8 contrast + `:focus-visible` (rides the UI
+  report's P0 item 7, seconded as low-vision-blocking).
+
+Owner rulings pending in the report's challenge ledger (ten items;
+Musculación and the ES-listing claim gate the store listing, text
+scaling gates submission, the receipts channel gates the T1 beta
+criteria, the 1RM floor amends an intake-QA ruling).
+
 ## Epic I - Track contracts and intake integrity (owner critique, 2026-07-17)
 
 Source: an owner review of the onboarding-to-program pipeline. The finding, in
@@ -1388,8 +1472,25 @@ tables).
    layers `cue.<id>_<n>` keys over `EX_CUES` (and `cues.<movement>_<n>` over
    the generic fallback), falling back to English per sentence; es.js ships
    all 720 sentences. The i18n typo net validates cue keys against the data
-   and a coverage test pins full Spanish translation. A native-speaker
-   review pass of the cue register is still welcome.
+   and a coverage test pins full Spanish translation. The
+   native-speaker review pass ran as athlete panel #8's es-MX persona
+   (2026-07-18): register verdict launch-grade Latin American Spanish;
+   the specific fixes it found are queue item 6 below.
+6. **NEW: Spanish leak sweep + copy fixes (from panel #8, ESM1-ESM9;
+   land before the ES store listing claims a fully-Spanish app):**
+   ESM1 route the History block label through `blockDisplayLabel()`
+   (app.js:5147, the highest-visibility leak), ESM2 superset link/
+   unlink toasts through `t()` keys, ESM3 a labelKey for the stored
+   "Meet taper" block label, ESM4 set `document.documentElement.lang`
+   (+ localized tab title) on language resolve, ESM5 the catalog copy
+   fixes (Agregar día, competencia, day.pump = Pump, degendered
+   welcome/recomp, landmark word unified on "umbrales"), ESM6 the two
+   cue rewrites + the canillas/espinillas register ruling, ESM7
+   diacritic-folding + Spanish alias list in `exMatches` (Epic L's
+   pickers reuse it), ESM9 the debug chime strings decision. ESM8 (T1
+   receipts authored natively in es.js) rides T1 itself. Owner
+   decisions first: "Musculación" and the alias policy (panel report
+   challenge ledger 4-5).
 
 Conventions the shipped code established (follow them): keys are
 `surface.snake_case` (`session.*`, `perf.*`, `ob.*`, shared `muscle.*` /
