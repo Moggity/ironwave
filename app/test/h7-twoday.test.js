@@ -190,7 +190,11 @@ test('template round-trip: export -> validate -> import preserves the structure'
 });
 
 test('a meet-prep template round-trips its taper (per-block weeks survive)', () => {
-  const s = withProgram('powerlifting', { daysPerWeek: 2, meetDate: Date.now() + 12 * 7 * 864e5 });
+  // Half a day of margin: makeProgram floors (meetDate - its own Date.now())
+  // to whole days, so an exact 84.000-day seed loses a day whenever 1ms
+  // elapses between the two Date.now() calls (a race this test kept winning
+  // locally and lost on a slow CI runner).
+  const s = withProgram('powerlifting', { daysPerWeek: 2, meetDate: Date.now() + 12 * 7 * 864e5 + 12 * 3600e3 });
   const tpl = app.programTemplate();
   assert.deepStrictEqual(app.validateTemplate(tpl), { ok: true });
   const p2 = app.programFromTemplate(tpl);
