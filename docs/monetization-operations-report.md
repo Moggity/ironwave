@@ -324,3 +324,163 @@ dead basement signal never blocks a set, tell the athlete two days before
 their trial charges, let an expired trial degrade to a genuinely good free
 logger with nothing held hostage, and let RevenueCat count the money while
 the pre-committed gates decide what happens next.
+
+## Amendment (2026-07-18): synergy re-pass after consultations 4-6
+
+Owner-directed delta review after the tier analysis
+(`docs/tier-usage-analysis.md`, including the shipped L0 debug harness
+and the 2026-07-17 rulings) and consultations 4-6 (analytics, privacy,
+support) amended this plan after the fact. Frame confirmed first: the PWA
+is the always-entitled prototype; the launched product is the native
+store apps, free tier = Epic L's standalone logger, paid tier = the
+coach. Everything below is relative to the report above; unlisted
+sections stand.
+
+### What changes
+
+1. **M7 shrinks to a rule** (analytics report §5/§11, AN3). The client
+   events move into AN3's closed catalog: `paywall_view` gains a
+   `source` enum (reveal / lock_surface / plateau_card / settings) plus
+   a sibling `paywall_outcome` (trial_cta / continue_free / dismissed);
+   trial and purchase states stay server-side via RevenueCat webhooks,
+   as §7 always wanted. What survives of M7 is the prohibition: never
+   client-track purchases. M4 must emit through the AN1 face using AN3's
+   enums verbatim so the paywall and its funnel cannot drift apart.
+2. **§8 task 7's cancel survey relocates to L4's detachment card**
+   (support report §9.4, CS2): store cancellation happens outside the
+   app, so the honest ask is one optional enum tap at detachment, no
+   free text (privacy: people paste health details into text boxes).
+   The refund half of task 7 stands; macro BILL-1 still asks "what
+   broke."
+3. **§2's boundary prose is superseded as the binding artifact** by the
+   tier map (`docs/tier-usage-analysis.md` §5), which ratified all four
+   gray-zone calls unchanged (analytics band coach, check-in collection
+   free, timer defaults free, macro report coach) and made them code
+   behind `hasCoach()` (L0, shipped). The free-logger frame moved none
+   of them. M6's honesty table should render FROM that map; L5 turns it
+   into an executable checklist.
+4. **M1 is now smaller than written.** L0 shipped `hasCoach()` and the
+   lock surfaces, so M1 replaces the seam's body only (tier doc §6 rule
+   3). If M1 needs to touch a call site, the seam has been broken; stop.
+5. **M3 absorbs TB4/TB8** (tier doc §9): the entitlement cache lives in
+   device-scoped storage, never inside `S` (§5 said "via the R1 storage
+   adapter"; the correction is that it must not ride the exported
+   state), production import ignores entitlement-shaped fields, and the
+   7-day offline grace keys off a device-stored last-verified timestamp
+   with clock rollback reading as expired-pending-check.
+6. **M5 survives scrutiny and gets stronger: in-app card primary, push
+   best-effort, plus a receipt recap.** Support now counts the day-12
+   reminder as deflection (it deletes surprise-charge tickets before
+   they are written), so it stays. See "what breaks" 3 for the
+   permission problem. New scope: when T1's local counters show receipts
+   this trial, the reminder recaps them: "Trial ends in 2 days. The
+   coach made 9 adjustments for you this week. $79.99/yr after, or keep
+   the free logger." Factual, their own data, computed on-device; falls
+   back to plain copy at low counts.
+7. **M4 answers the privacy-line question: yes, one line, but as a
+   shared footer fact, not a free-tier line item.** "No account needed.
+   Your training data stays on your phone." belongs next to restore and
+   terms (privacy report §3 makes it true; the standing rule that any
+   server feature reading the sync blob re-opens that consultation is
+   what keeps it true). It must NOT sit inside the free-tier list: it is
+   true of both tiers, and listing it there would imply the coach tier
+   differs. The line speaks of training data only, never implies
+   anything about analytics, and no consent is ever bundled with a
+   purchase (privacy §4 unbundling).
+8. **T1 is promoted from "land before beta" to a hard beta-entry gate,
+   co-equal with Epic L for the trial path.** Three reports now lean on
+   receipts: the trial's proof of value (tier analysis §2), the measured
+   conversion hypothesis (AN3 §4, countable from birth), and support
+   deflection (COACH-1: every receipt is a pre-answered ticket). M4 may
+   merge first, but no tester meets the paywall without receipts firing
+   behind it; otherwise the September beta burns without testing the one
+   claim the paywall makes.
+9. **M6 grows and becomes beta-bound.** It shows the
+   cancelled-not-yet-expired state honestly ("ends [date]" vs "renews
+   [date]"; RevenueCat exposes it), gains sibling links (Settings >
+   Privacy per PD3, Help & Support per CS1), and its manage/cancel deep
+   link is a dependency of CS1's FAQ and the BILL-2/BILL-3 macros. CS1
+   must be in the September beta build, so M6 must be too.
+
+### What breaks
+
+1. **§6 overpromised lifetime restore.** "Restorable across devices" is
+   true per store ecosystem only. With accounts optional (privacy §3.1)
+   there is no cross-platform bridge: a $249 lifetime bought on iOS does
+   not restore on Android without an account to alias through. Fix: M10
+   builds the bridge for account holders; until then all purchase copy
+   is store-scoped ("your purchase lives with your Apple ID / Google
+   account").
+2. **M8's operating assumption is gone.** "Churned-monthly win-back over
+   web checkout" quietly assumed reachable, identified churners. With
+   accounts optional and no email in analytics, there is no email list;
+   the reachable win-back audience is account holders plus
+   still-installed lapsed users. The seam stub survives unchanged; the
+   channel plan does not. The detached logger becomes the win-back
+   surface (M9), deep-linking the AN4 install ID into the web checkout
+   so a browser purchase lands on the right entitlement with no login.
+3. **§3's reminder guarantee was wrong.** Notification permission is
+   asked at first rest-timer use, never at boot (privacy §4), so a
+   trialist who never used the timer is unreachable by push on day 12.
+   The in-app card is the guaranteed channel; the notification is
+   best-effort. Do not add a boot-time permission ask to fix this; that
+   trade is worse than the gap.
+4. **§7's gate reading is amended by analytics §3**: WAU was undefined
+   and two retention gates were missing. The dashboard of record is now
+   AN5's gate scoreboard with the metrics dictionary's definitions, and
+   the trial-to-paid gate gains a day-7 leading indicator (receipt
+   exposure) that lets us react mid-trial instead of post-mortem.
+
+### New synergy (only possible after consultations 4-6)
+
+1. **The detachment card is the churn hub**: L4's announcement + CS2's
+   micro-survey + M9's win-back slot on one surface, the only guaranteed
+   channel to a churned user this accounts-optional architecture has.
+2. **Receipts do triple duty** (conversion proof, measured hypothesis,
+   ticket deflection), which is the whole case for delta 8: one slice is
+   now three reports' load-bearing wall.
+3. **`paywall_outcome(continue_free)` makes the anti-dark-pattern stance
+   auditable.** A near-zero continue-free share means the "same size, no
+   shame" rule is failing in practice regardless of intent. It joins
+   §7's watch list via the AN5 metrics dictionary.
+4. **The refund-rate gate gets diagnosis channels**: CS2's enum reasons
+   and BILL-1's "what broke" answers feed support's weekly tally, so a
+   refund spike arrives with causes attached instead of as a bare
+   number.
+5. **M5 + T1's local counters** produce the value-recap reminder (delta
+   6) with zero analytics involvement; the counters live on-device.
+
+### Challenge to a prior ruling (owner decides)
+
+1. **CS2's timing loses signal.** The detachment card fires at lapse,
+   often weeks after the cancel decision, so the answer arrives
+   memory-decayed. Proposal: offer the same one-tap enum once in M6's
+   subscription screen when the state is cancelled-not-yet-expired,
+   capped at one ask per lapse in total, zero pleading copy. Support
+   ruled the card placement; this widens the surface, and the risk is
+   retention-theater optics. My read: one silent tap on a screen the
+   athlete opened themselves is not theater, and the data is better.
+
+### Engineer notes (M9-M11, new slices)
+
+- **M9. Win-back slot on the detached logger (rides L4 + M8's flag).**
+  A flag-gated offer slot on the L4 detachment card / logger home:
+  invisible at launch, later renders a win-back offer whose CTA opens
+  the M8 web checkout with the AN4 install ID attached, so a purchase
+  made in a browser lands on this device's entitlement with no account
+  and no email. Deliverable now: the slot, the URL builder, and a test
+  that flag-off renders nothing. Copy joins both catalogs when a real
+  offer exists.
+- **M10. Cross-store entitlement bridge (rides the Supabase epic, with
+  AN4/M3).** At account creation, alias the RevenueCat `appUserID`
+  alongside the PostHog alias so an account holder's purchases (the
+  lifetime non-consumable especially) restore on the other platform.
+  Sandbox test iOS-buy then Android-restore and the reverse. Until this
+  lands, M4/M6 purchase copy stays store-scoped per "what breaks" 1.
+- **M11. Lapse lifecycle rehearsal script (rides M3's sandbox scripts +
+  L4).** One committed sandbox script walking trial start → cancel →
+  period end → detachment card (CS2 tap emits `churn_reason`) → cloned
+  week → empty weeks → re-subscribe → coach re-engages from stored
+  state, on accelerated store time, green before the September beta. No
+  existing slice owns this integration end-to-end, and support's
+  LAPSE-1/BILL-2 macros should be rehearsed against it.
