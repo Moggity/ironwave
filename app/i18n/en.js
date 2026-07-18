@@ -32,7 +32,7 @@ const I18N_EN = {
   'session.last_set': 'Last Set',
   'session.optional_tag': 'optional',
   'session.over_time_limit': 'Over your time limit. Do it if you have time, otherwise skip it.',
-  'session.injury_eased': 'Flagged. Loads eased 10%, no AMRAP.',
+  'session.injury_eased': 'Flagged. Loads eased 10% as a caution, no AMRAP. If it hurts, stop.',
   'session.sets_x_reps': '{sets} sets x {reps} reps',
   'session.sets_x_reps_rir': '{sets} sets x {reps} reps @ {rir}',
   'session.notes': 'Notes',
@@ -554,14 +554,14 @@ const I18N_EN = {
   'vol.trend_title': 'Recovery trend',
   'vol.trend_body': 'Your recovery over recent sessions. A downward slope pulls your deload in deeper.',
   'vol.minicut_title': 'Fatigue is piling up',
-  'vol.minicut_body': '{n} muscles are at or near MRV. A short minicut (about 2 to 4 weeks in a deficit) would shed fatigue and resensitize you to volume.',
+  'vol.minicut_body': '{n} muscles are at or near MRV, so a deload is close. That lighter stretch is a good window for a short minicut (about 2 to 4 weeks in a deficit) to drop some fat without costing your training.',
   'vol.minicut_cta': 'Plan a minicut ›',
   'vol.early_deload_title': 'Early deload this week',
-  'vol.early_deload_body': 'This block\'s deload was pulled in early to shed fatigue. Finish this lighter week, then your next block starts resensitized from MEV.',
+  'vol.early_deload_body': 'This block\'s deload was pulled in early to shed fatigue. Finish this lighter week, then your next block builds back up from MEV.',
   'vol.deload_deeper': 'Deeper deload',
   'vol.deload_lighter': 'Lighter deload',
-  'vol.deload_deep_body': 'High fatigue this block ({n} muscles near MRV). Accessory volume is pulled back further this week, then your volume resensitizes from MEV next block.',
-  'vol.deload_light_body': 'Low fatigue this block. Accessory volume is kept a touch higher this week, then your volume resensitizes from MEV next block.',
+  'vol.deload_deep_body': 'High fatigue this block ({n} muscles near MRV). Accessory volume is pulled back further this week, then next block climbs again from MEV.',
+  'vol.deload_light_body': 'Low fatigue this block. Accessory volume is kept a touch higher this week, then next block climbs again from MEV.',
   'vol.footer_autoreg': 'The ▲ ▼ ＝ notes read your check-ins and recent sessions, and feed next week\'s volume automatically.',
   'vol.footer_landmarks': 'MEV is the least that grows you, MRV the most you can recover from. A block should climb from MEV toward MRV, then deload.',
 
@@ -576,7 +576,7 @@ const I18N_EN = {
   'phase.gain_desc': 'Bigger surplus, push muscle gain and recovery is high.',
   'phase.maintenance_desc': 'Around maintenance, hold weight and recover.',
   'phase.cut_desc': 'Deficit to lose fat. Recovery drops, so volume holds rather than climbs.',
-  'phase.minicut_desc': 'Short sharp deficit (about 2 to 4 weeks) to shed fatigue, then back to growing.',
+  'phase.minicut_desc': 'A short deficit (about 2 to 4 weeks), best timed with a deload, to drop some fat and get back to growing.',
   'phase.peak_desc': 'Final sharpening into a meet or photo date. Volume drops, freshness rises.',
   'phase.screen_title': 'Phase & bodyweight',
   'phase.section': 'Training phase',
@@ -656,7 +656,7 @@ const I18N_EN = {
   'ci.mindset_title': 'Mindset',
   'ci.mindset_body': 'What is your focus for today?',
   'ci.mindset_ph': 'Today I am going to…',
-  'ci.injury_q': '🩹 Are you currently rehabbing any injuries?',
+  'ci.injury_q': '🩹 Any aches or injuries you are training around?',
   'ci.start_workout': 'Start Workout',
 
   // --- swap / select / add pickers ---
@@ -854,7 +854,7 @@ const I18N_EN = {
 
   // --- More hub ---
   'more.lifter': 'Lifter',
-  'more.tagline': 'IRONWAVE · Juggernaut Method 2.0 engine',
+  'more.tagline': 'IRONWAVE · wave periodization engine',
   'more.settings': 'Settings & Data',
   'more.version': 'Version {v}',
 

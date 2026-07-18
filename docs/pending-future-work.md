@@ -102,19 +102,19 @@ Derived future branches, in dependency order:
   `package.json` license is UNLICENSED, README footer updated. STILL OPEN for
   the owner: the git-history rewrite decision (the PDF remains in history;
   legal report recommends `git filter-repo` + force-push + re-clone).
-- **`legal-scrub` branch** (legal report items 3-5): athlete-facing string and
-  label renames (i18n taglines, `program.methodology` label + one-line
-  `migrateState` rename with a `migration.test.js` case, engine scheme `label`,
-  manifest/package metadata), comment/test rewording to concept language, README
-  rewrite, plus the sports-science copy scrub (SS4: injury copy drops
-  "rehabbing", gains a stop-on-pain line, easing described as caution not
-  treatment; SS5: deload/minicut mechanism copy moves to outcome language,
-  "resensitize" out, minicut reframed as a fat-loss window timed with the
-  deload; both i18n catalogs). Verified: `golden-master.json` contains none of
-  these strings, so the
-  sweep must land with the golden master byte-identical (any diff is a bug in
-  the sweep). Grep gate: zero case-insensitive juggernaut / renaissance
-  periodization / israetel matches under `app/` outside `CHANGELOG.md`.
+- ~~**`legal-scrub` branch** (legal report items 3-5)~~ DONE (2026-07-18,
+  roundtable step B2): athlete-facing renames landed (both taglines, the
+  `jm2-wave` label "3-week strength wave", `program.methodology` "Wave
+  Strength + Bodybuilding" / "Wave strength focus" with a prefix-matched
+  `migrateState` rename + `migration.test.js` case, manifest/package
+  metadata), comments/tests reworded to concept language (`[Wave + BB]`
+  tag), README rewritten with the non-affiliation disclaimer, and the
+  SS4/SS5 copy scrub in both catalogs (injury copy asks about training
+  around aches with a stop-on-pain line; "resensitize" out, deload copy in
+  outcome language, minicut reframed as a fat-loss window timed with the
+  deload). Grep gate green: zero case-insensitive juggernaut / renaissance
+  periodization / israetel matches under `app/` outside `CHANGELOG.md`;
+  golden master byte-identical.
 - ~~**Landmark seed migration** (legal report item 6)~~ DONE (2026-07-18,
   roundtable step B1; owner sign-off at Gate 4 STILL OPEN —
   `docs/landmark-derivation-note.md` is the review sheet): `VOLUME_LANDMARKS`

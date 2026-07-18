@@ -1,7 +1,7 @@
 /* ============================================================
    IRONWAVE — data.js
    Exercise catalog, movement taxonomy, day templates,
-   Juggernaut Method 2.0 wave tables (Chad Wesley Smith).
+   strength wave percentage tables.
    ============================================================ */
 
 // Single source of truth for the build the athlete is running. Shown in the
@@ -667,7 +667,7 @@ const EX_CUES = {
 };
 
 // ============================================================
-// JUGGERNAUT METHOD 2.0 — WAVE TABLES (percentages of Working Max)
+// STRENGTH WAVE TABLES (percentages of Working Max)
 // Working Max = 90% of a recent true 1RM.
 // Week map inside each 5-week block:
 //   w0 intro/calibration · w1 accumulation · w2 intensification
@@ -704,10 +704,10 @@ const DELOAD_SETS = [[0.40,5],[0.50,5],[0.60,5]]; // pct of *current* WM
 
 // ============================================================
 // POWERBUILDING PROGRAM TEMPLATE
-// Methodology tag: [Juggernaut + Bodybuilding]
+// Methodology tag: [Wave + BB]
 // Hypertrophy blocks run the 'jbb-hyp' scheme (ascending volume,
-// MEV→MRV style, mirroring the modern JuggernautAI behaviour).
-// Strength blocks run the 'jm2-wave' scheme (the 2012 book:
+// MEV→MRV style volume-landmark model).
+// Strength blocks run the 'jm2-wave' scheme (3-week wave:
 // descending volume, rising intensity, AMRAP-driven working max).
 // Each block declares its scheme explicitly — the engine never
 // mixes methodologies, so a future pure-hypertrophy program just
@@ -717,7 +717,7 @@ const PROGRAM_TEMPLATES = {
   powerbuilding: {
     id: 'powerbuilding',
     label: 'Powerbuilding',
-    methodology: 'Juggernaut + Bodybuilding',
+    methodology: 'Wave Strength + Bodybuilding',
     blocks: [
       { type: 'hypertrophy', wave: '10s', label: 'Hypertrophy 1', scheme: 'jbb-hyp' },
       { type: 'hypertrophy', wave: '8s',  label: 'Hypertrophy 2', scheme: 'jbb-hyp' },
@@ -748,7 +748,7 @@ const PROGRAM_TEMPLATES = {
   powerlifting: {
     id: 'powerlifting',
     label: 'Powerlifting',
-    methodology: 'Juggernaut strength focus',
+    methodology: 'Wave strength focus',
     blocks: [
       { type: 'hypertrophy', wave: '8s', label: 'Hypertrophy Base', scheme: 'jbb-hyp' },
       { type: 'strength',    wave: '5s', label: 'Strength 1',        scheme: 'jm2-wave' },
@@ -791,7 +791,7 @@ const TRACK_SPEC = {
   },
 };
 
-// [Juggernaut + Bodybuilding] ascending-volume hypertrophy config.
+// [Wave + BB] ascending-volume hypertrophy config.
 // Two-level progression:
 //   · within a meso: sets climb week over week, RIR tightens (RPE 7 → 9)
 //   · across the macrocycle (mesoIdx 0/1/2): each meso starts a bit
@@ -843,7 +843,7 @@ const ACC_SCHEMES = {
   strength:    { sets: 3, reps: 8,  rpe: 7 },
 };
 
-// Secondary main-lift slots (Inverted Juggernaut style volume work)
+// Secondary main-lift slots (inverted wave pattern volume work)
 const SECONDARY_SCHEMES = {
   hypertrophy: { sets: 4, reps: 5, pct: 0.625 },
   strength:    { sets: 3, reps: 3, pct: 0.70 },

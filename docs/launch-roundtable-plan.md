@@ -207,9 +207,10 @@ matters; each is one branch.
   output" expectation did not materialize, which only makes Gate 4
   easier). Review sheet: `docs/landmark-derivation-note.md`. **Gate 4
   is now waiting on the owner.**
-- **B2. The wording scrub** (legal-scrub branch: competitor names and
-  borrowed phrasing out of athlete-facing strings, comments, README;
-  grep-gate green; golden master byte-identical by construction).
+- ~~**B2. The wording scrub**~~ DONE (2026-07-18): labels, taglines,
+  metadata, comments, README, and the SS4/SS5 copy reframes swept in
+  both catalogs; the persisted methodology label migrates on legacy
+  saves; grep gate green; golden master byte-identical.
 - **B3. Small-load correctness + coach rules** (FPL1/FPL3 below-bar
   guard and low-max advice, FPL4 per ruling 1e, FPL2 equipment
   micro-step; plus the three Gate-1k coaching tweaks).

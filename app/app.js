@@ -89,7 +89,7 @@ async function loadState() {
   // 3) Nothing anywhere: a fresh default.
   return defaultState();
 }
-// [Juggernaut + Bodybuilding] migration: programs saved before the
+// [Wave + BB] migration: programs saved before the
 // scheme split get scheme ids stamped per block type.
 function migrateState(s) {
   if (s.program && Array.isArray(s.program.blocks)) {
@@ -98,7 +98,15 @@ function migrateState(s) {
     });
     if (s.program.blocks.some(b => b.mesoIdx == null)) stampMesoIdx(s.program.blocks);
     if (s.program.blocks.some(b => b.phase == null)) stampBlockPhase(s.program.blocks); // [Epic G1]
-    if (!s.program.methodology) s.program.methodology = 'Juggernaut + Bodybuilding';
+    if (!s.program.methodology) s.program.methodology = 'Wave Strength + Bodybuilding';
+    // [legal-scrub] Saves from before the label scrub persist a third-party
+    // name in the methodology label; rename to the neutral wording. Matched
+    // by prefix so this file never spells the old mark. Idempotent: the new
+    // labels never match the prefix.
+    if (/^jugg/i.test(s.program.methodology)) {
+      s.program.methodology = /strength/i.test(s.program.methodology)
+        ? 'Wave strength focus' : 'Wave Strength + Bodybuilding';
+    }
     // Defensive defaults: a program from a very old save (or hand-edited
     // database.json) may predate these fields. The dashboard reads
     // pointer.block unconditionally, so guarantee they exist.
@@ -411,7 +419,7 @@ function setTab(tab) {
 // ------------------------------------------------------------
 // PROGRAM HELPERS
 // ------------------------------------------------------------
-// [Juggernaut + Bodybuilding] stamp each block's position among
+// [Wave + BB] stamp each block's position among
 // same-scheme blocks (mesoIdx) — drives macrocycle-level progression.
 function stampMesoIdx(blocks) {
   const counts = {};
@@ -563,7 +571,7 @@ function makeProgram(ob) {
     : null;
   return {
     template: tpl.id, daysPerWeek: ob.daysPerWeek,
-    methodology: tpl.methodology || 'Juggernaut + Bodybuilding',
+    methodology: tpl.methodology || 'Wave Strength + Bodybuilding',
     startDate: start,
     testDate: ob.testDate || meetTs || start + totalWeeks * 7 * 864e5,
     ...(meetTs ? { meetDate: meetTs } : {}),
@@ -895,7 +903,7 @@ function blockDisplayLabel(block) {
 
 // Resolve slot to a prescription { exId, name, sets, slotRef, isMain, isSelect }
 // All prescriptions route through the block's declared scheme — see
-// Engine.schemes ([Juggernaut + Bodybuilding] split). No cross-mixing.
+// Engine.schemes ([Wave + BB] split). No cross-mixing.
 function blockScheme(block) {
   return block.scheme || (block.type === 'hypertrophy' ? 'jbb-hyp' : 'jm2-wave');
 }
@@ -6038,7 +6046,7 @@ function programFromTemplate(tpl) {
     ? tpl.weeksPerBlock : 5;
   return {
     template: 'custom', daysPerWeek: days.length,
-    methodology: 'Juggernaut + Bodybuilding',
+    methodology: 'Wave Strength + Bodybuilding',
     startDate: start,
     testDate: start + blocks.reduce((a, b) => a + (b.weeks || wpb), 0) * 7 * 864e5,
     blocks, weeksPerBlock: wpb,
@@ -6098,7 +6106,7 @@ function vProgram() {
   const track = (p.trainingConfig && p.trainingConfig.track) || 'powerbuilding';
   return `${topbar(t('dash.my_program'))}<div class="view">
     <div class="section-title">${esc(t('track.' + track))}</div>
-    <p class="faint" style="margin:-4px 0 10px">${esc(t('prog.methodology', { m: p.methodology || 'Juggernaut + Bodybuilding' }))}</p>
+    <p class="faint" style="margin:-4px 0 10px">${esc(t('prog.methodology', { m: p.methodology || 'Wave Strength + Bodybuilding' }))}</p>
     <div class="card">
       <div class="row"><span class="subtle">${esc(t('prog.test_date'))}</span><b>${fmtDateLong(p.testDate)}</b></div>
       <div class="row mt8"><span class="subtle">${esc(t('prog.days_out_row'))}</span><b>${daysOut()}</b></div>

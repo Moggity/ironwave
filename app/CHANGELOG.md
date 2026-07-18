@@ -1,5 +1,38 @@
 # IRONWAVE — Changelog
 
+## [The wording is ours too: the legal scrub (B2)] (2026-07-18)
+
+Roundtable step B2, executing the legal report's items 3-5 (the trademark
+string/label sweep, comment rewording, README rewrite) plus the
+sports-science copy scrub (SS4/SS5). Behavior unchanged; golden master
+byte-identical as the report's verified expectation demanded.
+
+- **Athlete-facing renames**: the More-hub taglines in both catalogs
+  ("wave periodization engine" / "Motor de periodización por olas"), the
+  `jm2-wave` scheme label ("3-week strength wave"), and the
+  `program.methodology` label ("Wave Strength + Bodybuilding" /
+  "Wave strength focus"). `migrateState` renames the retired label on
+  legacy saves (prefix-matched so the source never spells the old mark;
+  idempotent), with a `migration.test.js` case.
+- **Metadata**: `manifest.json` and `package.json` descriptions rewritten;
+  the third-party keyword deleted.
+- **Comments/tests to concept language**: the `[Wave + BB]` tag replaces
+  the old methodology tag repo-wide; wave-table, scheme-registry, and
+  secondary-work comments reworded; `prescription-sanity.test.js` prose
+  de-branded; page cites move to the private notes; `styles.css` header.
+- **README** rewritten for the commercial fork: heritage admissions and
+  the third-party comparisons removed, non-affiliation disclaimer added.
+- **SS4 injury copy** (both catalogs): the check-in asks about training
+  around aches, not "rehabbing"; the easing toast frames the 10% ease as
+  caution and adds a stop-on-pain line.
+- **SS5 deload/minicut copy** (both catalogs): "resensitize" is gone;
+  deload strings state the outcome (next block climbs again from MEV);
+  the minicut is a fat-loss window timed with the deload, not a
+  fatigue-shedding mechanism.
+- **Grep gate green**: zero case-insensitive juggernaut / renaissance
+  periodization / israetel matches under `app/` outside `CHANGELOG.md`.
+  Full suite green (491 tests).
+
 ## [The volume table is ours: parametric landmark derivation (B1 / SS1)] (2026-07-18)
 
 The first engine branch on the launch line (`docs/launch-roundtable-plan.md`

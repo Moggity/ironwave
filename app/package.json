@@ -1,7 +1,7 @@
 {
   "name": "ironwave",
   "version": "1.0.0",
-  "description": "Self-hosted powerbuilding web app built on the Juggernaut Method 2.0 wave system, with server-side JSON persistence.",
+  "description": "Self-hosted powerbuilding web app on a wave periodization system, with server-side JSON persistence.",
   "main": "server.js",
   "type": "commonjs",
   "engines": {
@@ -16,7 +16,6 @@
   "keywords": [
     "fitness",
     "powerbuilding",
-    "juggernaut-method",
     "strength-training",
     "workout-tracker",
     "self-hosted",
