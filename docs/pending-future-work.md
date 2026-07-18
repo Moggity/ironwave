@@ -182,7 +182,10 @@ Derived future branches, in dependency order:
   easing, all surfaced as short athlete-facing receipts at session time
   and a week-boundary digest; `noteKey`/`noteParams` pattern, display-only,
   golden-master-safe; land before the September beta so trial users SEE
-  the differentiator), T2 the plateau card on free data (pure seeded
+  the differentiator; acceptance criteria extended by the analytics
+  report section 8: every receipt carries a `kind` and increments
+  countable session/week counters, so receipt exposure vs trial
+  conversion is measurable from birth, the AN3 coordination), T2 the plateau card on free data (pure seeded
   helper over `e1rmTrend`, one dismissible card capped per ~5 weeks, free
   mode only; the honest organic upsell), T3 the coach report card
   (receipts ledger extending `macroReportHTML`; gate `vReport` behind
@@ -199,7 +202,9 @@ Derived future branches, in dependency order:
   the seam with a 7-day offline entitlement grace, M4 the paywall surface
   (reveal + coach touchpoints, "continue free" always visible), M5 the
   day-12 trial reminder over R5 notifications, M6 the settings subscription
-  section, M7 minimal funnel events, M8 the stubbed web win-back seam.
+  section, M7 minimal funnel events (client half superseded by analytics
+  slice AN3; the no-duplicate-purchase-tracking rule stands), M8 the
+  stubbed web win-back seam.
   Golden master untouched.
 - **Release engineering slices R1-R9** (read
   `docs/release-engineering-report.md` section 10 first; R1-R3 need no store
@@ -215,6 +220,25 @@ Derived future branches, in dependency order:
   (remote host + Filesystem capped cache), R7 Sentry crash/vitals, R8
   HealthKit export, R9 pre-submission checklist automation. Nothing touches
   prescription; golden master untouched.
+- **Analytics instrumentation slices AN1-AN6** (read
+  `docs/analytics-instrumentation-report.md` sections 5-6 and 11 first;
+  AN1 is pure adapter work startable with R2, AN2-AN4 ride productization
+  alongside R4-R7 / M3-M4, AN6 rides R9 before the September beta): AN1
+  `Platform.analytics` face + the closed event catalog with dev-time
+  validation and the banned-property health-data lint (web/self-hosted =
+  permanent no-op, so prototype and tests never phone home), AN2 the
+  consent gate (opt-in before SDK init, device-scoped storage, never in
+  `S`), AN3 lifecycle/funnel instrumentation (onboarding steps keyed by
+  `TRACK_SPEC.obSteps`, session lifecycle on `finishSession`, receipt
+  counters coordinated with T1, lock/plateau events, review-prompt yield;
+  supersedes M7's client half), AN4 the pseudonymous install-ID join
+  across PostHog/RevenueCat/Sentry with aliasing at account creation, AN5
+  the metrics dictionary + gate-scoreboard dashboards, AN6 the beta
+  dress-rehearsal checklist with a schema freeze at beta. Amends the
+  pre-committed gates (retention gates added, WAU defined, attribution =
+  ASA + Play referrer + offer codes, no MMP) and raises R7's SDK ceiling
+  to exactly three (Sentry, PostHog, RevenueCat). Golden master untouched;
+  engine stays analytics-blind.
 - **ASO instrumentation slice** (rides with or right after the productization
   epic; read `docs/aso-launch-report.md` section 9 first): real-time PR
   detection hook at set-log time (E1), the gated store-review prompt plumbing
@@ -270,14 +294,25 @@ Operators (launch-critical, in priority order):
    grandfathered price-raise path), sandbox testing + the gate metrics.
    Engineer notes M1-M8 absorbed as the "Monetization slices" derived
    branch above; engine stays billing-blind.
-4. **Analytics / instrumentation specialist.** Event schema BEFORE launch so
-   the kill/scale gates are measurable (cost-per-trial, trial-to-paid,
-   month-1 cancel), retention cohorts, PostHog setup, privacy-respecting
-   defaults.
+4. ~~**Analytics / instrumentation specialist.**~~ DONE (2026-07-18):
+   `docs/analytics-instrumentation-report.md`. The four data planes with
+   one source of truth each (store consoles / RevenueCat / PostHog Cloud
+   EU / Sentry; auto-capture and replay permanently off; no MMP), a
+   closed sub-25-event schema with a banned-property health-data
+   exclusion rule, one pseudonymous install ID joining all three SDKs,
+   consent-before-init with the prototype shipping zero analytics
+   forever, and a gate audit that found three gates unmeasurable as
+   ruled plus NO retention gate at all — amended with a WAU definition,
+   free-cohort week-4 and coach-cohort week-5 retention gates, and the
+   receipt-exposure leading indicator (the T1 conversion hypothesis made
+   testable). Engineer notes AN1-AN6 absorbed as the "Analytics
+   instrumentation slices" derived branch above; M7's client half is
+   superseded by AN3; R7's one-SDK ceiling is amended to exactly three.
 5. **Privacy / data-protection specialist.** GDPR/CCPA for accounts + sync,
    Apple privacy nutrition labels / Play data-safety forms, health-adjacent
    data handling, export/deletion flows. Complements the legal report's IP
-   focus.
+   focus. **Primary audit artifact: the analytics report's §6 privacy
+   rules and event schema (consultation #4 sequenced this handoff).**
 6. **Support & community manager.** Review-response cadence (feeds ASO),
    refund macros, bug triage SLAs, Discord, beta-cohort management.
 
