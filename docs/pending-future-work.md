@@ -116,7 +116,12 @@ Derived future branches, in dependency order:
   `docs/sports-science-audit-report.md` section 5 (muscle size/recovery
   classes, 2-set grid snapping, multi-source range blending, a divergence
   test against the old grid, and faster athlete recalibration so the seed
-  becomes a weak prior).
+  becomes a weak prior). The paywall-cynic report (CYN4) escalates the
+  timing: the shipped values are diffable by any beta tester against the
+  published grid (and `data.js:1404`'s SOURCE comment names it), so the
+  divergence — or at least the divergence test going green plus the
+  comment scrub — should gate the September beta, not launch (owner
+  decision pending, cynic report challenge 1).
 - **Productization epic** (marketing v2 section 2): Capacitor store wrap (local
   assets, push, haptics, HealthKit export; guideline 4.2 mitigations), accounts
   + sync (Supabase; the Express/`database.json` layer maps onto Postgres —
@@ -206,7 +211,10 @@ Derived future branches, in dependency order:
   meets the paywall before T1 fires; acceptance criteria extended by the analytics
   report section 8: every receipt carries a `kind` and increments
   countable session/week counters, so receipt exposure vs trial
-  conversion is measurable from birth, the AN3 coordination; and by the
+  conversion is measurable from birth, the AN3 coordination (and per the
+  paywall-cynic report's CYN7, a countable "adjustment" in M5's recap or
+  any paywall copy is exactly a receipt the athlete could have seen,
+  nothing finer-grained — test it when counters land); and by the
   sports-science audit: SS7's receipts language contract governs every
   receipt string — athlete's own data first, app rules owned as app
   rules, hedged or absent mechanisms, never diagnostic — enforced by a
@@ -238,12 +246,21 @@ Derived future branches, in dependency order:
   expired-pending-check), M4 the paywall surface
   (reveal + coach touchpoints, "continue free" always visible, AN3's
   `source`/`paywall_outcome` enums verbatim, the shared privacy footer
-  line near restore/terms), M5 the
+  line near restore/terms; per the paywall-cynic report: the founding
+  offer never renders without its renewal price in the same visual unit
+  (CYN1, asserted by M11's rehearsal), lifetime's price line carries the
+  store scope until M10 (CYN2, with M6), and every production lock
+  surface names what stays free in the same breath (CYN5, asserted by
+  L5's boundary checklist)), M5 the
   day-12 trial reminder (in-app card is the guaranteed channel, R5 push
-  secondary; copy recaps T1's local receipt counts), M6 the settings
+  secondary; copy recaps T1's local receipt counts; CYN3: the final-72h
+  card renders on every entry surface with a device-scoped seen-marker,
+  and CYN7: recap counts are backed only by real AN3 receipt counters,
+  falling back to plain copy at low counts), M6 the settings
   subscription section (beta-bound: CS1's FAQ and billing macros depend
   on its manage/cancel deep link; shows the cancelled-not-yet-expired
-  state; honesty table renders from the tier map), M7 the
+  state; honesty table renders from the tier map; repeats CYN2's
+  store-scoped lifetime line), M7 the
   no-duplicate-purchase-tracking rule only (client events live in AN3's
   catalog), M8 the
   stubbed web win-back seam (audience rescoped 2026-07-18: the in-app
@@ -285,7 +302,9 @@ Derived future branches, in dependency order:
   R9 pre-submission
   checklist automation (grown: PD8 label checks, AN6 dress-rehearsal
   assertions against the minified `dist/` bundle, CS4 what's-new +
-  FAQ-freshness lines), R10 the declarative store-build first-run chain
+  FAQ-freshness lines, and the paywall-cynic report's CYN8 line: rating
+  prompts come only from E2's in-app gate, no beta/founding-offer/
+  win-back comm ever contains a rating ask), R10 the declarative store-build first-run chain
   (age gate, analytics consent, then Epic L's L3 logger home as the
   front door; device-scoped flags, MSTACK-routed; rides R4 + PD2/PD3 +
   L3), R11 a `Platform.crash` adapter face wrapping Sentry
@@ -338,7 +357,9 @@ Derived future branches, in dependency order:
   CS1 the in-app Help & Support screen (bundled FAQ both catalogs,
   Contact composing email with the PD6 redacted diagnostic + version
   prefilled, the honest one-person SLA line, policy + M6 subscription
-  links), CS2 the churn micro-survey as one optional enum tap on the L4
+  links; the FAQ gains the paywall-cynic report's CYN6 "lifetime of
+  what?" entry — local-first, the app keeps working, export free
+  forever — pre-written in both catalogs), CS2 the churn micro-survey as one optional enum tap on the L4
   detachment card (no free text, once per lapse, `S.flags` timestamp),
   CS3 two additive AN-catalog events pre-freeze (`support_opened(topic)`
   for the deflection metric, `churn_reason(reason)`), CS4 release-notes
@@ -536,9 +557,28 @@ Credibility and coverage:
 
 Adversaries worth simulating:
 
-9. **Paywall-cynical Redditor / churned RP subscriber.** Pressure-test the
-   paywall copy, trial framing, and lifetime tier; write the 1-star review
-   before a real one does.
+9. ~~**Paywall-cynical Redditor / churned RP subscriber.**~~ DONE
+   (2026-07-18): `docs/paywall-cynic-report.md`. The persona pre-wrote the
+   five 1-star reviews the current plan still permits — the founding-price
+   sheet omitting the $79.99 renewal (also the AB 2863 compliance line),
+   the $249 lifetime not restoring cross-store without an account, the
+   day-12 reminder's in-app-only residual gap, the "RP grid with the
+   serial numbers filed off" Reddit thread (`data.js:1404` still says
+   SOURCE: Renaissance Periodization above the seeded values), and lock
+   cards that say "locked" without saying what stays free. Verdict: the
+   honesty machinery (L4 detachment, day-12 reminder, banned-tricks list,
+   no billing arguments, loud free export, grandfathered raises, offline
+   grace) is real and pre-deletes the classic review classes; all five
+   remaining reviews are copy or sequencing, not architecture. Engineer
+   notes CYN1-CYN8 absorbed into M4/M5/M6, the landmark-migration branch,
+   T1, CS1, and R9 below. OPEN owner decisions (the report's challenge
+   ledger): (1) landmark-seed divergence promoted to a September-BETA
+   gate, not a launch item; (2) day-12 residual — accept, or one
+   contextual trial-start notification ask; (3) lifetime at launch with
+   store-scoped copy vs held until M10; (4) the cynic's vote lands on
+   monetization's side of the open CS2-at-cancel-time question; (5) named
+   competitor comparisons ("a quarter of RP") in founder voice only,
+   never listing or ad copy.
 10. **Apple App Review reviewer.** Run the build adversarially through
     guidelines 4.2 (minimum functionality) and 3.1 (payments) before
     submission, not after rejection.
