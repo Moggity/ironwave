@@ -265,9 +265,18 @@ Derived future branches, in dependency order:
   catalog), M8 the
   stubbed web win-back seam (audience rescoped 2026-07-18: the in-app
   detached-logger surface + account holders; no email channel exists
-  under accounts-optional), M9 a flag-gated win-back offer slot on the
+  under accounts-optional; per the App Review desk's AR4, the business
+  case drops the permanent zero-commission assumption — the Ninth
+  Circuit's Dec 2025 remand lets Apple charge a cost-based fee once
+  approved), M9 a flag-gated win-back offer slot on the
   L4 detachment card deep-linking the AN4 install ID into M8's web
-  checkout (rides L4), M10 the cross-store entitlement bridge (alias the
+  checkout (rides L4; AR4's gating rule: the slot renders only when
+  `BUILD_CHANNEL === 'store'` AND the platform+storefront is eligible —
+  iOS US via the External Purchase Link entitlement with Apple's
+  disclosure sheet, Android only inside an enrolled alternative-billing
+  region, expected NONE at launch so the Android slot stays permanently
+  dark; outside those regions an in-app steer to web payment is a Play
+  payments-policy violation, not a gray area), M10 the cross-store entitlement bridge (alias the
   RevenueCat `appUserID` at account creation so purchases, lifetime
   especially, restore cross-platform for account holders; rides the
   Supabase epic + AN4/M3), M11 the committed sandbox lapse-lifecycle
@@ -293,7 +302,12 @@ Derived future branches, in dependency order:
   works or an in-app text-size setting ships in the same build — iOS
   Dynamic Type / Android fontScale mapped onto the rem root, and the
   textZoom double-scale check), R5 local notifications for the
-  rest timer, R6 native media pipeline
+  rest timer (with the App Review desk's AR2 as a fast-follow AFTER the
+  wrap ships, its own branch: an iOS Live Activity / Android
+  ongoing-chronometer rest timer behind a new `Platform.liveTimer` face,
+  web no-op, driven by `V.restTimer` — needs a small custom native
+  module beyond stock plugins, and turns the strongest 4.2 exhibit into
+  an un-fakeable one), R6 native media pipeline
   (remote host + Filesystem capped cache), R7 Sentry crash/vitals
   (ceiling: exactly THREE shipped SDKs — Sentry, PostHog, RevenueCat —
   each behind an adapter face), R8
@@ -304,7 +318,17 @@ Derived future branches, in dependency order:
   assertions against the minified `dist/` bundle, CS4 what's-new +
   FAQ-freshness lines, and the paywall-cynic report's CYN8 line: rating
   prompts come only from E2's in-app gate, no beta/founding-offer/
-  win-back comm ever contains a rating ask), R10 the declarative store-build first-run chain
+  win-back comm ever contains a rating ask; the App Review desk adds
+  AR1 the native-value inventory asserted against the packaged build,
+  AR3 the 3.1.2 compliance block — paywall shows title/price/period +
+  the intro's renewal price, ToS/EULA + privacy links resolve in-binary
+  from paywall AND Settings, Connect metadata fields filled, "free"
+  never appears without the after-price, M11's lapse rehearsal runs
+  once on TestFlight sandbox pre-submission, Xcode's aggregated privacy
+  report diffs clean against PD8's sheet, Android POST_NOTIFICATIONS
+  asked at first timer use only — AR5 the accounts-implies-deletion
+  build gate keyed on the sync flag, and AR7 a maintained
+  `docs/store-review-notes.md` with a freshness line per submission), R10 the declarative store-build first-run chain
   (age gate, analytics consent, then Epic L's L3 logger home as the
   front door; device-scoped flags, MSTACK-routed; rides R4 + PD2/PD3 +
   L3), R11 a `Platform.crash` adapter face wrapping Sentry
@@ -345,7 +369,12 @@ Derived future branches, in dependency order:
   analytics-data deletion), PD4 sync as one consented RLS blob row the
   server never parses (binding constraint on the Supabase epic; accounts
   stay optional) + dormant-account deletion, PD5 in-app account deletion
-  + DSR wiring (Apple 5.1.1(v) review blocker), PD6 the redacted
+  + DSR wiring (Apple 5.1.1(v) review blocker; the App Review desk adds
+  AR5 — the coupling is per-BUILD, any store build that can create an
+  account contains PD5, encoded as an R9 gate on the sync flag — and
+  AR6, a static web deletion-request page on the marketing domain
+  feeding the support flow, required by Play's Data safety form since
+  in-app deletion alone does not satisfy it), PD6 the redacted
   diagnostic export for support (no H-class fields, no free text), PD7
   HealthKit write-only via `Platform.health`, PD8 the store-form answer
   sheet + Sentry PII scrubbing + the breach runbook. Golden master
@@ -359,7 +388,9 @@ Derived future branches, in dependency order:
   prefilled, the honest one-person SLA line, policy + M6 subscription
   links; the FAQ gains the paywall-cynic report's CYN6 "lifetime of
   what?" entry — local-first, the app keeps working, export free
-  forever — pre-written in both catalogs), CS2 the churn micro-survey as one optional enum tap on the L4
+  forever — pre-written in both catalogs; and per the App Review desk's
+  AR7 the Help screen is where the 1.4.1 health disclaimer lives
+  IN-BINARY, not only in the store listing), CS2 the churn micro-survey as one optional enum tap on the L4
   detachment card (no free text, once per lapse, `S.flags` timestamp),
   CS3 two additive AN-catalog events pre-freeze (`support_opened(topic)`
   for the deflection metric, `churn_reason(reason)`), CS4 release-notes
@@ -385,6 +416,32 @@ Derived future branches, in dependency order:
   Start-a-session primary and no consent wall before the first loggable
   set (E11, with AN6 + PD2 + L3). Nothing touches prescription; golden
   master untouched.
+- **Creator partnership rail (CP1-CP6, from
+  `docs/creator-partner-simulation.md`; rides H7/TB3/M3/AN3/the share
+  cards; NO outreach until CP6's deal sheet exists and the CYN4 scrub
+  is verifiable in the public build):** CP1 template provenance
+  (`schemaVersion: 2`, additive optional `author`/`desc`/`templateId`/
+  `version`; v1 imports keep working; `programFromTemplate` stamps an
+  additive `program.provenance`; "Structure by {author}. Coaching by
+  IRONWAVE." displayed at import, on My Program, and on the shelf, both
+  catalogs; extend `test/h7-twoday.test.js`), CP2 the named-programs
+  shelf (bundled partner-template JSON assets, media-manifest pattern;
+  coach tier activates live behind `hasCoach()`, free tier renders the
+  read-only structure preview — TB3's circulated-templates rule IS the
+  free taste; L5's checklist gains the shelf row), CP3 the attribution
+  + statement rail (one per-creator store offer code per store as the
+  only attribution primitive; a monthly partner statement from
+  RevenueCat/store exports as a support-ops macro, no dashboard; any
+  product-side `template_id`/`source` counting lands in the AN catalog
+  BEFORE the September schema freeze or not at all), CP4 the
+  share-card credit line ("on {author}'s {template}" appended only when
+  provenance exists, free-tier surface, both catalogs), CP5 the
+  no-rug-pull test (removing a shelf template leaves built programs
+  fully functional — `programFromTemplate`'s copy semantics made
+  contractual), CP6 the partner deal sheet (owner + attorney, no code:
+  flat fee + rev-share term/cadence, audit right, two-way support
+  routing, mutual non-exclusivity, brand-safety reps, termination
+  mechanics). Golden master untouched.
 - **Launch gates (owner + attorney, non-coding):** name clearance for the launch
   brand (TSDR/EUIPO, backup name), privacy policy + ToS/EULA + health
   disclaimer, consent/analytics flow, store privacy labels and data-safety
@@ -579,12 +636,44 @@ Adversaries worth simulating:
    monetization's side of the open CS2-at-cancel-time question; (5) named
    competitor comparisons ("a quarter of RP") in founder voice only,
    never listing or ad copy.
-10. **Apple App Review reviewer.** Run the build adversarially through
-    guidelines 4.2 (minimum functionality) and 3.1 (payments) before
-    submission, not after rejection.
-11. **YouTube creator partner.** Simulate the counterparty: would a 50K-sub
-    evidence-based channel actually take the permissioned-program deal at
-    20% recurring affiliate?
+10. ~~**Apple App Review reviewer.**~~ DONE (2026-07-18):
+    `docs/app-review-simulation.md` (Apple primary, Play secondary, run
+    against the PLANNED native store build). Verdict: 4.2 is the risk
+    everyone prepared for and the one the app passes (local bundle, L3's
+    no-login/no-consent-wall first open, R5 notifications, no ATT, short
+    labels); the available rejections are elsewhere — no 3.1.2 payments
+    detail work exists anywhere in the docs, the M9 win-back link is a
+    Play payments-policy VIOLATION on Android outside alternative-billing
+    regions (and on iOS needs the US External Purchase Link entitlement
+    with an unstable commission regime post-Ninth-Circuit Dec 2025),
+    accounts must never out-ship PD5 in any single build, Play's Data
+    safety form demands a WEB deletion link PD5 lacks, and nothing at all
+    is written for the human reviewer. Engineer notes AR1-AR7 absorbed
+    into R5/R9, M8/M9, PD5, and CS1 below. OPEN owner decisions: R8's
+    slip scope (beta-only vs first submission), M9 permanently dark on
+    Android + M8 economics re-run without the zero-commission
+    assumption, the text-scaling ruling seconded from the review desk
+    (panel #8 ACC4), and a review-desk data point filed for Sentry
+    option B on the existing attorney question.
+11. ~~**YouTube creator partner.**~~ DONE (2026-07-18):
+    `docs/creator-partner-simulation.md`. The counterparty signs — but
+    not at 20%-recurring-only: at 50K scale the rev share is worth
+    $200-500/yr against the $900-1,400 she charges for the same 90
+    seconds, so the pitch must say what the $3-4K budget already means
+    (flat production fee + 20% recurring). The deal also needs four
+    things the repo has zero lines of: template provenance (the schema
+    cannot say who made a program, and "Structure by X. Coaching by
+    IRONWAVE." is her non-negotiable), an attribution rail (per-creator
+    offer codes + a monthly statement from RevenueCat/store data), a
+    no-rug-pull clause (athletes keep built programs when a partnership
+    ends), and the deal sheet. TB3's structure-not-live-programs rule is
+    accidentally the perfect creator funnel — keep it. Engineer notes
+    CP1-CP6 absorbed as the "Creator partnership rail" derived branch
+    below. OPEN owner decisions: the flat-fee band, ratify Feb-Mar
+    timing (the docs carry both "late December" and "Feb-Mar"), the
+    scrub gates outreach (extends CYN4), the rev-share term, and the
+    support-boundary rewording ("the 20% buys that" is not how the
+    counterparty reads it).
 12. ~~**Adversarial intake QA.**~~ DONE (2026-07-17):
     `docs/intake-qa-simulation.md`. Onboards every track trying to produce
     a nonsense program; first run against v1.18.0, right after Epic I's
