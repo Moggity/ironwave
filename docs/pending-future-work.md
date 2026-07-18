@@ -376,6 +376,31 @@ Operators (launch-critical, in priority order):
    infrastructure. Engineer notes CS1-CS4 absorbed as the
    "Support/community slices" derived branch above.
 
+**Synergy re-pass (owner directive 2026-07-18, do after the credibility
+tier or before the September beta, whichever comes first):** re-consult
+the first three operators (ASO, release engineering, monetization) as
+short delta reviews now that consultations 4-6 amended their plans after
+the fact. Each re-pass reads its original report plus the later reports'
+challenge ledgers and answers only: what changes, what breaks, what new
+synergy exists. Known agenda per persona: **ASO** — accounts now optional
+(a "no account needed" honesty line is store-listing copy; does it join
+the first-three-lines pitch?), the deflection/help surface and review
+macros feeding the ratings loop, the privacy-forward posture ("data
+never leaves your phone") as a differentiating keyword/screenshot angle,
+CS4's what's-new discipline. **Release engineering** — the SDK ceiling
+raised to three (R7 wording), HealthKit narrowed to write-only (R8),
+consent screens + age gate joining the first-run sequence (R4 wrap
+scope), CS1 in the beta build, the R9 checklist grown (PD8 labels, AN6
+dress rehearsal, CS4 notes), iOS file-protection class on R1's state
+file. **Monetization** — M7's client half superseded by AN3, the cancel
+survey relocated to L4's card (CS2), accounts-optional restore flows
+(purchases without login), the receipts-as-deflection dependency (T1
+before beta now has three reports leaning on it), and whether the
+paywall's free-tier line item list should name the privacy posture.
+Deltas land as amendments inside the ORIGINAL reports (dated, like the
+monetization M2 amendment), not as new documents; strike this paragraph
+when all three are done.
+
 Credibility and coverage:
 
 7. **Sports-science / S&C coach advisor.** Audit engine claims, terminology,
