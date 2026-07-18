@@ -304,3 +304,180 @@ section).
 because the flywheel cannot start retroactively, make the first three
 screenshots carry the coach claim, and spend one honest hour a week on the
 loop forever.
+
+---
+
+## Amendment (2026-07-18): synergy re-pass after consultations 4-6
+
+Commissioned by the owner's synergy re-pass directive in
+`docs/pending-future-work.md`. Read against the analytics report (#4), the
+privacy report (#5), and the support report (#6). The body above stands
+except where amended here. Target unchanged: native store apps, free
+standalone logger (Epic L), paid coach.
+
+### What changes
+
+1. **"No account needed" is promoted from hedge to headline (§5.4).** When
+   §5 was written, "no-account/offline honesty" was a hope; the privacy
+   report's §3.1 ruling (accounts optional, purchases restore with no
+   login, sync is the only account feature) made it architecture. It joins
+   the first-three-lines pitch, but as ONE line fused with the privacy
+   claim, not two: coach claim, free-logger promise, then "No account. No
+   signup. Your training data stays on your phone." Three lines, three
+   claims, done. The same line is the strongest candidate for Play's
+   80-char short description after the keyword payload.
+2. **The privacy posture becomes a keyword cluster and a late screenshot,
+   not the lead (§3, §5).** Add to the §3 map and the owner's keyword
+   validation pass: "offline workout tracker", "no account", "private
+   workout log", plus ES equivalents. Expect small volume; the real ASO
+   value is conversion-side, because Apple's privacy nutrition label sits
+   ON the product page and PD8's answer sheet is what keeps ours short
+   ("data not linked to you"). A near-empty label in the fitness category
+   is a visible differentiator no competitor copy can fake. Screenshot
+   plan: slots 1-3 stay as ruled (the coach claim leads); the privacy
+   claim takes a captioned slot in the back half, replacing the generic
+   "logger polish" shot.
+3. **Screenshot 3's "paid tier's evidence" should be receipts, not the
+   volume dashboard (§5.2).** T1 decision receipts now land before the
+   September beta and are, per the support report's ledger item 6, the
+   product's own answer to "why did my numbers change". "The coach shows
+   its work" over a receipts digest is a stronger paid-evidence frame than
+   a landmark chart; the volume dashboard moves to slot 4. Hold this as
+   the launch order and let the February PPO test challenge it.
+4. **The free-tier half of the long description gets concrete (§5.4).**
+   Epic L gives the listing real free nouns: freestyle logging (L1),
+   routines (L2), history, e1RM trends, plate calculator, 1RM calculator,
+   rest timer, export. The Tier-3 trojan-horse terms and the free-logger
+   promise are now the same paragraph. TIER-1's macro line ("logging is
+   free forever, judgment is the product") is listing-grade copy; reuse
+   the voice.
+5. **§7's weekly hour merges with the analytics scoreboard.** One shared
+   hour (analytics §9), not two: rank + funnel + ratings + the gate
+   scoreboard + the support report's five-minute theme tally. The
+   reviews-as-roadmap bullet (§7.4) is now operationalized by support §7
+   (3+ mentions/month = a `[from-support]` roadmap line); this report
+   stops owning it and starts consuming it.
+6. **Prompt-yield measurement moves from local counters to AN3.** §7.3
+   claimed we would estimate prompt-to-rating yield "from our own
+   instrumentation"; E3's on-device counters can gate prompts but the
+   owner cannot read them remotely, so as a measurement plan that
+   sentence was wrong. AN3's `review_prompt_attempted(trigger)` (already
+   in the closed catalog) is the measurement; E3 survives only as E2's
+   offline gating input. See E8.
+7. **CS4's what's-new discipline is adopted as an ASO surface.** Store
+   "what's new" is conversion copy read at scale and (on Play) lightly
+   discovery-relevant. Rules from this desk: house voice, EN + ES, name
+   user-visible fixes plainly, never keyword-stuff it, and keep it
+   consistent with the review replies that cite versions ("Fixed in 1.3")
+   because prospects read both. CS4's R9 checklist line is the
+   enforcement; no new machinery.
+8. **The ratings floor now rises by deflection, not just prompts (§4).**
+   The support and monetization plans delete predicted 1-star classes
+   before they are written: M5's day-12 reminder (surprise charge), L4's
+   detachment card (hostage program), PD4 sync (lost phone, lost log),
+   T1 receipts (silent changes), CS1's FAQ (everything else). §4's
+   prompt engine is the offense; consultations 4-6 built the defense.
+   Budget note: §4's ~30 min/week of review responses now lives inside
+   support's twice-weekly review window, not as a separate ASO chore.
+
+### What breaks
+
+1. **E2's `S.review` persistence choice predates the device-scoped
+   doctrine and is wrong.** Written 07-16; TB4 (07-17) established that
+   entitlement-shaped device state lives in device-scoped storage, never
+   in `S`, and PD1's inventory lint now polices every top-level `S` key.
+   Review-prompt attempts and install time are device facts, not athlete
+   training state: they must not ride export/import or the future sync
+   blob (importing someone's state should not inherit their prompt
+   quota). E9 relocates it. My own spec, my own miss.
+2. **§4's beta paragraph understated the beta cohort's ratings value.**
+   "Beta builds advocates, not ASO equity" stands mechanically, but the
+   support report's §8 advocate-conversion play (launch-week in-app
+   prompt ask to the cohort, quota-respecting) makes the beta cohort the
+   ratings engine's day-one fuel. The install clocks make it work: beta
+   installs start in September, so by October launch the cohort passes
+   E2's 14-day and session floors legitimately, provided the review
+   state survives the beta-to-production build transition (E9 makes that
+   explicit). No link blasts; the in-app flow only.
+3. **"Data never leaves your phone" as quoted in the re-pass agenda is
+   not shippable copy.** With analytics opt-in, Sentry crash reports,
+   and optional sync, the absolute claim is false and store-review bait;
+   an FTC-flavored substantiation problem at worst. The honest, still
+   ownable line is scoped: "Your training data stays on your phone
+   unless you turn on sync." Anonymous usage stats are opt-in and
+   content-free (analytics §6.3), which the listing may say but must not
+   round up to "never". Challenge recorded below.
+
+### New synergy
+
+1. **Retention gates are ratings gates.** E2's floors (8+ sessions, 14+
+   days) mean only week-2-retained users are ever promptable, so the
+   analytics report's new week-4 retention gate is a leading indicator
+   of ratings velocity. If retention misses the 20% band, the ratings
+   flywheel starves regardless of prompt quality; read them together on
+   the scoreboard.
+2. **The consent-decline blind spot has a cheap gauge.** Users who
+   decline analytics vanish from the funnel; the store consoles' install
+   count vs PostHog `first_open` gives the opt-in rate. Track it in the
+   weekly hour; if opt-in is low, funnel reads are unrepresentative and
+   gate decisions should say so (the analytics report's "no fake
+   numbers" scoreboard rule, applied to its own denominator).
+3. **E4's staging state serves three masters.** The screenshot state now
+   doubles as the preview-video demo state and the beta brief's guided
+   tour. Extending it with a receipts-rich week (delta 3) and the
+   Settings > Privacy screen (delta 2) makes every new conversion asset
+   shootable in both languages; see E10.
+4. **ES support makes the ES listing defensible.** §3's second keyword
+   universe assumed someone answers ES reviews; support §6 commits to
+   it (replies match the review's language). On Play, where review text
+   and responses are discovery-adjacent, the ES listing now has an
+   operations owner instead of a translation chore.
+5. **First-run honesty is testable.** The listing's "first set in under
+   a minute, no signup" promise depends on PD2's boolean age gate, AN2's
+   skippable consent screen, and L3's logger home with "Start a session"
+   primary (analytics §8.2). That sequence is a property, not a vibe;
+   E11 pins it in the beta dress rehearsal.
+
+### Challenges to prior rulings (owner decides)
+
+1. **Soften the agenda's privacy phrasing before it reaches any listing
+   or screenshot:** "training data stays on your phone unless you turn
+   on sync", never "data never leaves your phone". Reasoning in What
+   breaks #3. Draft listing copy with PD8's answer sheet open so claims
+   and labels are checked against each other in the same sitting.
+2. **None against consultations 4-6 otherwise.** The analytics prompt-
+   yield event, the privacy label posture, and the support review-window
+   ownership all strengthen the original plan; endorsed as amended above.
+
+### Engineer notes (continuing §9's series)
+
+- **E8. Emit `review_prompt_attempted` from E2's gate.** When the E2 gate
+  passes and the adapter is invoked, fire the already-cataloged
+  `review_prompt_attempted(trigger)` through the AN1 face (permanent
+  no-op on web/self-hosted). One line at the E2 call site; no new events,
+  no new state. Rides AN3 + the ASO instrumentation slice.
+- **E9. Relocate E2's review state to device-scoped storage.** Supersedes
+  the `S.review` shape in §9/E2: attempts + installedAt move to the TB4
+  device-scoped store (R1 adapter face), excluded from export/import and
+  any future sync blob, declared D-class in PD1's `docs/data-inventory.md`
+  device-side list. Must survive the TestFlight/Play-track upgrade to the
+  production build (never key it to build channel) so the beta cohort is
+  promptable at launch. Rides E2 + R1; gate unit tests unchanged in
+  spirit, re-seeded against the new store.
+- **E10. Extend E4's staging state for the new assets.** Add a seeded
+  receipts-rich week (all T1 `kind`s represented) and a populated
+  Settings > Privacy state, so the receipts screenshot (delta 3), the
+  privacy screenshot (delta 2), and the preview video shoot from one
+  deterministic state in both languages. Rides E4, after T1 and PD3 land.
+- **E11. Assert the store-build first-run sequence in AN6's rehearsal.**
+  Add a checklist assertion (and a render-smoke where feasible) that
+  first run is: age gate (PD2 boolean) -> optional analytics opt-in
+  (AN2, declinable, non-blocking) -> L3 logger home with "Start a
+  session" primary. No consent wall may creep ahead of the first
+  loggable set; the listing promise depends on it. Rides AN6 + PD2 + L3;
+  new as a check, zero new UI.
+
+**Owner tasks added by this amendment:** extend the §8.1 keyword
+validation pass with the privacy/offline cluster (delta 2, EN + ES);
+approve the scoped privacy line (challenge 1); approve the revised
+screenshot order (deltas 1-4) when the identity system renders it.
