@@ -1,6 +1,6 @@
 /* ============================================================
    IRONWAVE — engine.js
-   The training brain. Juggernaut Method 2.0 math + RPE/e1RM
+   The training brain. Wave-periodization math + RPE/e1RM
    estimation + readiness scoring + plate math.
    ============================================================ */
 
@@ -137,7 +137,7 @@ const Engine = {
     }));
   },
 
-  // ---------- MAIN LIFT PRESCRIPTION (the Juggernaut tables) ----------
+  // ---------- MAIN LIFT PRESCRIPTION (the strength wave tables) ----------
   // Returns array of set objects: {weight?, reps, rpe?, amrap?, noteKey?, noteParams?}
   prescribeMain(wave, weekIdx, workingMax, rounding, pctMod = 1, experience) {
     const W = WAVES[wave];
@@ -181,7 +181,7 @@ const Engine = {
     return sets;
   },
 
-  // Secondary main-lift volume work (Inverted Juggernaut style)
+  // Secondary main-lift volume work (inverted wave pattern)
   prescribeSecondary(blockType, weekIdx, workingMax, rounding, pctMod = 1, experience) {
     const type = this.weekType(weekIdx);
     const S = SECONDARY_SCHEMES[blockType] || SECONDARY_SCHEMES.hypertrophy;
@@ -717,7 +717,7 @@ const Engine = {
 };
 
 /* ============================================================
-   [Juggernaut + Bodybuilding] — PRESCRIPTION SCHEME REGISTRY
+   [Wave + BB] — PRESCRIPTION SCHEME REGISTRY
    Every block declares a scheme id; resolveSlot routes through
    this registry and nothing else. Schemes are self-contained:
    main / secondary / accessory prescriptions + a weekVolume
@@ -727,10 +727,10 @@ const Engine = {
 
 Engine.schemes = {
 
-  // The 2012 book, verbatim: descending volume, rising intensity,
+  // Classic 3-week strength wave: descending volume, rising intensity,
   // realization AMRAP. Used for strength blocks.
   'jm2-wave': {
-    label: 'Juggernaut 2.0 wave',
+    label: '3-week strength wave',
     short: 'JM2 wave',
     main(block, w, wm, rounding, pctMod = 1, experience) {
       return Engine.prescribeMain(block.wave, w, wm, rounding, pctMod, experience);
@@ -756,9 +756,9 @@ Engine.schemes = {
     },
   },
 
-  // [Juggernaut + Bodybuilding] ascending-volume hypertrophy:
+  // [Wave + BB] ascending-volume hypertrophy:
   // MEV→MRV style. Sets climb week over week, RIR tightens 3→1,
-  // week 4 keeps the AMRAP (at the book's realization %) so the
+  // week 4 keeps the AMRAP (at the wave's realization %) so the
   // working max still progresses block to block. Deload halves.
   'jbb-hyp': {
     label: 'Ascending volume hypertrophy',
@@ -946,8 +946,9 @@ Engine.schemeFor = function (block) {
    (Powerbuilding / unlimited-time) user, so legacy output is intact.
    ============================================================ */
 
-// Seed a fresh per-athlete landmark grid from the published RP grid, scaled by
-// training experience. Stored on profile.landmarks, then evolved over time.
+// Seed a fresh per-athlete landmark grid from the derived VOLUME_LANDMARKS
+// model, scaled by training experience. Stored on profile.landmarks, then
+// evolved over time until the seed is only a weak prior.
 Engine.seedLandmarks = function (experience) {
   const f = (typeof EXPERIENCE_FACTOR !== 'undefined' && EXPERIENCE_FACTOR[experience]) || 0.85;
   const out = {};
@@ -959,6 +960,15 @@ Engine.seedLandmarks = function (experience) {
     out[m] = { mv, mev, mrv };
   }
   return out;
+};
+
+// [B1/SS1] Step size for a block-end landmark recalibration. The default nudge
+// is 1 set per block; with strong evidence (at least 6 scoring sets logged for
+// the muscle this block AND a peak week that actually trained near the current
+// ceiling) the landmark moves 2, so the athlete's own data dominates the
+// seeded prior within about two mesos. Pure.
+Engine.landmarkStep = function (nScored, peakSets, mrv) {
+  return nScored >= 6 && peakSets >= mrv - 2 ? 2 : 1;
 };
 
 // [Cluster D] Classify a muscle's weekly working sets against its landmarks.

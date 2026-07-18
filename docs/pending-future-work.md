@@ -102,33 +102,34 @@ Derived future branches, in dependency order:
   `package.json` license is UNLICENSED, README footer updated. STILL OPEN for
   the owner: the git-history rewrite decision (the PDF remains in history;
   legal report recommends `git filter-repo` + force-push + re-clone).
-- **`legal-scrub` branch** (legal report items 3-5): athlete-facing string and
-  label renames (i18n taglines, `program.methodology` label + one-line
-  `migrateState` rename with a `migration.test.js` case, engine scheme `label`,
-  manifest/package metadata), comment/test rewording to concept language, README
-  rewrite, plus the sports-science copy scrub (SS4: injury copy drops
-  "rehabbing", gains a stop-on-pain line, easing described as caution not
-  treatment; SS5: deload/minicut mechanism copy moves to outcome language,
-  "resensitize" out, minicut reframed as a fat-loss window timed with the
-  deload; both i18n catalogs). Verified: `golden-master.json` contains none of
-  these strings, so the
-  sweep must land with the golden master byte-identical (any diff is a bug in
-  the sweep). Grep gate: zero case-insensitive juggernaut / renaissance
-  periodization / israetel matches under `app/` outside `CHANGELOG.md`.
-- **Landmark seed migration** (legal report item 6): blend/derive our own
-  `VOLUME_LANDMARKS` values (extends the existing "Migrate off the seeded RP
-  grid" item below). The one legal item that legitimately moves the golden
-  master; regenerate deliberately and review the diff. Implementation spec
-  now exists: SS1's parametric derivation methodology in
-  `docs/sports-science-audit-report.md` section 5 (muscle size/recovery
-  classes, 2-set grid snapping, multi-source range blending, a divergence
-  test against the old grid, and faster athlete recalibration so the seed
-  becomes a weak prior). The paywall-cynic report (CYN4) escalates the
-  timing: the shipped values are diffable by any beta tester against the
-  published grid (and `data.js:1404`'s SOURCE comment names it), so the
-  divergence — or at least the divergence test going green plus the
-  comment scrub — should gate the September beta, not launch (owner
-  decision pending, cynic report challenge 1).
+- ~~**`legal-scrub` branch** (legal report items 3-5)~~ DONE (2026-07-18,
+  roundtable step B2): athlete-facing renames landed (both taglines, the
+  `jm2-wave` label "3-week strength wave", `program.methodology` "Wave
+  Strength + Bodybuilding" / "Wave strength focus" with a prefix-matched
+  `migrateState` rename + `migration.test.js` case, manifest/package
+  metadata), comments/tests reworded to concept language (`[Wave + BB]`
+  tag), README rewritten with the non-affiliation disclaimer, and the
+  SS4/SS5 copy scrub in both catalogs (injury copy asks about training
+  around aches with a stop-on-pain line; "resensitize" out, deload copy in
+  outcome language, minicut reframed as a fat-loss window timed with the
+  deload). Grep gate green: zero case-insensitive juggernaut / renaissance
+  periodization / israetel matches under `app/` outside `CHANGELOG.md`;
+  golden master byte-identical.
+- ~~**Landmark seed migration** (legal report item 6)~~ DONE (2026-07-18,
+  roundtable step B1; owner sign-off at Gate 4 STILL OPEN —
+  `docs/landmark-derivation-note.md` is the review sheet): `VOLUME_LANDMARKS`
+  is now derived from `LANDMARK_TRAITS` (need class -> MEV {0,6,8,10},
+  recovery class -> MRV span {10,12,14}, MV = 0.6 x MEV, 2-set grid) per
+  SS1's section-5 methodology; `test/landmark-divergence.test.js` asserts
+  no triple equals the retired seed, values reproduce from the model, and
+  consensus bounds hold (the CYN4 beta gate is green); the `data.js` SOURCE
+  comment naming the competitor is gone; `Engine.landmarkStep` +
+  `recalibrateLandmarks` step landmarks +/-2 on strong evidence (>= 6
+  scoring sets and peak weekly volume within 2 of the ceiling) so the seed
+  is a weak prior within ~2 mesos. Evolved `profile.landmarks` never
+  migrated; `EXPERIENCE_FACTOR` unchanged. Golden master deliberately
+  regenerated: byte-identical (the seed feeds bodybuilding volume
+  machinery, not default slot output).
 - **Productization epic** (marketing v2 section 2): Capacitor store wrap (local
   assets, push, haptics, HealthKit export; guideline 4.2 mitigations), accounts
   + sync (Supabase; the Express/`database.json` layer maps onto Postgres —
@@ -744,10 +745,11 @@ and the product moat are the same move.
   feedback autoregulation are ideas/facts; implementing them is safe. The risk
   lives in copying a *specific company's expression*: their exact datasets/tables
   verbatim, their feedback wording/UI, their precise numeric mappings.
-- **Migrate off the seeded RP grid.** `VOLUME_LANDMARKS` currently ships the RP
-  published grid as an external seed (noted in `data.js`). Move toward our own
-  blended/derived values so we are not redistributing their table; keep any
-  citation as "reference, not reproduction."
+- ~~**Migrate off the seeded RP grid.**~~ DONE (2026-07-18, roundtable B1):
+  `VOLUME_LANDMARKS` is now the output of our own trait model in `data.js`,
+  with `test/landmark-divergence.test.js` proving no triple reproduces the
+  retired table on every build. References stay references, never
+  reproductions (see `docs/landmark-derivation-note.md`).
 - **Differentiate by simplifying:** fewer feedback signals, our own scales and
   copy, our own exercise ratings, our own UI. "Simpler and different" is both the
   legal cover and the differentiation.

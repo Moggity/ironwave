@@ -142,12 +142,12 @@ test('readinessScore: composite, clamped to 0..30', () => {
   assert.strictEqual(penalized, 0);
 });
 
-test('seedLandmarks: RP grid scaled by experience, invariants preserved', () => {
+test('seedLandmarks: derived grid scaled by experience, invariants preserved', () => {
   const L = Engine.seedLandmarks('intermediate');
   const f = EXPERIENCE_FACTOR.intermediate;
 
-  // chest 8/10/22 * 0.85 => 7 / 9 / 19.
-  assert.deepStrictEqual(L.chest, { mv: 7, mev: 9, mrv: 19 });
+  // chest 6/10/22 * 0.85 => 5 / 9 / 19.
+  assert.deepStrictEqual(L.chest, { mv: 5, mev: 9, mrv: 19 });
 
   // glute has MEV 0; that floor is preserved (not pushed up to mv).
   assert.strictEqual(L.glute.mev, 0);
@@ -162,6 +162,17 @@ test('seedLandmarks: RP grid scaled by experience, invariants preserved', () => 
 
   // An unknown experience falls back to the intermediate factor (0.85).
   assert.deepStrictEqual(Engine.seedLandmarks('unknown-tier'), L);
+});
+
+test('landmarkStep: 2 only on strong evidence, else 1', () => {
+  // Strong: >= 6 scoring sets AND a peak week within 2 sets of the ceiling.
+  assert.strictEqual(Engine.landmarkStep(6, 18, 20), 2);
+  assert.strictEqual(Engine.landmarkStep(9, 20, 20), 2);
+  // Enough sets but the ceiling was never approached: normal nudge.
+  assert.strictEqual(Engine.landmarkStep(9, 10, 20), 1);
+  // Peak at the ceiling but too few scoring sets: normal nudge.
+  assert.strictEqual(Engine.landmarkStep(5, 20, 20), 1);
+  assert.strictEqual(Engine.landmarkStep(0, 0, 20), 1);
 });
 
 test('prescribeMain ramp: jm2 accumulation vs intro, calibrated and not', () => {

@@ -1,7 +1,7 @@
 {
   "name": "IRONWAVE",
   "short_name": "IRONWAVE",
-  "description": "Auto-regulating powerbuilding trainer on the Juggernaut Method 2.0 wave system.",
+  "description": "Auto-regulating powerbuilding trainer on a 3-week wave periodization system.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

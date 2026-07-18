@@ -1,7 +1,7 @@
 /* ============================================================
    IRONWAVE — test/prescription-sanity.test.js
-   Book-grounded prescription audit (Israetel 2020, Scientific
-   Principles of Hypertrophy Training). Simulates whole programs
+   Consensus-grounded prescription audit (the hypertrophy
+   dose-response literature). Simulates whole programs
    through resolveSlot and asserts the output never contradicts
    the training best practices the app claims to follow:
 
@@ -12,12 +12,12 @@
       effective-rep window: the implied reps-in-reserve of a
       prescribed set (inverse Epley against its anchor) matches
       the displayed RIR within tolerance and never drifts into
-      junk-volume territory (book p.58-60, p.109).
+      junk-volume territory (cites in the private derivation notes).
       - jbb-hyp MAINS are deliberately EXEMPT for now: they still
-        run Juggernaut wave percentages far above the shown RIR.
+        run strength-wave percentages far above the shown RIR.
         TODO(owner): pending the mains re-anchor decision.
-      - jm2-wave is exempt: it reproduces the 2012 Juggernaut
-        book verbatim (submaximal waves + AMRAP progression).
+      - jm2-wave is exempt: it reproduces its classic 2012 wave
+        source verbatim (submaximal waves + AMRAP progression).
    3. An entered rep-max is respected: with a 10RM on record, no
       high-rep prescription meets or exceeds that weight.
    ============================================================ */

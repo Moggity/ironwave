@@ -35,7 +35,7 @@ const I18N_ES = {
   'session.last_set': 'Última serie',
   'session.optional_tag': 'opcional',
   'session.over_time_limit': 'Excede tu límite de tiempo. Hazlo si te queda tiempo, si no sáltalo.',
-  'session.injury_eased': 'Marcado. Cargas al 90%, sin AMRAP.',
+  'session.injury_eased': 'Marcado. Cargas al 90% por precaución, sin AMRAP. Si duele, para.',
   'session.sets_x_reps': '{sets} series x {reps} reps',
   'session.sets_x_reps_rir': '{sets} series x {reps} reps @ {rir}',
   'session.notes': 'Notas',
@@ -557,14 +557,14 @@ const I18N_ES = {
   'vol.trend_title': 'Tendencia de recuperación',
   'vol.trend_body': 'Tu recuperación en las últimas sesiones. Una pendiente a la baja hace tu descarga más profunda.',
   'vol.minicut_title': 'La fatiga se acumula',
-  'vol.minicut_body': '{n} músculos están en su MRV o cerca. Un minicorte (2 a 4 semanas en déficit) soltaría fatiga y te resensibilizaría al volumen.',
+  'vol.minicut_body': '{n} músculos están en su MRV o cerca, así que la descarga está próxima. Ese tramo ligero es una buena ventana para un minicorte (2 a 4 semanas en déficit) y perder algo de grasa sin costarle a tu entrenamiento.',
   'vol.minicut_cta': 'Planear un minicorte ›',
   'vol.early_deload_title': 'Descarga adelantada esta semana',
-  'vol.early_deload_body': 'La descarga de este bloque se adelantó para soltar fatiga. Termina esta semana ligera y el próximo bloque arrancas resensibilizado desde el MEV.',
+  'vol.early_deload_body': 'La descarga de este bloque se adelantó para soltar fatiga. Termina esta semana ligera y el próximo bloque vuelve a subir desde el MEV.',
   'vol.deload_deeper': 'Descarga más profunda',
   'vol.deload_lighter': 'Descarga más ligera',
-  'vol.deload_deep_body': 'Mucha fatiga este bloque ({n} músculos cerca del MRV). El volumen de accesorios baja un punto más esta semana, y el próximo bloque tu volumen se resensibiliza desde el MEV.',
-  'vol.deload_light_body': 'Poca fatiga este bloque. El volumen de accesorios se queda un punto más alto esta semana, y el próximo bloque tu volumen se resensibiliza desde el MEV.',
+  'vol.deload_deep_body': 'Mucha fatiga este bloque ({n} músculos cerca del MRV). El volumen de accesorios baja un punto más esta semana, y el próximo bloque vuelve a subir desde el MEV.',
+  'vol.deload_light_body': 'Poca fatiga este bloque. El volumen de accesorios se queda un punto más alto esta semana, y el próximo bloque vuelve a subir desde el MEV.',
   'vol.footer_autoreg': 'Las notas ▲ ▼ ＝ leen tus check-ins y tus últimas sesiones, y alimentan solas el volumen de la próxima semana.',
   'vol.footer_landmarks': 'El MEV es lo mínimo que te hace crecer; el MRV, lo máximo que puedes recuperar. Un bloque debería subir del MEV hacia el MRV y luego descargar.',
 
@@ -579,7 +579,7 @@ const I18N_ES = {
   'phase.gain_desc': 'Superávit mayor: empuja la ganancia muscular con la recuperación alta.',
   'phase.maintenance_desc': 'Alrededor del mantenimiento: mantén el peso y recupera.',
   'phase.cut_desc': 'Déficit para perder grasa. La recuperación baja, así que el volumen se mantiene en vez de subir.',
-  'phase.minicut_desc': 'Déficit corto e intenso (2 a 4 semanas) para soltar fatiga y volver a crecer.',
+  'phase.minicut_desc': 'Déficit corto (2 a 4 semanas), idealmente junto a una descarga, para perder algo de grasa y volver a crecer.',
   'phase.peak_desc': 'Afinado final hacia una competición o una fecha de fotos. El volumen baja, la frescura sube.',
   'phase.screen_title': 'Fase y peso corporal',
   'phase.section': 'Fase de entrenamiento',
@@ -659,7 +659,7 @@ const I18N_ES = {
   'ci.mindset_title': 'Mentalidad',
   'ci.mindset_body': '¿Cuál es tu enfoque de hoy?',
   'ci.mindset_ph': 'Hoy voy a…',
-  'ci.injury_q': '🩹 ¿Estás rehabilitando alguna lesión?',
+  'ci.injury_q': '🩹 ¿Alguna molestia o lesión con la que estés entrenando con cuidado?',
   'ci.start_workout': 'Empezar a entrenar',
 
   // --- swap / select / add pickers ---
@@ -857,7 +857,7 @@ const I18N_ES = {
 
   // --- More hub ---
   'more.lifter': 'Atleta',
-  'more.tagline': 'IRONWAVE · Motor Juggernaut Method 2.0',
+  'more.tagline': 'IRONWAVE · Motor de periodización por olas',
   'more.settings': 'Configuración y datos',
   'more.version': 'Versión {v}',
 

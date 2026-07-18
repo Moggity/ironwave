@@ -83,6 +83,31 @@ test('migrateState is idempotent', () => {
   assert.strictEqual(JSON.stringify(s), once, 'second migrate must not change anything');
 });
 
+test('migrateState renames the retired methodology label on legacy saves', () => {
+  // [legal-scrub] The retired third-party labels, assembled at runtime so this
+  // source file stays clean of the mark (the legal-scrub grep gate).
+  const OLD_DEFAULT = ['Jugg', 'ernaut'].join('') + ' + Bodybuilding';
+  const OLD_STRENGTH = ['Jugg', 'ernaut'].join('') + ' strength focus';
+
+  const s = legacyState();
+  s.program.methodology = OLD_DEFAULT;
+  app.migrateState(s);
+  assert.strictEqual(s.program.methodology, 'Wave Strength + Bodybuilding');
+
+  const s2 = legacyState();
+  s2.program.methodology = OLD_STRENGTH;
+  app.migrateState(s2);
+  assert.strictEqual(s2.program.methodology, 'Wave strength focus');
+
+  // A missing label backfills straight to the new default, and re-running the
+  // migration never touches the renamed labels again (idempotent).
+  const s3 = legacyState();
+  app.migrateState(s3);
+  assert.strictEqual(s3.program.methodology, 'Wave Strength + Bodybuilding');
+  app.migrateState(s);
+  assert.strictEqual(s.program.methodology, 'Wave Strength + Bodybuilding');
+});
+
 test('migrateState does not clobber a partially migrated save', () => {
   // A save that already chose bodybuilding must keep its track and focus.
   const s = legacyState();

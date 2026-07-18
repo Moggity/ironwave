@@ -24,7 +24,7 @@ you.
 ### The three scripts (one shared global scope)
 
 - **`data.js`** — pure data, no logic. Movement taxonomy (`MOVEMENTS`,
-  `EXERCISES`/`EXERCISE_LIST`), the Juggernaut wave tables (`WAVES`,
+  `EXERCISES`/`EXERCISE_LIST`), the strength wave tables (`WAVES`,
   `DELOAD_SETS`), program/day templates (`PROGRAM_TEMPLATES`, `DAY_TEMPLATES`,
   `BB_DAY_TEMPLATES`), the bodybuilding tuning tables (`JBB_HYP`,
   `VOLUME_LANDMARKS`, `EXPERIENCE_FACTOR`, `TIME_MODEL`), and the split-generator
