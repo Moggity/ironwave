@@ -4,6 +4,13 @@ Current as of the end of the `Onboarding-improvements` branch. None of these
 block what shipped; they are enhancements, tuning, and known rough edges. Group
 them into focused branches rather than one large one (see the retrospective).
 
+**SEQUENCING AUTHORITY (2026-07-18): `docs/launch-roundtable-plan.md`.** The
+twelve launch consultants re-convened cooperatively and laid the slices below
+onto one pseudo-linear line (Stations A-H) with the human gates (G1-G13) in
+plain English. Pick the next branch from that line, top to bottom; read the
+slice detail HERE before starting. When the two docs disagree about SEQUENCE,
+the roundtable plan wins; about CONTENT, this backlog wins.
+
 ## Larger features (each its own branch)
 
 - **Sport-aware scheduling** (the long-deferred epic): a sport -> muscle-fatigue
@@ -700,6 +707,16 @@ Adversaries worth simulating:
 Lower priority, do not skip forever: a finance/ops advisor (entity,
 liability insurance, IAP tax treatment, Small Business Program enrollment)
 and a QA / device-matrix persona before the September-equivalent beta.
+
+**Cooperative roundtable (owner directive 2026-07-18): DONE** —
+`docs/launch-roundtable-plan.md`. All twelve consultants re-convened at one
+table and produced the pseudo-linear launch line with plain-English human
+gates. Three conflicts settled at the table: the two-wave beta (wave 1
+paywall-free, wave 2 paywall + receipts — preserves the T1 gate while
+un-overloading September; owner ratifies at its Gate 1), the volume-table
+replacement promoted to the FIRST engine branch (B1, four consultants
+converged on it), and the ~20 scattered owner decisions batched into three
+first-week sittings (decision batch, lawyer letter, store paperwork).
 
 ## Hardcore hypertrophy roadmap (epics, clusters, dependencies)
 
