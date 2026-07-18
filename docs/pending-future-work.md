@@ -173,7 +173,8 @@ Derived future branches, in dependency order:
   device-scoped storage, never in S; production import ignores
   entitlement-shaped fields incl. debugTier — with R1/M3; TB5 store
   builds ignore S.debugTier and hide the Settings toggle behind a dev
-  flag — with M1/R3; TB6 element-gate coach-derived picker hints (SFR
+  flag (R12's `BUILD_CHANNEL`, stamped by R3's release lane) — with
+  M1/R3; TB6 element-gate coach-derived picker hints (SFR
   ordering, adds-head, over-MRV, time-cost) in free routine editing —
   with L2; TB7 gate vReport and every T1 receipt surface from birth —
   with T3/T1; TB8 offline grace keys off a device-stored last-verified
@@ -185,7 +186,10 @@ Derived future branches, in dependency order:
   easing, all surfaced as short athlete-facing receipts at session time
   and a week-boundary digest; `noteKey`/`noteParams` pattern, display-only,
   golden-master-safe; land before the September beta so trial users SEE
-  the differentiator; acceptance criteria extended by the analytics
+  the differentiator — promoted to a HARD beta-entry gate by the
+  2026-07-18 synergy re-pass: the tier analysis, AN3's receipt counters,
+  and support's COACH-1 deflection all lean on receipts, so no tester
+  meets the paywall before T1 fires; acceptance criteria extended by the analytics
   report section 8: every receipt carries a `kind` and increments
   countable session/week counters, so receipt exposure vs trial
   conversion is measurable from birth, the AN3 coordination), T2 the plateau card on free data (pure seeded
@@ -193,36 +197,74 @@ Derived future branches, in dependency order:
   mode only; the honest organic upsell), T3 the coach report card
   (receipts ledger extending `macroReportHTML`; gate `vReport` behind
   `hasCoach()` when it lands).
-- **Monetization slices M1-M8** (read
-  `docs/monetization-operations-report.md` section 9 first; M1-M2 are pure
-  repo work startable now, M3+ need R2's platform adapter; **M2 and M4 are
-  blocked on Epic L above**): M1 the
+- **Monetization slices M1-M11** (read
+  `docs/monetization-operations-report.md` section 9 plus BOTH dated
+  amendments first; M1-M2 are pure repo work startable now, M3+ need R2's
+  platform adapter; **M2 and M4 are blocked on Epic L above, and M4's
+  beta entry is additionally gated on T1** — receipts must fire behind
+  the paywall before any tester sees it): M1 the
   entitlement seam (`Platform.billing`, one `coach` entitlement; web/self-
   hosted always entitled so the prototype and test suite run unchanged; the
-  engine stays billing-blind), M2 the nothing-held-hostage degraded mode on
+  engine stays billing-blind; L0 shipped the `hasCoach()` seam, M1 replaces
+  only its body), M2 the nothing-held-hostage degraded mode on
   trial expiry (rebuilt on Epic L's routines per the report's amendment,
   not a bespoke rendering fork), M3 RevenueCat behind
-  the seam with a 7-day offline entitlement grace, M4 the paywall surface
-  (reveal + coach touchpoints, "continue free" always visible), M5 the
-  day-12 trial reminder over R5 notifications, M6 the settings subscription
-  section, M7 minimal funnel events (client half superseded by analytics
-  slice AN3; the no-duplicate-purchase-tracking rule stands), M8 the
-  stubbed web win-back seam.
+  the seam with a 7-day offline entitlement grace (absorbs TB4/TB8:
+  device-scoped entitlement cache never in `S`, clock rollback =
+  expired-pending-check), M4 the paywall surface
+  (reveal + coach touchpoints, "continue free" always visible, AN3's
+  `source`/`paywall_outcome` enums verbatim, the shared privacy footer
+  line near restore/terms), M5 the
+  day-12 trial reminder (in-app card is the guaranteed channel, R5 push
+  secondary; copy recaps T1's local receipt counts), M6 the settings
+  subscription section (beta-bound: CS1's FAQ and billing macros depend
+  on its manage/cancel deep link; shows the cancelled-not-yet-expired
+  state; honesty table renders from the tier map), M7 the
+  no-duplicate-purchase-tracking rule only (client events live in AN3's
+  catalog), M8 the
+  stubbed web win-back seam (audience rescoped 2026-07-18: the in-app
+  detached-logger surface + account holders; no email channel exists
+  under accounts-optional), M9 a flag-gated win-back offer slot on the
+  L4 detachment card deep-linking the AN4 install ID into M8's web
+  checkout (rides L4), M10 the cross-store entitlement bridge (alias the
+  RevenueCat `appUserID` at account creation so purchases, lifetime
+  especially, restore cross-platform for account holders; rides the
+  Supabase epic + AN4/M3), M11 the committed sandbox lapse-lifecycle
+  rehearsal script (trial, cancel, detach, CS2 tap, cloned week,
+  re-subscribe, coach re-engages; green before the September beta).
   Golden master untouched.
-- **Release engineering slices R1-R9** (read
-  `docs/release-engineering-report.md` section 10 first; R1-R3 need no store
+- **Release engineering slices R1-R12** (read
+  `docs/release-engineering-report.md` section 10 plus the 2026-07-18
+  amendment first — it rewords R1/R4/R7/R8/R9; R1-R3 need no store
   accounts and can start now): R1 durable storage adapter
-  (`Platform.storage`, Filesystem JSON on native, web path byte-identical),
-  R2 `platform.js` adapter skeleton (ASO E2 and haptics implement against
+  (`Platform.storage`, Filesystem JSON on native, web path byte-identical;
+  amended: iOS file-protection class on the state file + an `erase()`
+  operation for PD1), R2 `platform.js` adapter skeleton (ASO review
+  plumbing and haptics implement against
   it; SW registration becomes web-only), R3 release build lane (esbuild
   minify/strip into `dist/`, version stamping from `APP_VERSION`, CI runs
   the harness against the minified bundle on tags; also the legal
-  comments-must-not-ship fix), R4 the Capacitor wrap branch (committed
+  comments-must-not-ship fix; fails on a fourth SDK in native lockfiles),
+  R4 the Capacitor wrap branch (committed
   native projects, Android back button through `MSTACK`, splash/status
-  bar), R5 local notifications for the rest timer, R6 native media pipeline
-  (remote host + Filesystem capped cache), R7 Sentry crash/vitals, R8
-  HealthKit export (write-only per privacy report PD7), R9 pre-submission
-  checklist automation. Nothing touches
+  bar; first-run scope grown, see R10), R5 local notifications for the
+  rest timer, R6 native media pipeline
+  (remote host + Filesystem capped cache), R7 Sentry crash/vitals
+  (ceiling: exactly THREE shipped SDKs — Sentry, PostHog, RevenueCat —
+  each behind an adapter face), R8
+  HealthKit export (write-only per privacy report PD7; HealthKit types
+  join AN1's banned-property lint; Health Connect inherits the posture),
+  R9 pre-submission
+  checklist automation (grown: PD8 label checks, AN6 dress-rehearsal
+  assertions against the minified `dist/` bundle, CS4 what's-new +
+  FAQ-freshness lines), R10 the declarative store-build first-run chain
+  (age gate, analytics consent, then Epic L's L3 logger home as the
+  front door; device-scoped flags, MSTACK-routed; rides R4 + PD2/PD3 +
+  L3), R11 a `Platform.crash` adapter face wrapping Sentry
+  (init/setRelease/scrub config, consent policy a one-line change, web
+  no-op; rides R7), R12 a `BUILD_CHANNEL` constant (dev/beta/store)
+  stamped by the release lane and consumed by TB5/AN1/R10/R11/CS1
+  (rides R3). Nothing touches
   prescription; golden master untouched.
 - **Analytics instrumentation slices AN1-AN6** (read
   `docs/analytics-instrumentation-report.md` sections 5-6 and 11 first;
@@ -274,12 +316,25 @@ Derived future branches, in dependency order:
   for the deflection metric, `churn_reason(reason)`), CS4 release-notes
   + FAQ-freshness lines on the R9 checklist. Golden master untouched.
 - **ASO instrumentation slice** (rides with or right after the productization
-  epic; read `docs/aso-launch-report.md` section 9 first): real-time PR
+  epic; read `docs/aso-launch-report.md` section 9 plus the 2026-07-18
+  amendment first): real-time PR
   detection hook at set-log time (E1), the gated store-review prompt plumbing
-  with additive `S.review` state and a web no-op adapter (E2), local milestone
+  with a web no-op adapter (E2; the original "additive `S.review` state"
+  design is superseded — see E9), local milestone
   counters (E3), a deterministic screenshot staging state (E4), keyword-aware
-  IAP display naming when RevenueCat lands (E5), and keeping the prototype
-  noindexed through productization (E6). Nothing touches prescription; golden
+  IAP display naming when RevenueCat lands (E5), keeping the prototype
+  noindexed through productization (E6), a cataloged
+  `review_prompt_attempted(trigger)` event emitted from E2's gate via the
+  AN1 face (E8, with AN3), review state relocated to TB4-style
+  device-scoped storage (attempts, installedAt; D-class in the PD1
+  inventory, survives the beta-to-production upgrade so the beta cohort
+  stays promptable at launch) (E9, with E2 + R1), the E4 staging state
+  extended with a receipts-rich week and a populated Settings > Privacy
+  for the new screenshot narrative (E10, after T1 + PD3), and an AN6
+  dress-rehearsal assertion that a store build's first run is age gate,
+  optional analytics opt-in, then the L3 logger home with
+  Start-a-session primary and no consent wall before the first loggable
+  set (E11, with AN6 + PD2 + L3). Nothing touches prescription; golden
   master untouched.
 - **Launch gates (owner + attorney, non-coding):** name clearance for the launch
   brand (TSDR/EUIPO, backup name), privacy policy + ToS/EULA + health
@@ -376,30 +431,31 @@ Operators (launch-critical, in priority order):
    infrastructure. Engineer notes CS1-CS4 absorbed as the
    "Support/community slices" derived branch above.
 
-**Synergy re-pass (owner directive 2026-07-18, do after the credibility
-tier or before the September beta, whichever comes first):** re-consult
-the first three operators (ASO, release engineering, monetization) as
-short delta reviews now that consultations 4-6 amended their plans after
-the fact. Each re-pass reads its original report plus the later reports'
-challenge ledgers and answers only: what changes, what breaks, what new
-synergy exists. Known agenda per persona: **ASO** — accounts now optional
-(a "no account needed" honesty line is store-listing copy; does it join
-the first-three-lines pitch?), the deflection/help surface and review
-macros feeding the ratings loop, the privacy-forward posture ("data
-never leaves your phone") as a differentiating keyword/screenshot angle,
-CS4's what's-new discipline. **Release engineering** — the SDK ceiling
-raised to three (R7 wording), HealthKit narrowed to write-only (R8),
-consent screens + age gate joining the first-run sequence (R4 wrap
-scope), CS1 in the beta build, the R9 checklist grown (PD8 labels, AN6
-dress rehearsal, CS4 notes), iOS file-protection class on R1's state
-file. **Monetization** — M7's client half superseded by AN3, the cancel
-survey relocated to L4's card (CS2), accounts-optional restore flows
-(purchases without login), the receipts-as-deflection dependency (T1
-before beta now has three reports leaning on it), and whether the
-paywall's free-tier line item list should name the privacy posture.
-Deltas land as amendments inside the ORIGINAL reports (dated, like the
-monetization M2 amendment), not as new documents; strike this paragraph
-when all three are done.
+~~**Synergy re-pass (owner directive 2026-07-18)**~~ DONE (2026-07-18):
+all three operator deltas landed as dated amendments inside the ORIGINAL
+reports, per the directive. **ASO** (`docs/aso-launch-report.md`): notes
+E8-E11; "no account needed" fused with the privacy claim into one pitch
+line; screenshot 3 flips to a T1 receipts digest; the agenda's "data
+never leaves your phone" phrasing REJECTED as unshippable copy — the
+honest line is "your training data stays on your phone unless you turn
+on sync". **Release engineering**
+(`docs/release-engineering-report.md`): notes R10-R12; R1/R4/R7/R8/R9
+reworded (R7's ceiling is exactly three SDKs, each behind an adapter
+face); the beta must-include list restated as a dependency graph with a
+proposed cut line. **Monetization**
+(`docs/monetization-operations-report.md`): notes M9-M11; M3-M8
+rescoped (M7 shrinks to the purchase-tracking rule, M8's win-back
+audience loses email under accounts-optional, T1 promoted to a hard
+beta-entry gate). All new engineer notes are absorbed into the
+derived-branch slices above. OPEN owner decisions from the re-pass:
+(1) Sentry consent timing — join AN2's analytics opt-in, or run
+pre-consent under legitimate interest with PD8 scrubbing (release
+engineering leans the latter for beta; needs attorney blessing BEFORE
+AN2's consent copy is written); (2) ratify the beta cut line (R6, R8,
+PD5 may slip to launch if September is at risk; consent screens, CS1,
+the AN pipeline, and T1 never slip); (3) CS2 survey timing —
+monetization proposes the same one-tap churn enum also offered once at
+cancelled-not-yet-expired in M6, support ruled card-only.
 
 Credibility and coverage:
 
