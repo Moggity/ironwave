@@ -99,14 +99,24 @@ Derived future branches, in dependency order:
   label renames (i18n taglines, `program.methodology` label + one-line
   `migrateState` rename with a `migration.test.js` case, engine scheme `label`,
   manifest/package metadata), comment/test rewording to concept language, README
-  rewrite. Verified: `golden-master.json` contains none of these strings, so the
+  rewrite, plus the sports-science copy scrub (SS4: injury copy drops
+  "rehabbing", gains a stop-on-pain line, easing described as caution not
+  treatment; SS5: deload/minicut mechanism copy moves to outcome language,
+  "resensitize" out, minicut reframed as a fat-loss window timed with the
+  deload; both i18n catalogs). Verified: `golden-master.json` contains none of
+  these strings, so the
   sweep must land with the golden master byte-identical (any diff is a bug in
   the sweep). Grep gate: zero case-insensitive juggernaut / renaissance
   periodization / israetel matches under `app/` outside `CHANGELOG.md`.
 - **Landmark seed migration** (legal report item 6): blend/derive our own
   `VOLUME_LANDMARKS` values (extends the existing "Migrate off the seeded RP
   grid" item below). The one legal item that legitimately moves the golden
-  master; regenerate deliberately and review the diff.
+  master; regenerate deliberately and review the diff. Implementation spec
+  now exists: SS1's parametric derivation methodology in
+  `docs/sports-science-audit-report.md` section 5 (muscle size/recovery
+  classes, 2-set grid snapping, multi-source range blending, a divergence
+  test against the old grid, and faster athlete recalibration so the seed
+  becomes a weak prior).
 - **Productization epic** (marketing v2 section 2): Capacitor store wrap (local
   assets, push, haptics, HealthKit export; guideline 4.2 mitigations), accounts
   + sync (Supabase; the Express/`database.json` layer maps onto Postgres —
@@ -192,7 +202,11 @@ Derived future branches, in dependency order:
   meets the paywall before T1 fires; acceptance criteria extended by the analytics
   report section 8: every receipt carries a `kind` and increments
   countable session/week counters, so receipt exposure vs trial
-  conversion is measurable from birth, the AN3 coordination), T2 the plateau card on free data (pure seeded
+  conversion is measurable from birth, the AN3 coordination; and by the
+  sports-science audit: SS7's receipts language contract governs every
+  receipt string — athlete's own data first, app rules owned as app
+  rules, hedged or absent mechanisms, never diagnostic — enforced by a
+  banned-vocabulary lint test), T2 the plateau card on free data (pure seeded
   helper over `e1rmTrend`, one dismissible card capped per ~5 weeks, free
   mode only; the honest organic upsell), T3 the coach report card
   (receipts ledger extending `macroReportHTML`; gate `vReport` behind
@@ -459,15 +473,34 @@ cancelled-not-yet-expired in M6, support ruled card-only.
 
 Credibility and coverage:
 
-7. **Sports-science / S&C coach advisor.** Audit engine claims, terminology,
-   and coaching copy for scientific defensibility; keep readiness/fatigue
-   language out of medical territory (ties to the legal report's
-   health-claims item).
+7. ~~**Sports-science / S&C coach advisor.**~~ DONE (2026-07-18):
+   `docs/sports-science-audit-report.md`. Verdict: the engine passes a
+   hostile evidence-based review as authored, consensus-aligned coaching
+   (waves, RIR-first effort, ascending volume, the taper, attempts,
+   warmups, rest model, frequency map, fractional synergists, the coarse
+   SFR scale). Four real vulnerabilities: the seeded RP landmark grid
+   (replacement methodology now specced, SS1), contested mechanisms
+   stated as fact in copy ("resensitize", the minicut framing), the H4
+   calibration path contradicting the engine's own e1RM-degradation
+   rationale (SS2), and `recalibrateLandmarks` raising MRV without
+   volume evidence (SS6). Medical boundary: "rehabbing" leaves the
+   injury copy; "readiness" stays defensible because it is
+   trend-vs-own-baseline and never surfaced as an absolute claim.
+   Defines the T1 receipts language contract (four rules plus a
+   banned-vocabulary lint, SS7) and the marketing claim ceiling (the
+   coach prescribes and autoregulates training; it never measures
+   recovery, prevents injury, or improves health markers). Engineer
+   notes SS1-SS11 absorbed into the landmark-migration branch,
+   legal-scrub, Cluster C/E, Epic I5, T1, and the tuning list; owner
+   decisions pending on SS3 (advisory WM-raise cross-check), SS6, SS8
+   (beginner + lean-asap confirm-gate), and the copy reframes.
 8. **Athlete panel round-out** (three more simulated athletes): a woman
    entering powerlifting (S3, the fastest-growing segment), a LatAm
    Spanish-speaking lifter (run in Spanish against the es.js catalog, not
    translated), and an accessibility-constrained user (VoiceOver, large
-   text, motor precision).
+   text, motor precision). Brief the panel from the sports-science
+   report's female/masters science questions (its section on gaps) so
+   the panel tests the science, not just the UI.
 
 Adversaries worth simulating:
 
@@ -783,7 +816,11 @@ and the product moat are the same move.
   Bodybuilding-only and inert without feedback (golden master safe). **Still open:**
   this layers on top of `weekMod`/`computeWeekMod` rather than replacing them, and
   does not yet rewrite the fixed `JBB_HYP` main-set tables; full replacement +
-  per-head distribution remain future work.
+  per-head distribution remain future work. Also from the sports-science
+  audit (2026-07-18, challenge to shipped behavior, own small branch):
+  **SS6** evidence-gate `recalibrateLandmarks` MRV raises on a peak
+  achieved weekly set count within ~2 of the current MRV, so the landmark
+  stops inflating +1 per block without volume evidence.
 - **Can it be lawsuit-risk-free? Yes.** Autoregulating volume from athlete
   feedback is general training science, not protectable. The risk lives entirely
   in cloning a specific company's named system: their exact signal set, wording,
@@ -852,6 +889,13 @@ Phase   (F) -- needs D --> modulates E and the deload; starts light
 - **Double progression + explicit rep ranges + per-meso rep-range variation**
   (foundation: Cluster A). Now absorbed into **Epic H4** (the 2026-07 athlete
   feedback ranked it the single loudest gap). [feature]
+- **H4 follow-up trio from the sports-science audit (2026-07-18):** SS2
+  calibrate rep-range accessories at `range[0]` instead of `range[1]` (the
+  shipped choice contradicts the engine's own e1RM-degradation rationale;
+  challenge to shipped behavior), SS10 narrow the `anchorE1RM` window to
+  +-2 reps when the target exceeds 12 reps, SS11 decouple the
+  `doubleProgression` increment from equipment rounding. All
+  bodybuilding-path only, golden master untouched. [feature]
 - **Autoregulated deload** timing/depth (part of Epic 4). [feature]
 - **Frequency autoregulation** from how fast soreness clears (needs Epic 1
   feedback). [feature]
@@ -1263,8 +1307,11 @@ The fix follows the codebase's strongest pattern: declarative tables in
   focus/days steps (when the muscles with points cannot fill the chosen
   day count without breaking `splitFreqFor`, warn or gate with the
   arithmetic) — it pairs with the generator half (IQ7-IQ8) in Cluster C,
-  so land them together. Per the intake-QA report protocol, re-run the QA
-  battery on the next onboarding change.
+  so land them together. Also open: **SS8** (sports-science audit,
+  owner decision pending) — escalate the beginner + lean-asap guard (F6)
+  from a banner to an `Engine.coach.checkGoal` confirm-gate, extending
+  the master coach rather than adding a UI check. Per the intake-QA
+  report protocol, re-run the QA battery on the next onboarding change.
 
 Constraints held throughout: the default/powerbuilding golden master stays
 byte-identical (validation happens before `makeProgram`; surface gating is
@@ -1447,6 +1494,13 @@ glance. None change prescription math, so they are golden-master-irrelevant.
   optional rest-seconds field per exercise, stored additively like
   `loadingProfiles` and read by `Engine.restSecFor`, so one lift can rest
   longer than its kind's default without touching the global time model.
+- **Advisory e1RM cross-check on WM raises (SS3, owner decision pending):**
+  when a high-rep AMRAP's book-formula raise exceeds what the AMRAP's own
+  implied e1RM supports by more than ~5%, offer an athlete-confirmed
+  smaller raise instead of applying the overshoot silently (the H2
+  `belowStd` confirmation pattern, in the other direction). Advisory only,
+  never automatic, so book fidelity is preserved when the athlete
+  declines. Surfaces as a T1 receipt when receipts land.
 - ~~**Budget-aware swap/select list:** the Add button shows remaining time and
   per-add cost; the per-candidate cost is not yet shown inside the swap list.~~
   DONE: the swap and add pickers now show each candidate's approximate time cost
@@ -1467,6 +1521,9 @@ glance. None change prescription math, so they are golden-master-irrelevant.
 - Landmark evolution step/cadence, experience seed factors (0.65 / 0.85 / 1.0),
   and the classic-vs-RP-App landmark dataset.
 - The `SPLIT_FREQ` map (3->2x, 4->2x, 5-6->3x) and `TIME_MODEL` constants.
+- `SYNERGIST_COVERAGE` fractions (sports-science audit SS9: deadlift
+  crediting hamstrings at 0.8 of a direct set is high for a hip-hinge
+  with little knee flexion; ~0.5 is the defensible fraction).
 
 ## Process
 
