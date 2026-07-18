@@ -346,3 +346,172 @@ behind one platform adapter, move state to durable native files, add the
 native value Apple wants to see anyway (notifications, haptics, HealthKit),
 build releases with a script instead of hands, guard the signing keys like
 the working maxes, and never ship anything the phased rollout cannot catch.
+
+---
+
+## Amendment (2026-07-18): synergy re-pass after consultations 4-6
+
+Commissioned by the owner after the analytics
+(`docs/analytics-instrumentation-report.md`), privacy
+(`docs/privacy-data-protection-report.md`), and support
+(`docs/support-community-report.md`) consultations amended this plan after
+the fact. Scope: what changes, what breaks, what new synergy exists. The
+original sections stand except where amended here; a future engineer reads
+R1-R9 PLUS this section as the true spec.
+
+### What changes
+
+1. **R7's SDK ceiling is three, not one.** The original wording ("keep
+   total third-party SDK count at exactly this one") is superseded by the
+   analytics report §2. Corrected spec: **exactly three shipped SDKs —
+   Sentry, PostHog, RevenueCat — each behind an adapter face, each with a
+   privacy-manifest entry, and the ceiling is a rule, not a floor.**
+   Anything further (attribution, A/B vendors, heatmaps) needs a
+   consultation-grade reason. The §4 privacy-manifest risk row now covers
+   three manifests; the R3 lane should fail if a fourth SDK appears in the
+   native dependency lockfiles.
+2. **R8 narrows to write-only.** Privacy §7/PD7 closes the direction R8
+   left open: `Platform.health` exposes workout EXPORT only, no read
+   entitlements requested, and HealthKit types join AN1's banned-property
+   lint so they can never reach analytics or the sync blob. Reading
+   bodyweight back from Health is a future consultation, not a default.
+   Health Connect on Android inherits the same posture.
+3. **R4's first-run sequence grew, and its front door moved.** Two
+   consent-class screens join the wrap scope: the 16+ age gate (PD2,
+   boolean, no DOB) and the analytics opt-in (PD3/AN2, equal-prominence
+   buttons, no PostHog code loads pre-consent). Store-build order:
+   splash, age gate, analytics consent, home. And "home" changed under
+   us: Epic L's L3 makes the logger home the free install's landing, with
+   the quiz reachable as the coach's front door — the original R4
+   implicitly assumed onboarding-first. See R10. The back-button design
+   is unchanged but its target set grew (Help, Settings > Privacy, the
+   paywall all stack through `MSTACK` as ordinary modals).
+4. **R9 absorbed three checklists.** The pre-submission checklist gains:
+   PD8's "store privacy labels still match `docs/data-inventory.md`" line
+   (answer sheet drafted in-repo), AN6's beta dress-rehearsal assertions
+   (consent blocks SDK init, events arrive under the install ID,
+   banned-property lint green against the PACKAGED build, schema version
+   stamped, schema frozen at beta), and CS4's two lines (what's-new in
+   the house voice in EN + ES; FAQ reviewed against the release's
+   changes). R9's version-consistency check extends to the analytics
+   schema version and the consent policy version.
+5. **R1 hardens.** The native state file gets iOS file-protection class
+   `completeUntilFirstUserAuthentication` (privacy §3): encrypted before
+   first unlock, still writable by our debounced background writes after
+   it — which is exactly why the stricter `complete` class is wrong here.
+   R1's face also gains an `erase()` operation so PD1's "Delete all data
+   on this device" wipes state file + localStorage mirror through one
+   seam instead of poking storage directly.
+6. **The beta must-include list is now a real dependency graph.** CS1
+   must be IN the September beta build (support §9.2) — Play open testing
+   has no feedback channel, so CS1 is the beta's only Android feedback
+   path. CS1 needs PD6 (redacted diagnostic), PD6 needs PD1's inventory
+   to define the redaction list, AN6 needs AN1-AN4 live, CS3's two events
+   must land before the schema freeze, and T1 now has three reports
+   leaning on it landing pre-beta (tier analysis, analytics §4, support
+   §9.6). True beta critical path: R1-R5 + R7, AN1-AN4, PD1-PD3 + PD6,
+   CS1 + CS3, M1/M3 sandbox, T1 — materially more than this report's "R9
+   before the September beta" framing. See What breaks.
+7. **The tags-only lane stands, with two riders.** CS4 makes what's-new
+   copy part of the tag ritual (both catalogs), and support's severity
+   ladder gives the 48h hotfix lane its trigger: P0 = athletes cannot
+   train or data is being lost, and Sentry should page before the first
+   email does (support §4). The hotfix rehearsal §7 already required now
+   includes the support half: halt the phased rollout, post the
+   known-issue FAQ line, macro ready. OTA updates stay skipped; nothing
+   in consultations 4-6 weakens that ruling.
+8. **The §3 adapter table has grown faces:** `Platform.billing` (M1),
+   `Platform.analytics` (AN1, permanent no-op on web/self-hosted),
+   `Platform.health` (R8), and `Platform.crash` (R11). Same pattern,
+   same rule: every face stubs in the Node harnesses. The §10 Supabase
+   note is now constrained by PD4 — accounts optional, sync is one
+   consented RLS blob row, and the blob IS R1's state JSON shape, which
+   makes "plugs into `Platform.storage`" literal rather than
+   aspirational.
+
+### What breaks
+
+- **R7's one-SDK sentence is dead**; do not quote it (delta 1 has the
+  corrected wording).
+- **R7's "wired from the first beta build" conflicts with
+  consent-before-init** unless crash reporting is ruled separately from
+  analytics. AN2 blocks PostHog pre-consent; nobody ruled whether Sentry
+  waits too. Unresolved — see Challenges.
+- **The §8 checklist as printed is stale**; R9's in-repo version becomes
+  the source of truth with delta 4's additions.
+- **The original beta scope estimate was too small.** Delta 6's graph is
+  roughly twice the original framing; the honest risk is September slips
+  or cuts scope. Cuts that do NOT break the beta's purpose: R6 (ship
+  emoji-fallback-only media), R8 (HealthKit is a launch featuring
+  criterion, not a beta rehearsal need), PD5 (blocks App Review, but
+  accounts are not in the beta unless the Supabase epic lands, and
+  nothing requires that). Cuts that DO break it: the consent screens,
+  CS1, the AN pipeline, T1 — those are what the beta exists to rehearse.
+- **R4's implicit onboarding-first first-run is invalid** post-Epic L
+  (delta 3; mechanics in R10).
+
+### New synergy
+
+- **AN6 + R9 are one artifact.** The dress rehearsal runs against R3's
+  minified `dist/` bundle, so the banned-property lint and the i18n
+  completeness test catch a leaking property or a missing ES string in
+  the exact bytes a reviewer sees.
+- **AN4's install ID is Sentry's user id.** With R7's release tags, every
+  crash joins to a cohort and a version for free, and PD8's scrubbing
+  keeps it pseudonymous.
+- **The privacy posture is 4.2 armor.** On-device coach, no account
+  wall, no ATT, short nutrition labels (privacy §3) shorten the App
+  Review conversation, and L3's logger home makes the app self-evidently
+  useful at first open with no purchase or login — the strongest
+  minimum-functionality exhibit added since the original risk register.
+- **PD6 doubles as crash hygiene.** The redacted diagnostic CS1 attaches
+  to support email and the Sentry breadcrumb scrub share one redaction
+  list: the PD1 inventory governs both boundaries.
+- **CS4's what's-new is the beta digest** (support §8): written once,
+  reused as the store note, the weekly cohort post, and the changelog
+  line.
+
+### Challenges to prior rulings (owner decides)
+
+1. **Sentry consent timing.** Option A: crash reporting joins the
+   analytics opt-in (one screen covers both; decliners become a crash
+   blind spot, which at beta scale could be most of the cohort). Option
+   B: Sentry runs pre-consent under legitimate interest with PD8
+   scrubbing (defensible for pure crash data; the attorney should bless
+   it and the consent copy must not imply otherwise). This report leans
+   B for the beta — a beta without crash visibility defeats R7's purpose
+   — with A as the conservative fallback. The ruling must land before
+   AN2's consent copy is written.
+2. **Ratify the beta cut line** (What breaks, item 4): R6/R8/PD5 slip to
+   launch if September is at risk; the consent screens, CS1, the AN
+   pipeline, and T1 never slip.
+
+### New engineer notes (R10-R12)
+
+- **R10. First-run sequencer (rides R4, with PD2/PD3 and Epic L's L3).**
+  A small declarative chain for store builds: age gate, then analytics
+  consent, then the L3 logger home (quiz reachable as the coach's front
+  door). Completion flags are device-scoped (TB4 pattern, never in `S`,
+  ignored by import/export); the web/self-hosted target skips the chain
+  entirely so the prototype and render-smoke stay untouched. Each step
+  is a normal modal through `MSTACK` so R4's back-button routing covers
+  it. Render-smoke gains a store-flagged first-run pass.
+- **R11. Crash adapter face (rides R7).** Wrap Sentry behind
+  `Platform.crash` (init, setRelease, breadcrumb scrub config) instead
+  of direct SDK calls, so the challenge-1 ruling is a one-line policy
+  change, PD8's scrubbing lives in one place, and web/self-hosted is the
+  usual permanent no-op. R3 stamps the release tag from `APP_VERSION`
+  at build time.
+- **R12. Build-channel flag (rides R3).** The release lane stamps one
+  `BUILD_CHANNEL` constant (`dev` / `beta` / `store`) into the bundle.
+  Consumers: TB5 (hide `S.debugTier` outside dev), AN1 (no-op outside
+  store builds), R10 (chain runs only on beta/store), R11 (Sentry
+  environment tag), CS1 (beta feedback copy variant if wanted). One
+  constant, one stamp point, instead of five ad hoc detections.
+
+**The one-sentence delta:** the wrap now ships a consent-and-age-gated
+first run that lands on the free logger, three SDKs instead of one (each
+behind a face the prototype no-ops), write-only HealthKit, a hardened and
+erasable state file, and a beta whose real critical path runs through the
+analytics pipeline, the help surface, and the receipts — cut media and
+HealthKit before you cut any of those.

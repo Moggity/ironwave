@@ -99,14 +99,24 @@ Derived future branches, in dependency order:
   label renames (i18n taglines, `program.methodology` label + one-line
   `migrateState` rename with a `migration.test.js` case, engine scheme `label`,
   manifest/package metadata), comment/test rewording to concept language, README
-  rewrite. Verified: `golden-master.json` contains none of these strings, so the
+  rewrite, plus the sports-science copy scrub (SS4: injury copy drops
+  "rehabbing", gains a stop-on-pain line, easing described as caution not
+  treatment; SS5: deload/minicut mechanism copy moves to outcome language,
+  "resensitize" out, minicut reframed as a fat-loss window timed with the
+  deload; both i18n catalogs). Verified: `golden-master.json` contains none of
+  these strings, so the
   sweep must land with the golden master byte-identical (any diff is a bug in
   the sweep). Grep gate: zero case-insensitive juggernaut / renaissance
   periodization / israetel matches under `app/` outside `CHANGELOG.md`.
 - **Landmark seed migration** (legal report item 6): blend/derive our own
   `VOLUME_LANDMARKS` values (extends the existing "Migrate off the seeded RP
   grid" item below). The one legal item that legitimately moves the golden
-  master; regenerate deliberately and review the diff.
+  master; regenerate deliberately and review the diff. Implementation spec
+  now exists: SS1's parametric derivation methodology in
+  `docs/sports-science-audit-report.md` section 5 (muscle size/recovery
+  classes, 2-set grid snapping, multi-source range blending, a divergence
+  test against the old grid, and faster athlete recalibration so the seed
+  becomes a weak prior).
 - **Productization epic** (marketing v2 section 2): Capacitor store wrap (local
   assets, push, haptics, HealthKit export; guideline 4.2 mitigations), accounts
   + sync (Supabase; the Express/`database.json` layer maps onto Postgres —
@@ -148,7 +158,11 @@ Derived future branches, in dependency order:
   - **L3. Program-less app shell:** `!P()` renders a logger home
     (routines + start-empty-session + history) instead of forcing
     onboarding; the quiz becomes the coach's front door, reachable but
-    not mandatory. Render-smoke covers every view program-less.
+    not mandatory. Render-smoke covers every view program-less. Born
+    accessible (panel #8): the ACC1 announcer and ACC2 modal contract
+    are L3 prerequisites, render-smoke asserts dialog semantics on the
+    new surfaces, and the VoiceOver logging-loop pass runs at this
+    boundary (owner ruling pending, challenge 9), not as a retrofit.
   - **L4. Tier transitions (owner ruling 2026-07-17: full detachment):**
     onboarding's "continue free" lands in L3 keeping the quiz answers for
     later. On subscription lapse the logger detaches from the coach
@@ -173,7 +187,8 @@ Derived future branches, in dependency order:
   device-scoped storage, never in S; production import ignores
   entitlement-shaped fields incl. debugTier — with R1/M3; TB5 store
   builds ignore S.debugTier and hide the Settings toggle behind a dev
-  flag — with M1/R3; TB6 element-gate coach-derived picker hints (SFR
+  flag (R12's `BUILD_CHANNEL`, stamped by R3's release lane) — with
+  M1/R3; TB6 element-gate coach-derived picker hints (SFR
   ordering, adds-head, over-MRV, time-cost) in free routine editing —
   with L2; TB7 gate vReport and every T1 receipt surface from birth —
   with T3/T1; TB8 offline grace keys off a device-stored last-verified
@@ -185,44 +200,99 @@ Derived future branches, in dependency order:
   easing, all surfaced as short athlete-facing receipts at session time
   and a week-boundary digest; `noteKey`/`noteParams` pattern, display-only,
   golden-master-safe; land before the September beta so trial users SEE
-  the differentiator; acceptance criteria extended by the analytics
+  the differentiator — promoted to a HARD beta-entry gate by the
+  2026-07-18 synergy re-pass: the tier analysis, AN3's receipt counters,
+  and support's COACH-1 deflection all lean on receipts, so no tester
+  meets the paywall before T1 fires; acceptance criteria extended by the analytics
   report section 8: every receipt carries a `kind` and increments
   countable session/week counters, so receipt exposure vs trial
-  conversion is measurable from birth, the AN3 coordination), T2 the plateau card on free data (pure seeded
+  conversion is measurable from birth, the AN3 coordination; and by the
+  sports-science audit: SS7's receipts language contract governs every
+  receipt string — athlete's own data first, app rules owned as app
+  rules, hedged or absent mechanisms, never diagnostic — enforced by a
+  banned-vocabulary lint test; and by athlete panel #8: every receipt
+  is announceable via the ACC1 aria-live announcer and persists on a
+  card surface (toasts alone do not satisfy no-silent-decisions and
+  corrupt AN3's exposure metric), receipt strings are authored in BOTH
+  catalogs in the same PR with the SS7 lint running on es.js too, and
+  small-load correctness (FPL1/FPL3 + SS3) gates receipt credibility
+  for light lifters), T2 the plateau card on free data (pure seeded
   helper over `e1rmTrend`, one dismissible card capped per ~5 weeks, free
   mode only; the honest organic upsell), T3 the coach report card
   (receipts ledger extending `macroReportHTML`; gate `vReport` behind
   `hasCoach()` when it lands).
-- **Monetization slices M1-M8** (read
-  `docs/monetization-operations-report.md` section 9 first; M1-M2 are pure
-  repo work startable now, M3+ need R2's platform adapter; **M2 and M4 are
-  blocked on Epic L above**): M1 the
+- **Monetization slices M1-M11** (read
+  `docs/monetization-operations-report.md` section 9 plus BOTH dated
+  amendments first; M1-M2 are pure repo work startable now, M3+ need R2's
+  platform adapter; **M2 and M4 are blocked on Epic L above, and M4's
+  beta entry is additionally gated on T1** — receipts must fire behind
+  the paywall before any tester sees it): M1 the
   entitlement seam (`Platform.billing`, one `coach` entitlement; web/self-
   hosted always entitled so the prototype and test suite run unchanged; the
-  engine stays billing-blind), M2 the nothing-held-hostage degraded mode on
+  engine stays billing-blind; L0 shipped the `hasCoach()` seam, M1 replaces
+  only its body), M2 the nothing-held-hostage degraded mode on
   trial expiry (rebuilt on Epic L's routines per the report's amendment,
   not a bespoke rendering fork), M3 RevenueCat behind
-  the seam with a 7-day offline entitlement grace, M4 the paywall surface
-  (reveal + coach touchpoints, "continue free" always visible), M5 the
-  day-12 trial reminder over R5 notifications, M6 the settings subscription
-  section, M7 minimal funnel events (client half superseded by analytics
-  slice AN3; the no-duplicate-purchase-tracking rule stands), M8 the
-  stubbed web win-back seam.
+  the seam with a 7-day offline entitlement grace (absorbs TB4/TB8:
+  device-scoped entitlement cache never in `S`, clock rollback =
+  expired-pending-check), M4 the paywall surface
+  (reveal + coach touchpoints, "continue free" always visible, AN3's
+  `source`/`paywall_outcome` enums verbatim, the shared privacy footer
+  line near restore/terms), M5 the
+  day-12 trial reminder (in-app card is the guaranteed channel, R5 push
+  secondary; copy recaps T1's local receipt counts), M6 the settings
+  subscription section (beta-bound: CS1's FAQ and billing macros depend
+  on its manage/cancel deep link; shows the cancelled-not-yet-expired
+  state; honesty table renders from the tier map), M7 the
+  no-duplicate-purchase-tracking rule only (client events live in AN3's
+  catalog), M8 the
+  stubbed web win-back seam (audience rescoped 2026-07-18: the in-app
+  detached-logger surface + account holders; no email channel exists
+  under accounts-optional), M9 a flag-gated win-back offer slot on the
+  L4 detachment card deep-linking the AN4 install ID into M8's web
+  checkout (rides L4), M10 the cross-store entitlement bridge (alias the
+  RevenueCat `appUserID` at account creation so purchases, lifetime
+  especially, restore cross-platform for account holders; rides the
+  Supabase epic + AN4/M3), M11 the committed sandbox lapse-lifecycle
+  rehearsal script (trial, cancel, detach, CS2 tap, cloned week,
+  re-subscribe, coach re-engages; green before the September beta).
   Golden master untouched.
-- **Release engineering slices R1-R9** (read
-  `docs/release-engineering-report.md` section 10 first; R1-R3 need no store
+- **Release engineering slices R1-R12** (read
+  `docs/release-engineering-report.md` section 10 plus the 2026-07-18
+  amendment first — it rewords R1/R4/R7/R8/R9; R1-R3 need no store
   accounts and can start now): R1 durable storage adapter
-  (`Platform.storage`, Filesystem JSON on native, web path byte-identical),
-  R2 `platform.js` adapter skeleton (ASO E2 and haptics implement against
+  (`Platform.storage`, Filesystem JSON on native, web path byte-identical;
+  amended: iOS file-protection class on the state file + an `erase()`
+  operation for PD1), R2 `platform.js` adapter skeleton (ASO review
+  plumbing and haptics implement against
   it; SW registration becomes web-only), R3 release build lane (esbuild
   minify/strip into `dist/`, version stamping from `APP_VERSION`, CI runs
   the harness against the minified bundle on tags; also the legal
-  comments-must-not-ship fix), R4 the Capacitor wrap branch (committed
+  comments-must-not-ship fix; fails on a fourth SDK in native lockfiles),
+  R4 the Capacitor wrap branch (committed
   native projects, Android back button through `MSTACK`, splash/status
-  bar), R5 local notifications for the rest timer, R6 native media pipeline
-  (remote host + Filesystem capped cache), R7 Sentry crash/vitals, R8
-  HealthKit export (write-only per privacy report PD7), R9 pre-submission
-  checklist automation. Nothing touches
+  bar; first-run scope grown, see R10; also owns the WebView a11y
+  bridge per panel #8: the text-scale submission gate — OS scaling
+  works or an in-app text-size setting ships in the same build — iOS
+  Dynamic Type / Android fontScale mapped onto the rem root, and the
+  textZoom double-scale check), R5 local notifications for the
+  rest timer, R6 native media pipeline
+  (remote host + Filesystem capped cache), R7 Sentry crash/vitals
+  (ceiling: exactly THREE shipped SDKs — Sentry, PostHog, RevenueCat —
+  each behind an adapter face), R8
+  HealthKit export (write-only per privacy report PD7; HealthKit types
+  join AN1's banned-property lint; Health Connect inherits the posture),
+  R9 pre-submission
+  checklist automation (grown: PD8 label checks, AN6 dress-rehearsal
+  assertions against the minified `dist/` bundle, CS4 what's-new +
+  FAQ-freshness lines), R10 the declarative store-build first-run chain
+  (age gate, analytics consent, then Epic L's L3 logger home as the
+  front door; device-scoped flags, MSTACK-routed; rides R4 + PD2/PD3 +
+  L3), R11 a `Platform.crash` adapter face wrapping Sentry
+  (init/setRelease/scrub config, consent policy a one-line change, web
+  no-op; rides R7), R12 a `BUILD_CHANNEL` constant (dev/beta/store)
+  stamped by the release lane and consumed by TB5/AN1/R10/R11/CS1
+  (rides R3). Nothing touches
   prescription; golden master untouched.
 - **Analytics instrumentation slices AN1-AN6** (read
   `docs/analytics-instrumentation-report.md` sections 5-6 and 11 first;
@@ -274,12 +344,25 @@ Derived future branches, in dependency order:
   for the deflection metric, `churn_reason(reason)`), CS4 release-notes
   + FAQ-freshness lines on the R9 checklist. Golden master untouched.
 - **ASO instrumentation slice** (rides with or right after the productization
-  epic; read `docs/aso-launch-report.md` section 9 first): real-time PR
+  epic; read `docs/aso-launch-report.md` section 9 plus the 2026-07-18
+  amendment first): real-time PR
   detection hook at set-log time (E1), the gated store-review prompt plumbing
-  with additive `S.review` state and a web no-op adapter (E2), local milestone
+  with a web no-op adapter (E2; the original "additive `S.review` state"
+  design is superseded — see E9), local milestone
   counters (E3), a deterministic screenshot staging state (E4), keyword-aware
-  IAP display naming when RevenueCat lands (E5), and keeping the prototype
-  noindexed through productization (E6). Nothing touches prescription; golden
+  IAP display naming when RevenueCat lands (E5), keeping the prototype
+  noindexed through productization (E6), a cataloged
+  `review_prompt_attempted(trigger)` event emitted from E2's gate via the
+  AN1 face (E8, with AN3), review state relocated to TB4-style
+  device-scoped storage (attempts, installedAt; D-class in the PD1
+  inventory, survives the beta-to-production upgrade so the beta cohort
+  stays promptable at launch) (E9, with E2 + R1), the E4 staging state
+  extended with a receipts-rich week and a populated Settings > Privacy
+  for the new screenshot narrative (E10, after T1 + PD3), and an AN6
+  dress-rehearsal assertion that a store build's first run is age gate,
+  optional analytics opt-in, then the L3 logger home with
+  Start-a-session primary and no consent wall before the first loggable
+  set (E11, with AN6 + PD2 + L3). Nothing touches prescription; golden
   master untouched.
 - **Launch gates (owner + attorney, non-coding):** name clearance for the launch
   brand (TSDR/EUIPO, backup name), privacy policy + ToS/EULA + health
@@ -376,42 +459,80 @@ Operators (launch-critical, in priority order):
    infrastructure. Engineer notes CS1-CS4 absorbed as the
    "Support/community slices" derived branch above.
 
-**Synergy re-pass (owner directive 2026-07-18, do after the credibility
-tier or before the September beta, whichever comes first):** re-consult
-the first three operators (ASO, release engineering, monetization) as
-short delta reviews now that consultations 4-6 amended their plans after
-the fact. Each re-pass reads its original report plus the later reports'
-challenge ledgers and answers only: what changes, what breaks, what new
-synergy exists. Known agenda per persona: **ASO** — accounts now optional
-(a "no account needed" honesty line is store-listing copy; does it join
-the first-three-lines pitch?), the deflection/help surface and review
-macros feeding the ratings loop, the privacy-forward posture ("data
-never leaves your phone") as a differentiating keyword/screenshot angle,
-CS4's what's-new discipline. **Release engineering** — the SDK ceiling
-raised to three (R7 wording), HealthKit narrowed to write-only (R8),
-consent screens + age gate joining the first-run sequence (R4 wrap
-scope), CS1 in the beta build, the R9 checklist grown (PD8 labels, AN6
-dress rehearsal, CS4 notes), iOS file-protection class on R1's state
-file. **Monetization** — M7's client half superseded by AN3, the cancel
-survey relocated to L4's card (CS2), accounts-optional restore flows
-(purchases without login), the receipts-as-deflection dependency (T1
-before beta now has three reports leaning on it), and whether the
-paywall's free-tier line item list should name the privacy posture.
-Deltas land as amendments inside the ORIGINAL reports (dated, like the
-monetization M2 amendment), not as new documents; strike this paragraph
-when all three are done.
+~~**Synergy re-pass (owner directive 2026-07-18)**~~ DONE (2026-07-18):
+all three operator deltas landed as dated amendments inside the ORIGINAL
+reports, per the directive. **ASO** (`docs/aso-launch-report.md`): notes
+E8-E11; "no account needed" fused with the privacy claim into one pitch
+line; screenshot 3 flips to a T1 receipts digest; the agenda's "data
+never leaves your phone" phrasing REJECTED as unshippable copy — the
+honest line is "your training data stays on your phone unless you turn
+on sync". **Release engineering**
+(`docs/release-engineering-report.md`): notes R10-R12; R1/R4/R7/R8/R9
+reworded (R7's ceiling is exactly three SDKs, each behind an adapter
+face); the beta must-include list restated as a dependency graph with a
+proposed cut line. **Monetization**
+(`docs/monetization-operations-report.md`): notes M9-M11; M3-M8
+rescoped (M7 shrinks to the purchase-tracking rule, M8's win-back
+audience loses email under accounts-optional, T1 promoted to a hard
+beta-entry gate). All new engineer notes are absorbed into the
+derived-branch slices above. OPEN owner decisions from the re-pass:
+(1) Sentry consent timing — join AN2's analytics opt-in, or run
+pre-consent under legitimate interest with PD8 scrubbing (release
+engineering leans the latter for beta; needs attorney blessing BEFORE
+AN2's consent copy is written); (2) ratify the beta cut line (R6, R8,
+PD5 may slip to launch if September is at risk; consent screens, CS1,
+the AN pipeline, and T1 never slip); (3) CS2 survey timing —
+monetization proposes the same one-tap churn enum also offered once at
+cancelled-not-yet-expired in M6, support ruled card-only.
 
 Credibility and coverage:
 
-7. **Sports-science / S&C coach advisor.** Audit engine claims, terminology,
-   and coaching copy for scientific defensibility; keep readiness/fatigue
-   language out of medical territory (ties to the legal report's
-   health-claims item).
-8. **Athlete panel round-out** (three more simulated athletes): a woman
-   entering powerlifting (S3, the fastest-growing segment), a LatAm
-   Spanish-speaking lifter (run in Spanish against the es.js catalog, not
-   translated), and an accessibility-constrained user (VoiceOver, large
-   text, motor precision).
+7. ~~**Sports-science / S&C coach advisor.**~~ DONE (2026-07-18):
+   `docs/sports-science-audit-report.md`. Verdict: the engine passes a
+   hostile evidence-based review as authored, consensus-aligned coaching
+   (waves, RIR-first effort, ascending volume, the taper, attempts,
+   warmups, rest model, frequency map, fractional synergists, the coarse
+   SFR scale). Four real vulnerabilities: the seeded RP landmark grid
+   (replacement methodology now specced, SS1), contested mechanisms
+   stated as fact in copy ("resensitize", the minicut framing), the H4
+   calibration path contradicting the engine's own e1RM-degradation
+   rationale (SS2), and `recalibrateLandmarks` raising MRV without
+   volume evidence (SS6). Medical boundary: "rehabbing" leaves the
+   injury copy; "readiness" stays defensible because it is
+   trend-vs-own-baseline and never surfaced as an absolute claim.
+   Defines the T1 receipts language contract (four rules plus a
+   banned-vocabulary lint, SS7) and the marketing claim ceiling (the
+   coach prescribes and autoregulates training; it never measures
+   recovery, prevents injury, or improves health markers). Engineer
+   notes SS1-SS11 absorbed into the landmark-migration branch,
+   legal-scrub, Cluster C/E, Epic I5, T1, and the tuning list; owner
+   decisions pending on SS3 (advisory WM-raise cross-check), SS6, SS8
+   (beginner + lean-asap confirm-gate), and the copy reframes.
+8. ~~**Athlete panel round-out**~~ DONE (2026-07-18):
+   `docs/athlete-panel-roundout-report.md`. Three simulated athletes,
+   all three would pay for the coach, all three found the same law: the
+   engine's core is excellent and its failures live where the implicit
+   default athlete ends. The S3 powerlifter (63 kg) verified her press
+   wave prescribes loads below the empty 20 kg bar that `plateMath`
+   silently "achieves" (her deload does not exist), rounding collapses
+   her progression, meet attempts degenerate at her numbers, and the
+   20 kg 1RM floor rejects real athletes; she ANSWERS the sports-science
+   female briefing: keep no sex input (the self-referential engine is
+   the right architecture), fix the male-scale absolute defaults. The
+   es-MX lifter rules the Spanish register launch-grade (two notches
+   above Hevy) but inventories English leaks (history block labels,
+   superset toasts, "Meet taper", `<html lang>`) and accent-blind
+   alias-less search. The accessibility lifter found unusually good
+   bones (real buttons, 64px steppers, ghost-tap guard) behind four
+   structural blockers: full-render focus loss after every logged set,
+   zero aria-live regions (every coach decision is inaudible), no modal
+   semantics, and disabled text scaling. All three converge on T1:
+   receipts need small-load correctness, native Spanish in the same PR,
+   and an announceable persistent surface. Engineer notes FPL1-9 /
+   ESM1-9 / ACC1-8 absorbed below (Athlete panel roadmap section, the
+   i18n queue, T1, L3, R4); a 10-item challenge ledger awaits owner
+   rulings (Musculación before the ES listing, text scaling as a
+   submission gate, the T1 channel, the 1RM floor).
 
 Adversaries worth simulating:
 
@@ -727,7 +848,11 @@ and the product moat are the same move.
   Bodybuilding-only and inert without feedback (golden master safe). **Still open:**
   this layers on top of `weekMod`/`computeWeekMod` rather than replacing them, and
   does not yet rewrite the fixed `JBB_HYP` main-set tables; full replacement +
-  per-head distribution remain future work.
+  per-head distribution remain future work. Also from the sports-science
+  audit (2026-07-18, challenge to shipped behavior, own small branch):
+  **SS6** evidence-gate `recalibrateLandmarks` MRV raises on a peak
+  achieved weekly set count within ~2 of the current MRV, so the landmark
+  stops inflating +1 per block without volume evidence.
 - **Can it be lawsuit-risk-free? Yes.** Autoregulating volume from athlete
   feedback is general training science, not protectable. The risk lives entirely
   in cloning a specific company's named system: their exact signal set, wording,
@@ -796,6 +921,13 @@ Phase   (F) -- needs D --> modulates E and the deload; starts light
 - **Double progression + explicit rep ranges + per-meso rep-range variation**
   (foundation: Cluster A). Now absorbed into **Epic H4** (the 2026-07 athlete
   feedback ranked it the single loudest gap). [feature]
+- **H4 follow-up trio from the sports-science audit (2026-07-18):** SS2
+  calibrate rep-range accessories at `range[0]` instead of `range[1]` (the
+  shipped choice contradicts the engine's own e1RM-degradation rationale;
+  challenge to shipped behavior), SS10 narrow the `anchorE1RM` window to
+  +-2 reps when the target exceeds 12 reps, SS11 decouple the
+  `doubleProgression` increment from equipment rounding. All
+  bodybuilding-path only, golden master untouched. [feature]
 - **Autoregulated deload** timing/depth (part of Epic 4). [feature]
 - **Frequency autoregulation** from how fast soreness clears (needs Epic 1
   feedback). [feature]
@@ -1122,6 +1254,58 @@ Suggested order: H1 -> H2 -> H3 -> H4, then H5 (physique track) and H6
 (strength track) as parallel efforts, then H7; H8 runs alongside whenever
 assets exist. One epic per branch group, one slice per branch, as usual.
 
+## Athlete panel roadmap (panel #8, 2026-07-18)
+
+Source: `docs/athlete-panel-roundout-report.md` (three simulated
+athletes completing the panel started by the H-epics simulation). The
+ESM series (Spanish product) lives in the i18n queue as its item 6; the
+other two groups land here. Standing constraints as always: additive,
+both catalogs, golden master untouched (every panel note is
+display/coach-rule/markup-side).
+
+- **Small-load correctness group (FPL1-FPL9, the S3 fix; the paid tier
+  is not defensible to the sport's fastest-growing segment without
+  it):** FPL1 below-bar guard (an `Engine.coach` rule + session/plate
+  warning when a prescribed barbell load rounds below `barWeight`,
+  offering the lighter bar or a swap, never silently loading the empty
+  bar; rides Epic I5), FPL2 the onboarding equipment micro-step (bar
+  weight + smallest plate; 15 kg bar preset; 0.5 kg microplates in the
+  presets and rounding), FPL3 the low-max coach rule (main 1RM under
+  ~50 kg suggests 1.25 kg rounding and surfaces the wave-collapse
+  warning at program creation; rides I5), FPL4 the 1RM floor lowered to
+  ~10 kg with a soft confirm below 20 (owner decision, loosens
+  intake-QA F3), FPL5 competition-grid attempts (2.5 kg grid regardless
+  of gym rounding, third attempt never at or below the entered max,
+  optional weight-class field; rides the H6 follow-up), FPL6 dedupe the
+  `jm2-peak` week-1 ladder when rounding collapses singles (H6
+  follow-up), FPL7 `warmupSets` emits a bar ramp instead of [] when the
+  top set sits near the bar, FPL8 first-AMRAP safety copy (form
+  breakdown, no-spotter bench line; rides the legal-scrub copy branch),
+  FPL9 intake copy clarifiers (why bodyweight is asked; experience =
+  barbell training age).
+- **Accessibility group (ACC1-ACC8; ACC1-ACC3 are the store-build
+  spine and ACC1-ACC2 are L3 prerequisites):** ACC1 the `announce()`
+  helper + persistent aria-live region routing `toast()` and the
+  rest-timer done state (lands BEFORE T1; receipts build on it), ACC2
+  the central modal contract in `modalShell`/MSTACK (dialog role,
+  focus-in/return, Escape; pairs with R4's back-button routing), ACC3
+  logging keeps focus (`donePerf`/`skipSet` update the set row in
+  place instead of full `render()`; `cd_slider` copies `cd_sleep`'s
+  targeted update), ACC4 text scaling (drop `user-scalable=no` on web
+  now; the native mapping is R4's a11y bridge and the submission gate),
+  ACC5 the label pass on the logging loop (stepper aria-labels, `for=`
+  on labels, named check-in ranges, `aria-pressed`, the naked glyph
+  buttons), ACC6 non-gesture equivalents (visible Remove without the
+  swipe; up/down reorder on all cards; keyboard-reachable weekday
+  rows), ACC7 timeline weeks become labeled buttons (or a labeled
+  week-list fallback), ACC8 contrast + `:focus-visible` (rides the UI
+  report's P0 item 7, seconded as low-vision-blocking).
+
+Owner rulings pending in the report's challenge ledger (ten items;
+Musculación and the ES-listing claim gate the store listing, text
+scaling gates submission, the receipts channel gates the T1 beta
+criteria, the 1RM floor amends an intake-QA ruling).
+
 ## Epic I - Track contracts and intake integrity (owner critique, 2026-07-17)
 
 Source: an owner review of the onboarding-to-program pipeline. The finding, in
@@ -1207,8 +1391,11 @@ The fix follows the codebase's strongest pattern: declarative tables in
   focus/days steps (when the muscles with points cannot fill the chosen
   day count without breaking `splitFreqFor`, warn or gate with the
   arithmetic) — it pairs with the generator half (IQ7-IQ8) in Cluster C,
-  so land them together. Per the intake-QA report protocol, re-run the QA
-  battery on the next onboarding change.
+  so land them together. Also open: **SS8** (sports-science audit,
+  owner decision pending) — escalate the beginner + lean-asap guard (F6)
+  from a banner to an `Engine.coach.checkGoal` confirm-gate, extending
+  the master coach rather than adding a UI check. Per the intake-QA
+  report protocol, re-run the QA battery on the next onboarding change.
 
 Constraints held throughout: the default/powerbuilding golden master stays
 byte-identical (validation happens before `makeProgram`; surface gating is
@@ -1285,8 +1472,25 @@ tables).
    layers `cue.<id>_<n>` keys over `EX_CUES` (and `cues.<movement>_<n>` over
    the generic fallback), falling back to English per sentence; es.js ships
    all 720 sentences. The i18n typo net validates cue keys against the data
-   and a coverage test pins full Spanish translation. A native-speaker
-   review pass of the cue register is still welcome.
+   and a coverage test pins full Spanish translation. The
+   native-speaker review pass ran as athlete panel #8's es-MX persona
+   (2026-07-18): register verdict launch-grade Latin American Spanish;
+   the specific fixes it found are queue item 6 below.
+6. **NEW: Spanish leak sweep + copy fixes (from panel #8, ESM1-ESM9;
+   land before the ES store listing claims a fully-Spanish app):**
+   ESM1 route the History block label through `blockDisplayLabel()`
+   (app.js:5147, the highest-visibility leak), ESM2 superset link/
+   unlink toasts through `t()` keys, ESM3 a labelKey for the stored
+   "Meet taper" block label, ESM4 set `document.documentElement.lang`
+   (+ localized tab title) on language resolve, ESM5 the catalog copy
+   fixes (Agregar día, competencia, day.pump = Pump, degendered
+   welcome/recomp, landmark word unified on "umbrales"), ESM6 the two
+   cue rewrites + the canillas/espinillas register ruling, ESM7
+   diacritic-folding + Spanish alias list in `exMatches` (Epic L's
+   pickers reuse it), ESM9 the debug chime strings decision. ESM8 (T1
+   receipts authored natively in es.js) rides T1 itself. Owner
+   decisions first: "Musculación" and the alias policy (panel report
+   challenge ledger 4-5).
 
 Conventions the shipped code established (follow them): keys are
 `surface.snake_case` (`session.*`, `perf.*`, `ob.*`, shared `muscle.*` /
@@ -1391,6 +1595,13 @@ glance. None change prescription math, so they are golden-master-irrelevant.
   optional rest-seconds field per exercise, stored additively like
   `loadingProfiles` and read by `Engine.restSecFor`, so one lift can rest
   longer than its kind's default without touching the global time model.
+- **Advisory e1RM cross-check on WM raises (SS3, owner decision pending):**
+  when a high-rep AMRAP's book-formula raise exceeds what the AMRAP's own
+  implied e1RM supports by more than ~5%, offer an athlete-confirmed
+  smaller raise instead of applying the overshoot silently (the H2
+  `belowStd` confirmation pattern, in the other direction). Advisory only,
+  never automatic, so book fidelity is preserved when the athlete
+  declines. Surfaces as a T1 receipt when receipts land.
 - ~~**Budget-aware swap/select list:** the Add button shows remaining time and
   per-add cost; the per-candidate cost is not yet shown inside the swap list.~~
   DONE: the swap and add pickers now show each candidate's approximate time cost
@@ -1411,6 +1622,9 @@ glance. None change prescription math, so they are golden-master-irrelevant.
 - Landmark evolution step/cadence, experience seed factors (0.65 / 0.85 / 1.0),
   and the classic-vs-RP-App landmark dataset.
 - The `SPLIT_FREQ` map (3->2x, 4->2x, 5-6->3x) and `TIME_MODEL` constants.
+- `SYNERGIST_COVERAGE` fractions (sports-science audit SS9: deadlift
+  crediting hamstrings at 0.8 of a direct set is high for a hip-hinge
+  with little knee flexion; ~0.5 is the defensible fraction).
 
 ## Process
 
