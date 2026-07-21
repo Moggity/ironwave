@@ -4,6 +4,18 @@ Current as of the end of the `Onboarding-improvements` branch. None of these
 block what shipped; they are enhancements, tuning, and known rough edges. Group
 them into focused branches rather than one large one (see the retrospective).
 
+**OWNER RULINGS (2026-07-21): roundtable Gate 1 ratified in full (all
+recommendations 1a-1k) and Gate 4 approved** (the B1 derived landmark table
+stands). Where an entry below still says "owner decision pending" on an item
+Gate 1 covered — the 1RM floor (FPL4/1e), the three coaching tweaks
+(SS3/SS6/SS8, 1k), text scaling (ACC4/1d), lifetime-at-launch wording (CYN
+challenge 3 / 1f), CS2 survey timing (1g), creator terms and timing (1h),
+founder-voice competitor pricing (CYN challenge 5 / 1i), Musculación (1j),
+and the beta slip list (1b/1c) — treat it as RULED per the roundtable plan's
+Gate 1 note and per-item recommendations. Decisions Gate 1 did not cover
+(e.g. the day-12 residual, Sentry consent timing pending the Gate 2 attorney
+answer) stay open.
+
 **SEQUENCING AUTHORITY (2026-07-18): `docs/launch-roundtable-plan.md`.** The
 twelve launch consultants re-convened cooperatively and laid the slices below
 onto one pseudo-linear line (Stations A-H) with the human gates (G1-G13) in
@@ -997,10 +1009,12 @@ and the product moat are the same move.
   this layers on top of `weekMod`/`computeWeekMod` rather than replacing them, and
   does not yet rewrite the fixed `JBB_HYP` main-set tables; full replacement +
   per-head distribution remain future work. Also from the sports-science
-  audit (2026-07-18, challenge to shipped behavior, own small branch):
-  **SS6** evidence-gate `recalibrateLandmarks` MRV raises on a peak
-  achieved weekly set count within ~2 of the current MRV, so the landmark
-  stops inflating +1 per block without volume evidence.
+  audit (2026-07-18, challenge to shipped behavior): ~~**SS6**~~ DONE
+  (2026-07-21, roundtable step B3, ruling 1k): `recalibrateLandmarks` MRV
+  raises are evidence-gated on a peak achieved weekly set count within 2
+  of the current MRV, so the landmark stops inflating +1 per block
+  without volume evidence (back-off unchanged; `landmark-divergence`
+  tests cover both directions).
 - **Can it be lawsuit-risk-free? Yes.** Autoregulating volume from athlete
   feedback is general training science, not protectable. The risk lives entirely
   in cloning a specific company's named system: their exact signal set, wording,
@@ -1413,16 +1427,17 @@ display/coach-rule/markup-side).
 
 - **Small-load correctness group (FPL1-FPL9, the S3 fix; the paid tier
   is not defensible to the sport's fastest-growing segment without
-  it):** FPL1 below-bar guard (an `Engine.coach` rule + session/plate
-  warning when a prescribed barbell load rounds below `barWeight`,
-  offering the lighter bar or a swap, never silently loading the empty
-  bar; rides Epic I5), FPL2 the onboarding equipment micro-step (bar
-  weight + smallest plate; 15 kg bar preset; 0.5 kg microplates in the
-  presets and rounding), FPL3 the low-max coach rule (main 1RM under
-  ~50 kg suggests 1.25 kg rounding and surfaces the wave-collapse
-  warning at program creation; rides I5), FPL4 the 1RM floor lowered to
-  ~10 kg with a soft confirm below 20 (owner decision, loosens
-  intake-QA F3), FPL5 competition-grid attempts (2.5 kg grid regardless
+  it):** ~~FPL1-FPL4~~ DONE (2026-07-21, roundtable step B3): FPL1
+  below-bar guard (`Engine.coach.belowBarLoad` + a session-card warning
+  strip with the swap offer, never silently loading the empty bar), FPL2
+  the equipment micro-step on the onboarding maxes step (bar 20/15 kg +
+  smallest-jump chips incl. 0.5, a 0.5 kg microplate preset row owned-none
+  by default, 0.5 in `UNIT_PRESETS.kg.rounding`), FPL3 the low-max rule
+  (`Engine.coach.lowMaxRounding`: any main 1RM under 50 kg tightens
+  rounding to 1.25 at creation with a toast), FPL4 the 1RM floor at 10 kg
+  with a confirm-level caution for 10-20 (ruling 1e) via the new
+  `obConfirmGate` confirm-to-continue path. Still open: FPL5
+  competition-grid attempts (2.5 kg grid regardless
   of gym rounding, third attempt never at or below the entered max,
   optional weight-class field; rides the H6 follow-up), FPL6 dedupe the
   `jm2-peak` week-1 ladder when rounding collapses singles (H6

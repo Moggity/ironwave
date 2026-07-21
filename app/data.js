@@ -1302,6 +1302,9 @@ const PLATE_TEXT = { '5': '#10162b', '1.25': '#10162b', '0.5': '#10162b' };
 const DEFAULT_PLATES = [
   { w: 25, count: 4 }, { w: 20, count: 2 }, { w: 15, count: 2 },
   { w: 10, count: 2 }, { w: 5, count: 2 }, { w: 2.5, count: 2 }, { w: 1.25, count: 2 },
+  // [B3/FPL2] Microplates: visible as a preset row for small-load athletes,
+  // owned-none by default so plate math is unchanged until they add a pair.
+  { w: 0.5, count: 0 },
 ];
 
 // [Epic H1] Unit display. kg is the ONLY stored unit everywhere (records, maxes,
@@ -1336,7 +1339,7 @@ const UNIT_EQUIP_DEFAULTS = {
 
 // Settings preset lists per unit, in DISPLAY units (stored converted to kg).
 const UNIT_PRESETS = {
-  kg: { rounding: [1.25, 2.5, 5], dbIncrement: [1, 2, 2.5], machineStep: [2.5, 5, 10] },
+  kg: { rounding: [0.5, 1.25, 2.5, 5], dbIncrement: [1, 2, 2.5], machineStep: [2.5, 5, 10] },  // [B3/FPL2] 0.5 for microplate lifters
   lb: { rounding: [1.25, 2.5, 5], dbIncrement: [2.5, 5], machineStep: [5, 10, 15] },
 };
 

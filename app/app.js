@@ -1840,6 +1840,28 @@ function obIntakeIssues(ob, field) {
   });
   return field ? all.filter(i => i.field === field) : all;
 }
+// [B3] Confirm-level intake issues (master coach cautions): hard errors block
+// with a toast; cautions ask ONCE via confirmModal and remember the yes on the
+// draft, so Continue never silently ignores a coach warning and never nags a
+// confirmed one. Returns true when the step may proceed.
+function obConfirmGate(step, issues, onDecline) {
+  const err = issues.find(i => i.level !== 'confirm');
+  if (err) { toast(t(err.key, err.params), true); return false; }
+  const ob = V.ob;
+  ob.confirmed = ob.confirmed || {};
+  const kFor = i => i.key + ((i.params && i.params.lift) || '');
+  const pending = issues.filter(i => i.level === 'confirm' && !ob.confirmed[kFor(i)]);
+  if (!pending.length) return true;
+  confirmModal({
+    title: t('ob.confirm_title'),
+    message: pending.map(i => t(i.key, i.params)).join(' '),
+    confirmLabel: t('ob.confirm_continue'),
+  }, () => {
+    pending.forEach(i => { ob.confirmed[kFor(i)] = true; });
+    obNext(step);
+  }, onDecline || null);
+  return false;
+}
 function obIssueBanners(issues) {
   return issues.map(i => `<div class="banner-warn mt8">${esc(t(i.key, i.params))}</div>`).join('');
 }
@@ -2054,6 +2076,14 @@ function vOnboarding() {
       <button class="btn btn-green mt16" onclick="obNext(${step})">${esc(t('ob.continue'))}</button>`;
   } else if (id === 'maxes') {
     const lifts = obMainLifts(ob.track);
+    // [B3/FPL2] Equipment micro-step: bar weight and smallest weight jump as
+    // preset choices (15 kg bar included), unit-aware, editable later in
+    // Settings. Defaults mirror UNIT_EQUIP_DEFAULTS for the active unit.
+    const eqDef = UNIT_EQUIP_DEFAULTS[isLb() ? 'lb' : 'kg'];
+    const barOpts = isLb() ? [45 * KG_PER_LB, 35 * KG_PER_LB] : [20, 15];
+    const jumpOpts = isLb() ? [5, 2.5, 1.25].map(x => x * KG_PER_LB) : [2.5, 1.25, 0.5];
+    const barSel = ob.barWeight || eqDef.barWeight;
+    const jumpSel = ob.rounding || eqDef.rounding;
     body = `
       <div class="ob-title">${esc(t('ob.maxes_title'))}</div>
       <p class="subtle">${esc(t('ob.maxes_sub'))}</p>
@@ -2061,6 +2091,15 @@ function vOnboarding() {
         <div class="field"><label>${esc(t('ob.rm_label', { name: exName(id), u: wUnit() }))}</label>
           <input id="ob-max-${id}" type="number" inputmode="decimal"
             value="${ob.maxes[id] != null ? dispW(ob.maxes[id]) : ''}" placeholder="${esc(t('ob.calib_ph'))}"></div>`).join('')}
+      <div class="field mt16"><label>${esc(t('ob.equip_bar'))}</label>
+        <div class="seg">
+          ${barOpts.map(b => `<button class="${Math.abs(barSel - b) < 0.01 ? 'on' : ''}" onclick="obBar(${b})">${dispW(b)} ${esc(wUnit())}</button>`).join('')}
+        </div></div>
+      <div class="field"><label>${esc(t('ob.equip_jump'))}</label>
+        <div class="seg">
+          ${jumpOpts.map(r => `<button class="${Math.abs(jumpSel - r) < 0.01 ? 'on' : ''}" onclick="obJump(${r})">${dispW(r)} ${esc(wUnit())}</button>`).join('')}
+        </div>
+        <p class="subtle mt8">${esc(t('ob.equip_jump_sub'))}</p></div>
       <button class="btn btn-green mt16" onclick="obNext(${step})">${esc(t('ob.create'))}</button>`;
   }
   return `${topbar()}<div class="view">${body}</div>`;
@@ -2091,6 +2130,9 @@ function obUnits(u) {
   applyUnits(u);
   save(); render();
 }
+// [B3/FPL2] Equipment micro-step picks (kg canon, like every stored weight).
+function obBar(kg) { V.ob.barWeight = kg; render(); }
+function obJump(kg) { V.ob.rounding = kg; render(); }
 // [Calendar days] Count mode: pick a plain number of days (the floating week).
 function obDays(n) { V.ob.daysPerWeek = n; render(); }
 // [Calendar days] Switch between 'calendar' (specific days) and 'count' modes.
@@ -2231,6 +2273,14 @@ function obNext(step) {
     if (issues.length) { toast(t(issues[0].key, issues[0].params), true); return; }
   } else if (id === 'experience') {
     if (!ob.experience) { toast(t('ob.pick_exp'), true); return; }
+    // [B3/SS8] Beginner + aggressive deficit: confirm-to-continue. Declining
+    // reopens the goal step with the recomp archetype highlighted instead.
+    if (!obConfirmGate(step, obIntakeIssues(ob, 'experience'), () => {
+      ob.goalArchetype = 'recomp';
+      V.obStep = obStepList(ob).indexOf('goal');
+      toast(t('ob.goal_recomp_default'));
+      render();
+    })) return;
   } else if (id === 'time') {
     if (!ob.timeMode) { toast(t('ob.pick_time'), true); return; }
     if (ob.timeMode === 'custom') {
@@ -2259,9 +2309,9 @@ function obNext(step) {
       }
       // [Epic I5] The last gate before the program is built: any implausible
       // 1RM (master coach bounds) or an issue that slipped an earlier step
-      // blocks creation with the reason.
-      const issues = obIntakeIssues(ob);
-      if (issues.length) { toast(t(issues[0].key, issues[0].params), true); return; }
+      // blocks creation with the reason. [B3/FPL4] A 10-20 kg max is a
+      // confirm, not a refusal (owner ruling 1e).
+      if (!obConfirmGate(step, obIntakeIssues(ob))) return;
       S.profile.name = ob.name;
       S.profile.bodyweight = ob.bodyweight;
       S.profile.experience = ob.experience;
@@ -2273,6 +2323,17 @@ function obNext(step) {
         muscleFocus: Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 }, ob.muscleFocus),
       };
       S.profile.trainingAge = { startedTs: Date.now(), blocksCompleted: 0 };
+      // [B3/FPL2] The equipment micro-step: bar and smallest jump chosen at
+      // onboarding land on the profile like the Settings equipment editor.
+      if (ob.barWeight > 0) S.profile.barWeight = ob.barWeight;
+      if (ob.rounding > 0) S.profile.rounding = ob.rounding;
+      // [B3/FPL3] Light maxes: fine rounding at creation so the wave
+      // percentages keep distinct loads instead of collapsing.
+      const fineRound = Engine.coach.lowMaxRounding(ob.maxes, S.profile.rounding);
+      if (fineRound) {
+        S.profile.rounding = fineRound;
+        toast(t('ob.low_max_rounding', { w: dispW(fineRound), u: wUnit() }));
+      }
       if (!S.profile.landmarks || !Object.keys(S.profile.landmarks).length) {
         S.profile.landmarks = Engine.seedLandmarks(ob.experience);
       }
@@ -3265,6 +3326,11 @@ function recalibrateLandmarks(blockIdx) {
     // athlete's own data dominates the seeded prior within about two mesos.
     const step = Engine.landmarkStep(agg[mv].n, peak[mv] || 0, L.mrv);
     if (delta <= 0.5 && !down) {                        // tolerated: room to grow
+      // [B3/SS6] Evidence-gated raise (owner ruling 2026-07-21, roundtable
+      // 1k): the ceiling only moves up when the athlete actually trained
+      // near it this block (peak week within 2 sets of the current MRV).
+      // Tolerating low volume says nothing about the ceiling.
+      if ((peak[mv] || 0) < L.mrv - 2) continue;
       L.mrv = Math.min(ceil, L.mrv + step);
       if (L.mrv - L.mev > 12) L.mev = L.mev + 1;        // let the productive window follow up slowly
     } else if (delta >= 1.0 || down) {                  // overreached: back off
@@ -4063,6 +4129,17 @@ function setRowHTML(e, ei, st, si2, shortSleep) {
     </div>${fatigueFlag}`;
 }
 // The standard single-exercise session card.
+// [B3/FPL1] A barbell prescription below the empty bar cannot be loaded, and
+// plate math would silently hand the athlete MORE than the coach prescribed
+// (the S3 athlete's deload did not exist). Warn on the card and offer the
+// swap; the lighter-bar setting lives in the lift's detail sheet.
+function belowBarWarn(e, dr) {
+  const L = loadingFor(e.exId);
+  if (!L.showPlates) return '';
+  const hit = e.sets.some(st => !st.ramp && Engine.coach.belowBarLoad(st.weight, L.barWeight));
+  if (!hit) return '';
+  return `<div class="injury-strip">⚖ ${esc(t('session.below_bar', { bar: dispW(L.barWeight), u: wUnit() }))}<button onclick="openSwap(${dr.d},${e.si})">⇄ ${esc(t('common.swap'))}</button></div>`;
+}
 function liftCardHTML(e, ei, dr, shortSleep) {
   const setRows = e.sets.map((st, si2) => setRowHTML(e, ei, st, si2, shortSleep)).join('');
   const schemeWork = e.sets.filter(s => !s.ramp);
@@ -4080,6 +4157,7 @@ function liftCardHTML(e, ei, dr, shortSleep) {
       <h3>${esc(e.name)}${e.optional ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}</h3>
       ${e.optional ? `<p class="faint" style="margin:-4px 0 6px">${esc(t('session.over_time_limit'))}</p>` : ''}
       ${e.injured ? `<div class="injury-strip">🩹 ${esc(t('session.injury_eased'))}<button onclick="openSwap(${dr.d},${e.si})">⇄ ${esc(t('common.swap'))}</button></div>` : ''}
+      ${belowBarWarn(e, dr)}
       ${lastSetInfo(e.exId)}
       <div class="head-actions">
         <button onclick="openSwap(${dr.d},${e.si})" aria-label="${esc(t('session.swap_exercise'))}">⇄</button>
@@ -4752,6 +4830,25 @@ function donePerf() {
         V.draft.wmChange = { name: e.name, from: res.newWM - res.delta, to: res.newWM, delta: res.delta, capped: res.capped };
         toast(t('perf.wm_up', { name: e.name, from: dispW(res.newWM - res.delta), to: dispW(res.newWM), u: wUnit() }) + (res.capped ? ' ' + t('perf.wm_capped') : ''));
         if (P().belowStd) P().belowStd[e.wmKey] = 0;
+        // [B3/SS3] Advisory e1RM cross-check (owner ruling 1k): when the
+        // formula raise overshoots what the logged bar speed supports by
+        // more than 5%, offer the smaller raise. Athlete confirmed, never
+        // automatic; declining keeps the formula raise untouched.
+        const oldWM = res.newWM - res.delta;
+        const xc = Engine.coach.wmRaiseCheck(oldWM, res.newWM, st);
+        if (xc) {
+          confirmModal({
+            title: t('perf.wm_crosscheck_title'),
+            message: t('perf.wm_crosscheck_msg', { name: e.name, to: fmtWU(res.newWM), sugg: fmtWU(xc.suggested) }),
+            confirmLabel: t('perf.wm_crosscheck_confirm', { w: fmtWU(xc.suggested) }),
+            cancelLabel: t('perf.wm_crosscheck_keep'),
+          }, () => {
+            P().wm[e.wmKey] = xc.suggested;
+            V.draft.wmChange = { name: e.name, from: oldWM, to: xc.suggested, delta: xc.suggested - oldWM, capped: false };
+            toast(t('perf.wm_up', { name: e.name, from: dispW(oldWM), to: dispW(xc.suggested), u: wUnit() }));
+            save(); render();
+          });
+        }
       } else if (st.reps < wave.standard) {
         toast(t('perf.wm_below_standard'), true);
         trackBelowStandard(e, st);

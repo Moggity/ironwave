@@ -1,5 +1,42 @@
 # IRONWAVE — Changelog
 
+## [Small-load correctness + the cautious coach (B3)] (2026-07-21)
+
+Roundtable step B3, from the athlete panel's S3 findings (FPL1-FPL4) and
+the owner-ratified Gate 1 rulings 1e and 1k. The coach gets more careful
+at the margins, never more aggressive. Golden master untouched.
+
+- **FPL1 below-bar guard**: `Engine.coach.belowBarLoad` flags any working
+  set prescribed under the empty bar; the session lift card shows a
+  warning strip (lighter bar or swap) instead of letting plate math
+  silently hand the athlete more than the prescription.
+- **FPL4 the 10 kg floor (ruling 1e)**: `coach.bounds.oneRmKg` floor drops
+  20 -> 10; a 10-20 kg max raises a confirm-level caution instead of a
+  refusal. New `obConfirmGate` runs every coach caution through a
+  confirm-to-continue modal, remembered per draft, errors still block.
+- **FPL3 low-max rounding**: `Engine.coach.lowMaxRounding` tightens
+  rounding to 1.25 kg at program creation when any main 1RM is under
+  50 kg, with a toast, so wave percentages keep distinct loads.
+- **FPL2 equipment micro-step**: the onboarding maxes step asks bar
+  weight (20/15 kg presets, lb-aware) and smallest loadable jump (down
+  to 0.5 kg); a 0.5 kg microplate row joins the plate presets (owned
+  none by default, so plate math is unchanged until added) and 0.5
+  joins `UNIT_PRESETS.kg.rounding`.
+- **SS3 advisory raise cross-check (ruling 1k)**: after an AMRAP raise,
+  `Engine.coach.wmRaiseCheck` compares the formula raise against the
+  logged set's implied working max (0.9 x e1RM); overshoot beyond 5%
+  offers an athlete-confirmed smaller raise. Never automatic, declining
+  keeps the book formula, the formula itself is untouched.
+- **SS6 evidence-gated ceilings (ruling 1k)**: `recalibrateLandmarks`
+  only raises a muscle's MRV when the block's peak week trained within
+  2 sets of the current ceiling; backing off is unchanged.
+- **SS8 beginner confirm gate (ruling 1k)**: beginner + the aggressive
+  fat-loss archetype triggers `Engine.coach.checkGoal`'s
+  confirm-to-continue on the experience step; declining highlights the
+  recomp goal instead. No more banner-only F6.
+- New copy in BOTH catalogs; `master-coach` and `landmark-divergence`
+  suites extended. Full suite green (497 tests).
+
 ## [The wording is ours too: the legal scrub (B2)] (2026-07-18)
 
 Roundtable step B2, executing the legal report's items 3-5 (the trademark

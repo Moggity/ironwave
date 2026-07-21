@@ -112,13 +112,24 @@ test('recalibrate: tolerated volume near the ceiling raises MRV by 2', () => {
   assert.strictEqual(s.profile.landmarks.chest.mrv, 10, 'strong signal: +2');
 });
 
-test('recalibrate: the same tolerance far from the ceiling raises MRV by 1', () => {
+test('recalibrate: tolerance far from the ceiling no longer moves it (SS6)', () => {
   const s = withProgram();
   s.profile.landmarks.chest = { mv: 4, mev: 6, mrv: 18 };
-  // 7 scoring sets but the athlete never trained near 18 weekly sets.
+  // 7 scoring sets, all easy, but the athlete never trained near 18 weekly
+  // sets: tolerating low volume says nothing about the ceiling.
   s.sessions = [chestSession(0, 7, 7, 8)];
   app.recalibrateLandmarks(0);
-  assert.strictEqual(s.profile.landmarks.chest.mrv, 19, 'weak evidence: +1');
+  assert.strictEqual(s.profile.landmarks.chest.mrv, 18, 'evidence-gated: unchanged');
+});
+
+test('recalibrate: near the ceiling with few scoring sets raises by 1 (SS6 + B1)', () => {
+  const s = withProgram();
+  s.profile.landmarks.chest = { mv: 2, mev: 3, mrv: 5 };
+  // 4 scoring sets (>= 3 so a move happens, < 6 so the step stays small),
+  // peak 4 within 2 of the 5-set ceiling: evidence present, weak signal.
+  s.sessions = [chestSession(0, 4, 7, 8)];
+  app.recalibrateLandmarks(0);
+  assert.strictEqual(s.profile.landmarks.chest.mrv, 6, 'evidence + weak signal: +1');
 });
 
 test('recalibrate: overreached near the ceiling backs MRV off by 2', () => {
@@ -130,11 +141,12 @@ test('recalibrate: overreached near the ceiling backs MRV off by 2', () => {
   assert.strictEqual(s.profile.landmarks.chest.mrv, 7, 'strong signal: -2, floored at mev + 1 = 7');
 });
 
-test('recalibrate: few scoring sets keep the old one-set nudge', () => {
+test('recalibrate: few sets AND far from the ceiling moves nothing (SS6)', () => {
   const s = withProgram();
   s.profile.landmarks.chest = { mv: 4, mev: 6, mrv: 8 };
-  // Only 4 scoring sets (>= 3 so a move happens, < 6 so it stays small).
+  // 4 easy scoring sets with a peak week of 4, well under mrv - 2: no
+  // evidence the 8-set ceiling was ever tested, so it stays put.
   s.sessions = [chestSession(0, 4, 7, 8)];
   app.recalibrateLandmarks(0);
-  assert.strictEqual(s.profile.landmarks.chest.mrv, 9, 'n < 6: +1');
+  assert.strictEqual(s.profile.landmarks.chest.mrv, 8, 'no evidence: unchanged');
 });

@@ -577,7 +577,15 @@ const Engine = {
       // Intake-QA F3: 1000 kg was accepted as a 1RM and 2 kg prescribed
       // 0 kg x5. Outside this band the number is a typo, not a max; the
       // athlete can always leave the field blank and calibrate in week 1.
-      oneRmKg: [20, 500],
+      // Owner ruling 2026-07-21 (roundtable 1e / FPL4): floor lowered from
+      // 20 to 10 kg so real small athletes are not misclassified as typos;
+      // 10..20 asks a gentle "are you sure" instead of refusing.
+      oneRmKg: [10, 500],
+      oneRmConfirmKg: 20,
+      // [B3/FPL3] Below this, a main lift's wave needs fine rounding or the
+      // percentages collapse into identical loads.
+      lowMax1RmKg: 50,
+      fineRoundingKg: 1.25,
       meetTaperWeeks: 2,   // the jm2-peak block appended before the meet
       // Owner ruling 2026-07-17: with a meet 49..75 days out, the volume
       // (accumulation) lead-in is 2 weeks at most; the runway belongs to
@@ -605,8 +613,54 @@ const Engine = {
       // it as "no working max" and week 1 calibrates from feel.
       if (kg === 0) return null;
       const [lo, hi] = this.bounds.oneRmKg;
-      if (Number.isFinite(kg) && kg >= lo && kg <= hi) return null;
-      return { key: 'val.max_range', params: { lo, hi, lift, wKg: true } };
+      if (!Number.isFinite(kg) || kg < lo || kg > hi) {
+        return { key: 'val.max_range', params: { lo, hi, lift, wKg: true } };
+      }
+      // [B3/FPL4] Plausible but unusually light: confirm, never refuse.
+      if (kg < this.bounds.oneRmConfirmKg) {
+        return { key: 'val.max_low_confirm', level: 'confirm',
+                 params: { lift, w: kg, wKg: true } };
+      }
+      return null;
+    },
+    // [B3/SS8] Beginner + aggressive-deficit is the one intake combination
+    // with a plausible harm story: a confirm-to-continue gate, not a silent
+    // block. Owner ruling 2026-07-21 (roundtable 1k).
+    checkGoal(archetype, experience) {
+      if (archetype === 'lean-asap' && experience === 'beginner') {
+        return { key: 'val.goal_beginner_cut', level: 'confirm' };
+      }
+      return null;
+    },
+    // [B3/FPL1] A prescribed barbell load below the empty bar cannot be
+    // loaded: plate math would silently hand the athlete MORE than the
+    // prescription. The session view warns instead of pretending.
+    belowBarLoad(weightKg, barKg) {
+      return Number.isFinite(weightKg) && weightKg > 0
+        && Number.isFinite(barKg) && weightKg < barKg;
+    },
+    // [B3/FPL3] With any entered main 1RM under ~50 kg, coarse rounding
+    // collapses the wave percentages into identical loads. Returns the fine
+    // rounding to apply at program creation, or null when nothing changes.
+    lowMaxRounding(maxes, currentRounding) {
+      const vals = Object.values(maxes || {}).filter(v => Number.isFinite(v) && v > 0);
+      if (!vals.length || Math.min(...vals) >= this.bounds.lowMax1RmKg) return null;
+      return currentRounding > this.bounds.fineRoundingKg ? this.bounds.fineRoundingKg : null;
+    },
+    // [B3/SS3] Advisory e1RM cross-check on an AMRAP working-max raise
+    // (owner ruling 2026-07-21, roundtable 1k): when the formula raise
+    // overshoots what the logged bar speed supports (0.9 x e1RM of the
+    // AMRAP set) by more than 5%, offer the smaller raise. Athlete
+    // confirmed, never automatic; the formula itself is untouched.
+    wmRaiseCheck(currentWM, newWM, set) {
+      if (!(newWM > currentWM) || !set || !(set.weight > 0) || !(set.reps > 0)) return null;
+      const implied = Engine.e1rm(set.weight, set.reps, set.rpe ?? 10) * 0.9;
+      if (!(implied > 0) || newWM <= implied * 1.05) return null;
+      // Only ever a SMALLER RAISE: when the implied WM sits at or below the
+      // current one there is no honest raise to offer, and the below-standard
+      // machinery (not this advisory) is what handles genuine weakness.
+      const suggested = Engine.roundLoad(implied, 1.25);
+      return suggested < newWM && suggested > currentWM ? { suggested } : null;
     },
     // Intake-QA F4: every slider at 0 builds a program with nothing in it.
     checkFocus(focus) {
@@ -679,6 +733,9 @@ const Engine = {
     for (const lift of Object.keys(ob.maxes || {})) {
       coachIssue('maxes', this.coach.checkMax(lift, parseFloat(ob.maxes[lift])));
     }
+    // [B3/SS8] Beginner + aggressive deficit: a confirm-level issue on the
+    // experience step (the first moment both answers exist).
+    coachIssue('experience', this.coach.checkGoal(ob.goalArchetype, ob.experience));
     // [I5] The all-zero focus builds a program with nothing in it: hard block.
     if ((spec.obSteps || []).includes('focus')) {
       coachIssue('focus', this.coach.checkFocus(ob.muscleFocus));
