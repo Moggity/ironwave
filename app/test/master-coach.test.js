@@ -35,13 +35,71 @@ test('checkBodyweight: 25..300 kg passes, everything else is refused', () => {
   }
 });
 
-test('checkMax: 20..500 kg passes, the intake-QA absurdities are refused', () => {
+test('checkMax: 10..500 kg passes, the intake-QA absurdities are refused', () => {
   assert.strictEqual(coach.checkMax('comp-bench', 100), null);
   for (const bad of [1000, 2, -50, NaN]) {
     const iss = coach.checkMax('comp-squat', bad);
     assert.ok(iss && iss.key === 'val.max_range', `${bad} kg refused`);
     assert.strictEqual(iss.params.lift, 'comp-squat', 'the flagged lift is named');
   }
+});
+
+test('checkMax: 10-20 kg is a confirm-level caution, not a refusal (ruling 1e)', () => {
+  const iss = coach.checkMax('military-press', 15);
+  assert.ok(iss, '15 kg raises a caution');
+  assert.strictEqual(iss.level, 'confirm', 'confirm, never error');
+  assert.strictEqual(iss.key, 'val.max_low_confirm');
+  assert.strictEqual(coach.checkMax('military-press', 20), null, '20 kg passes clean');
+  const floor = coach.checkMax('military-press', 10);
+  assert.ok(floor && floor.level === 'confirm', '10 kg is in, but asks first');
+});
+
+test('checkGoal: beginner + lean-asap is a confirm gate, everything else silent (SS8)', () => {
+  const iss = coach.checkGoal('lean-asap', 'beginner');
+  assert.ok(iss && iss.level === 'confirm' && iss.key === 'val.goal_beginner_cut');
+  assert.strictEqual(coach.checkGoal('lean-asap', 'intermediate'), null);
+  assert.strictEqual(coach.checkGoal('recomp', 'beginner'), null);
+  assert.strictEqual(coach.checkGoal(null, 'beginner'), null);
+  // validateIntake carries it on the experience field at confirm level.
+  const issues = app.Engine.validateIntake(
+    { bodyweight: 63, track: 'bodybuilding', goalArchetype: 'lean-asap',
+      experience: 'beginner', maxes: {} },
+    { obSteps: ['welcome', 'goal', 'experience'], intake: {} }, Date.now());
+  const g = issues.find(i => i.key === 'val.goal_beginner_cut');
+  assert.ok(g && g.field === 'experience' && g.level === 'confirm');
+});
+
+test('belowBarLoad: flags only a real prescription under the bar (FPL1)', () => {
+  assert.strictEqual(coach.belowBarLoad(17.5, 20), true, 'the S3 press deload exists now');
+  assert.strictEqual(coach.belowBarLoad(20, 20), false, 'the empty bar itself is loadable');
+  assert.strictEqual(coach.belowBarLoad(60, 20), false);
+  assert.strictEqual(coach.belowBarLoad(0, 20), false, 'no weight prescribed yet');
+  assert.strictEqual(coach.belowBarLoad(undefined, 20), false);
+});
+
+test('lowMaxRounding: a sub-50 kg main tightens coarse rounding to 1.25 (FPL3)', () => {
+  assert.strictEqual(coach.lowMaxRounding({ 'military-press': 30 }, 2.5), 1.25);
+  assert.strictEqual(coach.lowMaxRounding({ 'military-press': 30, 'comp-squat': 120 }, 2.5), 1.25,
+    'the lightest lift drives it');
+  assert.strictEqual(coach.lowMaxRounding({ 'comp-squat': 120 }, 2.5), null, 'no light max, no change');
+  assert.strictEqual(coach.lowMaxRounding({ 'military-press': 30 }, 1.25), null, 'already fine');
+  assert.strictEqual(coach.lowMaxRounding({ 'military-press': 30 }, 0.5), null, 'finer than fine stays');
+  assert.strictEqual(coach.lowMaxRounding({}, 2.5), null);
+});
+
+test('wmRaiseCheck: overshooting the logged e1RM offers the smaller raise (SS3)', () => {
+  // 60 kg x 6 at RPE 10 -> e1rm 72, implied WM 64.8. A formula raise to 72.5
+  // overshoots by >5%; the suggested raise is the implied WM, rounded.
+  const xc = coach.wmRaiseCheck(60, 72.5, { weight: 60, reps: 6, rpe: 10 });
+  assert.ok(xc, 'overshoot flagged');
+  assert.ok(xc.suggested > 60 && xc.suggested < 72.5, 'a smaller, real raise');
+  assert.strictEqual(xc.suggested % 1.25, 0, 'on the fine grid');
+  // A raise the bar speed supports passes silently.
+  assert.strictEqual(coach.wmRaiseCheck(60, 63, { weight: 60, reps: 6, rpe: 10 }), null);
+  // Never suggests below the current WM, and never fires without a raise.
+  assert.strictEqual(coach.wmRaiseCheck(100, 102.5, { weight: 60, reps: 2, rpe: 10 }), null,
+    'implied below current WM: the suggestion would not be a raise');
+  assert.strictEqual(coach.wmRaiseCheck(100, 100, { weight: 100, reps: 10, rpe: 10 }), null);
 });
 
 test('checkMax: 0 means bodyweight only and lands on the calibration path', () => {

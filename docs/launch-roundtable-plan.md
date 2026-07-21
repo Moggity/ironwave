@@ -63,6 +63,18 @@ them involve code.
 
 ### GATE 1 (decide, ~90 minutes, one sitting): the decision batch
 
+**RATIFIED (owner, 2026-07-21): all recommendations 1a-1k approved as
+written.** Recorded here so engineering agents treat every item below as
+settled; the per-item detail stays for reference. Concretely: two-wave
+beta yes; the 1b slip list approved; launch without Health export if it
+misses the build; text scaling non-negotiable; 1RM floor to 10 kg with a
+soft confirm under 20; lifetime sold at launch with store-scoped wording;
+exit survey at both moments, once per person; creator deals flat fee +
+20% with Feb-Mar timing; competitor pricing in founder voice only;
+"Musculación" leads the ES listing; all three coaching-judgment tweaks
+(SS3 advisory cross-check, SS6 evidence bar, SS8 beginner confirm-gate)
+approved.
+
 You are the tie-breaker on items your consultants already argued both
 sides of. For each, the table gives you the context, the
 recommendation, and what happens if you skip it. Defaults are safe:
@@ -211,13 +223,22 @@ matters; each is one branch.
   metadata, comments, README, and the SS4/SS5 copy reframes swept in
   both catalogs; the persisted methodology label migrates on legacy
   saves; grep gate green; golden master byte-identical.
-- **B3. Small-load correctness + coach rules** (FPL1/FPL3 below-bar
-  guard and low-max advice, FPL4 per ruling 1e, FPL2 equipment
-  micro-step; plus the three Gate-1k coaching tweaks).
+- ~~**B3. Small-load correctness + coach rules**~~ DONE (2026-07-21):
+  below-bar guard on the session card, 10 kg floor with the 10-20
+  confirm (1e), low-max fine rounding at creation, the equipment
+  micro-step on the maxes step, and all three 1k tweaks (SS3 advisory
+  e1RM cross-check on AMRAP raises, SS6 evidence-gated MRV raises,
+  SS8 beginner + aggressive-deficit confirm gate). Golden master
+  untouched; both catalogs.
 - **B4. Specialization-split honesty** (IQ6-IQ8: the one-muscle-at-6
   week stops degenerating; intake warns when the math cannot work).
 
 ### GATE 4 (approve, ~30 minutes): the new volume numbers
+
+**APPROVED (owner, 2026-07-21)** after reviewing
+`docs/landmark-derivation-note.md`: the derived table is ratified as
+shipped training guidance and the divergence test stands as the
+automated proof. Station B's B1 is fully closed.
 
 After B1, you will get a one-page before/after: the old seeded
 volume table next to ours, per muscle, with the reasoning. What you
