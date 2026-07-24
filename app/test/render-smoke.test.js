@@ -384,6 +384,20 @@ test('powerbuilding onboarding path produces the golden-master program', () => {
   assert.deepStrictEqual(noSched(prog), noSched(golden), 'onboarding output = golden-master program');
 });
 
+// [B4] The focus budget is visible and actionable at the moment it binds.
+test('focus step renders the budget line and the rebalance offer when over budget', () => {
+  const ctx = fresh();
+  ctx.app.S = ctx.app.defaultState();
+  const ob = Object.assign(ctx.app.obDefaults(), { track: 'bodybuilding', daysPerWeek: 2,
+    timeMode: 'custom', timeCapMin: 50, bodyweight: 80,
+    muscleFocus: { arms: 4, chest: 4, back: 4, shoulders: 0, glutes: 0, legs: 0, calves: 0 } });
+  const html = renderView(ctx, 'onboarding', { ob, obStep: 5 });
+  assert.ok(/id="mf-budget"/.test(html), 'the budget line renders');
+  assert.ok(/points to spend/.test(html), 'the have/spent copy renders');
+  assert.ok(/obFocusRebalance\(\)/.test(html), 'the one-tap rebalance is offered');
+  assert.ok(/max="4"/.test(html), 'sliders cap at the 0-4 frequency scale');
+});
+
 test('lb mode: onboarding step 0 shows the unit toggle and lb bodyweight label', () => {
   const ctx = fresh();
   ctx.app.S = ctx.app.defaultState();

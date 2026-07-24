@@ -193,6 +193,22 @@ sweep('library fallthrough: depth never repeats before the library is exhausted'
     'no repeats before the curated pool is exhausted');
 });
 
+test('intake: over-budget sliders block the focus step with the honest numbers', () => {
+  const ob = { bodyweight: 80, track: 'bodybuilding', daysPerWeek: 2, timeMode: 'custom',
+    timeCapMin: 50, muscleFocus: focusOf({ arms: 4, chest: 4, back: 4 }), maxes: {} };
+  const spec = { obSteps: ['welcome', 'goal', 'days', 'experience', 'time', 'focus', 'maxes'],
+    intake: { minSessionMin: 30 } };
+  const issues = app.Engine.validateIntake(ob, spec, Date.now());
+  const over = issues.find(i => i.key === 'val.focus_over_budget');
+  assert.ok(over && over.field === 'focus' && over.level === 'error', 'blocks like the all-zero gate');
+  assert.strictEqual(over.params.need, 12);
+  assert.ok(over.params.have < 12, 'the honest affordable number rides along');
+  // The one-tap rebalance yields a draft the same gate passes.
+  const fixed = app.Engine.coach.rebalanceFocus(ob.muscleFocus, over.params.have).focus;
+  const clean = app.Engine.validateIntake(Object.assign({}, ob, { muscleFocus: fixed }), spec, Date.now());
+  assert.ok(!clean.some(i => i.key === 'val.focus_over_budget'), 'rebalanced draft is affordable');
+});
+
 sweep('budget honesty: generated days price within the budget assumption', () => {
   // The currency is real only if a generated day costs what the budget
   // charged for it. Build a mid-size plan, resolve a build week, and check

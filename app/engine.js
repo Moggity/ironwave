@@ -847,6 +847,11 @@ const Engine = {
     // [I5] The all-zero focus builds a program with nothing in it: hard block.
     if ((spec.obSteps || []).includes('focus')) {
       coachIssue('focus', this.coach.checkFocus(ob.muscleFocus));
+      // [B4] Sliders spending more points than the athlete's days and
+      // session time afford block like the all-zero gate; the focus step's
+      // banner carries the numbers and the one-tap rebalance.
+      coachIssue('focus', this.coach.checkFocusBudget(ob.muscleFocus, ob.daysPerWeek,
+        ob.timeMode === 'custom' ? parseFloat(ob.timeCapMin) : null));
     }
     if (ob.timeMode === 'custom') {
       const cap = parseInt(ob.timeCapMin, 10);

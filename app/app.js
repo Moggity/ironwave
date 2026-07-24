@@ -2074,21 +2074,63 @@ function obConfirmGate(step, issues, onDecline) {
 function obIssueBanners(issues) {
   return issues.map(i => `<div class="banner-warn mt8">${esc(t(i.key, i.params))}</div>`).join('');
 }
-// Warning copy for any slider at the extremes (0 = removed, 6 = maxed).
+// [B4/CTO] Haptics seam: navigator.vibrate where the browser has it (Android
+// Chrome today), silent no-op elsewhere. ONE place for the native wrap
+// (R2/R4) to swap in Platform.haptics. Never load-bearing.
+function hapticTap() {
+  try { if (navigator.vibrate) navigator.vibrate(10); } catch (e) { /* no-op */ }
+}
+// [B4] The focus budget numbers for a days/time context: affordable points
+// vs points spent by the sliders. Shared by the onboarding focus step and
+// the in-app focus editor (which passes the program's own config).
+function focusBudgetInfo(focus, days, timeMode, timeCapMin) {
+  const cap = timeMode === 'custom' ? (parseInt(timeCapMin, 10) || null) : null;
+  const have = Engine.coach.focusBudget(days, cap);
+  const spent = Engine.coach.focusSpend(focus);
+  return { have, spent, left: have - spent };
+}
+function obBudgetLine(ob) {
+  const info = focusBudgetInfo(ob.muscleFocus, ob.daysPerWeek, ob.timeMode, ob.timeCapMin);
+  return t('focus.budget', { have: info.have, spent: info.spent });
+}
+// Warning copy for any slider at the extremes (0 = removed, FOCUS_MAX = maxed).
 // [Epic I5] All zeros is not a warning, it is a blocked program (nothing to
 // train); the master coach's error renders instead and Continue refuses.
+// [B4] Over budget is ALSO a blocked program: the banner carries the honest
+// have/need numbers and the one-tap rebalance.
 function obFocusWarning(focus) {
   if (Engine.coach.checkFocus(focus)) {
     return `<div class="banner-warn mt8">${esc(t('val.focus_all_zero'))}</div>`;
   }
+  const ob = V.ob || {};
+  const over = Engine.coach.checkFocusBudget(focus, ob.daysPerWeek,
+    ob.timeMode === 'custom' ? parseInt(ob.timeCapMin, 10) : null);
+  if (over) {
+    return `<div class="banner-warn mt8">${esc(t(over.key, over.params))}
+      <button class="btn btn-outline mt8" onclick="obFocusRebalance()">${esc(t('focus.rebalance_btn'))}</button></div>`;
+  }
   const removed = FOCUS_KEYS.filter(k => focus[k] === 0).map(k => t('muscle.' + k));
-  const maxed = FOCUS_KEYS.filter(k => focus[k] === 6).map(k => t('muscle.' + k));
+  const maxed = FOCUS_KEYS.filter(k => focus[k] === FOCUS_MAX).map(k => t('muscle.' + k));
   if (!removed.length && !maxed.length) return '';
   const parts = [];
   if (removed.length) parts.push(t('ob.focus_removed', { list: removed.join(', ') }));
   if (maxed.length) parts.push(t('ob.focus_maxed', { list: maxed.join(', ') }));
   parts.push(t('ob.focus_rebalance'));
   return `<div class="banner-warn mt8">${esc(parts.join(' '))}</div>`;
+}
+// [B4] One-tap proportional rebalance to fit the budget. A rebalance is a
+// coach decision, so the toast names every change (from -> to); the same
+// delta becomes a T1 receipt when receipts land.
+function obFocusRebalance() {
+  const ob = V.ob;
+  const cap = ob.timeMode === 'custom' ? (parseInt(ob.timeCapMin, 10) || null) : null;
+  const res = Engine.coach.rebalanceFocus(ob.muscleFocus, Engine.coach.focusBudget(ob.daysPerWeek, cap));
+  ob.muscleFocus = res.focus;
+  hapticTap();
+  if (res.delta.length) {
+    toast(t('focus.rebalanced', { list: res.delta.map(d => `${t('muscle.' + d.m)} ${d.from}→${d.to}`).join(', ') }));
+  }
+  render();
 }
 // Informative only: median training-day length for the current focus. Builds a
 // throwaway bodybuilding program from the onboarding answers and times each day
@@ -2275,12 +2317,15 @@ function vOnboarding() {
   } else if (id === 'focus') {
     body = `
       <div class="ob-title">${esc(t('ob.focus_title'))}</div>
+      <p class="subtle">${esc(t('ob.focus_sub'))}</p>
+      <div id="mf-budget" class="focus-time" role="status">${esc(obBudgetLine(ob))}</div>
       ${FOCUS_KEYS.map(k => `
         <div class="focus-row">
           <div class="row"><span>${esc(t('muscle.' + k))}</span><b id="mf-val-${k}">${ob.muscleFocus[k]}</b></div>
-          <input type="range" min="0" max="6" step="1" value="${ob.muscleFocus[k]}" oninput="obSlider('${k}', this.value)">
+          <input type="range" min="0" max="${FOCUS_MAX}" step="1" value="${ob.muscleFocus[k]}"
+            aria-label="${esc(t('muscle.' + k))}" oninput="obSlider('${k}', this.value)">
         </div>`).join('')}
-      <div id="mf-warn">${obFocusWarning(ob.muscleFocus)}</div>
+      <div id="mf-warn" role="alert">${obFocusWarning(ob.muscleFocus)}</div>
       <div id="mf-time" class="focus-time">${esc(focusTimeLine(ob))}</div>
       <button class="btn btn-green mt16" onclick="obNext(${step})">${esc(t('ob.continue'))}</button>`;
   } else if (id === 'maxes') {
@@ -2447,6 +2492,12 @@ function obSlider(k, v) {
   const el = byId('mf-val-' + k); if (el) el.textContent = v;
   const wn = byId('mf-warn'); if (wn) wn.innerHTML = obFocusWarning(V.ob.muscleFocus);
   const tl = byId('mf-time'); if (tl) tl.textContent = focusTimeLine(V.ob);
+  // [B4] Live budget line + a tactile nudge at the ceiling and on crossing
+  // over budget (the crossing check keeps it one buzz, not a drone).
+  const bd = byId('mf-budget'); if (bd) bd.textContent = obBudgetLine(V.ob);
+  const info = focusBudgetInfo(V.ob.muscleFocus, V.ob.daysPerWeek, V.ob.timeMode, V.ob.timeCapMin);
+  if (parseInt(v) === FOCUS_MAX || (info.left < 0 && (V._budgetLeft == null || V._budgetLeft >= 0))) hapticTap();
+  V._budgetLeft = info.left;
 }
 function obNext(step) {
   const ob = V.ob;
@@ -6236,22 +6287,69 @@ function openFocusEditor() {
   V.feDraft = Object.assign({}, (P().pendingFocus || P().trainingConfig.muscleFocus));
   showModal(renderFocusEditor);
 }
+// [B4] The in-app editor prices against the PROGRAM's own days + time cap
+// (the config this cycle actually runs under), same banner + rebalance as
+// onboarding, and refuses to stage an unaffordable pendingFocus.
+function feBudgetCtx() {
+  const p = P(), tc = p.trainingConfig || {};
+  return { days: p.daysPerWeek || p.days.length, timeMode: tc.timeMode, cap: tc.timeCapMin };
+}
+function feBudgetLine() {
+  const c = feBudgetCtx();
+  const info = focusBudgetInfo(V.feDraft, c.days, c.timeMode, c.cap);
+  return t('focus.budget', { have: info.have, spent: info.spent });
+}
+function feWarning() {
+  const c = feBudgetCtx();
+  const over = Engine.coach.checkFocusBudget(V.feDraft, c.days,
+    c.timeMode === 'custom' ? c.cap : null);
+  if (over) {
+    return `<div class="banner-warn mt8">${esc(t(over.key, over.params))}
+      <button class="btn btn-outline mt8" onclick="feRebalance()">${esc(t('focus.rebalance_btn'))}</button></div>`;
+  }
+  if (Engine.coach.checkFocus(V.feDraft)) {
+    return `<div class="banner-warn mt8">${esc(t('val.focus_all_zero'))}</div>`;
+  }
+  return '';
+}
 function renderFocusEditor(anim) {
   const rows = FOCUS_KEYS.map(k => `
     <div class="focus-row">
       <div class="row"><span>${esc(t('muscle.' + k))}</span><b id="fe-val-${k}">${V.feDraft[k]}</b></div>
-      <input type="range" min="0" max="6" step="1" value="${V.feDraft[k]}" oninput="feSlider('${k}', this.value)">
+      <input type="range" min="0" max="${FOCUS_MAX}" step="1" value="${V.feDraft[k]}"
+        aria-label="${esc(t('muscle.' + k))}" oninput="feSlider('${k}', this.value)">
     </div>`).join('');
   $modal.innerHTML = modalShell(anim, t('fe.title'), `
+    <div id="fe-budget" class="focus-time" role="status">${esc(feBudgetLine())}</div>
     ${rows}
+    <div id="fe-warn" role="alert">${feWarning()}</div>
     <p class="faint">${esc(t('fe.next_block'))}</p>
     <button class="btn btn-blue" onclick="feSave()">${esc(t('common.save'))}</button>`);
 }
 function feSlider(k, v) {
   V.feDraft[k] = parseInt(v);
   const el = byId('fe-val-' + k); if (el) el.textContent = v;
+  const bd = byId('fe-budget'); if (bd) bd.textContent = feBudgetLine();
+  const wn = byId('fe-warn'); if (wn) wn.innerHTML = feWarning();
+  if (parseInt(v) === FOCUS_MAX) hapticTap();
+}
+function feRebalance() {
+  const c = feBudgetCtx();
+  const res = Engine.coach.rebalanceFocus(V.feDraft,
+    Engine.coach.focusBudget(c.days, c.timeMode === 'custom' ? c.cap : null));
+  V.feDraft = res.focus;
+  hapticTap();
+  if (res.delta.length) {
+    toast(t('focus.rebalanced', { list: res.delta.map(d => `${t('muscle.' + d.m)} ${d.from}→${d.to}`).join(', ') }));
+  }
+  showModal(renderFocusEditor);
 }
 function feSave() {
+  // [B4] The gate mirrors onboarding: no all-zero, no over-budget staging.
+  const c = feBudgetCtx();
+  const bad = Engine.coach.checkFocus(V.feDraft)
+    || Engine.coach.checkFocusBudget(V.feDraft, c.days, c.timeMode === 'custom' ? c.cap : null);
+  if (bad) { toast(t(bad.key, bad.params), true); return; }
   P().pendingFocus = Object.assign({}, V.feDraft);
   V.feDraft = null;
   save(); closeAllModals(); render();
