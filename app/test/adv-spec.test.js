@@ -96,6 +96,31 @@ test('advFreqCap: physiology first, then availability (the owner examples)', () 
   assert.strictEqual(coach.advFreqCap('biceps', 0), 1, 'day floor is 1');
 });
 
+test('advTargets [G3]: caps asks, follows an off muscle, refuses the sole-row backdoor', () => {
+  const focus = { arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 0 };
+  const t = app.advTargets({ biceps: 9, quads: 5, glutes: 0, calves: 3, abs: 2 }, focus, 6);
+  assert.strictEqual(t.biceps, 6, 'asks clamp to the coach cap');
+  assert.strictEqual(t.quads, 3, 'physiology ceiling holds');
+  assert.strictEqual(t.glutes, undefined,
+    'an ask of 0 on a muscle with one row is the slider confirm gate, not a backdoor');
+  assert.strictEqual(t.calves, undefined, 'a row on an OFF muscle follows the muscle');
+  assert.strictEqual(t.abs, 2, 'slider-less rows normalize like any other');
+  assert.deepStrictEqual(app.advTargets(null, focus, 5), {}, 'no asks, no targets');
+  const off = app.advTargets({ biceps: 0 }, focus, 5);
+  assert.strictEqual(off.biceps, 0, 'ask 0 on a multi-row muscle is a real row-off target');
+});
+
+test('advRowPool [G3]: curated order first, own exercises only, anchors excluded', () => {
+  const bi = app.advRowPool('biceps');
+  assert.ok(bi.length >= 3, 'a real pool');
+  assert.ok(bi.indexOf('ez-curl') === 0, 'the curated coach order leads');
+  assert.ok(!bi.includes('hammer-curl') && !bi.includes('reverse-curl'),
+    'brachialis work never enters the biceps pool');
+  const abs = app.advRowPool('abs');
+  assert.ok(abs.length >= 3, 'slider-less rows draw straight from the library');
+  assert.deepStrictEqual(app.advRowPool('nope'), [], 'unknown row, empty pool');
+});
+
 test('checkAdvAsk: over the cap is an issue with the honest cap, at the cap is silent', () => {
   const iss = coach.checkAdvAsk('quads', 4, 6);
   assert.ok(iss && iss.key === 'val.adv_freq_cap');

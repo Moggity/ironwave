@@ -25,7 +25,7 @@ the roundtable plan wins; about CONTENT, this backlog wins.
 
 ## Larger features (each its own branch)
 
-- **Advanced specialization tab (G3-G4)** (owner ruling 2026-07-24, follows
+- **Advanced specialization tab (G4)** (owner ruling 2026-07-24, follows
   the shipped G1 slider rescale): per-muscle frequency overrides beneath the
   main sliders, gaming-UX pips with locked positions past availability.
   - ~~**G2 - taxonomy + coach ceilings**~~ DONE (2026-07-24): `ADV_MUSCLES`
@@ -36,12 +36,15 @@ the roundtable plan wins; about CONTENT, this backlog wins.
     `bounds.specSlots`. `focusSpecAsk` (written by the G1 migration for old
     4x saves) seeds the initial overrides when G4 lands. Pinned by
     `test/adv-spec.test.js`.
-  - **G3 - generator + contract**: thread head-level frequency overrides
-    through `generateBodybuildingDays` and extend `validateFocusWeek` with a
-    per-head dimension (rotation already thinks in heads). Overrides above
-    the group slider consume budget/time like exposures; `perSessionCapDiv`
-    is the existing 4x+ seam. The expensive slice; extend
-    `focus-honesty.test.js` in lockstep.
+  - ~~**G3 - generator + contract**~~ DONE (2026-07-24): `advTargets`
+    (one normalization for generator + validator), `applyAdvOverrides`
+    (anchor floors, surplus trim with same-muscle replacement, deficit
+    injection with `advRowPool`, week growth for deep asks),
+    `validateFocusWeek` rules 7-8, fill exclusion of pinned rows,
+    `ob.focusAdv` -> `trainingConfig.focusAdv` plumbing incl. block-boundary
+    regeneration. NOTE for G4: the points budget (`focusBudget`) does not
+    yet price advanced asks; wire the panel's budget line when it lands.
+    `perSessionCapDiv` already divides by the real built frequency at 4x+.
   - **G4 - the panel UI**: per-muscle cards with frequency pips (locked past
     availability with an unlock hint, absent past the health ceiling),
     specialization slots (at most ~2 muscles above their standard at once,

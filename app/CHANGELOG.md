@@ -1,5 +1,45 @@
 # IRONWAVE — Changelog
 
+## [Advanced frequency overrides in the generator (G3)] (2026-07-24)
+
+The heavy slice of the advanced specialization tab: per-muscle frequency
+asks now BUILD. Everything is inert by absence (no asks = byte-identical
+weeks; golden master untouched); the G4 panel is the surface that will
+write the asks.
+
+- **`advTargets` normalizes asks in ONE place** (generator and validator
+  both consult it): every ask clamps to `coach.advFreqCap(row, N)`; a
+  row on an OFF muscle follows the muscle; an ask of 0 on a muscle's
+  only row is ignored (turning a muscle off is the slider's
+  confirm-gated job, not a backdoor).
+- **`applyAdvOverrides`** reconciles each targeted row after the
+  dose-driven build to eff = max(anchor days, capped ask). Anchors
+  (main/secondary waves) always count and are never touched. Surplus or
+  ask-0 trims the row's accessory appearances from the end of the week,
+  replacing each slot with other same-muscle work so the group exposure
+  survives. Deficit injects row-pool picks (`advRowPool`: curated coach
+  order, own exercises only), preferring days already training the
+  parent muscle, then any day under the muscle cap, then NEW short
+  focus days while availability remains; a deep ask sizes the week
+  (`D` includes the largest target). Injected slots carry `adv: rowId`;
+  focus days have no primary. OFF rows are blocked from base picks so
+  group exposures land on the muscle's other rows directly.
+- **Contract rules 7-8** (`validateFocusWeek(days, focus, N, adv)`):
+  each targeted row appears on exactly eff days (capacity the only
+  excuse, never more); a muscle with targeted rows may appear (and
+  lead) up to its rows' effs; every untargeted muscle keeps the B4
+  rules verbatim. `fillDaysToTarget` excludes pinned rows so a time
+  target can never silently buy an extra weekly appearance.
+- **Plumbing**: `makeProgram` accepts `ob.focusAdv` and snapshots it as
+  `trainingConfig.focusAdv` (only when present); block-boundary
+  regeneration passes the same asks, so a specialization survives a
+  focus re-spec.
+- Tests: focus-honesty gains the G3 sweep (owner biceps 6x example,
+  ceiling + anchor floors, row-off, surplus trim, week growth,
+  inertness, fill interplay, rule-7 fixtures, makeProgram + endBlock
+  end to end); adv-spec covers `advTargets` and `advRowPool`. Suite:
+  548 green.
+
 ## [Advanced specialization groundwork: taxonomy + coach ceilings (G2)] (2026-07-24)
 
 First slice of the advanced per-muscle frequency tab (owner ruling

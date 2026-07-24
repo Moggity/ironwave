@@ -299,6 +299,130 @@ sweep('fill sheds first: filler falls to optional before dose work under the cap
   }
 });
 
+// ---------------------------------------------------------------------------
+// [G3] Advanced per-muscle frequency overrides (contract rules 7-8)
+// ---------------------------------------------------------------------------
+const rowDays = (days, rid) => {
+  const own = new Set(app.advRowExercises(rid).map(e => e.id));
+  return days.filter(d => d.slots.some(sl => own.has(sl.def || sl.ex || sl.lift || sl.baseLift))).length;
+};
+
+sweep('adv: the owner example, biceps 6x on 6 days over a 2x arms slider', () => {
+  const focus = focusOf({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 1, legs: 1, calves: 1 });
+  const adv = { biceps: 6 };
+  const days = app.generateBodybuildingDays(focus, 6, { adv });
+  assert.deepStrictEqual(validateFocusWeek(days, focus, 6, adv), [], 'contract holds');
+  assert.strictEqual(rowDays(days, 'biceps'), 6, 'biceps trains 6 days');
+  assert.ok(days.some(d => d.slots.some(sl => sl.adv === 'biceps')), 'injected slots carry provenance');
+});
+
+sweep('adv: physiology caps the ask and anchors always count toward it', () => {
+  const focus = focusOf({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 1, legs: 2, calves: 1 });
+  // Quads ask 5 -> the coach ceiling (3) wins.
+  let adv = { quads: 5 };
+  let days = app.generateBodybuildingDays(focus, 6, { adv });
+  assert.deepStrictEqual(validateFocusWeek(days, focus, 6, adv), []);
+  assert.strictEqual(rowDays(days, 'quads'), 3, 'quads never pass their ceiling');
+  // Chest ask 1 under a 2x slider: days anchored by a main/secondary bench
+  // floor the effective ask, because the wave outranks a frequency whim.
+  adv = { chest: 1 };
+  days = app.generateBodybuildingDays(focus, 5, { adv });
+  assert.deepStrictEqual(validateFocusWeek(days, focus, 5, adv), []);
+  const chestOwn = new Set(app.advRowExercises('chest').map(e => e.id));
+  const anchored = days.filter(d => d.slots.some(sl =>
+    (sl.type === 'main' || sl.type === 'secondary') && chestOwn.has(sl.lift || sl.baseLift))).length;
+  assert.ok(anchored >= 1, 'the bench wave still anchors the week');
+  assert.strictEqual(rowDays(days, 'chest'), Math.max(anchored, 1),
+    'anchors floor the effective ask, accessories trim to it');
+});
+
+sweep('adv: a row asked off loses its accessory work, the group survives', () => {
+  const focus = focusOf({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 1, legs: 1, calves: 1 });
+  const adv = { biceps: 0 };
+  const days = app.generateBodybuildingDays(focus, 5, { adv });
+  assert.deepStrictEqual(validateFocusWeek(days, focus, 5, adv), []);
+  assert.strictEqual(rowDays(days, 'biceps'), 0, 'no biceps work anywhere');
+  const armsDays = days.filter(d => d.slots.some(sl => {
+    const ex = EX[sl.def || sl.lift]; return ex && ['bicep', 'tricep'].includes(ex.movement);
+  })).length;
+  assert.strictEqual(armsDays, 2, 'arms still trains its slider via the other rows');
+});
+
+sweep('adv: surplus trims to the ask without losing the group exposure', () => {
+  const focus = focusOf({ arms: 3, chest: 2, back: 2, shoulders: 2, glutes: 1, legs: 1, calves: 1 });
+  const adv = { biceps: 1 };
+  const days = app.generateBodybuildingDays(focus, 5, { adv });
+  assert.deepStrictEqual(validateFocusWeek(days, focus, 5, adv), []);
+  assert.strictEqual(rowDays(days, 'biceps'), 1, 'biceps appears exactly once');
+});
+
+sweep('adv: a deep ask grows a light week with focus days (no primary, marked slots)', () => {
+  const focus = focusOf({ chest: 1, arms: 1 });
+  const adv = { biceps: 4 };
+  const days = app.generateBodybuildingDays(focus, 5, { adv });
+  assert.deepStrictEqual(validateFocusWeek(days, focus, 5, adv), []);
+  assert.strictEqual(rowDays(days, 'biceps'), 4, 'the ask sized the week');
+  const grown = days.filter(d => /^Focus ·/.test(d.name));
+  assert.ok(grown.length >= 2, 'focus days were appended');
+  assert.ok(grown.every(d => d.primary == null), 'focus days are not lead days');
+  assert.ok(grown.every(d => d.slots.every(sl => sl.adv)), 'focus days carry only pinned work');
+});
+
+sweep('adv: absent asks are byte-identical (inert by absence)', () => {
+  const focus = focusOf({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 1, legs: 1, calves: 1 });
+  const a = JSON.stringify(app.generateBodybuildingDays(focus, 5));
+  const b = JSON.stringify(app.generateBodybuildingDays(focus, 5, { adv: null }));
+  const c = JSON.stringify(app.generateBodybuildingDays(focus, 5, { adv: {} }));
+  assert.ok(a === b && b === c, 'no asks, no change');
+});
+
+sweep('adv + fill: a pinned row keeps its exact frequency under a time target', () => {
+  const focus = focusOf({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 1, legs: 1, calves: 1 });
+  const adv = { biceps: 4 };
+  const days = app.generateBodybuildingDays(focus, 5,
+    { adv, targetSec: app.Engine.coach.sessionTargetSec('custom', 50) });
+  assert.deepStrictEqual(validateFocusWeek(days, focus, 5, adv), []);
+  assert.strictEqual(rowDays(days, 'biceps'), 4, 'fill never bought a fifth appearance');
+});
+
+test('validateFocusWeek: rule 7 catches over- and under-delivered rows', () => {
+  const focus = focusOf({ arms: 2 });
+  const twoBi = [
+    { name: 'A', primary: 'arms', slots: [{ type: 'acc', def: 'ez-curl' }] },
+    { name: 'B', primary: 'arms', slots: [{ type: 'acc', def: 'db-curl' }] },
+  ];
+  const over = validateFocusWeek(twoBi, focus, 4, { biceps: 1 });
+  assert.ok(over.some(x => /biceps: 2 row exposures for an effective ask of 1/.test(x)), 'over flagged');
+  const under = validateFocusWeek(twoBi, focus, 4, { biceps: 4 });
+  assert.ok(under.some(x => /biceps: 2\/4 row exposures with capacity left/.test(x)), 'under flagged');
+  const off = validateFocusWeek(twoBi, focus, 4, { biceps: 0 });
+  assert.ok(off.some(x => /biceps: 2 row exposures for an effective ask of 0/.test(x)), 'off flagged');
+});
+
+sweep('adv end to end: makeProgram stores the asks and endBlock regeneration keeps them', () => {
+  const s = app.defaultState();
+  app.S = s;
+  s.profile.landmarks = app.Engine.seedLandmarks('intermediate');
+  const focus = focusOf({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 1, legs: 1, calves: 1 });
+  const adv = { biceps: 4 };
+  s.program = app.makeProgram({ daysPerWeek: 5, track: 'bodybuilding', experience: 'intermediate',
+    timeMode: 'unlimited', muscleFocus: { ...focus }, focusAdv: { ...adv }, maxes: {} });
+  assert.deepStrictEqual(s.program.trainingConfig.focusAdv, adv, 'asks stored on the config');
+  assert.deepStrictEqual(validateFocusWeek(s.program.days, focus, 5, adv), [], 'built week honors them');
+  assert.strictEqual(rowDays(s.program.days, 'biceps'), 4);
+  // Cross the block boundary with a pending focus: the regenerated split
+  // keeps the same advanced contract.
+  app.V = { dayIdx: null, view: 'dashboard', tab: 'dashboard' };
+  s.program.pendingFocus = { ...focus, chest: 3 };
+  s.program.pointer.week = s.program.weeksPerBlock - 1;
+  app.advanceWeek();
+  assert.strictEqual(s.program.pointer.block, 1, 'block advanced');
+  assert.deepStrictEqual(
+    validateFocusWeek(s.program.days, { ...focus, chest: 3 }, 5, adv), [],
+    'regenerated week honors the asks');
+  assert.strictEqual(rowDays(s.program.days, 'biceps'), 4, 'the ask survived regeneration');
+});
+
 sweep('budget honesty: generated days price within the budget assumption', () => {
   // The currency is real only if a generated day costs what the budget
   // charged for it. Build a mid-size plan, resolve a build week, and check

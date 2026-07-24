@@ -587,12 +587,17 @@ function makeProgram(ob) {
   // driven, region days proportional to slider points). Falls back to the fixed
   // hypertrophy templates if generation cannot produce a full week. Other tracks
   // keep the strength-oriented shared templates untouched.
+  // [G3] Advanced per-muscle frequency asks (the G4 panel writes them;
+  // absent = classic slider-only build, byte-identical).
+  const focusAdv = track === 'bodybuilding' && ob.focusAdv && Object.keys(ob.focusAdv).length
+    ? Object.assign({}, ob.focusAdv) : null;
   let days;
   if (track === 'bodybuilding') {
     // [B4.1] A short custom cap is the session the athlete EXPECTS to train:
     // the generator tops each day up toward it (Engine.coach.sessionTargetSec).
     days = generateBodybuildingDays(focus, ob.daysPerWeek,
-      { targetSec: Engine.coach.sessionTargetSec(ob.timeMode, ob.timeCapMin) });
+      { targetSec: Engine.coach.sessionTargetSec(ob.timeMode, ob.timeCapMin),
+        adv: focusAdv });
     // [B4] A SHORT week (days.length < daysPerWeek) is legal output: the
     // generator builds only the days the dose needs and the rest are rest.
     // daysPerWeek keeps meaning AVAILABILITY (it prices the focus budget and
@@ -641,6 +646,9 @@ function makeProgram(ob) {
       timeMode: ob.timeMode || 'unlimited',
       timeCapMin: ob.timeMode === 'custom' ? (ob.timeCapMin || null) : null,
       muscleFocus: Object.assign({}, focus),
+      // [G3] Only written when asks exist, so every classic program's
+      // config (and the golden master) is byte-identical.
+      ...(focusAdv ? { focusAdv } : {}),
     },
   };
 }
@@ -675,6 +683,59 @@ function advRowExercises(row) {
     if (r.heads) return !!e.head && r.heads.includes(e.head);
     return (r.movements || []).includes(e.movement) && !(e.head && claimed.has(e.head));
   });
+}
+// [G3] Row id -> Set of owned exercise ids, for appearance counting.
+function advRowSets() {
+  const byRow = {};
+  for (const r of ADV_MUSCLES) byRow[r.id] = new Set(advRowExercises(r).map(e => e.id));
+  return byRow;
+}
+// [G3] A row's ordered selection pool: the parent slider's curated coach
+// order first, then the rest by SFR (musclePool's order), filtered to the
+// row's own exercises; slider-less rows (abs, lower back) order by SFR with
+// the barbell anchors excluded.
+function advRowPool(rid) {
+  const r = ADV_MUSCLES.find(x => x.id === rid);
+  if (!r) return [];
+  const own = new Set(advRowExercises(r).map(e => e.id));
+  if (r.slider) return musclePool(r.slider).filter(id => own.has(id));
+  const anchors = new Set(Object.values(MUSCLE_MAIN));
+  return advRowExercises(r).filter(e => !anchors.has(e.id))
+    .sort((a, b) => (b.sfr - a.sfr)).map(e => e.id);
+}
+// [G3] Normalize the athlete's advanced asks into effective row targets for
+// availability N. The coach cap (physiology x days) bounds every ask; a row
+// whose parent slider sits at 0 follows the muscle off (the override cannot
+// resurrect removed work); an ask of 0 on a muscle's ONLY row is ignored
+// (turning a whole muscle off is the slider's confirm-gated job, not a
+// backdoor). Consulted by the generator AND validateFocusWeek so the
+// contract cannot drift from the build.
+function advTargets(adv, focus, N) {
+  const out = {};
+  if (!adv) return out;
+  for (const r of ADV_MUSCLES) {
+    const ask = adv[r.id];
+    if (ask == null) continue;
+    if (r.slider && Math.max(0, (focus || {})[r.slider] || 0) === 0) continue;
+    if (ask <= 0 && r.slider
+        && ADV_MUSCLES.filter(x => x.slider === r.slider).length === 1) continue;
+    out[r.id] = ask <= 0 ? 0 : Math.min(ask, Engine.coach.advFreqCap(r.id, N));
+  }
+  return out;
+}
+// [G3] Exercise ids of every targeted row (the generator's fill pass must
+// not disturb a pinned row's frequency) and of the rows asked OFF (the base
+// build never picks them, so a group exposure lands on the muscle's other
+// rows instead of being built then stripped).
+function advPinnedIds(targets) {
+  const s = new Set(), sets = advRowSets();
+  for (const rid in targets) for (const id of sets[rid]) s.add(id);
+  return s;
+}
+function advBlockedIds(targets) {
+  const s = new Set(), sets = advRowSets();
+  for (const rid in targets) if (targets[rid] === 0) for (const id of sets[rid]) s.add(id);
+  return s;
 }
 function musclePool(m) {
   const movs = SLIDER_MOVEMENTS[m] || [];
@@ -728,6 +789,9 @@ function pickAccessory(pool, used, usedHeads, rot = 0, preferHeads = null, dayUs
 // day. [B4.1] When a short custom cap makes the session a TARGET
 // (opts.targetSec), fillDaysToTarget tops each day up with same-day depth
 // for its own muscles; exposures are untouched, so the contract holds.
+// [G3] Advanced per-muscle frequency asks (opts.adv, normalized by
+// advTargets) are reconciled AFTER the dose-driven build by
+// applyAdvOverrides: rules 7-8 of the validateFocusWeek contract.
 // Runs once at program creation; sliders are fixed for the cycle.
 // ------------------------------------------------------------
 // [B4] Shared helpers: schedulable frequency + surplus depth per muscle, and
@@ -773,10 +837,16 @@ function generateFullBodyDays(focus, N, opts) {
   const { freq, depth } = focusFreqDepth(focus, N);
   const ms = FOCUS_KEYS.filter(m => freq[m]);
   if (!ms.length) return [];
+  // [G3] Advanced row targets: rows asked OFF never enter the base picks (a
+  // group exposure lands on the muscle's other rows instead); the rest are
+  // reconciled by applyAdvOverrides after the dose-driven build.
+  const advT = advTargets(opts && opts.adv, focus, N);
+  const baseBlocked = advBlockedIds(advT);
   const used = new Set(), headsUsed = {}, usedMains = new Set();
   const pick = (m, dayUsed, pref) => {
     const hs = headsUsed[m] || (headsUsed[m] = new Set());
-    const id = pickAccessory(musclePool(m), used, hs, 0, pref || null, dayUsed);
+    const pool = baseBlocked.size ? musclePool(m).filter(id => !baseBlocked.has(id)) : musclePool(m);
+    const id = pickAccessory(pool, used, hs, 0, pref || null, dayUsed);
     if (id) { used.add(id); const h = accHead(id); if (h) hs.add(h); }
     return id;
   };
@@ -798,9 +868,12 @@ function generateFullBodyDays(focus, N, opts) {
     leads.push(FOCUS_KEYS.filter(canLead).find(m => !leads.includes(m)) || ms[0]);
   }
   // [B4] Only the days the dose needs: a lone 1x muscle on a 2-day
-  // availability builds one day, the other is rest.
+  // availability builds one day, the other is rest. [G3] An advanced row
+  // ask can demand MORE days than the sliders' dose (biceps 4x on a light
+  // week), so the deepest ask also sizes the week.
   const totalExp = ms.reduce((s, m) => s + freq[m], 0);
-  const D = Math.max(1, Math.min(N, totalExp));
+  const advMax = Object.values(advT).reduce((a, b) => Math.max(a, b), 0);
+  const D = Math.max(1, Math.min(N, Math.max(totalExp, advMax)));
   const days = leads.slice(0, D).map(p => ({ primary: p, muscles: [], load: 1 }));
   // Spread every muscle's frequency across the days, least-loaded first, never
   // twice on one day (the lead day counts as one appearance).
@@ -845,7 +918,8 @@ function generateFullBodyDays(focus, N, opts) {
              theme: { region: 'full', primary: d.primary },
              slots, primary: d.primary };
   }).filter(d => d.slots.length);
-  return fillDaysToTarget(week, focus, opts && opts.targetSec, used, headsUsed);
+  applyAdvOverrides(week, focus, N, advT, used, headsUsed);
+  return fillDaysToTarget(week, focus, opts && opts.targetSec, used, headsUsed, advPinnedIds(advT));
 }
 function generateBodybuildingDays(focus, N, opts) {
   if (N <= 2) return generateFullBodyDays(focus, N, opts); // [2-day] full-body, not upper/lower
@@ -853,13 +927,20 @@ function generateBodybuildingDays(focus, N, opts) {
   const ms = FOCUS_KEYS.filter(m => freq[m]);
   if (!ms.length) return []; // everything removed -> empty-week guard
   const cap = Engine.coach.bounds.maxMusclesPerDay;
+  // [G3] Advanced row targets, normalized at the REAL availability N before
+  // any day-count decision: an ask can demand more days than the sliders'
+  // dose, so it must size the week too. OFF rows never enter the base
+  // picks; the rest reconcile in applyAdvOverrides after the build.
+  const advT = advTargets(opts && opts.adv, focus, N);
+  const baseBlocked = advBlockedIds(advT);
+  const advMax = Object.values(advT).reduce((a, b) => Math.max(a, b), 0);
 
   // [B4] Only the days the dose needs: total exposures bound the week, so a
   // lone specialized muscle gets its frequency and REST DAYS, never seven
   // straight lead days. (Also full-body when so few exposures exist that an
   // upper/lower split would strand them.)
   const totalExp = ms.reduce((s, m) => s + freq[m], 0);
-  const D = Math.max(1, Math.min(N, totalExp));
+  const D = Math.max(1, Math.min(N, Math.max(totalExp, advMax)));
   if (D <= 2) return generateFullBodyDays(focus, D, opts);
 
   const upHas = UPPER_MUSCLES.some(m => freq[m]), loHas = LOWER_MUSCLES.some(m => freq[m]);
@@ -880,7 +961,8 @@ function generateBodybuildingDays(focus, N, opts) {
   // 3x+ muscle passes the day's rotation group so emphasis alternates.
   const pick = (m, dayUsed, pref) => {
     const hs = headsUsed[m] || (headsUsed[m] = new Set());
-    const id = pickAccessory(musclePool(m), used, hs, 0, pref || null, dayUsed);
+    const pool = baseBlocked.size ? musclePool(m).filter(id => !baseBlocked.has(id)) : musclePool(m);
+    const id = pickAccessory(pool, used, hs, 0, pref || null, dayUsed);
     if (id) { used.add(id); const h = accHead(id); if (h) hs.add(h); }
     return id;
   };
@@ -1018,7 +1100,88 @@ function generateBodybuildingDays(focus, N, opts) {
     else if (bi < big.length) out.push(big[bi++]);
     else out.push(small[si++]);
   }
-  return fillDaysToTarget(spaceSameMuscle(out), focus, opts && opts.targetSec, used, headsUsed);
+  const week = spaceSameMuscle(out);
+  applyAdvOverrides(week, focus, N, advT, used, headsUsed);
+  return fillDaysToTarget(week, focus, opts && opts.targetSec, used, headsUsed, advPinnedIds(advT));
+}
+// [G3] APPLY THE ADVANCED FREQUENCY OVERRIDES. After the dose-driven build,
+// each targeted row (advTargets) is reconciled to its effective frequency:
+//   eff = max(anchor days, min(ask, coach cap)) - anchors always count and
+//   are never touched (the working-max wave outranks a frequency ask).
+// Surplus (or an ask of 0): the row's ACCESSORY appearances are trimmed from
+// the end of the week, each slot replaced with other same-muscle work so the
+// group exposure survives (drop only when the pool is dry). Deficit: one
+// row-pool pick lands per missing exposure, preferring days that already
+// train the parent muscle (depth, no new muscle), then any day under the
+// muscle cap, then a NEW short focus day while availability remains. Slots
+// injected here carry `adv: rowId`; injected days carry no primary (they
+// are not lead days). Absent targets = byte-identical no-op.
+function applyAdvOverrides(days, focus, N, targets, used, headsUsed) {
+  const rids = Object.keys(targets || {});
+  if (!rids.length || !days || !days.length) return days;
+  const sets = advRowSets();
+  const cap = Engine.coach.bounds.maxMusclesPerDay;
+  const pinned = advPinnedIds(targets);
+  const slotId = sl => sl.def || sl.ex || sl.lift || sl.baseLift;
+  const inRow = (sl, rid) => { const id = slotId(sl); return !!id && sets[rid].has(id); };
+  const dayHasRow = (d, rid) => d.slots.some(sl => inRow(sl, rid));
+  const rowAnchored = (d, rid) => d.slots.some(sl =>
+    (sl.type === 'main' || sl.type === 'secondary') && inRow(sl, rid));
+  const dayUsedOf = d => new Set(d.slots.map(slotId).filter(Boolean));
+  const hsOf = key => headsUsed[key] || (headsUsed[key] = new Set());
+  const effOf = {};
+  for (const rid of rids) {
+    const anchored = days.filter(d => rowAnchored(d, rid)).length;
+    effOf[rid] = Math.max(anchored, targets[rid]);
+  }
+  // Surplus / asked-off: trim accessory appearances from the end of the week.
+  for (const rid of rids) {
+    const r = ADV_MUSCLES.find(x => x.id === rid);
+    let appear = days.filter(d => dayHasRow(d, rid)).length;
+    for (let i = days.length - 1; i >= 0 && appear > effOf[rid]; i--) {
+      const d = days[i];
+      if (!dayHasRow(d, rid) || rowAnchored(d, rid)) continue;
+      for (let s = d.slots.length - 1; s >= 0; s--) {
+        const sl = d.slots[s];
+        if (sl.type === 'main' || sl.type === 'secondary' || !inRow(sl, rid)) continue;
+        const dayUsed = dayUsedOf(d);
+        const pool = r.slider ? musclePool(r.slider).filter(id => !pinned.has(id)) : [];
+        const alt = pool.length ? pickAccessory(pool, used, hsOf(r.slider), 0, null, dayUsed) : null;
+        if (alt) {
+          used.add(alt); const h = accHead(alt); if (h) hsOf(r.slider).add(h);
+          d.slots[s] = { type: 'acc', cat: (exById(alt) || {}).movement, def: alt };
+        } else d.slots.splice(s, 1);
+      }
+      appear--;
+    }
+  }
+  // Deficit: inject one exposure per missing day.
+  for (const rid of rids) {
+    const r = ADV_MUSCLES.find(x => x.id === rid);
+    let appear = days.filter(d => dayHasRow(d, rid)).length;
+    let guard = 14;
+    while (appear < effOf[rid] && guard-- > 0) {
+      const cands = days.filter(d => !dayHasRow(d, rid)
+        && (!r.slider || splitDayMuscles(d).has(r.slider) || splitDayMuscles(d).size < cap));
+      const sameM = r.slider ? cands.filter(d => splitDayMuscles(d).has(r.slider)) : cands;
+      let host = (sameM.length ? sameM : cands).sort((a, b) => a.slots.length - b.slots.length)[0];
+      if (!host && days.length < N) {
+        const label = rid.split('-').map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
+        host = { name: `Focus · ${label}`, slots: [], primary: null };
+        days.push(host);
+      }
+      if (!host) break;
+      const hk = r.slider || rid;
+      const id = pickAccessory(advRowPool(rid), used, hsOf(hk), 0, null, dayUsedOf(host));
+      if (!id) break;
+      used.add(id); const h = accHead(id); if (h) hsOf(hk).add(h);
+      host.slots.push({ type: 'acc', cat: (exById(id) || {}).movement, def: id, adv: rid });
+      appear++;
+    }
+  }
+  // A trim can empty a day; empty days are rest, not padding.
+  for (let i = days.length - 1; i >= 0; i--) if (!days[i].slots.length) days.splice(i, 1);
+  return days;
 }
 // [B4.1] THE COACH FILLS THE SESSION. Owner ruling 2026-07-24: a custom cap
 // at or below Engine.coach.bounds.capTargetMaxMin is the session the athlete
@@ -1033,7 +1196,10 @@ function generateBodybuildingDays(focus, N, opts) {
 // design, like the old optional-extras behavior). Pricing comes from
 // Engine.coach.slotPriceSec so fill and estimator can never drift. No target
 // (no cap, or a long ceiling) = byte-identical no-op.
-function fillDaysToTarget(days, focus, targetSec, used, headsUsed) {
+// [G3] `excludeIds` (optional): exercises of coach-pinned advanced rows.
+// Fill on a day LACKING a pinned row would add a weekly appearance and
+// silently break the row's frequency promise, so fill never touches them.
+function fillDaysToTarget(days, focus, targetSec, used, headsUsed, excludeIds) {
   if (!targetSec || !days || !days.length) return days;
   for (const d of days) {
     const dayUsed = new Set(), present = new Set();
@@ -1056,7 +1222,9 @@ function fillDaysToTarget(days, focus, targetSec, used, headsUsed) {
     while (order.length && guard-- > 0) {
       const m = order[i % order.length];
       const hs = headsUsed[m] || (headsUsed[m] = new Set());
-      const id = pickAccessory(musclePool(m), used, hs, 0, null, dayUsed);
+      const pool = excludeIds && excludeIds.size
+        ? musclePool(m).filter(x => !excludeIds.has(x)) : musclePool(m);
+      const id = pickAccessory(pool, used, hs, 0, null, dayUsed);
       if (!id) { order.splice(i % order.length, 1); continue; }
       const cost = Engine.coach.slotPriceSec('accessory', (exById(id) || {}).equipment);
       if (price + cost > targetSec) break;
@@ -1104,7 +1272,17 @@ function spaceSameMuscle(days) {
 //      is the only excuse for under-delivering frequency.
 //   5. A muscle LEADS at most min(focus[m], N) days.
 //   6. No exercise id appears twice within one day (no F8 lazy repeats).
-function validateFocusWeek(days, focus, N) {
+// [G3] With advanced overrides (`adv`, normalized through the SAME
+// advTargets the generator uses), two more rules:
+//   7. Each targeted row appears on exactly eff = max(anchor days,
+//      min(ask, coach cap)) days, never more; less only when every day
+//      without the row is at the muscle cap and the week already spends
+//      full availability. An ask of 0 means the row's accessory work is
+//      gone (anchors stay).
+//   8. A muscle with targeted rows may appear up to min(N, max(slider
+//      exposures, its rows' effs)) days (an override buys the extra
+//      appearances); every other muscle keeps rules 3-4 verbatim.
+function validateFocusWeek(days, focus, N, adv) {
   const v = [];
   const cap = Engine.coach.bounds.maxMusclesPerDay;
   const anyFocus = FOCUS_KEYS.some(m => (focus[m] || 0) > 0);
@@ -1129,16 +1307,43 @@ function validateFocusWeek(days, focus, N) {
     }
     return ms;
   });
+  // [G3] Row-level accounting first, so the group rules can relax where an
+  // override legitimately buys extra appearances.
+  const targets = advTargets(adv, focus, N);
+  const effBySlider = {};
+  const rids = Object.keys(targets);
+  if (rids.length) {
+    const sets = advRowSets();
+    const slotId = sl => sl.def || sl.ex || sl.lift || sl.baseLift;
+    for (const rid of rids) {
+      const r = ADV_MUSCLES.find(x => x.id === rid);
+      const rowDay = days.map(d => (d.slots || []).some(sl => sets[rid].has(slotId(sl))));
+      const anchored = days.filter(d => (d.slots || []).some(sl =>
+        (sl.type === 'main' || sl.type === 'secondary') && sets[rid].has(slotId(sl)))).length;
+      const eff = Math.max(anchored, targets[rid]);
+      const got = rowDay.filter(Boolean).length;
+      if (got > eff) v.push(`${rid}: ${got} row exposures for an effective ask of ${eff}`);
+      if (got < eff) {
+        const excuse = days.length >= N
+          && days.every((d, i) => rowDay[i] || perDay[i].size >= cap);
+        if (!excuse) v.push(`${rid}: ${got}/${eff} row exposures with capacity left`);
+      }
+      if (r.slider) effBySlider[r.slider] = Math.max(effBySlider[r.slider] || 0, eff);
+    }
+  }
   for (const m of FOCUS_KEYS) {
     const want = Math.min(focus[m] || 0, N);
+    const allowed = Math.min(N, Math.max(want, effBySlider[m] || 0));
     const got = perDay.filter(s => s.has(m)).length;
     const leads = days.filter(d => d.primary === m).length;
     if (!want && got) v.push(`${m}: slider 0 but appears on ${got} days`);
-    if (got > want) v.push(`${m}: ${got} exposures for slider ${focus[m] || 0} (max ${want})`);
+    if (got > allowed) v.push(`${m}: ${got} exposures for slider ${focus[m] || 0} (max ${allowed})`);
     if (got < want && perDay.some(s => !s.has(m) && s.size < cap)) {
       v.push(`${m}: ${got}/${want} exposures with day capacity left`);
     }
-    if (leads > want) v.push(`${m}: leads ${leads} days for slider ${focus[m] || 0}`);
+    // [G3] Leads relax to the same allowance as exposures: on a tiny week a
+    // specialized row can only live on days its muscle hosts.
+    if (leads > allowed) v.push(`${m}: leads ${leads} days for slider ${focus[m] || 0}`);
   }
   return v;
 }
@@ -3631,7 +3836,8 @@ function endBlock(finishedBlock, bb) {
       // is still the fill target for the new split.
       const tcRe = p.trainingConfig || {};
       const days = generateBodybuildingDays(p.pendingFocus, p.daysPerWeek,
-        { targetSec: Engine.coach.sessionTargetSec(tcRe.timeMode, tcRe.timeCapMin) });
+        { targetSec: Engine.coach.sessionTargetSec(tcRe.timeMode, tcRe.timeCapMin),
+          adv: tcRe.focusAdv || null });
       // [B4] A SHORT week is a legal regeneration (rest days); only a truly
       // empty one keeps the old split. The schedule remaps onto an evenly
       // spaced subset of the old availability so Calendar stays aligned.
