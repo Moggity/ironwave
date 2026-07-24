@@ -86,7 +86,13 @@ specialization tab (per-muscle ceilings; migration preserves old 4x asks in
 (data.js) lists the per-muscle rows with `advRowExercises` (app.js)
 resolving exercise ownership, and `Engine.coach.advFreqCap(row, days)` =
 min(`bounds.advFreqCeiling[row]`, days) is the cap any advanced surface
-must consult; extend `test/adv-spec.test.js` with any change there. The scale marker `focusScale` chains
+must consult; extend `test/adv-spec.test.js` with any change there. [G3]
+The overrides BUILD: `ob.focusAdv` -> `trainingConfig.focusAdv` ->
+`generateBodybuildingDays(..., { adv })`; `advTargets` is the ONE
+normalization (generator + `validateFocusWeek` rules 7-8 both consult it),
+`applyAdvOverrides` reconciles rows to eff = max(anchor days, capped ask),
+and absent asks are byte-identical by construction. G4 (the panel UI) is
+the only remaining slice; it must also wire asks into the points budget. The scale marker `focusScale` chains
 none -> 4 -> 3 in `migrateState` and MUST be stamped wherever
 `profile.training` is rebuilt, or reload re-runs the 0-6 remap and decays
 sliders.
