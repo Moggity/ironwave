@@ -417,6 +417,7 @@ test('focus step renders the budget line and the rebalance offer when over budge
   assert.ok(/max="3"/.test(html) && /min="0"/.test(html), 'sliders run the full 0-3 scale');
   assert.ok(!/obFocusOff\(/.test(html), 'no separate off button next to the value');
   assert.ok(/>Off</.test(html), 'a muscle at 0 keeps its full row and reads Off');
+  assert.ok(/openAdvPanel\('ob'\)/.test(html), '[G4] the advanced frequency entry point renders');
 });
 
 test('lb mode: onboarding step 0 shows the unit toggle and lb bodyweight label', () => {

@@ -25,9 +25,9 @@ the roundtable plan wins; about CONTENT, this backlog wins.
 
 ## Larger features (each its own branch)
 
-- **Advanced specialization tab (G4)** (owner ruling 2026-07-24, follows
-  the shipped G1 slider rescale): per-muscle frequency overrides beneath the
-  main sliders, gaming-UX pips with locked positions past availability.
+- ~~**Advanced specialization tab (G1-G4)**~~ DONE (2026-07-24, whole epic
+  shipped same day): per-muscle frequency overrides beneath the main
+  sliders, gaming-UX pips with locked positions past availability.
   - ~~**G2 - taxonomy + coach ceilings**~~ DONE (2026-07-24): `ADV_MUSCLES`
     (16 rows, `advRowExercises` ownership, `adv.<id>` labels en+es), the
     `bi-brach` head on the neutral/pronated curls, and the coach table
@@ -45,13 +45,17 @@ the roundtable plan wins; about CONTENT, this backlog wins.
     regeneration. NOTE for G4: the points budget (`focusBudget`) does not
     yet price advanced asks; wire the panel's budget line when it lands.
     `perSessionCapDiv` already divides by the real built frequency at 4x+.
-  - **G4 - the panel UI**: per-muscle cards with frequency pips (locked past
-    availability with an unlock hint, absent past the health ceiling),
-    specialization slots (at most ~2 muscles above their standard at once,
-    block-scoped with a coach re-review at the block boundary, composing
-    with deload resensitization), coach verdict chips (sustainable / one
-    block only / blocked with reason), and weekday placement preview when
-    `program.schedule` exists (warn on forced back-to-back exposures).
+  - ~~**G4 - the panel UI**~~ DONE (2026-07-24): `openAdvPanel`/
+    `advPanelHTML` on both slider surfaces; pips locked past availability
+    (unlock hint), absent past the health ceiling, MAX state at the
+    effective cap; `coach.advSpend` wires asks into the points budget;
+    `coach.specCount`/`checkSpecSlots` enforce `bounds.specSlots` (panel +
+    intake); weekday placement preview via `advWeekdayPreview` with a
+    back-to-back flag; `pendingFocusAdv` staging applies at the block
+    boundary; the G1 `focusSpecAsk` seed surfaces in the panel. Deferred
+    refinement: per-row coach verdict CHIPS (sustainable / one block only)
+    beyond the current banner + slots ledger, and auto-expiring a
+    specialization into a re-review after N blocks.
 - **Sport-aware scheduling** (the long-deferred epic): a sport -> muscle-fatigue
   dataset, calendar placement so high-fatigue sessions avoid game day, and
   named/dated days. **The 2026-07-16 calendar-days release paved the way**: the

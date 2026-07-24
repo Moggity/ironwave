@@ -89,6 +89,7 @@ const EXPORTS = `return {
   validateFocusWeek, musclePool, scheduleSubset, focusFreqDepth,
   FOCUS_MAX, FOCUS_SCALE_MIGRATION, FOCUS_HEAD_ROTATION,
   ADV_MUSCLES, advRowExercises, advRowPool, advTargets, applyAdvOverrides,
+  openAdvPanel, advPanelHTML, apAsk, apSave, advWeekdayPreview, advCtx,
   BB_DAY_TEMPLATES,
   programTemplate, validateTemplate, programFromTemplate,
   TEMPLATE_SCHEMA_VERSION,

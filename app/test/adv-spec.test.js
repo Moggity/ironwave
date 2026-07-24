@@ -131,3 +131,127 @@ test('checkAdvAsk: over the cap is an issue with the honest cap, at the cap is s
   assert.ok(coach.checkAdvAsk('biceps', 5, 4), 'asking past availability is refused honestly');
   assert.strictEqual(coach.checkAdvAsk('quads', 0, 6), null, 'no ask, no issue');
 });
+
+// ---------------------------------------------------------------------------
+// [G4] Asks spend points, specialization slots, and the panel
+// ---------------------------------------------------------------------------
+const STD = { arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 };
+
+test('advSpend [G4]: only the exposures beyond what the sliders already host', () => {
+  assert.strictEqual(coach.advSpend({ biceps: 4 }, STD, 5), 2, 'arms 2x hosts the first two');
+  assert.strictEqual(coach.advSpend({ biceps: 2 }, STD, 5), 0, 'inside the slider is free');
+  assert.strictEqual(coach.advSpend({ biceps: 1 }, STD, 5), 0, 'a reduction costs nothing');
+  assert.strictEqual(coach.advSpend({ abs: 2 }, STD, 5), 2, 'slider-less rows are all new work');
+  assert.strictEqual(coach.advSpend({ biceps: 9 }, STD, 5), 3, 'asks price at their capped target');
+  assert.strictEqual(coach.advSpend(null, STD, 5), 0);
+});
+
+test('specCount + checkSpecSlots [G4]: at most bounds.specSlots muscles above their slider', () => {
+  assert.strictEqual(coach.specCount({ biceps: 4, abs: 2 }, STD, 5), 2);
+  assert.strictEqual(coach.specCount({ biceps: 2, quads: 1 }, STD, 5), 0, 'inside or below is not a slot');
+  assert.strictEqual(coach.checkSpecSlots({ biceps: 4, abs: 2 }, STD, 5), null, 'two slots fit');
+  const iss = coach.checkSpecSlots({ biceps: 4, 'side-delts': 4, calves: 4 }, STD, 5);
+  assert.ok(iss && iss.key === 'val.adv_spec_slots');
+  assert.deepStrictEqual([iss.params.used, iss.params.max], [3, coach.bounds.specSlots]);
+});
+
+test('checkFocusBudget [G4]: advanced asks ride the points budget (custom cap only)', () => {
+  const clean = coach.checkFocusBudget(STD, 5, 50, null);
+  const withAsk = coach.checkFocusBudget(STD, 5, 50, { biceps: 5 });
+  assert.ok(withAsk, 'the ask pushed the plan over');
+  assert.ok(!clean || withAsk.params.need > clean.params.need, 'asks raise the need');
+  assert.strictEqual(coach.checkFocusBudget(STD, 5, null, { biceps: 5 }), null,
+    'no time limit still means no points');
+});
+
+test('validateIntake [G4]: spec slots and ask-aware budget gate the focus step', () => {
+  const spec = { obSteps: ['welcome', 'goal', 'days', 'experience', 'time', 'focus', 'maxes'],
+    intake: { minSessionMin: 30 } };
+  const base = { bodyweight: 80, track: 'bodybuilding', daysPerWeek: 5,
+    timeMode: 'unlimited', muscleFocus: { ...STD }, maxes: {} };
+  const overSlots = app.Engine.validateIntake(Object.assign({}, base,
+    { focusAdv: { biceps: 4, 'side-delts': 4, calves: 4 } }), spec, Date.now());
+  assert.ok(overSlots.some(i => i.key === 'val.adv_spec_slots' && i.level === 'error'),
+    'a third specialization blocks');
+  const okSlots = app.Engine.validateIntake(Object.assign({}, base,
+    { focusAdv: { biceps: 4, abs: 2 } }), spec, Date.now());
+  assert.ok(!okSlots.some(i => i.key === 'val.adv_spec_slots'), 'two slots pass');
+  const capped = app.Engine.validateIntake(Object.assign({}, base,
+    { timeMode: 'custom', timeCapMin: 45, focusAdv: { biceps: 5 } }), spec, Date.now());
+  assert.ok(capped.some(i => i.key === 'val.focus_over_budget'), 'asks price into a capped intake');
+});
+
+test('panel [G4]: the owner example, locked pips at 3 days and open at 6', () => {
+  app.S = app.defaultState();
+  app.V = { advSurface: 'ob', advDraft: { biceps: 3 },
+    ob: { muscleFocus: { ...STD }, daysPerWeek: 3, timeMode: 'unlimited', daysMode: 'count' } };
+  let html = app.advPanelHTML();
+  assert.ok(/adv-pip on locked|locked/.test(html), 'pips past 3 days render locked');
+  assert.ok(/3x · MAX/.test(html), 'biceps at 3 on 3 days reads MAX');
+  assert.ok(/Specialization slots: 1 of 2/.test(html), 'the slot ledger is visible');
+  app.V.ob.daysPerWeek = 6;
+  app.V.advDraft = { biceps: 6 };
+  html = app.advPanelHTML();
+  assert.ok(/6x · MAX/.test(html), 'six days open biceps to 6x');
+  assert.ok(!/apSave\(\)" disabled/.test(html), 'save stays enabled');
+});
+
+test('panel [G4]: a third specialization shows the banner and disables save', () => {
+  app.S = app.defaultState();
+  app.V = { advSurface: 'ob', advDraft: { biceps: 4, 'side-delts': 4, calves: 4 },
+    ob: { muscleFocus: { ...STD }, daysPerWeek: 5, timeMode: 'unlimited', daysMode: 'count' } };
+  const html = app.advPanelHTML();
+  assert.ok(/Only 2 muscles/.test(html), 'the honest slots banner renders');
+  assert.ok(/onclick="apSave\(\)" disabled/.test(html), 'save is disabled while over');
+});
+
+test('panel [G4]: weekday preview lands on the chosen days and flags back to back', () => {
+  app.S = app.defaultState();
+  app.V = { advSurface: 'ob', advDraft: { biceps: 4 },
+    ob: { muscleFocus: { ...STD }, daysPerWeek: 4, timeMode: 'unlimited',
+      daysMode: 'calendar', trainingDays: [0, 2, 4, 5] } };
+  const html = app.advPanelHTML();
+  assert.ok(/Lands on/.test(html), 'the projection renders for an active ask');
+  assert.ok(/Back to back/.test(html), 'Fri+Sat spacing is flagged');
+  const prev = app.advWeekdayPreview(app.advCtx(), app.V.advDraft);
+  assert.deepStrictEqual(prev.byRow.biceps, [0, 2, 4, 5], 'biceps lands on every chosen day');
+  // Count-mode athletes get no projection.
+  app.V.ob.daysMode = 'count'; delete app.V.ob.trainingDays;
+  assert.strictEqual(app.advWeekdayPreview(app.advCtx(), app.V.advDraft), null);
+});
+
+test('panel [G4]: the G1 migration seed surfaces until a real ask exists', () => {
+  app.S = app.defaultState();
+  app.S.profile.training.focusSpecAsk = { arms: 4 };
+  app.V = { advSurface: 'ob', advDraft: {},
+    ob: { muscleFocus: { ...STD }, daysPerWeek: 5, timeMode: 'unlimited', daysMode: 'count' } };
+  assert.ok(/old plan asked/.test(app.advPanelHTML()), 'the seed hint shows');
+  app.V.advDraft = { biceps: 4 };
+  assert.ok(!/old plan asked/.test(app.advPanelHTML()), 'a real ask retires the hint');
+});
+
+test('flow [G4]: apSave writes the drafts, feSave stages, endBlock applies', () => {
+  const s = app.defaultState();
+  app.S = s;
+  s.profile.landmarks = app.Engine.seedLandmarks('intermediate');
+  s.program = app.makeProgram({ daysPerWeek: 5, track: 'bodybuilding', experience: 'intermediate',
+    timeMode: 'unlimited', muscleFocus: { ...STD }, maxes: {} });
+  app.V = { dayIdx: null, view: 'dashboard', tab: 'dashboard' };
+  // In-app: open the editor, ask biceps 4 through the panel, save both.
+  app.openFocusEditor();
+  app.openAdvPanel('fe');
+  app.apAsk('biceps', 4);
+  app.apSave();
+  assert.deepStrictEqual(app.V.feAdvDraft, { biceps: 4 }, 'panel saved to the editor draft');
+  app.feSave();
+  assert.deepStrictEqual(s.program.pendingFocusAdv, { biceps: 4 }, 'staged for the boundary');
+  // Cross the boundary: config commits, the new split honors the ask.
+  s.program.pointer.week = s.program.weeksPerBlock - 1;
+  app.advanceWeek();
+  assert.strictEqual(s.program.pointer.block, 1);
+  assert.deepStrictEqual(s.program.trainingConfig.focusAdv, { biceps: 4 }, 'committed to the config');
+  assert.strictEqual(s.program.pendingFocusAdv, undefined, 'staging cleared');
+  assert.deepStrictEqual(
+    app.validateFocusWeek(s.program.days, s.program.trainingConfig.muscleFocus, 5, { biceps: 4 }), [],
+    'the regenerated week keeps the ask');
+});

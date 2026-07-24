@@ -724,3 +724,21 @@ input[type=range] { width: 100%; accent-color: var(--blue); height: 30px; }
   text-align: center; cursor: pointer; padding: 0;
 }
 .info-dot:active { filter: brightness(1.25); }
+
+/* [G4] Specialization panel: frequency pips per advanced muscle row.
+   Locked pips (past the athlete's training days) stay visible but inert,
+   the unlock hint lives in their title; positions past the health ceiling
+   are simply not rendered. */
+.adv-row { margin: 10px 0; }
+.adv-row .adv-state { color: var(--blue); font-size: .95rem; white-space: nowrap; }
+.adv-muted { opacity: .55; }
+.adv-pips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.adv-pip {
+  min-width: 34px; height: 30px; border-radius: 8px;
+  border: 1px solid var(--line); background: transparent;
+  color: var(--text); font-size: .9rem; cursor: pointer; padding: 0 8px;
+}
+.adv-pip.adv-auto { min-width: 52px; font-size: .8rem; color: var(--text-dim); }
+.adv-pip.on { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700; }
+.adv-pip.locked { opacity: .35; cursor: not-allowed; }
+.adv-pip:active:not(.locked) { filter: brightness(1.2); }
