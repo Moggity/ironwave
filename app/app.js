@@ -567,7 +567,10 @@ function makeProgram(ob) {
   // keep the strength-oriented shared templates untouched.
   let days;
   if (track === 'bodybuilding') {
-    days = generateBodybuildingDays(focus, ob.daysPerWeek);
+    // [B4.1] A short custom cap is the session the athlete EXPECTS to train:
+    // the generator tops each day up toward it (Engine.coach.sessionTargetSec).
+    days = generateBodybuildingDays(focus, ob.daysPerWeek,
+      { targetSec: Engine.coach.sessionTargetSec(ob.timeMode, ob.timeCapMin) });
     // [B4] A SHORT week (days.length < daysPerWeek) is legal output: the
     // generator builds only the days the dose needs and the rest are rest.
     // daysPerWeek keeps meaning AVAILABILITY (it prices the focus budget and
@@ -683,8 +686,11 @@ function pickAccessory(pool, used, usedHeads, rot = 0, preferHeads = null, dayUs
 // that many days; slider surplus beyond the schedulable frequency becomes
 // same-day DEPTH bounded per session; 3x+ muscles rotate head emphasis day
 // to day (FOCUS_HEAD_ROTATION); the week contains only the days the dose
-// needs (short weeks are the rest-day mechanism, days are never padded to
-// consume available time); no exercise repeats within a day.
+// needs (short weeks are the rest-day mechanism, days are never padded with
+// FOREIGN exposures to consume available time); no exercise repeats within a
+// day. [B4.1] When a short custom cap makes the session a TARGET
+// (opts.targetSec), fillDaysToTarget tops each day up with same-day depth
+// for its own muscles; exposures are untouched, so the contract holds.
 // Runs once at program creation; sliders are fixed for the cycle.
 // ------------------------------------------------------------
 // [B4] Shared helpers: schedulable frequency + surplus depth per muscle, and
@@ -726,7 +732,7 @@ function scheduleSubset(trainingDays, D) {
 // DIFFERENT regions, and a 2x muscle's weekly sets naturally split across
 // both sessions. [B4] Slider surplus beyond N becomes same-day depth, and
 // depth picks alternate head groups within the day (the 2-days-arms-4 case).
-function generateFullBodyDays(focus, N) {
+function generateFullBodyDays(focus, N, opts) {
   const { freq, depth } = focusFreqDepth(focus, N);
   const ms = FOCUS_KEYS.filter(m => freq[m]);
   if (!ms.length) return [];
@@ -771,7 +777,7 @@ function generateFullBodyDays(focus, N) {
     }
   }
   const depthLeft = Object.assign({}, depth);
-  return days.map(d => {
+  const week = days.map(d => {
     const slots = [], dayUsed = new Set();
     const a = PRIMARY_ANCHOR[d.primary];
     if (a && a.main) {
@@ -802,9 +808,10 @@ function generateFullBodyDays(focus, N) {
              theme: { region: 'full', primary: d.primary },
              slots, primary: d.primary };
   }).filter(d => d.slots.length);
+  return fillDaysToTarget(week, focus, opts && opts.targetSec, used, headsUsed);
 }
-function generateBodybuildingDays(focus, N) {
-  if (N <= 2) return generateFullBodyDays(focus, N); // [2-day] full-body, not upper/lower
+function generateBodybuildingDays(focus, N, opts) {
+  if (N <= 2) return generateFullBodyDays(focus, N, opts); // [2-day] full-body, not upper/lower
   const { freq, depth } = focusFreqDepth(focus, N);
   const ms = FOCUS_KEYS.filter(m => freq[m]);
   if (!ms.length) return []; // everything removed -> empty-week guard
@@ -816,7 +823,7 @@ function generateBodybuildingDays(focus, N) {
   // upper/lower split would strand them.)
   const totalExp = ms.reduce((s, m) => s + freq[m], 0);
   const D = Math.max(1, Math.min(N, totalExp));
-  if (D <= 2) return generateFullBodyDays(focus, D);
+  if (D <= 2) return generateFullBodyDays(focus, D, opts);
 
   const upHas = UPPER_MUSCLES.some(m => freq[m]), loHas = LOWER_MUSCLES.some(m => freq[m]);
   const exp = list => list.reduce((s, m) => s + (freq[m] || 0), 0);
@@ -974,7 +981,55 @@ function generateBodybuildingDays(focus, N) {
     else if (bi < big.length) out.push(big[bi++]);
     else out.push(small[si++]);
   }
-  return spaceSameMuscle(out);
+  return fillDaysToTarget(spaceSameMuscle(out), focus, opts && opts.targetSec, used, headsUsed);
+}
+// [B4.1] THE COACH FILLS THE SESSION. Owner ruling 2026-07-24: a custom cap
+// at or below Engine.coach.bounds.capTargetMaxMin is the session the athlete
+// EXPECTS to train, not just a ceiling, and a week of 25 minute days under a
+// 50 minute cap is a broken promise. After the dose-driven build, each day is
+// topped up toward the target with extra accessory picks for muscles ALREADY
+// trained that day (a chest day fills with more chest and its co-trained
+// muscles, never a foreign exposure), so the frequency contract is untouched:
+// weekly exposures stay exactly what the sliders bought, only same-day depth
+// grows. Fill slots carry `filler: true`, which makes them the FIRST thing
+// the time-cap machinery sheds when a peak week outgrows the cap (elastic by
+// design, like the old optional-extras behavior). Pricing comes from
+// Engine.coach.slotPriceSec so fill and estimator can never drift. No target
+// (no cap, or a long ceiling) = byte-identical no-op.
+function fillDaysToTarget(days, focus, targetSec, used, headsUsed) {
+  if (!targetSec || !days || !days.length) return days;
+  for (const d of days) {
+    const dayUsed = new Set(), present = new Set();
+    let price = TIME_MODEL.sessionOverheadSec;
+    for (const sl of d.slots) {
+      const id = sl.def || sl.ex || sl.lift || sl.baseLift;
+      if (id) dayUsed.add(id);
+      const ex = id && exById(id);
+      const m = ex && MOVEMENT_SLIDER[ex.movement];
+      if (m) present.add(m);
+      const kind = sl.type === 'main' ? 'main' : sl.type === 'secondary' ? 'secondary' : 'accessory';
+      price += Engine.coach.slotPriceSec(kind, (ex || {}).equipment);
+    }
+    // The primary first (a chest day fills with chest), then the day's
+    // co-trained muscles, biggest slider ask first, round-robin.
+    const order = [...present].filter(m => (focus[m] || 0) > 0)
+      .sort((a, b) => (a === d.primary ? -1 : b === d.primary ? 1
+        : (focus[b] || 0) - (focus[a] || 0)));
+    let i = 0, guard = FOCUS_MAX * Engine.coach.bounds.maxMusclesPerDay;
+    while (order.length && guard-- > 0) {
+      const m = order[i % order.length];
+      const hs = headsUsed[m] || (headsUsed[m] = new Set());
+      const id = pickAccessory(musclePool(m), used, hs, 0, null, dayUsed);
+      if (!id) { order.splice(i % order.length, 1); continue; }
+      const cost = Engine.coach.slotPriceSec('accessory', (exById(id) || {}).equipment);
+      if (price + cost > targetSec) break;
+      used.add(id); dayUsed.add(id);
+      const h = accHead(id); if (h) hs.add(h);
+      d.slots.push({ type: 'acc', cat: (exById(id) || {}).movement, def: id, filler: true });
+      price += cost; i++;
+    }
+  }
+  return days;
 }
 // When one muscle leads two days, the region build + interleave can leave them
 // adjacent. This greedy pass pulls a later, differently-themed day up between
@@ -1623,9 +1678,12 @@ function resolveDayEntries(di, bi, wi) {
     }
     const scored = units.map(u => ({
       u,
+      // [B4.1] Coach fill is the elastic part of the day: when a peak week
+      // outgrows the cap it sheds FIRST, before athlete adds and dose work.
+      filler: u.every(m => !!p.days[di].slots[m.si].filler),
       added: u.every(m => !!p.days[di].slots[m.si].added),
       score: Math.min(...u.map(m => prunePriority(m.rs, mains, tc))),
-    })).sort((a, b) => (a.added - b.added) || (a.score - b.score));
+    })).sort((a, b) => (a.filler - b.filler) || (a.added - b.added) || (a.score - b.score));
     let full = false;
     for (const s of scored) {
       if (!full && estimateSessionSec(core.concat(s.u).map(t => t.rs), false) <= capMin * 60) {
@@ -2090,6 +2148,10 @@ function focusBudgetInfo(focus, days, timeMode, timeCapMin) {
   return { have, spent, left: have - spent };
 }
 function obBudgetLine(ob) {
+  // [B4.1] No time limit, no points: the budget is custom-cap currency only.
+  // Unlimited athletes see the session estimate line and, past the coach's
+  // expected band, a warn-only banner instead.
+  if (ob.timeMode !== 'custom') return '';
   const info = focusBudgetInfo(ob.muscleFocus, ob.daysPerWeek, ob.timeMode, ob.timeCapMin);
   return t('focus.budget', { have: info.have, spent: info.spent });
 }
@@ -2109,14 +2171,25 @@ function obFocusWarning(focus) {
     return `<div class="banner-warn mt8">${esc(t(over.key, over.params))}
       <button class="btn btn-outline mt8" onclick="obFocusRebalance()">${esc(t('focus.rebalance_btn'))}</button></div>`;
   }
+  const banners = [];
+  // [B4.1] The free-slider advisory: with no time limit the sliders are not
+  // priced, but a plan whose estimated session runs past what an open
+  // schedule plausibly means gets a heads up (warn, never block).
+  if (ob.timeMode !== 'custom' && ob.daysPerWeek) {
+    const est = estimateMedianSessionMin(Object.assign({}, ob, { muscleFocus: focus }));
+    const long = est != null ? Engine.coach.checkSessionEstimate(est, ob.timeMode) : null;
+    if (long) banners.push(`<div class="banner-warn mt8">${esc(t(long.key, long.params))}</div>`);
+  }
   const removed = FOCUS_KEYS.filter(k => focus[k] === 0).map(k => t('muscle.' + k));
   const maxed = FOCUS_KEYS.filter(k => focus[k] === FOCUS_MAX).map(k => t('muscle.' + k));
-  if (!removed.length && !maxed.length) return '';
-  const parts = [];
-  if (removed.length) parts.push(t('ob.focus_removed', { list: removed.join(', ') }));
-  if (maxed.length) parts.push(t('ob.focus_maxed', { list: maxed.join(', ') }));
-  parts.push(t('ob.focus_rebalance'));
-  return `<div class="banner-warn mt8">${esc(parts.join(' '))}</div>`;
+  if (removed.length || maxed.length) {
+    const parts = [];
+    if (removed.length) parts.push(t('ob.focus_removed', { list: removed.join(', ') }));
+    if (maxed.length) parts.push(t('ob.focus_maxed', { list: maxed.join(', ') }));
+    parts.push(t('ob.focus_rebalance'));
+    banners.push(`<div class="banner-warn mt8">${esc(parts.join(' '))}</div>`);
+  }
+  return banners.join('');
 }
 // [B4] One-tap proportional rebalance to fit the budget. A rebalance is a
 // coach decision, so the toast names every change (from -> to); the same
@@ -2494,10 +2567,14 @@ function obSlider(k, v) {
   const tl = byId('mf-time'); if (tl) tl.textContent = focusTimeLine(V.ob);
   // [B4] Live budget line + a tactile nudge at the ceiling and on crossing
   // over budget (the crossing check keeps it one buzz, not a drone).
+  // [B4.1] The budget only exists under a custom cap; unlimited keeps just
+  // the ceiling buzz.
   const bd = byId('mf-budget'); if (bd) bd.textContent = obBudgetLine(V.ob);
-  const info = focusBudgetInfo(V.ob.muscleFocus, V.ob.daysPerWeek, V.ob.timeMode, V.ob.timeCapMin);
-  if (parseInt(v) === FOCUS_MAX || (info.left < 0 && (V._budgetLeft == null || V._budgetLeft >= 0))) hapticTap();
-  V._budgetLeft = info.left;
+  if (V.ob.timeMode === 'custom') {
+    const info = focusBudgetInfo(V.ob.muscleFocus, V.ob.daysPerWeek, V.ob.timeMode, V.ob.timeCapMin);
+    if (parseInt(v) === FOCUS_MAX || (info.left < 0 && (V._budgetLeft == null || V._budgetLeft >= 0))) hapticTap();
+    V._budgetLeft = info.left;
+  } else if (parseInt(v) === FOCUS_MAX) hapticTap();
 }
 function obNext(step) {
   const ob = V.ob;
@@ -3478,7 +3555,11 @@ function endBlock(finishedBlock, bb) {
     // untouched; volAdj was reset above, so the new split re-ramps from MEV. The
     // fresh generation supersedes the accessory rotation below for this boundary.
     if (bb && p.pendingFocus) {
-      const days = generateBodybuildingDays(p.pendingFocus, p.daysPerWeek);
+      // [B4.1] Regeneration keeps the cycle's own time contract: a short cap
+      // is still the fill target for the new split.
+      const tcRe = p.trainingConfig || {};
+      const days = generateBodybuildingDays(p.pendingFocus, p.daysPerWeek,
+        { targetSec: Engine.coach.sessionTargetSec(tcRe.timeMode, tcRe.timeCapMin) });
       // [B4] A SHORT week is a legal regeneration (rest days); only a truly
       // empty one keeps the old split. The schedule remaps onto an evenly
       // spaced subset of the old availability so Calendar stays aligned.
@@ -6296,8 +6377,19 @@ function feBudgetCtx() {
 }
 function feBudgetLine() {
   const c = feBudgetCtx();
+  // [B4.1] Same rule as onboarding: no time limit, no points line.
+  if (c.timeMode !== 'custom') return '';
   const info = focusBudgetInfo(V.feDraft, c.days, c.timeMode, c.cap);
   return t('focus.budget', { have: info.have, spent: info.spent });
+}
+// [B4.1] An onboarding-shaped draft for the editor's session estimate: the
+// program's own config with the edited sliders swapped in.
+function feEstimateOb() {
+  const p = P(), tc = p.trainingConfig || {}, c = feBudgetCtx();
+  return { track: tc.track, goalArchetype: tc.goalArchetype,
+    daysPerWeek: c.days, timeMode: tc.timeMode, timeCapMin: tc.timeCapMin,
+    experience: (S.profile.training && S.profile.training.experience) || 'intermediate',
+    muscleFocus: Object.assign({}, V.feDraft), maxes: {} };
 }
 function feWarning() {
   const c = feBudgetCtx();
@@ -6309,6 +6401,13 @@ function feWarning() {
   }
   if (Engine.coach.checkFocus(V.feDraft)) {
     return `<div class="banner-warn mt8">${esc(t('val.focus_all_zero'))}</div>`;
+  }
+  // [B4.1] Free sliders without a cap, but the long-session advisory still
+  // speaks (warn only, staging is never blocked by it).
+  if (c.timeMode !== 'custom') {
+    const est = estimateMedianSessionMin(feEstimateOb());
+    const long = est != null ? Engine.coach.checkSessionEstimate(est, c.timeMode) : null;
+    if (long) return `<div class="banner-warn mt8">${esc(t(long.key, long.params))}</div>`;
   }
   return '';
 }

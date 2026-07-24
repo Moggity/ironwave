@@ -1,5 +1,43 @@
 # IRONWAVE — Changelog
 
+## [Sliders are not session length: the coach fills the session (B4.1)] (2026-07-24)
+
+CTO review of B4 (PR 88) landed three owner rulings, all master coach
+knowledge (`Engine.coach`), all bodybuilding-only, golden master
+byte-identical:
+
+- **A short time cap is a TARGET, not just a ceiling.** An athlete who
+  asks for a 50 minute session expects to train about 50 minutes; B4 was
+  building 25 minute days under that cap. New
+  `coach.sessionTargetSec(timeMode, timeCapMin)`: a custom cap at or
+  below `bounds.capTargetMaxMin` (75) becomes a fill target. After the
+  dose-driven build, `fillDaysToTarget` (app.js) tops each day up toward
+  it with extra accessory picks for muscles ALREADY trained that day (a
+  chest day fills with more chest and its co-trained muscles, never a
+  foreign exposure), priced by the new equipment-aware
+  `coach.slotPriceSec` so fill and estimator cannot drift. Weekly
+  exposures stay exactly what the sliders bought, so the frequency
+  contract (`validateFocusWeek`) holds untouched; no lighter days left
+  on the table unless the pool is exhausted. Fill slots carry
+  `filler: true` (additive, only written under a short cap) and the
+  time-cap machinery sheds them FIRST when a peak week outgrows the cap:
+  the old optional-extras behavior, done coherently per day.
+- **No time limit means no points.** The focus budget
+  (`checkFocusBudget`) now applies ONLY under a custom cap; without one
+  the sliders are free: no points line, no over-budget block, no
+  rebalance prompt (onboarding focus step and the in-app focus editor
+  both). Instead the coach knows what an open schedule plausibly means
+  (`bounds.expectedSessionMin`, 80 to 140 min): past the upper bound the
+  new `coach.checkSessionEstimate` raises a warn-level advisory
+  (`val.session_long`, en+es), shown live on both slider surfaces. It
+  never blocks (2 days with every slider at 4 warns at ~169 min and lets
+  the athlete choose).
+- Tests: `master-coach.test.js` pins the three rulings;
+  `focus-honesty.test.js` gains the fill sweep (contract holds with
+  fill, fill stays on the day's own muscles, the owner scenario of
+  5 days x 50 min trains ~50 not ~25, no fill without a target, filler
+  sheds before dose work). Suite: 529 green; golden master unchanged.
+
 ## [The honest sliders: frequency currency and the focus budget (B4, expanded)] (2026-07-21)
 
 Roundtable step B4, expanded by owner ruling 2026-07-21 from the F7/F8

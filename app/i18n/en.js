@@ -271,6 +271,7 @@ const I18N_EN = {
   'ob.focus_sub': 'The number is how many times a week that muscle trains. 2 is the standard, 4 is the healthy maximum, 0 removes its direct work.',
   'focus.budget': 'You have {have} points to spend. Spent: {spent}.',
   'val.focus_over_budget': 'This plan needs {need} points but your days and session time afford {have}. Lower some sliders or tap Rebalance.',
+  'val.session_long': 'Heads up: this focus averages about {m} min per session. With no time limit the coach plans for sessions between {lo} and {hi} min. Lower some sliders or add a training day if that is more than you meant.',
   'focus.rebalance_btn': 'Rebalance for me',
   'focus.rebalanced': 'Rebalanced to fit your week: {list}.',
   'ob.focus_removed': 'No direct work for {list}. Expect to lose some size and strength there.',

@@ -274,6 +274,7 @@ const I18N_ES = {
   'ob.focus_sub': 'El número es cuántas veces por semana entrena ese músculo. 2 es lo estándar, 4 es el máximo saludable, 0 quita su trabajo directo.',
   'focus.budget': 'Tienes {have} puntos para gastar. Gastados: {spent}.',
   'val.focus_over_budget': 'Este plan necesita {need} puntos pero tus días y tu tiempo de sesión alcanzan para {have}. Baja algunos controles o toca Reequilibrar.',
+  'val.session_long': 'Ojo: este enfoque promedia unos {m} min por sesión. Sin límite de tiempo el coach planifica sesiones de entre {lo} y {hi} min. Baja algunos controles o agrega un día de entrenamiento si es más de lo que buscabas.',
   'focus.rebalance_btn': 'Reequilibrar por mí',
   'focus.rebalanced': 'Reequilibrado para caber en tu semana: {list}.',
   'ob.focus_removed': 'Sin trabajo directo para {list}. Ahí vas a perder algo de tamaño y fuerza.',
