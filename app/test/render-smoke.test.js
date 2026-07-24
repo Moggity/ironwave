@@ -384,6 +384,25 @@ test('powerbuilding onboarding path produces the golden-master program', () => {
   assert.deepStrictEqual(noSched(prog), noSched(golden), 'onboarding output = golden-master program');
 });
 
+// [B4] A short week (days.length < daysPerWeek, rest days) renders everywhere.
+test('short-week bodybuilding program renders dashboard, program, workout, split editor', () => {
+  const ctx = fresh();
+  ctx.app.S = ctx.app.defaultState();
+  ctx.app.S.program = ctx.app.makeProgram({ daysPerWeek: 5, track: 'bodybuilding',
+    experience: 'intermediate', timeMode: 'unlimited',
+    muscleFocus: { arms: 0, chest: 3, back: 0, shoulders: 0, glutes: 0, legs: 0, calves: 0 },
+    maxes: {} });
+  assert.ok(ctx.app.S.program.days.length < 5, 'the dose builds a short week');
+  for (const view of ['dashboard', 'program', 'workout']) {
+    assert.ok(renderView(ctx, view).length > 0, `${view} renders on a short week`);
+  }
+  ctx.app.V = Object.assign({}, ctx.baseV, { view: 'dashboard' });
+  ctx.app.render();
+  ctx.app.openSplitEditor();
+  assert.ok(/se-move|se-name/.test(ctx.document.getElementById('modal-root').innerHTML),
+    'split editor opens on a short week');
+});
+
 // [B4] The focus budget is visible and actionable at the moment it binds.
 test('focus step renders the budget line and the rebalance offer when over budget', () => {
   const ctx = fresh();

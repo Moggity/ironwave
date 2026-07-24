@@ -1,5 +1,48 @@
 # IRONWAVE — Changelog
 
+## [The honest sliders: frequency currency and the focus budget (B4, expanded)] (2026-07-21)
+
+Roundtable step B4, expanded by owner ruling 2026-07-21 from the F7/F8
+degeneracy fixes into the full slider-semantics redesign. One idea: the
+sliders stop promising what the athlete's days and time cannot pay for.
+
+- **A slider value IS a weekly frequency.** The scale is now 0-4
+  (`FOCUS_MAX`); 4 is the healthy ceiling (head rotation makes it honest,
+  a future advanced tab may reopen more). Old 0-6 saves migrate through
+  `FOCUS_SCALE_MIGRATION` with a `focusScale` marker (idempotent); the
+  default becomes all-2, behaviorally the old all-3. Deliberate nudge:
+  the old slider 1 maintenance factor moves 0.5 to 0.6.
+- **Points are currency.** `Engine.coach` prices a lead and an accessory
+  exposure from `TIME_MODEL` + `JBB_HYP` (never invented numbers) and
+  turns days x session time into a points budget (`focusBudget`;
+  unlimited time prices at a 90-minute session, the 11-hour honesty
+  rule; the even all-ones week is guaranteed whenever schedulable). The
+  focus step and the focus editor show the live budget line, cap
+  sliders at 4, and block overspend with the honest have/need numbers
+  plus a one-tap proportional Rebalance (`rebalanceFocus`,
+  deterministic, returns the per-muscle delta so the change is never
+  silent and is receipts-ready for T1).
+- **The generator keeps the promise** (`validateFocusWeek` is the one
+  statement of the contract; `test/focus-honesty.test.js` sweeps every
+  muscle x days 1-7 x slider 0-4): exposures equal min(slider, days),
+  lead days are capped (a lone specialized muscle gets REST DAYS, F7
+  dead), surplus becomes same-day depth (2 days + arms at 4 = two deep
+  arm days), exposures spill across regions when needed, 3x+ muscles
+  rotate head emphasis day to day including rotated accessory leads,
+  selection exhausts the full library before any repeat and never
+  repeats within a day (F8 dead), and days are never padded to consume
+  time; the 7-day pump-day filler and the pad floors are gone. Short
+  weeks are legal downstream: `daysPerWeek` means availability, the
+  calendar maps short weeks onto an evenly spaced weekday subset
+  (`scheduleSubset`, the sport-aware epic's future seam), and the
+  block-boundary focus re-spec accepts them.
+- **Accessibility + platform seams from birth**: budget line as a status
+  live region, warnings as alerts, aria-labelled sliders; `hapticTap`
+  (navigator.vibrate today, `Platform.haptics` when the wrap lands) at
+  the ceiling, on over-budget, and on rebalance.
+- Suite: 521 tests green; the golden master is byte-identical (sliders
+  are bodybuilding-only by construction).
+
 ## [Small-load correctness + the cautious coach (B3)] (2026-07-21)
 
 Roundtable step B3, from the athlete panel's S3 findings (FPL1-FPL4) and

@@ -230,8 +230,14 @@ matters; each is one branch.
   e1RM cross-check on AMRAP raises, SS6 evidence-gated MRV raises,
   SS8 beginner + aggressive-deficit confirm gate). Golden master
   untouched; both catalogs.
-- **B4. Specialization-split honesty** (IQ6-IQ8: the one-muscle-at-6
-  week stops degenerating; intake warns when the math cannot work).
+- ~~**B4. Specialization-split honesty**~~ DONE (2026-07-21; scope
+  EXPANDED by owner ruling the same day into the full slider-semantics
+  redesign): sliders are now weekly frequency on a 0-4 scale, priced by
+  a time-derived points budget with a one-tap rebalance and a blocked
+  overspend; the generator honors a hard frequency contract
+  (validateFocusWeek + the focus-honesty sweep) killing F7/F8 for good;
+  short weeks are legal (rest days); head rotation makes 4x honest.
+  Old saves migrate; golden master byte-identical.
 
 ### GATE 4 (approve, ~30 minutes): the new volume numbers
 
