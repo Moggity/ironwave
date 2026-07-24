@@ -8,10 +8,10 @@
      generator, template fallback when everything is zeroed;
    - 7-day strength: the 6-day layout plus a light pump Day 7
      (no mains), weekly volume stays bounded;
-   - 7-day bodybuilding: a slider-6 muscle unlocks a 4th weekly
-     exposure (splitFreqFor) with the per-session landmark cap
-     dividing by the real frequency; without a slider 6 the week
-     is the 6-day split plus a generated Pump day;
+   - 7-day bodybuilding: sliders buy up to 3 weekly exposures
+     (G1 main scale); the per-session landmark cap still divides
+     by the real BUILT frequency at 4x+, the seam the advanced
+     specialization tab builds through;
    - inertness: 2-6 day behavior is byte-identical (pad floor,
      cap divisor, SPLIT_FREQ table untouched);
    - split editor bounds (grow to 7 and no further, shrink to 1)
@@ -65,12 +65,12 @@ function trainedDays(days, muscle) {
 // ---------------------------------------------------------------------------
 test('focusFreqDepth: slider = frequency clamped by days, surplus = depth', () => {
   const f = (v, N) => app.focusFreqDepth({ chest: v }, N);
-  assert.strictEqual(f(4, 7).freq.chest, 4, 'slider 4 is 4x when days allow');
-  assert.strictEqual(f(4, 2).freq.chest, 2, 'clamped by availability');
-  assert.strictEqual(f(4, 2).depth.chest, 2, 'the surplus is paid out as depth');
+  assert.strictEqual(f(3, 7).freq.chest, 3, 'slider 3 is 3x when days allow');
+  assert.strictEqual(f(3, 2).freq.chest, 2, 'clamped by availability');
+  assert.strictEqual(f(3, 2).depth.chest, 1, 'the surplus is paid out as depth');
   assert.strictEqual(f(2, 7).freq.chest, 2, 'no free frequency from extra days');
   assert.strictEqual(f(0, 5).freq.chest, undefined, 'slider 0 trains nothing');
-  assert.strictEqual(f(9, 7).freq.chest, 4, 'values clamp to FOCUS_MAX');
+  assert.strictEqual(f(9, 7).freq.chest, 3, 'values clamp to FOCUS_MAX');
 });
 
 // ---------------------------------------------------------------------------
@@ -188,11 +188,11 @@ test('7-day powerlifting: resolves everywhere, realization week still has exactl
 // ---------------------------------------------------------------------------
 // [B4] 7-day bodybuilding: frequency honesty, no pump-day padding
 // ---------------------------------------------------------------------------
-test('7-day with a slider at 4: that muscle trains 4x, the rest keep their sliders', () => {
+test('7-day with a slider at 3: that muscle trains 3x, the rest keep their sliders', () => {
   freshS();
-  const focus = Object.assign({ ...FOCUS }, { chest: 4 });
+  const focus = Object.assign({ ...FOCUS }, { chest: 3 });
   const days = app.generateBodybuildingDays(focus, 7);
-  assert.strictEqual(trainedDays(days, 'chest'), 4, 'slider 4 is 4 weekly exposures');
+  assert.strictEqual(trainedDays(days, 'chest'), 3, 'slider 3 is 3 weekly exposures');
   for (const m of ['back', 'shoulders', 'arms', 'glutes', 'calves']) {
     assert.strictEqual(trainedDays(days, m), focus[m], `${m} trains its slider frequency`);
   }
@@ -215,7 +215,7 @@ test('7-day availability builds only the days the dose needs (rest days, no pump
 
 test('7-day bodybuilding program builds, resolves, and stays at or under MRV weekly', () => {
   const s = withProgram('bodybuilding', { daysPerWeek: 7,
-    muscleFocus: Object.assign({ ...FOCUS }, { chest: 6 }) });
+    muscleFocus: Object.assign({ ...FOCUS }, { chest: 3 }) });
   assert.strictEqual(s.program.days.length, 7);
   sweepAll(s.program);
   s.program.pointer.week = 1; // measure a work week, not the intro
@@ -231,12 +231,19 @@ test('7-day bodybuilding program builds, resolves, and stays at or under MRV wee
 // ---------------------------------------------------------------------------
 // The frequency-aware per-session cap
 // ---------------------------------------------------------------------------
-test('perSessionCapDiv divides by the real frequency at 4x and stays 2 below it', () => {
+test('perSessionCapDiv keys off the BUILT week: 4x divides by real frequency (advanced-tab seam)', () => {
+  // [G1] The main sliders stop at 3x, so a slider-only week never leaves /2;
+  // the 4x branch stays live as the seam the advanced specialization tab
+  // builds through (hand-deepened week below stands in for it).
   const s = withProgram('bodybuilding', { daysPerWeek: 7,
-    muscleFocus: Object.assign({ ...FOCUS }, { chest: 6 }) });
-  assert.strictEqual(app.perSessionCapDiv('chest'), 4, 'the 4x muscle divides by 4');
+    muscleFocus: Object.assign({ ...FOCUS }, { chest: 3 }) });
+  assert.strictEqual(app.perSessionCapDiv('chest'), 2, 'a 3x slider week keeps the historical /2');
   assert.strictEqual(app.perSessionCapDiv('back'), 2, 'a 2x muscle keeps the historical /2');
   assert.strictEqual(app.perSessionCapDiv(null), 2);
+  const noChest = s.program.days.filter(d => !app.splitDayMuscles(d).has('chest'));
+  assert.ok(noChest.length >= 1, 'a day without chest exists to deepen');
+  noChest[0].slots.push({ type: 'acc', cat: 'chest', def: 'pec-deck' });
+  assert.strictEqual(app.perSessionCapDiv('chest'), 4, 'a 4x BUILT week divides by 4');
   // Inertness: a default 4-day bodybuilding program never leaves /2.
   withProgram('bodybuilding', { daysPerWeek: 4 });
   for (const k of app.FOCUS_KEYS) assert.strictEqual(app.perSessionCapDiv(k), 2);
@@ -291,7 +298,7 @@ function simulateBlocks(s, blocks) {
 
 test('simulated: a 7-day bodybuilder trains two full blocks without a stuck deload', () => {
   const s = withProgram('bodybuilding', { daysPerWeek: 7,
-    muscleFocus: Object.assign({ ...FOCUS }, { chest: 6 }) });
+    muscleFocus: Object.assign({ ...FOCUS }, { chest: 3 }) });
   const sessions = simulateBlocks(s, 2);
   assert.ok(s.program.pointer.block >= 2, 'two blocks completed');
   assert.ok(sessions >= 7 * 2, 'sessions were logged all along');

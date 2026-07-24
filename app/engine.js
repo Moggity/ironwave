@@ -601,6 +601,17 @@ const Engine = {
       // 90 keeps the default intake (3 days, unlimited, every slider at the
       // standard 2) affordable, which a 75-minute assumption narrowly broke.
       defaultSessionMin: 90,
+      // [B4.1] Owner ruling 2026-07-24: a custom cap at or below this many
+      // minutes is a TARGET, not just a ceiling. An athlete who asks for a
+      // 50 minute session expects to train about 50 minutes, so the split
+      // generator tops each built day up toward the cap with coherent
+      // same-day accessory work (never past it, never a foreign muscle).
+      capTargetMaxMin: 75,
+      // [B4.1] What "no time limit" plausibly means: sessions inside this
+      // band. Without a cap there is NO points budget; the focus step only
+      // warns (never blocks) when the estimated session runs past the upper
+      // bound.
+      expectedSessionMin: [80, 140],
     },
     // The shortest meet runway that fits one full block plus the taper.
     // TRACK_SPEC declares the same number (49 at weeksPerBlock 5) so the
@@ -690,12 +701,48 @@ const Engine = {
       return TM.setupSecDefault
         + sets * (J.accReps * TM.execSecPerRep.accessory + TM.restSec.accessory);
     },
+    // [B4.1] Price one BUILT slot in the same currency (mid-meso work with
+    // full rest), equipment-aware for accessories so a machine top-up costs
+    // less than a barbell one. The generator's fill pass reads this, so what
+    // the coach fills toward can never drift from what the estimator later
+    // charges.
+    slotPriceSec(kind, equip) {
+      const TM = TIME_MODEL, J = JBB_HYP;
+      if (kind === 'main') return this.exposurePriceSec('main');
+      if (kind === 'secondary') {
+        return TM.setupSec.bb
+          + J.secSets[1][1] * (J.secReps * TM.execSecPerRep.secondary + TM.restSec.secondary);
+      }
+      const setup = equip && TM.setupSec[equip] != null ? TM.setupSec[equip] : TM.setupSecDefault;
+      return setup + J.accSets[1][1] * (J.accReps * TM.execSecPerRep.accessory + TM.restSec.accessory);
+    },
+    // [B4.1] The session length the generator should BUILD TOWARD, in
+    // seconds, or null when days stay dose-driven. Owner ruling 2026-07-24:
+    // a short custom cap (at or below capTargetMaxMin) is what the athlete
+    // expects to train, so it is a fill target; a longer cap stays a pure
+    // ceiling, and no-limit athletes get exactly the dose their sliders ask.
+    sessionTargetSec(timeMode, timeCapMin) {
+      const cap = parseFloat(timeCapMin);
+      if (timeMode !== 'custom' || !(cap > 0)) return null;
+      return cap <= this.bounds.capTargetMaxMin ? Math.round(cap * 60) : null;
+    },
+    // [B4.1] The free-slider advisory for the no-limit athlete: sliders are
+    // not priced, but a plan whose estimated session runs past the plausible
+    // upper bound gets a heads up. Warn level, never a block; a custom cap
+    // is the cap machinery's business, not this rule's.
+    checkSessionEstimate(estMin, timeMode) {
+      if (timeMode === 'custom' || !(estMin > 0)) return null;
+      const [lo, hi] = this.bounds.expectedSessionMin;
+      if (estMin <= hi) return null;
+      return { key: 'val.session_long', level: 'warn',
+               params: { m: Math.round(estMin), lo, hi } };
+    },
     // Total points a focus vector spends: one point per weekly exposure.
     // Surplus slider beyond the schedulable day count becomes same-day depth,
     // which costs the same session time as an exposure, so spend stays a
     // plain (clamped) sum.
     focusSpend(focus) {
-      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 4;
+      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 3;
       let n = 0;
       for (const k in (focus || {})) n += Math.max(0, Math.min(MAX, focus[k] || 0));
       return n;
@@ -706,7 +753,7 @@ const Engine = {
     // length: unlimited availability must NOT mean unlimited points (an
     // 11-hour cap buys a coherent plan, not 11 hours of exercises).
     focusBudget(days, timeCapMin) {
-      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 4;
+      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 3;
       const d = Math.max(1, Math.min(7, days || 0));
       const sessionSec = Math.max(0,
         (timeCapMin > 0 ? timeCapMin : this.bounds.defaultSessionMin) * 60
@@ -722,8 +769,11 @@ const Engine = {
     },
     // null = affordable; otherwise the error-level intake issue with the
     // honest numbers (the UI renders have/need and offers the rebalance).
+    // [B4.1] Owner ruling 2026-07-24: the points budget exists ONLY under a
+    // custom time cap. No time limit means free sliders; the long-session
+    // advisory (checkSessionEstimate) is the only voice there.
     checkFocusBudget(focus, days, timeCapMin) {
-      if (!focus || !(days > 0)) return null;
+      if (!focus || !(days > 0) || !(timeCapMin > 0)) return null;
       const have = this.focusBudget(days, timeCapMin);
       const need = this.focusSpend(focus);
       return need > have ? { key: 'val.focus_over_budget', params: { have, need } } : null;
@@ -734,7 +784,7 @@ const Engine = {
     // the per-muscle delta alongside the new focus: a rebalance is a coach
     // decision, and coach decisions are never silent (T1 receipts contract).
     rebalanceFocus(focus, have) {
-      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 4;
+      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 3;
       const KEYS = typeof FOCUS_KEYS !== 'undefined' ? FOCUS_KEYS : Object.keys(focus || {});
       const out = {};
       for (const k of KEYS) out[k] = Math.max(0, Math.min(MAX, (focus || {})[k] || 0));
@@ -849,7 +899,9 @@ const Engine = {
       coachIssue('focus', this.coach.checkFocus(ob.muscleFocus));
       // [B4] Sliders spending more points than the athlete's days and
       // session time afford block like the all-zero gate; the focus step's
-      // banner carries the numbers and the one-tap rebalance.
+      // banner carries the numbers and the one-tap rebalance. [B4.1] Custom
+      // cap only: with no time limit checkFocusBudget stays silent (free
+      // sliders, warn-only session advisory in the UI).
       coachIssue('focus', this.coach.checkFocusBudget(ob.muscleFocus, ob.daysPerWeek,
         ob.timeMode === 'custom' ? parseFloat(ob.timeCapMin) : null));
     }

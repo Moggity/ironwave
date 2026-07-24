@@ -48,7 +48,7 @@ test('focus slider 1 is the maintenance dose (sheds sets)', () => {
 });
 
 test('focus slider 2 and above leave per-session sets unchanged', () => {
-  installProgram({ track: 'bodybuilding', muscleFocus: { ...DEFAULT_FOCUS, arms: 2, legs: 4 } });
+  installProgram({ track: 'bodybuilding', muscleFocus: { ...DEFAULT_FOCUS, arms: 2, legs: 3 } });
   // Emphasis comes from frequency (more days), not from inflating a session.
   assert.deepStrictEqual(app.focusForAccessory('ez-curl', plainSets(4)), { delta: 0 });
   assert.deepStrictEqual(app.focusForAccessory('leg-extensions', plainSets(4)), { delta: 0 });
@@ -80,7 +80,7 @@ test('generator: region days are proportional to slider points', () => {
 
   // Upper-heavy 4-day (the CHANGELOG example) => 3 upper / 1 lower.
   const heavy = app.generateBodybuildingDays(
-    { arms: 3, chest: 3, back: 3, shoulders: 4, glutes: 1, legs: 2, calves: 1 }, 4);
+    { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 1, legs: 2, calves: 1 }, 4);
   assert.strictEqual(upperCount(heavy), 3);
   assert.strictEqual(lowerCount(heavy), 1);
 });

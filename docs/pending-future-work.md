@@ -25,6 +25,30 @@ the roundtable plan wins; about CONTENT, this backlog wins.
 
 ## Larger features (each its own branch)
 
+- **Advanced specialization tab (G2-G4)** (owner ruling 2026-07-24, follows
+  the shipped G1 slider rescale): per-muscle frequency overrides beneath the
+  1-3 main sliders, gaming-UX pips with locked positions past availability.
+  - **G2 - taxonomy + coach ceilings**: complete the head-tag coverage
+    (quads, glutes, calves, abs, lowback, forearms/brachialis have none
+    today; the 12-16 row advanced list needs them) and add the master coach
+    per-muscle healthy frequency table (`coach.bounds.freqCeiling`: axial
+    hinge/squat patterns ~3, chest/back/shoulders/glutes ~4, small metabolic
+    muscles like biceps/side delts/calves/abs up to 6). Effective cap shown
+    to the athlete = min(healthyMax, trainingDays); `focusSpecAsk` (written
+    by the G1 migration for old 4x saves) seeds the initial overrides.
+  - **G3 - generator + contract**: thread head-level frequency overrides
+    through `generateBodybuildingDays` and extend `validateFocusWeek` with a
+    per-head dimension (rotation already thinks in heads). Overrides above
+    the group slider consume budget/time like exposures; `perSessionCapDiv`
+    is the existing 4x+ seam. The expensive slice; extend
+    `focus-honesty.test.js` in lockstep.
+  - **G4 - the panel UI**: per-muscle cards with frequency pips (locked past
+    availability with an unlock hint, absent past the health ceiling),
+    specialization slots (at most ~2 muscles above their standard at once,
+    block-scoped with a coach re-review at the block boundary, composing
+    with deload resensitization), coach verdict chips (sustainable / one
+    block only / blocked with reason), and weekday placement preview when
+    `program.schedule` exists (warn on forced back-to-back exposures).
 - **Sport-aware scheduling** (the long-deferred epic): a sport -> muscle-fatigue
   dataset, calendar placement so high-fatigue sessions avoid game day, and
   named/dated days. **The 2026-07-16 calendar-days release paved the way**: the

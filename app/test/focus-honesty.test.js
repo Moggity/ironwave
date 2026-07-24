@@ -46,7 +46,7 @@ test('validateFocusWeek: a clean 2-day week passes', () => {
 test('validateFocusWeek: catches the F7 lead monopoly and over-exposure', () => {
   const day = n => ({ name: n, primary: 'arms', slots: [{ type: 'acc', def: 'ez-curl' }] });
   const days = [day('1'), day('2'), day('3'), day('4'), day('5'), day('6')];
-  const v = validateFocusWeek(days, focusOf({ arms: 4 }), 6);
+  const v = validateFocusWeek(days, focusOf({ arms: 3 }), 6);
   assert.ok(v.some(x => /arms: 6 exposures/.test(x)), 'over-exposure flagged');
   assert.ok(v.some(x => /leads 6 days/.test(x)), 'lead monopoly flagged');
 });
@@ -120,9 +120,9 @@ sweep('sweep: mixed focus vectors keep the contract', () => {
     { focus: focusOf({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 }), N: 4 },
     { focus: focusOf({ arms: 1, chest: 1, back: 1, shoulders: 1, glutes: 1, legs: 1, calves: 1 }), N: 2 },
     { focus: focusOf({ arms: 1, chest: 1, back: 1, shoulders: 1, glutes: 1, legs: 1, calves: 1 }), N: 6 },
-    { focus: focusOf({ chest: 4, back: 4, legs: 2 }), N: 4 },
+    { focus: focusOf({ chest: 3, back: 3, legs: 2 }), N: 4 },
     { focus: focusOf({ chest: 3, back: 3, shoulders: 2, arms: 2, legs: 3, glutes: 2, calves: 1 }), N: 5 },
-    { focus: focusOf({ legs: 4, glutes: 3, calves: 2 }), N: 7 },
+    { focus: focusOf({ legs: 3, glutes: 3, calves: 2 }), N: 7 },
     { focus: focusOf({ chest: 2, back: 2, legs: 2 }), N: 3 },
   ];
   for (const { focus, N } of vectors) {
@@ -132,26 +132,28 @@ sweep('sweep: mixed focus vectors keep the contract', () => {
   }
 });
 
-sweep('depth: the owner example (2 days, arms at 4) builds two deep arm days', () => {
-  const focus = focusOf({ arms: 4 });
+sweep('depth: the owner example (2 days, arms High) builds a deep arm day', () => {
+  // [G1] The main ceiling is 3: on 2 days that is 2 exposures + 1 depth
+  // point, so one day runs deep and every paid point still lands.
+  const focus = focusOf({ arms: 3 });
   const days = app.generateBodybuildingDays(focus, 2);
   assert.deepStrictEqual(validateFocusWeek(days, focus, 2), []);
   assert.strictEqual(days.length, 2, 'both days used');
-  for (const d of days) {
-    const armSlots = d.slots.filter(sl => {
-      const ex = EX[sl.def || sl.lift || sl.ex];
-      return ex && ['bicep', 'tricep'].includes(ex.movement);
-    });
-    assert.ok(armSlots.length >= 2, `${d.name}: surplus became depth (${armSlots.length} arm slots)`);
-    const tissues = new Set(armSlots.map(sl => (EX[sl.def] || {}).movement));
-    assert.ok(tissues.has('bicep') && tissues.has('tricep'),
-      `${d.name}: depth spans both biceps and triceps tissue`);
-  }
+  const armSlotsOf = d => d.slots.filter(sl => {
+    const ex = EX[sl.def || sl.lift || sl.ex];
+    return ex && ['bicep', 'tricep'].includes(ex.movement);
+  });
+  const counts = days.map(d => armSlotsOf(d).length);
+  assert.strictEqual(counts[0] + counts[1], 3, 'all 3 paid points landed as slots');
+  const deep = days[counts[0] >= counts[1] ? 0 : 1];
+  const tissues = new Set(armSlotsOf(deep).map(sl => (EX[sl.def] || {}).movement));
+  assert.ok(tissues.has('bicep') && tissues.has('tricep'),
+    `${deep.name}: the deep day spans both biceps and triceps tissue`);
 });
 
 sweep('head rotation: a 3x+ muscle alternates emphasis across its days', () => {
   for (const [m, movements, N] of [['arms', ['bicep', 'tricep'], 4], ['chest', ['chest', 'bench'], 4]]) {
-    const focus = focusOf({ [m]: 4 });
+    const focus = focusOf({ [m]: 3 });
     const days = app.generateBodybuildingDays(focus, N);
     const weekHeads = new Set();
     for (const d of days) {
@@ -173,12 +175,13 @@ sweep('no-pad: an all-1 week never invents extra exposures to fill time', () => 
 });
 
 sweep('library fallthrough: depth never repeats before the library is exhausted', () => {
-  // Arms at 4 on 4 days demands more picks than the 6-entry curated pool
-  // once depth lands; the F8 fix must reach outside DEFAULT_ACC before any
-  // week-level repeat, and within-day repeats are already contract rule 6.
-  const focus = focusOf({ arms: 4 });
-  const days = app.generateBodybuildingDays(focus, 4);
-  assert.deepStrictEqual(validateFocusWeek(days, focus, 4), []);
+  // [G1] With the main ceiling at 3 the curated pool covers a slider-only
+  // week, so the beyond-the-pool branch below stays guarded; the advanced
+  // specialization tab (4x+) is what re-arms it. Within-day repeats remain
+  // contract rule 6 either way.
+  const focus = focusOf({ arms: 3 });
+  const days = app.generateBodybuildingDays(focus, 3);
+  assert.deepStrictEqual(validateFocusWeek(days, focus, 3), []);
   const ids = [];
   for (const d of days) for (const sl of d.slots) {
     const ex = EX[sl.def || sl.lift];
@@ -195,18 +198,105 @@ sweep('library fallthrough: depth never repeats before the library is exhausted'
 
 test('intake: over-budget sliders block the focus step with the honest numbers', () => {
   const ob = { bodyweight: 80, track: 'bodybuilding', daysPerWeek: 2, timeMode: 'custom',
-    timeCapMin: 50, muscleFocus: focusOf({ arms: 4, chest: 4, back: 4 }), maxes: {} };
+    timeCapMin: 50, muscleFocus: focusOf({ arms: 3, chest: 3, back: 3 }), maxes: {} };
   const spec = { obSteps: ['welcome', 'goal', 'days', 'experience', 'time', 'focus', 'maxes'],
     intake: { minSessionMin: 30 } };
   const issues = app.Engine.validateIntake(ob, spec, Date.now());
   const over = issues.find(i => i.key === 'val.focus_over_budget');
   assert.ok(over && over.field === 'focus' && over.level === 'error', 'blocks like the all-zero gate');
-  assert.strictEqual(over.params.need, 12);
-  assert.ok(over.params.have < 12, 'the honest affordable number rides along');
+  assert.strictEqual(over.params.need, 9);
+  assert.ok(over.params.have < 9, 'the honest affordable number rides along');
   // The one-tap rebalance yields a draft the same gate passes.
   const fixed = app.Engine.coach.rebalanceFocus(ob.muscleFocus, over.params.have).focus;
   const clean = app.Engine.validateIntake(Object.assign({}, ob, { muscleFocus: fixed }), spec, Date.now());
   assert.ok(!clean.some(i => i.key === 'val.focus_over_budget'), 'rebalanced draft is affordable');
+});
+
+// ---------------------------------------------------------------------------
+// [B4.1] The coach fills the session: a short cap is a target, not a ceiling
+// ---------------------------------------------------------------------------
+sweep('fill: a targeted week keeps the contract and only deepens its own days', () => {
+  const focus = focusOf({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 1, legs: 1, calves: 1 });
+  const target = app.Engine.coach.sessionTargetSec('custom', 50);
+  assert.strictEqual(target, 3000, 'a 50 min cap is a fill target');
+  const days = app.generateBodybuildingDays(focus, 5, { targetSec: target });
+  assert.deepStrictEqual(validateFocusWeek(days, focus, 5), [], 'the frequency contract holds with fill');
+  const muscleOf = sl => {
+    const ex = EX[sl.def || sl.ex || sl.lift || sl.baseLift];
+    return ex && app.MOVEMENT_SLIDER[ex.movement];
+  };
+  let fillers = 0;
+  for (const d of days) {
+    const dose = new Set(d.slots.filter(sl => !sl.filler).map(muscleOf).filter(Boolean));
+    for (const sl of d.slots.filter(sl => sl.filler)) {
+      fillers++;
+      assert.ok(dose.has(muscleOf(sl)), `${d.name}: fill stays on the day's own muscles`);
+    }
+  }
+  assert.ok(fillers > 0, 'the light 11-point week got topped up somewhere');
+});
+
+sweep('fill honesty: the owner scenario (5 days, 50 min) trains about 50 min, not 25', () => {
+  // PR 88 regression: 5 days x 50 min built days as short as ~25 minutes.
+  // The cap is what the athlete expects to train, so a calibrated mid-block
+  // day must land near it (fill pricing is mid-meso work; week 2 of block 0
+  // resolves the same 4-set accessory column). Records are seeded so the
+  // accessories run the real meso table, not the week-1 calibration ramp.
+  const focus = focusOf({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 1, legs: 1, calves: 1 });
+  const s = app.defaultState();
+  app.S = s;
+  s.profile.landmarks = app.Engine.seedLandmarks('intermediate');
+  s.program = app.makeProgram({ daysPerWeek: 5, track: 'bodybuilding',
+    experience: 'intermediate', timeMode: 'custom', timeCapMin: 50,
+    muscleFocus: { ...focus }, maxes: {} });
+  for (const l of ['comp-squat', 'comp-bench', 'comp-deadlift', 'military-press']) {
+    if (!s.program.wm[l]) s.program.wm[l] = 100;
+  }
+  for (const d of s.program.days) for (const sl of d.slots) {
+    if (sl.def) app.pushRecord(sl.def, { ts: Date.now(), weight: 40, reps: 12, rpe: 8 });
+  }
+  assert.deepStrictEqual(validateFocusWeek(s.program.days, focus, 5), [], 'contract holds');
+  for (let di = 0; di < s.program.days.length; di++) {
+    const built = app.resolveDayEntries(di, 0, 2);
+    assert.ok(built.fullMin >= 40,
+      `day ${di}: ${built.fullMin}min is a real session under a 50min expectation, not a light day`);
+    assert.ok(built.coreMin <= 51,
+      `day ${di}: core ${built.coreMin}min never runs past the cap`);
+  }
+});
+
+sweep('no-fill: without a target the week stays dose-driven, filler-free', () => {
+  const focus = focusOf({ arms: 1, chest: 1, back: 1, shoulders: 1, glutes: 1, legs: 1, calves: 1 });
+  assert.strictEqual(app.Engine.coach.sessionTargetSec('unlimited', null), null);
+  const days = app.generateBodybuildingDays(focus, 6,
+    { targetSec: app.Engine.coach.sessionTargetSec('unlimited', null) });
+  const totalSlots = days.reduce((s, d) => s + d.slots.length, 0);
+  assert.ok(totalSlots <= 7, `no target means no fill, got ${totalSlots} slots`);
+  assert.ok(days.every(d => d.slots.every(sl => !sl.filler)), 'no filler flags anywhere');
+});
+
+sweep('fill sheds first: filler falls to optional before dose work under the cap', () => {
+  const focus = focusOf({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 1, legs: 1, calves: 1 });
+  const s = app.defaultState();
+  app.S = s;
+  s.profile.landmarks = app.Engine.seedLandmarks('intermediate');
+  s.program = app.makeProgram({ daysPerWeek: 5, track: 'bodybuilding',
+    experience: 'intermediate', timeMode: 'custom', timeCapMin: 50,
+    muscleFocus: { ...focus }, maxes: {} });
+  for (const l of ['comp-squat', 'comp-bench', 'comp-deadlift', 'military-press']) {
+    if (!s.program.wm[l]) s.program.wm[l] = 100;
+  }
+  // Peak week (3) is the longest: wherever anything falls optional on a day
+  // that still has filler in core-or-optional, filler must be optional before
+  // any dose accessory is.
+  for (let di = 0; di < s.program.days.length; di++) {
+    const built = app.resolveDayEntries(di, 0, 3);
+    const isFiller = x => !!s.program.days[di].slots[x.si].filler;
+    const doseOptional = built.optItems.some(x => !isFiller(x) && !x.rs.isMain && !x.rs.isSecondary);
+    const fillerCore = built.coreItems.some(x => isFiller(x));
+    assert.ok(!(doseOptional && fillerCore),
+      `day ${di}: dose work went optional while filler stayed core`);
+  }
 });
 
 sweep('budget honesty: generated days price within the budget assumption', () => {

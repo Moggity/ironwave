@@ -100,7 +100,7 @@ test('exposure prices derive from TIME_MODEL and stay in a sane band', () => {
 
 test('focusSpend: clamped sum of slider points', () => {
   assert.strictEqual(coach.focusSpend({ arms: 2, chest: 2 }), 4);
-  assert.strictEqual(coach.focusSpend({ arms: 9, chest: -3 }), 4, 'clamped to 0..FOCUS_MAX');
+  assert.strictEqual(coach.focusSpend({ arms: 9, chest: -3 }), 3, 'clamped to 0..FOCUS_MAX');
   assert.strictEqual(coach.focusSpend({}), 0);
 });
 
@@ -135,17 +135,52 @@ test('focusBudget: the even minimum week is always affordable when schedulable',
 });
 
 test('checkFocusBudget: over-budget carries the honest have/need numbers', () => {
-  const focus = { arms: 4, chest: 4, back: 4, shoulders: 4, glutes: 4, legs: 4, calves: 4 };
+  const focus = { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 };
   const iss = coach.checkFocusBudget(focus, 2, 50);
   assert.ok(iss && iss.key === 'val.focus_over_budget');
-  assert.strictEqual(iss.params.need, 28);
+  assert.strictEqual(iss.params.need, 21);
   assert.strictEqual(iss.params.have, coach.focusBudget(2, 50));
   assert.strictEqual(coach.checkFocusBudget({ arms: 2 }, 2, 50), null, 'affordable passes');
   assert.strictEqual(coach.checkFocusBudget(null, 2, 50), null);
 });
 
+// ---------------------------------------------------------------------------
+// [B4.1] Owner rulings 2026-07-24: sliders are not session length
+// ---------------------------------------------------------------------------
+test('checkFocusBudget: no time limit means no points, even at maximum spend', () => {
+  const maxed = { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 };
+  assert.strictEqual(coach.checkFocusBudget(maxed, 2, null), null, 'unlimited never blocks');
+  assert.strictEqual(coach.checkFocusBudget(maxed, 7, undefined), null);
+  assert.strictEqual(coach.checkFocusBudget(maxed, 2, 0), null, 'a zero cap is no cap');
+  assert.ok(coach.checkFocusBudget(maxed, 2, 50), 'a real cap still prices the plan');
+});
+
+test('sessionTargetSec: a short cap is a target, a long cap a ceiling, no cap nothing', () => {
+  assert.strictEqual(coach.sessionTargetSec('custom', 50), 50 * 60, '50min cap is a fill target');
+  assert.strictEqual(coach.sessionTargetSec('custom', '50'), 50 * 60, 'string caps parse');
+  assert.strictEqual(coach.sessionTargetSec('custom', coach.bounds.capTargetMaxMin),
+    coach.bounds.capTargetMaxMin * 60, 'the boundary cap still targets');
+  assert.strictEqual(coach.sessionTargetSec('custom', coach.bounds.capTargetMaxMin + 1), null,
+    'past the boundary the cap is only a ceiling');
+  assert.strictEqual(coach.sessionTargetSec('unlimited', null), null);
+  assert.strictEqual(coach.sessionTargetSec('unlimited', 50), null, 'no cap mode, no target');
+  assert.strictEqual(coach.sessionTargetSec('custom', null), null);
+});
+
+test('checkSessionEstimate: unlimited warns past the expected band, never blocks', () => {
+  const [lo, hi] = coach.bounds.expectedSessionMin;
+  assert.strictEqual(coach.checkSessionEstimate(hi, 'unlimited'), null, 'the band edge is fine');
+  assert.strictEqual(coach.checkSessionEstimate(lo - 30, 'unlimited'), null, 'short is never nagged');
+  const iss = coach.checkSessionEstimate(hi + 20, 'unlimited');
+  assert.ok(iss && iss.key === 'val.session_long', 'past the band it speaks');
+  assert.strictEqual(iss.level, 'warn', 'warn, never error');
+  assert.deepStrictEqual([iss.params.lo, iss.params.hi], [lo, hi], 'the band rides along');
+  assert.strictEqual(coach.checkSessionEstimate(hi + 200, 'custom'), null,
+    'capped athletes belong to the cap machinery');
+});
+
 test('rebalanceFocus: deterministic, ratio-preserving, floors at 1, never grows', () => {
-  const ask = { arms: 4, chest: 4, back: 2, shoulders: 2, glutes: 1, legs: 4, calves: 1 }; // 18 points
+  const ask = { arms: 3, chest: 3, back: 2, shoulders: 2, glutes: 1, legs: 3, calves: 1 }; // 15 points
   const a = coach.rebalanceFocus(ask, 10), b = coach.rebalanceFocus(ask, 10);
   assert.deepStrictEqual(a, b, 'same input, same output');
   assert.strictEqual(coach.focusSpend(a.focus), 10, 'lands exactly on the budget');

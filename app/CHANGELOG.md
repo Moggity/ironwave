@@ -1,5 +1,79 @@
 # IRONWAVE — Changelog
 
+## [The 1-3 main scale: off is a decision, not a slider position (G1)] (2026-07-24)
+
+Owner ruling 2026-07-24, second round of the B4 slider review. Two ideas:
+a slider should only ever offer real training plans, and abandoning a
+muscle must never be a slider slip. All bodybuilding-surface changes;
+golden master byte-identical.
+
+- **The main sliders are now 1-3** (`FOCUS_MAX` 3): 1 keeps a muscle
+  maintained (the 0.6x dose), 2 is the standard, 3 is high. 0 is legal
+  STORAGE (a muscle turned off) but no longer a slider position; the
+  range input runs min 1. 4x weekly frequency leaves the main surface
+  and returns through the advanced specialization tab (next slices),
+  where per-muscle healthy ceilings can gate it properly.
+- **Turning a muscle off is confirm-gated.** Each focus row (onboarding
+  and the in-app editor, one shared `focusRowHTML`) carries a small Off
+  control behind a danger-styled confirm that states the consequence
+  plainly; an off muscle renders as a compact off state with one tap
+  back on (the previous value is remembered). The all-off program block
+  still applies.
+- **Migration preserves intent** (`migrateState`, chained scale markers:
+  none -> 4 -> 3, idempotent): a B4-era 4 clamps to 3 and the ask is
+  kept additively in `profile.training.focusSpecAsk`, the seed the
+  advanced tab reopens; the historical 0-6 "slider 6 on 7 days" unlock
+  lands the same way. Clamping is prescription-neutral today
+  (`FOCUS_FACTOR` treated 3 and 4 identically), so no in-flight program
+  changes output. `focusForAccessory` clamps before its table read so a
+  stale out-of-scale value can never misprescribe.
+- **Fixed a real reload-decay bug found during this work**: doNewProgram
+  rebuilt `profile.training` WITHOUT the scale marker, so every reload
+  re-ran the 0-6 remap on new-scale values and silently decayed sliders
+  (2 -> 1). The marker is now stamped at creation and a regression test
+  pins the round-trip.
+- Suite: 531 green (migration chain, clamp+ask, depth/rotation/library
+  sweeps rebased to the 1-3 scale, off-control smoke); golden master
+  unchanged.
+
+## [Sliders are not session length: the coach fills the session (B4.1)] (2026-07-24)
+
+CTO review of B4 (PR 88) landed three owner rulings, all master coach
+knowledge (`Engine.coach`), all bodybuilding-only, golden master
+byte-identical:
+
+- **A short time cap is a TARGET, not just a ceiling.** An athlete who
+  asks for a 50 minute session expects to train about 50 minutes; B4 was
+  building 25 minute days under that cap. New
+  `coach.sessionTargetSec(timeMode, timeCapMin)`: a custom cap at or
+  below `bounds.capTargetMaxMin` (75) becomes a fill target. After the
+  dose-driven build, `fillDaysToTarget` (app.js) tops each day up toward
+  it with extra accessory picks for muscles ALREADY trained that day (a
+  chest day fills with more chest and its co-trained muscles, never a
+  foreign exposure), priced by the new equipment-aware
+  `coach.slotPriceSec` so fill and estimator cannot drift. Weekly
+  exposures stay exactly what the sliders bought, so the frequency
+  contract (`validateFocusWeek`) holds untouched; no lighter days left
+  on the table unless the pool is exhausted. Fill slots carry
+  `filler: true` (additive, only written under a short cap) and the
+  time-cap machinery sheds them FIRST when a peak week outgrows the cap:
+  the old optional-extras behavior, done coherently per day.
+- **No time limit means no points.** The focus budget
+  (`checkFocusBudget`) now applies ONLY under a custom cap; without one
+  the sliders are free: no points line, no over-budget block, no
+  rebalance prompt (onboarding focus step and the in-app focus editor
+  both). Instead the coach knows what an open schedule plausibly means
+  (`bounds.expectedSessionMin`, 80 to 140 min): past the upper bound the
+  new `coach.checkSessionEstimate` raises a warn-level advisory
+  (`val.session_long`, en+es), shown live on both slider surfaces. It
+  never blocks (2 days with every slider at 4 warns at ~169 min and lets
+  the athlete choose).
+- Tests: `master-coach.test.js` pins the three rulings;
+  `focus-honesty.test.js` gains the fill sweep (contract holds with
+  fill, fill stays on the day's own muscles, the owner scenario of
+  5 days x 50 min trains ~50 not ~25, no fill without a target, filler
+  sheds before dose work). Suite: 529 green; golden master unchanged.
+
 ## [The honest sliders: frequency currency and the focus budget (B4, expanded)] (2026-07-21)
 
 Roundtable step B4, expanded by owner ruling 2026-07-21 from the F7/F8

@@ -75,16 +75,31 @@ every other track, which is why default/powerbuilding output stays byte-identica
 
 ### The bodybuilding split generator
 
-[B4] A focus slider value IS a weekly frequency, scale 0-4 (`FOCUS_MAX`),
-priced by a points budget from days x session time (`Engine.coach.focusBudget`,
-derived from `TIME_MODEL`; overspend blocks with a one-tap rebalance).
-`generateBodybuildingDays(focus, N)` in `app.js` builds a week under the
+[B4] A focus slider value IS a weekly frequency. [G1] The main control runs
+1-3 (`FOCUS_MAX` 3: Light / Standard / High); 0 is legal storage (a muscle
+turned off) but never a slider position - turning off is a confirm-gated
+control on the focus row, and 4x+ frequency belongs to the future advanced
+specialization tab (per-muscle ceilings; migration preserves old 4x asks in
+`profile.training.focusSpecAsk`). The scale marker `focusScale` chains
+none -> 4 -> 3 in `migrateState` and MUST be stamped wherever
+`profile.training` is rebuilt, or reload re-runs the 0-6 remap and decays
+sliders.
+[B4.1] Sliders are NOT session length: the points budget
+(`Engine.coach.focusBudget`, derived from `TIME_MODEL`; overspend blocks with
+a one-tap rebalance) applies ONLY under a custom time cap. With no time limit
+sliders are free and `Engine.coach.checkSessionEstimate` warns (never blocks)
+past the expected session band (`bounds.expectedSessionMin`).
+`generateBodybuildingDays(focus, N, opts)` in `app.js` builds a week under the
 frequency contract stated by `validateFocusWeek` (exposures = min(slider, N),
 lead caps, same-day depth for surplus, cross-region spill, head rotation at
 3x+, no within-day repeats, short weeks legal - rest days are honest output;
-`daysPerWeek` means AVAILABILITY, not `days.length`). The contract is enforced
-on every build by `test/focus-honesty.test.js`; extend the contract there and
-in `validateFocusWeek` together, never in only one place. Selection draws from
+`daysPerWeek` means AVAILABILITY, not `days.length`). [B4.1] A short custom
+cap (<= `bounds.capTargetMaxMin`) is a fill TARGET (`coach.sessionTargetSec`):
+`fillDaysToTarget` tops each day up with same-day accessories for its own
+muscles (`filler: true` slots, shed first under the cap), leaving exposures
+untouched so the contract holds. The contract is enforced on every build by
+`test/focus-honesty.test.js`; extend the contract there and in
+`validateFocusWeek` together, never in only one place. Selection draws from
 `musclePool` (curated order, then the full library by SFR). The tuning tables
 are `ANCHOR_RANK`/`PRIMARY_ANCHOR`/`FOCUS_HEAD_ROTATION`.
 

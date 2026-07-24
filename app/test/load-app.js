@@ -85,7 +85,7 @@ const EXPORTS = `return {
   vProgress, vReport, macroReportHTML, bandChartHTML, overlayChartHTML, trendChartHTML,
   seMove, seRename, seAddDay, seRemoveDay, seFreqChips, splitDayMuscles,
   blockWeeks, weeksBefore, totalProgramWeeks, vMeet, obMeetLine,
-  generateFullBodyDays, perSessionCapDiv,
+  generateFullBodyDays, perSessionCapDiv, fillDaysToTarget,
   validateFocusWeek, musclePool, scheduleSubset, focusFreqDepth,
   FOCUS_MAX, FOCUS_SCALE_MIGRATION, FOCUS_HEAD_ROTATION,
   BB_DAY_TEMPLATES,
