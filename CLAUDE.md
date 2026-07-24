@@ -82,7 +82,11 @@ is confirm-gated in `obSlider`/`feSlider`; an off row keeps full size and
 its slider, with only the value reading Off (never a separate Off button,
 never a shrunken row). 4x+ frequency belongs to the future advanced
 specialization tab (per-muscle ceilings; migration preserves old 4x asks in
-`profile.training.focusSpecAsk`). The scale marker `focusScale` chains
+`profile.training.focusSpecAsk`). [G2] Its groundwork is live: `ADV_MUSCLES`
+(data.js) lists the per-muscle rows with `advRowExercises` (app.js)
+resolving exercise ownership, and `Engine.coach.advFreqCap(row, days)` =
+min(`bounds.advFreqCeiling[row]`, days) is the cap any advanced surface
+must consult; extend `test/adv-spec.test.js` with any change there. The scale marker `focusScale` chains
 none -> 4 -> 3 in `migrateState` and MUST be stamped wherever
 `profile.training` is rebuilt, or reload re-runs the 0-6 remap and decays
 sliders.

@@ -661,6 +661,21 @@ function muscleOfAcc(id) {
 // excluded (they enter days as main/secondary slots, never as depth picks).
 // This is the supply side of the F8 fix: depth and high frequency exhaust the
 // whole library before any repeat.
+// [G2] The exercises an advanced specialization row owns. A row with
+// `heads` claims exactly those head tags; a movement row takes its
+// movements MINUS anything any heads row claimed, so every library
+// exercise lands in AT MOST one row (biceps vs brachialis, chest vs upper
+// chest, upper back vs rear delts). Pure given the library; G3 builds the
+// per-row pools from this, G4 renders the rows.
+function advRowExercises(row) {
+  const r = typeof row === 'string' ? ADV_MUSCLES.find(x => x.id === row) : row;
+  if (!r) return [];
+  const claimed = new Set(ADV_MUSCLES.filter(x => x.heads && x !== r).flatMap(x => x.heads));
+  return allExercises().filter(e => {
+    if (r.heads) return !!e.head && r.heads.includes(e.head);
+    return (r.movements || []).includes(e.movement) && !(e.head && claimed.has(e.head));
+  });
+}
 function musclePool(m) {
   const movs = SLIDER_MOVEMENTS[m] || [];
   // Only exercises that ATTRIBUTE to this slider: a rear-delt fly lives in

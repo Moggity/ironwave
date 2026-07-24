@@ -1,5 +1,35 @@
 # IRONWAVE — Changelog
 
+## [Advanced specialization groundwork: taxonomy + coach ceilings (G2)] (2026-07-24)
+
+First slice of the advanced per-muscle frequency tab (owner ruling
+2026-07-24). Data + coach knowledge only: no generator or UI change, so
+every built routine is byte-identical (golden master untouched).
+
+- **`ADV_MUSCLES` (data.js)**: the 16 rows beneath the seven group
+  sliders (biceps, brachialis, triceps, upper chest, chest, front/side/
+  rear delts, lats, upper back, quads, hamstrings, glutes, calves, abs,
+  lower back), each claiming exercises by movement pattern or head tag.
+  `advRowExercises` (app.js) resolves ownership so every library
+  exercise lands in AT MOST one row. Labels in both catalogs
+  (`adv.<id>`).
+- **Taxonomy pass**: new `bi-brach` head (Brachialis) on the neutral/
+  pronated curls (hammer curl, reverse curl), with `HEAD_LABELS` and
+  `HEAD_MUSCLE` entries, so the arms split the owner named (biceps /
+  triceps / brachialis) is real, not cosmetic.
+- **Coach frequency ceilings** (`coach.bounds.advFreqCeiling`):
+  per-muscle healthy weekly frequency shaped by tissue and axial cost
+  (lower back 2; quads/hams/front delts 3; chest rows, lats, upper
+  back, glutes, brachialis 4; triceps 5; biceps, side/rear delts,
+  calves, abs 6). `coach.advFreqCap(row, days)` = min(ceiling, days) is
+  the cap the G4 panel will show (biceps: maxed at 3 on 3 days, opens
+  to 6 on 6 days); `coach.checkAdvAsk` refuses an over-cap ask with the
+  honest cap (`val.adv_freq_cap`, en+es). `bounds.specSlots` (2)
+  declares the specialization slot limit G4 enforces.
+- Tests: `test/adv-spec.test.js` pins the partition (12+ unique rows,
+  no double ownership, translated labels), the brachialis split, the
+  physiology ordering of the ceilings, and the owner cap examples.
+
 ## [Focus row UX revision: the slider shows 0-3 again (G1.1)] (2026-07-24)
 
 Owner ruling 2026-07-24, third pass on the slider surface after using G1

@@ -329,6 +329,25 @@ const I18N_EN = {
   'muscle.legs': 'Legs',
   'muscle.calves': 'Calves',
 
+  // --- [G2] advanced specialization rows (ADV_MUSCLES ids) ---
+  'adv.biceps': 'Biceps',
+  'adv.brachialis': 'Brachialis',
+  'adv.triceps': 'Triceps',
+  'adv.upper-chest': 'Upper chest',
+  'adv.chest': 'Chest',
+  'adv.front-delts': 'Front delts',
+  'adv.side-delts': 'Side delts',
+  'adv.rear-delts': 'Rear delts',
+  'adv.lats': 'Lats',
+  'adv.upper-back': 'Upper back',
+  'adv.quads': 'Quads',
+  'adv.hamstrings': 'Hamstrings',
+  'adv.glutes': 'Glutes',
+  'adv.calves': 'Calves',
+  'adv.abs': 'Abs',
+  'adv.lower-back': 'Lower back',
+  'val.adv_freq_cap': 'That muscle tops out at {cap}x a week on this schedule. Add a training day or lower the ask.',
+
   // --- settings: language ---
   'settings.language': 'Language',
   'settings.language_auto': 'Automatic (device language)',

@@ -269,6 +269,9 @@ const HEAD_LABELS = {
   'back-lat': 'Lats', 'back-upper': 'Upper back',
   'ham-hip': 'Hip flexion', 'ham-knee': 'Knee flexion',
   'bi-long': 'Long head', 'bi-short': 'Short head',
+  // [G2] Brachialis emphasis: the neutral/pronated-grip curls. Gives the
+  // advanced specialization list its own arms row beyond biceps/triceps.
+  'bi-brach': 'Brachialis',
 };
 // [Cluster C] Which muscle (the volume-screen row / landmark movement) each head
 // rolls up to. Used to attribute heads that live on PATTERN movements (bench /
@@ -281,7 +284,7 @@ const HEAD_MUSCLE = {
   'chest-upper': 'chest', 'chest-lower': 'chest',
   'delt-front': 'shoulder', 'delt-side': 'shoulder', 'delt-rear': 'upperback',
   'tri-long': 'tricep', 'tri-lateral': 'tricep',
-  'bi-long': 'bicep', 'bi-short': 'bicep',
+  'bi-long': 'bicep', 'bi-short': 'bicep', 'bi-brach': 'bicep',
   'back-lat': 'vpull', 'back-upper': 'hpull',
   'ham-hip': 'ham', 'ham-knee': 'ham',
 };
@@ -392,7 +395,7 @@ const EX_META = {
   // Biceps: incline curls bias the long head at length.
   'incline-db-curl': { sfr: 3, stretch: true, head: 'bi-long' },
   'preacher-curl': { sfr: 3, head: 'bi-short' }, 'cable-curl': { sfr: 3 },
-  'bb-curl': { sfr: 2 }, 'db-curl': { sfr: 2 }, 'hammer-curl': { sfr: 2 },
+  'bb-curl': { sfr: 2 }, 'db-curl': { sfr: 2 }, 'hammer-curl': { sfr: 2, head: 'bi-brach' },
   // Back: pulldowns/straight-arm bias the lats; rows the upper back.
   'lat-pulldown': { sfr: 3, head: 'back-lat' },
   'straight-arm-pulldown': { sfr: 3, stretch: true, head: 'back-lat' },
@@ -431,7 +434,7 @@ const EX_META = {
   'concentration-curl': { sfr: 3, head: 'bi-short' },
   'spider-curl': { sfr: 3, head: 'bi-short' },
   'bayesian-curl': { sfr: 3, stretch: true, head: 'bi-long' },
-  'reverse-curl': { sfr: 2 },
+  'reverse-curl': { sfr: 2, head: 'bi-brach' },
   'db-kickback': { sfr: 2, head: 'tri-lateral' },
 };
 
@@ -1556,6 +1559,35 @@ const FOCUS_HEAD_ROTATION = {
   back:      [['back-lat'], ['back-upper']],
   legs:      [['ham-hip'], ['ham-knee']],
 };
+
+// [G2] THE ADVANCED SPECIALIZATION LIST (owner ruling 2026-07-24). The rows
+// beneath the seven group sliders: each is a specific muscle the athlete can
+// eventually give its own weekly frequency (G3 wires the generator, G4 the
+// panel UI; G2 is the data + coach groundwork). A row claims exercises
+// either by movement pattern or, where a group splits finer than movements
+// (biceps vs brachialis, chest vs upper chest), by head tag;
+// `advRowExercises` (app.js) applies the rule so every library exercise
+// lands in AT MOST one row. `slider` names the parent group slider (null =
+// trained outside the seven sliders: abs, lower back). Labels live in i18n
+// as 'adv.<id>'. Order is display order, grouped by parent.
+const ADV_MUSCLES = [
+  { id: 'biceps',      slider: 'arms',      movements: ['bicep'] },
+  { id: 'brachialis',  slider: 'arms',      heads: ['bi-brach'] },
+  { id: 'triceps',     slider: 'arms',      movements: ['tricep'] },
+  { id: 'upper-chest', slider: 'chest',     heads: ['chest-upper'] },
+  { id: 'chest',       slider: 'chest',     movements: ['chest', 'bench'] },
+  { id: 'front-delts', slider: 'shoulders', movements: ['shoulder', 'press'] },
+  { id: 'side-delts',  slider: 'shoulders', heads: ['delt-side'] },
+  { id: 'rear-delts',  slider: 'back',      heads: ['delt-rear'] },
+  { id: 'lats',        slider: 'back',      movements: ['vpull'] },
+  { id: 'upper-back',  slider: 'back',      movements: ['hpull', 'upperback'] },
+  { id: 'quads',       slider: 'legs',      movements: ['quad', 'squat'] },
+  { id: 'hamstrings',  slider: 'legs',      movements: ['ham'] },
+  { id: 'glutes',      slider: 'glutes',    movements: ['glute'] },
+  { id: 'calves',      slider: 'calves',    movements: ['calf'] },
+  { id: 'abs',         slider: null,        movements: ['abs'] },
+  { id: 'lower-back',  slider: null,        movements: ['lowback'] },
+];
 
 // [B4] Slider (0..FOCUS_MAX) -> accessory set-count multiplier. The slider
 // buys FREQUENCY; volume per exposure is owned by the landmarks and autoreg

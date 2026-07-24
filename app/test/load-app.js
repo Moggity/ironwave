@@ -88,6 +88,7 @@ const EXPORTS = `return {
   generateFullBodyDays, perSessionCapDiv, fillDaysToTarget,
   validateFocusWeek, musclePool, scheduleSubset, focusFreqDepth,
   FOCUS_MAX, FOCUS_SCALE_MIGRATION, FOCUS_HEAD_ROTATION,
+  ADV_MUSCLES, advRowExercises,
   BB_DAY_TEMPLATES,
   programTemplate, validateTemplate, programFromTemplate,
   TEMPLATE_SCHEMA_VERSION,

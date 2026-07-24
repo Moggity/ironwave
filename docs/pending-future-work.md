@@ -25,17 +25,17 @@ the roundtable plan wins; about CONTENT, this backlog wins.
 
 ## Larger features (each its own branch)
 
-- **Advanced specialization tab (G2-G4)** (owner ruling 2026-07-24, follows
+- **Advanced specialization tab (G3-G4)** (owner ruling 2026-07-24, follows
   the shipped G1 slider rescale): per-muscle frequency overrides beneath the
-  1-3 main sliders, gaming-UX pips with locked positions past availability.
-  - **G2 - taxonomy + coach ceilings**: complete the head-tag coverage
-    (quads, glutes, calves, abs, lowback, forearms/brachialis have none
-    today; the 12-16 row advanced list needs them) and add the master coach
-    per-muscle healthy frequency table (`coach.bounds.freqCeiling`: axial
-    hinge/squat patterns ~3, chest/back/shoulders/glutes ~4, small metabolic
-    muscles like biceps/side delts/calves/abs up to 6). Effective cap shown
-    to the athlete = min(healthyMax, trainingDays); `focusSpecAsk` (written
-    by the G1 migration for old 4x saves) seeds the initial overrides.
+  main sliders, gaming-UX pips with locked positions past availability.
+  - ~~**G2 - taxonomy + coach ceilings**~~ DONE (2026-07-24): `ADV_MUSCLES`
+    (16 rows, `advRowExercises` ownership, `adv.<id>` labels en+es), the
+    `bi-brach` head on the neutral/pronated curls, and the coach table
+    `coach.bounds.advFreqCeiling` + `advFreqCap(row, days)` =
+    min(ceiling, days) + `checkAdvAsk` (`val.adv_freq_cap`) +
+    `bounds.specSlots`. `focusSpecAsk` (written by the G1 migration for old
+    4x saves) seeds the initial overrides when G4 lands. Pinned by
+    `test/adv-spec.test.js`.
   - **G3 - generator + contract**: thread head-level frequency overrides
     through `generateBodybuildingDays` and extend `validateFocusWeek` with a
     per-head dimension (rotation already thinks in heads). Overrides above
