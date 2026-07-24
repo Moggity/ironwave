@@ -90,8 +90,12 @@ test('validateFocusWeek: more days than availability is a violation', () => {
 // ---------------------------------------------------------------------------
 // 2. The generator sweep (gated on the B4 generator landing)
 // ---------------------------------------------------------------------------
-const READY = typeof app.musclePool === 'function';
+// The sweep arms itself when the B4 generator lands (the rewrite deletes the
+// old splitFreqFor shim, which is the cleanest signal the contract is live).
+const READY = typeof app.splitFreqFor !== 'function';
 const sweep = READY ? test : test.skip;
+const EX = {};
+for (const e of app.EXERCISES) EX[e.id] = e;
 
 sweep('sweep: every lone muscle x days x slider keeps the contract', () => {
   const FOCUS_MAX = app.FOCUS_MAX;
@@ -135,11 +139,11 @@ sweep('depth: the owner example (2 days, arms at 4) builds two deep arm days', (
   assert.strictEqual(days.length, 2, 'both days used');
   for (const d of days) {
     const armSlots = d.slots.filter(sl => {
-      const ex = app.EXERCISES[sl.def || sl.lift || sl.ex];
+      const ex = EX[sl.def || sl.lift || sl.ex];
       return ex && ['bicep', 'tricep'].includes(ex.movement);
     });
     assert.ok(armSlots.length >= 2, `${d.name}: surplus became depth (${armSlots.length} arm slots)`);
-    const heads = new Set(armSlots.map(sl => (app.EXERCISES[sl.def] || {}).head).filter(Boolean));
+    const heads = new Set(armSlots.map(sl => (EX[sl.def] || {}).head).filter(Boolean));
     assert.ok(heads.size >= 2, `${d.name}: depth spans both biceps and triceps tissue`);
   }
 });
@@ -151,7 +155,7 @@ sweep('head rotation: a 3x+ muscle alternates emphasis across its days', () => {
     const weekHeads = new Set();
     for (const d of days) {
       for (const sl of d.slots) {
-        const ex = app.EXERCISES[sl.def || sl.lift];
+        const ex = EX[sl.def || sl.lift];
         if (ex && movements.includes(ex.movement) && ex.head) weekHeads.add(ex.head);
       }
     }
@@ -176,7 +180,7 @@ sweep('library fallthrough: depth never repeats before the library is exhausted'
   assert.deepStrictEqual(validateFocusWeek(days, focus, 4), []);
   const ids = [];
   for (const d of days) for (const sl of d.slots) {
-    const ex = app.EXERCISES[sl.def || sl.lift];
+    const ex = EX[sl.def || sl.lift];
     if (ex && ['bicep', 'tricep'].includes(ex.movement)) ids.push(sl.def || sl.lift);
   }
   const distinct = new Set(ids);

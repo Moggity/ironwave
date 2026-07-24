@@ -38,15 +38,35 @@ test('pickAccessory prefers an unused exercise covering a new head', () => {
   assert.strictEqual(app.pickAccessory(pool, new Set(), new Set(['chest-lower'])), 'db-incline-bench');
 });
 
-test('pickAccessory falls back to any unused, then to the pool head', () => {
+test('pickAccessory falls back to any unused, then cross-day reuse, then null (B4)', () => {
   app.S = app.defaultState();
   const pool = app.DEFAULT_ACC.chest;
   // Every head already covered: still returns an unused exercise (headless ok).
   const used = new Set(['dips', 'db-incline-bench']);
   const out = app.pickAccessory(pool, used, new Set(['chest-lower', 'chest-upper']));
   assert.ok(pool.includes(out) && !used.has(out), 'returns an unused pool exercise');
-  // Everything used -> the rotated head of the pool (a repeat is allowed, not null).
-  assert.strictEqual(app.pickAccessory(pool, new Set(pool), new Set()), pool[0]);
+  // [B4] Week-exhausted: a cross-day REUSE is legal when the caller passes the
+  // day's guard (a 3-exercise muscle trained 2x must repeat across days)...
+  const reuse = app.pickAccessory(pool, new Set(pool), new Set(), 0, null, new Set(['dips']));
+  assert.ok(pool.includes(reuse) && reuse !== 'dips', 'cross-day reuse skips the day\'s own picks');
+  // ...but with no day guard, exhaustion is NULL, never a silent repeat (F8).
+  assert.strictEqual(app.pickAccessory(pool, new Set(pool), new Set()), null);
+  // And a fully-used day yields null even with the guard (no within-day dups).
+  assert.strictEqual(app.pickAccessory(pool, new Set(pool), new Set(), 0, null, new Set(pool)), null);
+});
+
+test('musclePool: the curated order first, then the library by SFR, anchors excluded (B4)', () => {
+  app.S = app.defaultState();
+  const pool = app.musclePool('chest');
+  assert.deepStrictEqual(pool.slice(0, app.DEFAULT_ACC.chest.length), app.DEFAULT_ACC.chest,
+    'curated picks keep their preference order');
+  assert.ok(pool.length > app.DEFAULT_ACC.chest.length, 'the library extends the pool');
+  assert.ok(!pool.includes('comp-bench'), 'working-max anchors never appear as accessory picks');
+  const seen = new Set(pool);
+  assert.strictEqual(seen.size, pool.length, 'no duplicate ids');
+  // preferHeads wins over plain head-novelty when given.
+  const pref = app.pickAccessory(pool, new Set(), new Set(), 0, ['chest-upper']);
+  assert.strictEqual((app.EXERCISES.find(e => e.id === pref) || {}).head, 'chest-upper');
 });
 
 test('pickAccessory rotation offset changes the starting exercise per meso', () => {

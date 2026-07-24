@@ -618,21 +618,47 @@ function makeProgram(ob) {
 function accHead(id) { return (exById(id) || {}).head || null; }
 function muscleOfAcc(id) {
   for (const m of Object.keys(DEFAULT_ACC)) if (DEFAULT_ACC[m].includes(id)) return m;
-  return null;
+  // [B4] Library-sourced slots (beyond the curated pools) attribute by their
+  // movement's slider muscle, so rotation and carryover keep working for them.
+  const ex = exById(id);
+  return (ex && MOVEMENT_SLIDER[ex.movement]) || null;
 }
-// Pick from a muscle's ordered pool: prefer the first not-yet-used exercise that
-// covers a head we have not hit for this muscle (so frequency spreads across
-// regions), then any unused, then the head of the pool. `rot` rotates the pool's
-// start so successive mesos surface different exercises (cross-meso rotation).
-// Pure given exById.
-function pickAccessory(pool, used, usedHeads, rot = 0) {
+// [B4] A muscle's FULL selection pool: the curated DEFAULT_ACC order first
+// (the coach's preferred picks), then every other library exercise for that
+// muscle, best stimulus-to-fatigue first. The barbell working-max anchors are
+// excluded (they enter days as main/secondary slots, never as depth picks).
+// This is the supply side of the F8 fix: depth and high frequency exhaust the
+// whole library before any repeat.
+function musclePool(m) {
+  const curated = DEFAULT_ACC[m] || [];
+  const movs = SLIDER_MOVEMENTS[m] || [];
+  const anchors = new Set(Object.values(MUSCLE_MAIN));
+  const rest = allExercises()
+    .filter(e => movs.includes(e.movement) && !curated.includes(e.id) && !anchors.has(e.id))
+    .sort((a, b) => (b.sfr - a.sfr));
+  return curated.concat(rest.map(e => e.id));
+}
+// Pick from a muscle's ordered pool: prefer an unused exercise on the day's
+// head-emphasis group when one is given ([B4] high-frequency rotation), then
+// the first not-yet-used exercise that covers a head we have not hit for this
+// muscle (so frequency spreads across tissue), then any week-unused, then a
+// cross-day REUSE (`dayUsed` guards the day), then NOTHING.
+// [B4] The F8 fix lives in the last two steps: a small pool trained on many
+// days may legitimately repeat ACROSS days (a 3-exercise muscle at 2x must),
+// but never within one day, and a caller stops adding instead of stuffing
+// duplicates; underfilled days are legitimate. `rot` rotates the pool's
+// start so successive mesos surface different exercises. Pure given exById.
+function pickAccessory(pool, used, usedHeads, rot = 0, preferHeads = null, dayUsed = null) {
   if (!pool || !pool.length) return null;
   const n = pool.length, off = ((rot % n) + n) % n;
   const order = pool.map((_, i) => pool[(i + off) % n]);
   const newHead = id => { const h = accHead(id); return !h || !usedHeads.has(h); };
-  return order.find(id => !used.has(id) && newHead(id))
+  const onPref = id => { const h = accHead(id); return h && preferHeads.includes(h); };
+  return (preferHeads && preferHeads.length ? order.find(id => !used.has(id) && onPref(id)) : null)
+      || order.find(id => !used.has(id) && newHead(id))
       || order.find(id => !used.has(id))
-      || order[0];
+      || (dayUsed ? order.find(id => !dayUsed.has(id)) : null)
+      || null;
 }
 // ------------------------------------------------------------
 // BODYBUILDING SPLIT GENERATOR (frequency-driven)
@@ -655,13 +681,18 @@ function generateFullBodyDays(focus, N) {
   const ms = FOCUS_KEYS.filter(m => freq[m]);
   if (!ms.length) return [];
   const used = new Set(), headsUsed = {}, usedMains = new Set();
-  const pick = m => {
+  const pick = (m, dayUsed) => {
     const hs = headsUsed[m] || (headsUsed[m] = new Set());
-    const id = pickAccessory(DEFAULT_ACC[m] || [], used, hs);
+    const id = pickAccessory(DEFAULT_ACC[m] || [], used, hs, 0, null, dayUsed);
     if (id) { used.add(id); const h = accHead(id); if (h) hs.add(h); }
     return id;
   };
-  const accSlot = m => { const id = pick(m); return id ? { type: 'acc', cat: (exById(id) || {}).movement, def: id } : null; };
+  const accSlot = (m, dayUsed) => {
+    const id = pick(m, dayUsed);
+    if (!id) return null;
+    if (dayUsed) dayUsed.add(id);
+    return { type: 'acc', cat: (exById(id) || {}).movement, def: id };
+  };
   // One lead per day, from different regions when both have one: the strongest
   // anchor-capable upper muscle and the strongest lower one.
   const canLead = m => ANCHOR_RANK[m] >= 2 && freq[m];
@@ -686,17 +717,19 @@ function generateFullBodyDays(focus, N) {
     }
   }
   return days.map(d => {
-    const slots = [];
+    const slots = [], dayUsed = new Set();
     const a = PRIMARY_ANCHOR[d.primary];
     if (a && a.main) {
       if (!usedMains.has(a.main)) { usedMains.add(a.main); slots.push({ type: 'main', lift: a.main }); }
       else slots.push({ type: 'secondary', lift: a.main, baseLift: a.main });
+      dayUsed.add(a.main);
     } else if (a && a.acc && !used.has(a.acc)) {
-      used.add(a.acc); slots.push({ type: 'acc', cat: (exById(a.acc) || {}).movement, def: a.acc });
-    } else { const s = accSlot(d.primary); if (s) slots.push(s); }
-    for (const m of d.muscles) { const s = accSlot(m); if (s) slots.push(s); }
+      used.add(a.acc); dayUsed.add(a.acc);
+      slots.push({ type: 'acc', cat: (exById(a.acc) || {}).movement, def: a.acc });
+    } else { const s = accSlot(d.primary, dayUsed); if (s) slots.push(s); }
+    for (const m of d.muscles) { const s = accSlot(m, dayUsed); if (s) slots.push(s); }
     let g = 0;
-    while (slots.length < 4 && g++ < 6) { const s = accSlot(d.primary); if (!s) break; slots.push(s); }
+    while (slots.length < 4 && g++ < 6) { const s = accSlot(d.primary, dayUsed); if (!s) break; slots.push(s); }
     return { name: `Full Body · ${FOCUS_LABELS[d.primary] || d.primary}`,
              theme: { region: 'full', primary: d.primary },
              slots, primary: d.primary };
@@ -3317,7 +3350,7 @@ function endBlock(finishedBlock, bb) {
         const m = bb ? muscleOfAcc(sl.def) : null;
         if (m) {
           const hs = headsUsed[m] || (headsUsed[m] = new Set());
-          const id = pickAccessory(DEFAULT_ACC[m], used, hs, p.pointer.block);
+          const id = pickAccessory(musclePool(m), used, hs, p.pointer.block);
           if (id) { sl.def = id; used.add(id); const h = accHead(id); if (h) hs.add(h); }
         }
       }
