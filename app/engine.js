@@ -612,6 +612,47 @@ const Engine = {
       // warns (never blocks) when the estimated session runs past the upper
       // bound.
       expectedSessionMin: [80, 140],
+      // [G2] Per-muscle healthy weekly frequency ceilings for the advanced
+      // specialization tab (keys = ADV_MUSCLES row ids). Physiology, not
+      // preference: the ceiling tracks tissue and axial cost, which one
+      // global number never could (the whole reason 4x left the main
+      // sliders). Small metabolic muscles recover in a day and tolerate
+      // near-daily work; big compound movers need 48-72h; heavy axial
+      // loading (lower back) needs the most. The UI cap the athlete sees is
+      // min(this, training days) via advFreqCap.
+      advFreqCeiling: {
+        'lower-back': 2,
+        quads: 3, hamstrings: 3,
+        // Front delts already work in every pressing session, so their
+        // DIRECT-work ceiling sits below the other delt heads.
+        'front-delts': 3,
+        glutes: 4, chest: 4, 'upper-chest': 4, lats: 4, 'upper-back': 4,
+        brachialis: 4,
+        triceps: 5,
+        biceps: 6, 'side-delts': 6, 'rear-delts': 6, calves: 6, abs: 6,
+      },
+      advFreqDefault: 3, // unknown/custom rows take the conservative middle
+      // [G2] Specialization slots: how many muscles may sit ABOVE their
+      // standard frequency at once. A limit is honest fatigue management
+      // (and good game design); the G4 panel enforces it per block.
+      specSlots: 2,
+    },
+    // [G2] The effective frequency cap the advanced tab shows for a muscle
+    // row: physiology first (advFreqCeiling), then availability, never
+    // below 1. The owner example: biceps on 3 training days caps at 3 and
+    // reads MAXED; on 6 days it opens up to 6.
+    advFreqCap(rowId, days) {
+      const ceil = this.bounds.advFreqCeiling[rowId] || this.bounds.advFreqDefault;
+      const d = Math.max(1, Math.min(7, days || 0));
+      return Math.max(1, Math.min(ceil, d));
+    },
+    // null = fine; otherwise the capped issue for a per-muscle frequency
+    // ask. params.m carries the ADV row id (the G4 UI translates it via
+    // 'adv.<id>'); the honest cap rides along.
+    checkAdvAsk(rowId, freq, days) {
+      if (!(freq > 0)) return null;
+      const cap = this.advFreqCap(rowId, days);
+      return freq > cap ? { key: 'val.adv_freq_cap', params: { m: rowId, cap } } : null;
     },
     // The shortest meet runway that fits one full block plus the taper.
     // TRACK_SPEC declares the same number (49 at weeksPerBlock 5) so the

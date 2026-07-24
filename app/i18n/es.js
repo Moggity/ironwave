@@ -332,6 +332,25 @@ const I18N_ES = {
   'muscle.legs': 'Piernas',
   'muscle.calves': 'Pantorrillas',
 
+  // --- [G2] filas de especialización avanzada (ids de ADV_MUSCLES) ---
+  'adv.biceps': 'Bíceps',
+  'adv.brachialis': 'Braquial',
+  'adv.triceps': 'Tríceps',
+  'adv.upper-chest': 'Pecho superior',
+  'adv.chest': 'Pecho',
+  'adv.front-delts': 'Deltoides frontales',
+  'adv.side-delts': 'Deltoides laterales',
+  'adv.rear-delts': 'Deltoides posteriores',
+  'adv.lats': 'Dorsales',
+  'adv.upper-back': 'Espalda alta',
+  'adv.quads': 'Cuádriceps',
+  'adv.hamstrings': 'Isquiotibiales',
+  'adv.glutes': 'Glúteos',
+  'adv.calves': 'Pantorrillas',
+  'adv.abs': 'Abdominales',
+  'adv.lower-back': 'Zona lumbar',
+  'val.adv_freq_cap': 'Ese músculo llega como máximo a {cap}x por semana con este calendario. Agrega un día de entrenamiento o baja la petición.',
+
   // --- settings: language ---
   'settings.language': 'Idioma',
   'settings.language_auto': 'Automático (idioma del dispositivo)',
