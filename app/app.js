@@ -2217,50 +2217,27 @@ function obFocusWarning(focus) {
   }
   return banners.join('');
 }
-// [G1] One focus row, shared by onboarding ('ob') and the in-app editor
-// ('fe'). The main control is 1..FOCUS_MAX (Light / Standard / High): 0 is
-// never a slider position, so abandoning a muscle can never be a slider
-// slip. A muscle turned OFF renders as a compact off state with one tap
-// back on; turning OFF lives behind its own small control plus a confirm.
+// [G1.1] One focus row, shared by onboarding ('ob') and the in-app editor
+// ('fe'). Owner ruling 2026-07-24 (second pass): the slider shows the FULL
+// 0..FOCUS_MAX storage scale so the thumb position never lies about the
+// value (a 1-3 track made 1 read as zero, and a separate Off button next to
+// the number read as "2 Off"). Sliding down to 0 is the one gated move: the
+// coach asks before a muscle is turned off completely (obSlider/feSlider).
+// An off row keeps its FULL size and normal slider, with only the value
+// reading Off in amber: subtle but evident, never smaller or shadier.
 function focusRowHTML(k, v, surface) {
   const fe = surface === 'fe';
   const pre = fe ? 'fe' : 'mf';
   const slide = fe ? `feSlider('${k}', this.value)` : `obSlider('${k}', this.value)`;
-  const off = fe ? `feFocusOff('${k}')` : `obFocusOff('${k}')`;
-  const back = fe ? `feFocusOn('${k}')` : `obFocusOn('${k}')`;
-  if (v === 0) {
-    return `
-      <div class="focus-row">
-        <div class="row"><span class="faint">${esc(t('muscle.' + k))} · ${esc(t('focus.off_state'))}</span>
-          <button class="btn-ghost" onclick="${back}">${esc(t('focus.on_btn'))}</button></div>
-      </div>`;
-  }
+  const val = v === 0
+    ? `<b id="${pre}-val-${k}" style="color:var(--amber)">${esc(t('focus.off_badge'))}</b>`
+    : `<b id="${pre}-val-${k}">${v}</b>`;
   return `
     <div class="focus-row">
-      <div class="row"><span>${esc(t('muscle.' + k))}</span>
-        <span class="row" style="gap:12px">
-          <b id="${pre}-val-${k}">${v}</b>
-          <button class="btn-ghost faint" onclick="${off}"
-            aria-label="${esc(t('focus.off_aria', { m: t('muscle.' + k) }))}">${esc(t('focus.off_btn'))}</button>
-        </span></div>
-      <input type="range" min="1" max="${FOCUS_MAX}" step="1" value="${v}"
+      <div class="row"><span>${esc(t('muscle.' + k))}</span>${val}</div>
+      <input type="range" min="0" max="${FOCUS_MAX}" step="1" value="${v}"
         aria-label="${esc(t('muscle.' + k))}" oninput="${slide}">
     </div>`;
-}
-// [G1] Turning a muscle OFF is a coach-grade decision with real consequences
-// (expect to lose some size and strength there), so it is confirm-gated.
-// The previous value is remembered on V so one tap back on restores it.
-function obFocusOff(k) {
-  confirmModal({ title: t('focus.off_title', { m: t('muscle.' + k) }),
-    message: t('focus.off_msg'), danger: true, confirmLabel: t('focus.off_confirm') }, () => {
-    (V._offPrev = V._offPrev || {})[k] = V.ob.muscleFocus[k] || 2;
-    V.ob.muscleFocus[k] = 0;
-    hapticTap(); render();
-  });
-}
-function obFocusOn(k) {
-  V.ob.muscleFocus[k] = (V._offPrev && V._offPrev[k]) || 2;
-  hapticTap(); render();
 }
 // [B4] One-tap proportional rebalance to fit the budget. A rebalance is a
 // coach decision, so the toast names every change (from -> to); the same
@@ -2626,9 +2603,20 @@ function obTimeInput(v) {
   if (est) est.textContent = focusTimeLine(V.ob);
 }
 // Update slider value + warning live, without a full re-render (keeps the drag smooth).
+// [G1.1] Sliding down to 0 is confirm-gated: the value only commits when the
+// athlete confirms turning the muscle off; cancel re-renders, snapping the
+// thumb back to the still-stored value.
 function obSlider(k, v) {
-  V.ob.muscleFocus[k] = parseInt(v);
-  const el = byId('mf-val-' + k); if (el) el.textContent = v;
+  const nv = parseInt(v);
+  if (nv === 0 && V.ob.muscleFocus[k] !== 0) {
+    confirmModal({ title: t('focus.off_title', { m: t('muscle.' + k) }),
+      message: t('focus.off_msg'), danger: true, confirmLabel: t('focus.off_confirm') },
+      () => { V.ob.muscleFocus[k] = 0; hapticTap(); render(); },
+      () => { render(); });
+    return;
+  }
+  V.ob.muscleFocus[k] = nv;
+  const el = byId('mf-val-' + k); if (el) { el.textContent = v; el.style.color = ''; }
   const wn = byId('mf-warn'); if (wn) wn.innerHTML = obFocusWarning(V.ob.muscleFocus);
   const tl = byId('mf-time'); if (tl) tl.textContent = focusTimeLine(V.ob);
   // [B4] Live budget line + a tactile nudge at the ceiling and on crossing
@@ -6490,26 +6478,22 @@ function renderFocusEditor(anim) {
     <button class="btn btn-blue" onclick="feSave()">${esc(t('common.save'))}</button>`);
 }
 function feSlider(k, v) {
-  V.feDraft[k] = parseInt(v);
-  const el = byId('fe-val-' + k); if (el) el.textContent = v;
+  // [G1.1] Same 0-gate as onboarding, on the editor's draft. confirmResolve
+  // re-renders the editor beneath before the callback runs, so both paths
+  // re-render the top modal again with the settled draft.
+  const nv = parseInt(v);
+  if (nv === 0 && V.feDraft[k] !== 0) {
+    confirmModal({ title: t('focus.off_title', { m: t('muscle.' + k) }),
+      message: t('focus.off_msg'), danger: true, confirmLabel: t('focus.off_confirm') },
+      () => { V.feDraft[k] = 0; hapticTap(); rerenderTop(); },
+      () => { rerenderTop(); });
+    return;
+  }
+  V.feDraft[k] = nv;
+  const el = byId('fe-val-' + k); if (el) { el.textContent = v; el.style.color = ''; }
   const bd = byId('fe-budget'); if (bd) bd.textContent = feBudgetLine();
   const wn = byId('fe-warn'); if (wn) wn.innerHTML = feWarning();
-  if (parseInt(v) === FOCUS_MAX) hapticTap();
-}
-// [G1] Same off gate as onboarding, on the editor's draft. confirmResolve
-// re-renders the editor beneath before the callback runs, so the callback
-// re-renders the top modal again with the mutated draft.
-function feFocusOff(k) {
-  confirmModal({ title: t('focus.off_title', { m: t('muscle.' + k) }),
-    message: t('focus.off_msg'), danger: true, confirmLabel: t('focus.off_confirm') }, () => {
-    (V._offPrev = V._offPrev || {})[k] = V.feDraft[k] || 2;
-    V.feDraft[k] = 0;
-    hapticTap(); rerenderTop();
-  });
-}
-function feFocusOn(k) {
-  V.feDraft[k] = (V._offPrev && V._offPrev[k]) || 2;
-  hapticTap(); rerenderTop();
+  if (nv === FOCUS_MAX) hapticTap();
 }
 function feRebalance() {
   const c = feBudgetCtx();
