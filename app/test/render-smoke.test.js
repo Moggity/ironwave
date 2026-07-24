@@ -17,7 +17,7 @@ const assert = require('node:assert');
 // Node-18 CI leg green.
 const NODE_MAJOR = Number(process.versions.node.split('.')[0]);
 
-const DEFAULT_FOCUS = { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 };
+const DEFAULT_FOCUS = { arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 }; // [B4] the 0-4 scale standard
 
 // A fresh app instance per test, so state never leaks between cases.
 function fresh() {
@@ -382,6 +382,39 @@ test('powerbuilding onboarding path produces the golden-master program', () => {
     [0, 1, 3, 4].map(wd => ({ wd, sport: false })), 'the weekday map is stored');
   const noSched = p => { const c = strip(p); delete c.schedule; return c; };
   assert.deepStrictEqual(noSched(prog), noSched(golden), 'onboarding output = golden-master program');
+});
+
+// [B4] A short week (days.length < daysPerWeek, rest days) renders everywhere.
+test('short-week bodybuilding program renders dashboard, program, workout, split editor', () => {
+  const ctx = fresh();
+  ctx.app.S = ctx.app.defaultState();
+  ctx.app.S.program = ctx.app.makeProgram({ daysPerWeek: 5, track: 'bodybuilding',
+    experience: 'intermediate', timeMode: 'unlimited',
+    muscleFocus: { arms: 0, chest: 3, back: 0, shoulders: 0, glutes: 0, legs: 0, calves: 0 },
+    maxes: {} });
+  assert.ok(ctx.app.S.program.days.length < 5, 'the dose builds a short week');
+  for (const view of ['dashboard', 'program', 'workout']) {
+    assert.ok(renderView(ctx, view).length > 0, `${view} renders on a short week`);
+  }
+  ctx.app.V = Object.assign({}, ctx.baseV, { view: 'dashboard' });
+  ctx.app.render();
+  ctx.app.openSplitEditor();
+  assert.ok(/se-move|se-name/.test(ctx.document.getElementById('modal-root').innerHTML),
+    'split editor opens on a short week');
+});
+
+// [B4] The focus budget is visible and actionable at the moment it binds.
+test('focus step renders the budget line and the rebalance offer when over budget', () => {
+  const ctx = fresh();
+  ctx.app.S = ctx.app.defaultState();
+  const ob = Object.assign(ctx.app.obDefaults(), { track: 'bodybuilding', daysPerWeek: 2,
+    timeMode: 'custom', timeCapMin: 50, bodyweight: 80,
+    muscleFocus: { arms: 4, chest: 4, back: 4, shoulders: 0, glutes: 0, legs: 0, calves: 0 } });
+  const html = renderView(ctx, 'onboarding', { ob, obStep: 5 });
+  assert.ok(/id="mf-budget"/.test(html), 'the budget line renders');
+  assert.ok(/points to spend/.test(html), 'the have/spent copy renders');
+  assert.ok(/obFocusRebalance\(\)/.test(html), 'the one-tap rebalance is offered');
+  assert.ok(/max="4"/.test(html), 'sliders cap at the 0-4 frequency scale');
 });
 
 test('lb mode: onboarding step 0 shows the unit toggle and lb bodyweight label', () => {

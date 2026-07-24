@@ -40,15 +40,15 @@ test('focus slider 0 removes the muscle\'s accessory', () => {
   assert.deepStrictEqual(app.focusForAccessory('cable-fly', plainSets(4)), { removed: true });
 });
 
-test('focus sliders 1 and 2 de-emphasize (shed sets)', () => {
+test('focus slider 1 is the maintenance dose (sheds sets)', () => {
   installProgram({ track: 'bodybuilding', muscleFocus: { ...DEFAULT_FOCUS, back: 1, shoulders: 2 } });
-  // FOCUS_FACTOR: 1 -> 0.5 (4 -> 2 sets), 2 -> 0.75 (4 -> 3 sets).
+  // [B4] FOCUS_FACTOR: 1 -> 0.6 (4 -> 2 sets after rounding); 2 is full dose.
   assert.deepStrictEqual(app.focusForAccessory('lat-pulldown', plainSets(4)), { delta: -2 });
-  assert.deepStrictEqual(app.focusForAccessory('lateral-raise', plainSets(4)), { delta: -1 });
+  assert.deepStrictEqual(app.focusForAccessory('lateral-raise', plainSets(4)), { delta: 0 });
 });
 
-test('focus slider 3 and above leave per-session sets unchanged', () => {
-  installProgram({ track: 'bodybuilding', muscleFocus: { ...DEFAULT_FOCUS, arms: 3, legs: 5 } });
+test('focus slider 2 and above leave per-session sets unchanged', () => {
+  installProgram({ track: 'bodybuilding', muscleFocus: { ...DEFAULT_FOCUS, arms: 2, legs: 4 } });
   // Emphasis comes from frequency (more days), not from inflating a session.
   assert.deepStrictEqual(app.focusForAccessory('ez-curl', plainSets(4)), { delta: 0 });
   assert.deepStrictEqual(app.focusForAccessory('leg-extensions', plainSets(4)), { delta: 0 });

@@ -87,6 +87,91 @@ test('lowMaxRounding: a sub-50 kg main tightens coarse rounding to 1.25 (FPL3)',
   assert.strictEqual(coach.lowMaxRounding({}, 2.5), null);
 });
 
+// ---------------------------------------------------------------------------
+// [B4] The focus budget: sliders as frequency currency
+// ---------------------------------------------------------------------------
+test('exposure prices derive from TIME_MODEL and stay in a sane band', () => {
+  const main = coach.exposurePriceSec('main'), acc = coach.exposurePriceSec('accessory');
+  // A silent TIME_MODEL edit that breaks the budget must fail loudly here.
+  assert.ok(main >= 20 * 60 && main <= 32 * 60, `main exposure ${main}s in 20-32min`);
+  assert.ok(acc >= 10 * 60 && acc <= 16 * 60, `accessory exposure ${acc}s in 10-16min`);
+  assert.ok(main > acc, 'a lead costs more than an accessory exposure');
+});
+
+test('focusSpend: clamped sum of slider points', () => {
+  assert.strictEqual(coach.focusSpend({ arms: 2, chest: 2 }), 4);
+  assert.strictEqual(coach.focusSpend({ arms: 9, chest: -3 }), 4, 'clamped to 0..FOCUS_MAX');
+  assert.strictEqual(coach.focusSpend({}), 0);
+});
+
+test('focusBudget: monotonic in days and time, honest at the owner example', () => {
+  // The owner's worked example: 2 days at 50 minutes affords about 4-5 points.
+  const tight = coach.focusBudget(2, 50);
+  assert.ok(tight >= 3 && tight <= 6, `2 days x 50min = ${tight} points (~4-5)`);
+  // More days or more time never buys fewer points.
+  for (let d = 1; d < 7; d++) {
+    assert.ok(coach.focusBudget(d + 1, 60) >= coach.focusBudget(d, 60), `days ${d}`);
+  }
+  assert.ok(coach.focusBudget(4, 90) >= coach.focusBudget(4, 45), 'time monotonic');
+  // Unlimited time prices at a default session, never infinity: a 7-day
+  // unlimited athlete still cannot exceed the global ceilings.
+  assert.ok(coach.focusBudget(7, null) <= 7 * app.FOCUS_MAX);
+  assert.ok(coach.focusBudget(3, 660) <= 3 * coach.bounds.maxMusclesPerDay,
+    'an 11-hour cap is bounded by per-day coherence, not time');
+});
+
+test('focusBudget: the even minimum week is always affordable when schedulable', () => {
+  for (let d = 3; d <= 7; d++) {
+    assert.ok(coach.focusBudget(d, 45) >= 7, `${d} days x 45min affords all sliders at 1`);
+  }
+  // 2 days x 60min can host its share of 7 exposures, so the floor applies;
+  // 2 days x 45min honestly cannot (4 accessory exposures do not fit 45min),
+  // so the guarantee correctly stays out of the way.
+  assert.ok(coach.focusBudget(2, 60) >= 7, '2 days x 60min affords the even minimum');
+  assert.ok(coach.focusBudget(2, 45) < 7, '2 days x 45min honestly cannot host 7 exposures');
+  // The default intake (3 days, unlimited, all sliders at the standard 2)
+  // must fit, or onboarding would warn out of the box.
+  assert.ok(coach.focusBudget(3, null) >= 14, '3 days unlimited affords the all-2 default');
+});
+
+test('checkFocusBudget: over-budget carries the honest have/need numbers', () => {
+  const focus = { arms: 4, chest: 4, back: 4, shoulders: 4, glutes: 4, legs: 4, calves: 4 };
+  const iss = coach.checkFocusBudget(focus, 2, 50);
+  assert.ok(iss && iss.key === 'val.focus_over_budget');
+  assert.strictEqual(iss.params.need, 28);
+  assert.strictEqual(iss.params.have, coach.focusBudget(2, 50));
+  assert.strictEqual(coach.checkFocusBudget({ arms: 2 }, 2, 50), null, 'affordable passes');
+  assert.strictEqual(coach.checkFocusBudget(null, 2, 50), null);
+});
+
+test('rebalanceFocus: deterministic, ratio-preserving, floors at 1, never grows', () => {
+  const ask = { arms: 4, chest: 4, back: 2, shoulders: 2, glutes: 1, legs: 4, calves: 1 }; // 18 points
+  const a = coach.rebalanceFocus(ask, 10), b = coach.rebalanceFocus(ask, 10);
+  assert.deepStrictEqual(a, b, 'same input, same output');
+  assert.strictEqual(coach.focusSpend(a.focus), 10, 'lands exactly on the budget');
+  for (const k of Object.keys(ask)) {
+    assert.ok(a.focus[k] <= ask[k], `${k} never grows`);
+    if (ask[k] > 0) assert.ok(a.focus[k] >= 1 || coach.focusSpend(ask) > 14, `${k} floors at 1`);
+  }
+  // The heaviest asks keep the most points (ratios respected).
+  assert.ok(a.focus.arms >= a.focus.glutes && a.focus.legs >= a.focus.calves);
+  // The delta names every change, from -> to (receipts-ready, never silent).
+  assert.ok(a.delta.length > 0);
+  for (const d of a.delta) {
+    assert.strictEqual(d.from, ask[d.m]);
+    assert.strictEqual(d.to, a.focus[d.m]);
+    assert.ok(d.to < d.from);
+  }
+  // A fitting focus is identity with an empty delta.
+  const fit = coach.rebalanceFocus({ arms: 2, chest: 2 }, 10);
+  assert.deepStrictEqual(fit.focus, { arms: 2, chest: 2, back: 0, shoulders: 0, glutes: 0, legs: 0, calves: 0 });
+  assert.deepStrictEqual(fit.delta, []);
+  // A budget too small even for the 1-floors zeroes the smallest asks last.
+  const tiny = coach.rebalanceFocus({ arms: 1, chest: 1, back: 1, shoulders: 1, glutes: 1, legs: 1, calves: 1 }, 4);
+  assert.strictEqual(coach.focusSpend(tiny.focus), 4);
+  assert.ok(Object.values(tiny.focus).every(v => v === 0 || v === 1));
+});
+
 test('wmRaiseCheck: overshooting the logged e1RM offers the smaller raise (SS3)', () => {
   // 60 kg x 6 at RPE 10 -> e1rm 72, implied WM 64.8. A formula raise to 72.5
   // overshoots by >5%; the suggested raise is the implied WM, rounded.

@@ -23,8 +23,8 @@ function defaultState() {
                plates: JSON.parse(JSON.stringify(DEFAULT_PLATES)),
                // Dynamic engine (see docs/dynamic-routine-engine-design.md). All
                // defaults make a routine identical to the legacy output.
-               training: { track: 'powerbuilding', timeMode: 'unlimited', timeCapMin: null,
-                 muscleFocus: { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 } },
+               training: { track: 'powerbuilding', timeMode: 'unlimited', timeCapMin: null, focusScale: 4,
+                 muscleFocus: { arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 } },
                experience: 'intermediate',
                trainingAge: { startedTs: null, blocksCompleted: 0 },
                phase: 'lean-gain', // [Cluster F] current training phase
@@ -122,7 +122,23 @@ function migrateState(s) {
   t.track = t.track || 'powerbuilding';
   t.timeMode = t.timeMode || 'unlimited';
   if (t.timeCapMin === undefined) t.timeCapMin = null;
-  t.muscleFocus = Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
+  // [B4] Slider rescale, 0-6 -> 0-4 (a value is now a weekly frequency).
+  // Raw values are ambiguous (all-2 is valid on both scales), so a scale
+  // marker makes this idempotent. Mapping runs BEFORE the defaults merge so
+  // a legacy save's missing keys take the new default directly. An old 6 on
+  // a 7-day program keeps its historical 4x unlock; anything unrecognized
+  // clamps to 0. Applied to all three persisted focus locations.
+  if (t.focusScale !== 4) {
+    const seven = !!(s.program && s.program.daysPerWeek >= 7);
+    const remap = f => {
+      if (f) for (const k in f) f[k] = (f[k] === 6 && seven) ? 4 : (FOCUS_SCALE_MIGRATION[f[k]] || 0);
+    };
+    remap(t.muscleFocus);
+    if (s.program && s.program.trainingConfig) remap(s.program.trainingConfig.muscleFocus);
+    if (s.program && s.program.pendingFocus) remap(s.program.pendingFocus);
+    t.focusScale = 4;
+  }
+  t.muscleFocus = Object.assign({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 },
                                 t.muscleFocus || {});
   p.experience = p.experience || 'intermediate';
   if (!p.trainingAge) p.trainingAge = { startedTs: (s.program && s.program.startDate) || null, blocksCompleted: 0 };
@@ -543,7 +559,7 @@ function makeProgram(ob) {
     wm[lift] = ob.maxes[lift] ? Math.round(ob.maxes[lift] * 0.9 / 1.25) * 1.25 : null;
     increments[lift] = Engine.defaultIncrement(lift);
   }
-  const focus = Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
+  const focus = Object.assign({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 },
                              ob.muscleFocus || {});
   // Bodybuilding: generate the split from the athlete's muscle focus (frequency
   // driven, region days proportional to slider points). Falls back to the fixed
@@ -552,7 +568,11 @@ function makeProgram(ob) {
   let days;
   if (track === 'bodybuilding') {
     days = generateBodybuildingDays(focus, ob.daysPerWeek);
-    if (!days || days.length !== ob.daysPerWeek) {
+    // [B4] A SHORT week (days.length < daysPerWeek) is legal output: the
+    // generator builds only the days the dose needs and the rest are rest.
+    // daysPerWeek keeps meaning AVAILABILITY (it prices the focus budget and
+    // shows on the program view). Only a truly empty generation falls back.
+    if (!days || !days.length) {
       days = JSON.parse(JSON.stringify((BB_DAY_TEMPLATES[ob.daysPerWeek] || DAY_TEMPLATES[ob.daysPerWeek])));
     }
   } else {
@@ -564,10 +584,13 @@ function makeProgram(ob) {
   // onboarding supplied weekdays IN calendar mode, so a count-only ob (count
   // mode, tests, legacy, golden master) builds a byte-identical program with no
   // schedule key at all, even if a stale weekday pick lingers on the draft.
+  // [B4] A short week maps onto an evenly spaced SUBSET of the chosen
+  // weekdays (scheduleSubset), so rest days spread instead of clustering.
   const schedule = ob.daysMode !== 'count'
     && Array.isArray(ob.trainingDays) && ob.trainingDays.length
-    && ob.trainingDays.length === days.length
-    ? ob.trainingDays.map(wd => ({ wd, sport: (ob.sportDays || []).includes(wd) }))
+    && ob.trainingDays.length >= days.length
+    ? scheduleSubset(ob.trainingDays, days.length)
+        .map(wd => ({ wd, sport: (ob.sportDays || []).includes(wd) }))
     : null;
   return {
     template: tpl.id, daysPerWeek: ob.daysPerWeek,
@@ -602,50 +625,124 @@ function makeProgram(ob) {
 function accHead(id) { return (exById(id) || {}).head || null; }
 function muscleOfAcc(id) {
   for (const m of Object.keys(DEFAULT_ACC)) if (DEFAULT_ACC[m].includes(id)) return m;
-  return null;
+  // [B4] Library-sourced slots (beyond the curated pools) attribute by their
+  // movement's slider muscle, so rotation and carryover keep working for them.
+  const ex = exById(id);
+  return (ex && MOVEMENT_SLIDER[ex.movement]) || null;
 }
-// Pick from a muscle's ordered pool: prefer the first not-yet-used exercise that
-// covers a head we have not hit for this muscle (so frequency spreads across
-// regions), then any unused, then the head of the pool. `rot` rotates the pool's
-// start so successive mesos surface different exercises (cross-meso rotation).
-// Pure given exById.
-function pickAccessory(pool, used, usedHeads, rot = 0) {
+// [B4] A muscle's FULL selection pool: the curated DEFAULT_ACC order first
+// (the coach's preferred picks), then every other library exercise for that
+// muscle, best stimulus-to-fatigue first. The barbell working-max anchors are
+// excluded (they enter days as main/secondary slots, never as depth picks).
+// This is the supply side of the F8 fix: depth and high frequency exhaust the
+// whole library before any repeat.
+function musclePool(m) {
+  const movs = SLIDER_MOVEMENTS[m] || [];
+  // Only exercises that ATTRIBUTE to this slider: a rear-delt fly lives in
+  // the shoulders' curated list for coaching reasons but counts as back
+  // (upperback) in the taxonomy, and picking it as shoulders work would
+  // break the frequency contract for an athlete with back at 0.
+  const curated = (DEFAULT_ACC[m] || []).filter(id => {
+    const e = exById(id);
+    return e && movs.includes(e.movement);
+  });
+  const anchors = new Set(Object.values(MUSCLE_MAIN));
+  const rest = allExercises()
+    .filter(e => movs.includes(e.movement) && !curated.includes(e.id) && !anchors.has(e.id))
+    .sort((a, b) => (b.sfr - a.sfr));
+  return curated.concat(rest.map(e => e.id));
+}
+// Pick from a muscle's ordered pool: prefer an unused exercise on the day's
+// head-emphasis group when one is given ([B4] high-frequency rotation), then
+// the first not-yet-used exercise that covers a head we have not hit for this
+// muscle (so frequency spreads across tissue), then any week-unused, then a
+// cross-day REUSE (`dayUsed` guards the day), then NOTHING.
+// [B4] The F8 fix lives in the last two steps: a small pool trained on many
+// days may legitimately repeat ACROSS days (a 3-exercise muscle at 2x must),
+// but never within one day, and a caller stops adding instead of stuffing
+// duplicates; underfilled days are legitimate. `rot` rotates the pool's
+// start so successive mesos surface different exercises. Pure given exById.
+function pickAccessory(pool, used, usedHeads, rot = 0, preferHeads = null, dayUsed = null) {
   if (!pool || !pool.length) return null;
   const n = pool.length, off = ((rot % n) + n) % n;
   const order = pool.map((_, i) => pool[(i + off) % n]);
   const newHead = id => { const h = accHead(id); return !h || !usedHeads.has(h); };
-  return order.find(id => !used.has(id) && newHead(id))
+  const onPref = id => { const h = accHead(id); return h && preferHeads.includes(h); };
+  return (preferHeads && preferHeads.length ? order.find(id => !used.has(id) && onPref(id)) : null)
+      || order.find(id => !used.has(id) && newHead(id))
       || order.find(id => !used.has(id))
-      || order[0];
+      || (dayUsed ? order.find(id => !dayUsed.has(id)) : null)
+      || null;
 }
 // ------------------------------------------------------------
 // BODYBUILDING SPLIT GENERATOR (frequency-driven)
-// Builds the week from the muscle-focus sliders: focus = frequency. Region day
-// counts are proportional to slider points (upper vs lower); each muscle's
-// weekly frequency (SPLIT_FREQ) is spread across its region's days; the highest-
-// ranked muscle on a day becomes its primary focus and gets a compound anchor.
+// [B4] Builds the week from the muscle-focus sliders under ONE contract,
+// stated and enforced by validateFocusWeek: a slider value IS a weekly
+// frequency (0..FOCUS_MAX); every muscle appears exactly min(slider, N)
+// times (day capacity is the only excuse for less); a muscle LEADS at most
+// that many days; slider surplus beyond the schedulable frequency becomes
+// same-day DEPTH bounded per session; 3x+ muscles rotate head emphasis day
+// to day (FOCUS_HEAD_ROTATION); the week contains only the days the dose
+// needs (short weeks are the rest-day mechanism, days are never padded to
+// consume available time); no exercise repeats within a day.
 // Runs once at program creation; sliders are fixed for the cycle.
 // ------------------------------------------------------------
+// [B4] Shared helpers: schedulable frequency + surplus depth per muscle, and
+// the day's preferred head-emphasis group for a high-frequency muscle.
+function focusFreqDepth(focus, N) {
+  const freq = {}, depth = {};
+  for (const m of FOCUS_KEYS) {
+    const v = Math.max(0, Math.min(FOCUS_MAX, focus[m] || 0));
+    if (!v) continue;
+    freq[m] = Math.min(v, N);
+    depth[m] = v - freq[m];
+  }
+  return { freq, depth };
+}
+function headGroupFor(m, freq, exposureIdx) {
+  if ((freq[m] || 0) < 3) return null;
+  const groups = FOCUS_HEAD_ROTATION[m];
+  return groups ? groups[exposureIdx % groups.length] : null;
+}
+// [B4] Map a short generated week onto an evenly spaced subset of the chosen
+// weekdays, deterministically (day i of D takes index round(i*(T-1)/(D-1)) of
+// the sorted availability), so rest days spread instead of clustering. A pure
+// seam on purpose: the future sport-aware scheduling epic replaces THIS
+// function's internals (avoid game-day collisions) without touching callers.
+function scheduleSubset(trainingDays, D) {
+  const t = trainingDays.slice().sort((a, b) => a - b);
+  if (D <= 0) return [];
+  if (D >= t.length) return t;
+  if (D === 1) return [t[0]];
+  const out = [];
+  for (let i = 0; i < D; i++) out.push(t[Math.round(i * (t.length - 1) / (D - 1))]);
+  return out;
+}
 // [2-day] Full-body mode. An upper/lower split at N <= 2 silently drops every
 // muscle to 1x/week and piles a week's whole per-muscle volume into one
 // session (which the per-session cap then trims with no other day to catch
 // it). Standard practice at that frequency is full-body days: each trained
 // muscle appears on min(freq, N) days, the two days lead with compounds from
 // DIFFERENT regions, and a 2x muscle's weekly sets naturally split across
-// both sessions.
+// both sessions. [B4] Slider surplus beyond N becomes same-day depth, and
+// depth picks alternate head groups within the day (the 2-days-arms-4 case).
 function generateFullBodyDays(focus, N) {
-  const freq = {};
-  for (const m of FOCUS_KEYS) if (SPLIT_FREQ[focus[m]]) freq[m] = Math.min(SPLIT_FREQ[focus[m]], N);
+  const { freq, depth } = focusFreqDepth(focus, N);
   const ms = FOCUS_KEYS.filter(m => freq[m]);
   if (!ms.length) return [];
   const used = new Set(), headsUsed = {}, usedMains = new Set();
-  const pick = m => {
+  const pick = (m, dayUsed, pref) => {
     const hs = headsUsed[m] || (headsUsed[m] = new Set());
-    const id = pickAccessory(DEFAULT_ACC[m] || [], used, hs);
+    const id = pickAccessory(musclePool(m), used, hs, 0, pref || null, dayUsed);
     if (id) { used.add(id); const h = accHead(id); if (h) hs.add(h); }
     return id;
   };
-  const accSlot = m => { const id = pick(m); return id ? { type: 'acc', cat: (exById(id) || {}).movement, def: id } : null; };
+  const accSlot = (m, dayUsed, pref) => {
+    const id = pick(m, dayUsed, pref);
+    if (!id) return null;
+    if (dayUsed) dayUsed.add(id);
+    return { type: 'acc', cat: (exById(id) || {}).movement, def: id };
+  };
   // One lead per day, from different regions when both have one: the strongest
   // anchor-capable upper muscle and the strongest lower one.
   const canLead = m => ANCHOR_RANK[m] >= 2 && freq[m];
@@ -657,7 +754,11 @@ function generateFullBodyDays(focus, N) {
   while (leads.length < N) {
     leads.push(FOCUS_KEYS.filter(canLead).find(m => !leads.includes(m)) || ms[0]);
   }
-  const days = leads.slice(0, N).map(p => ({ primary: p, muscles: [], load: 1 }));
+  // [B4] Only the days the dose needs: a lone 1x muscle on a 2-day
+  // availability builds one day, the other is rest.
+  const totalExp = ms.reduce((s, m) => s + freq[m], 0);
+  const D = Math.max(1, Math.min(N, totalExp));
+  const days = leads.slice(0, D).map(p => ({ primary: p, muscles: [], load: 1 }));
   // Spread every muscle's frequency across the days, least-loaded first, never
   // twice on one day (the lead day counts as one appearance).
   for (const m of ms.slice().sort((a, b) => focus[b] - focus[a])) {
@@ -669,147 +770,199 @@ function generateFullBodyDays(focus, N) {
       days[di].muscles.push(m); days[di].load++;
     }
   }
+  const depthLeft = Object.assign({}, depth);
   return days.map(d => {
-    const slots = [];
+    const slots = [], dayUsed = new Set();
     const a = PRIMARY_ANCHOR[d.primary];
     if (a && a.main) {
       if (!usedMains.has(a.main)) { usedMains.add(a.main); slots.push({ type: 'main', lift: a.main }); }
       else slots.push({ type: 'secondary', lift: a.main, baseLift: a.main });
+      dayUsed.add(a.main);
     } else if (a && a.acc && !used.has(a.acc)) {
-      used.add(a.acc); slots.push({ type: 'acc', cat: (exById(a.acc) || {}).movement, def: a.acc });
-    } else { const s = accSlot(d.primary); if (s) slots.push(s); }
-    for (const m of d.muscles) { const s = accSlot(m); if (s) slots.push(s); }
-    let g = 0;
-    while (slots.length < 4 && g++ < 6) { const s = accSlot(d.primary); if (!s) break; slots.push(s); }
+      used.add(a.acc); dayUsed.add(a.acc);
+      slots.push({ type: 'acc', cat: (exById(a.acc) || {}).movement, def: a.acc });
+    } else { const s = accSlot(d.primary, dayUsed); if (s) slots.push(s); }
+    for (const m of d.muscles) { const s = accSlot(m, dayUsed); if (s) slots.push(s); }
+    // [B4] Depth: slider surplus beyond the schedulable frequency deepens the
+    // muscle's own days, one paid point per extra slot (never fake extra
+    // frequency, never padding). Depth picks alternate the muscle's head
+    // groups within the day so a deep arm day spans biceps AND triceps
+    // tissue. The old pad-to-4 loop is gone: a short day is an honest day.
+    for (const m of [d.primary, ...d.muscles]) {
+      const share = Math.ceil((depth[m] || 0) / freq[m]);
+      const groups = FOCUS_HEAD_ROTATION[m];
+      for (let k = 0; k < share && (depthLeft[m] || 0) > 0; k++) {
+        const pref = groups ? groups[(k + 1) % groups.length] : null;
+        const s = accSlot(m, dayUsed, pref);
+        if (!s) break;
+        slots.push(s); depthLeft[m]--;
+      }
+    }
     return { name: `Full Body · ${FOCUS_LABELS[d.primary] || d.primary}`,
              theme: { region: 'full', primary: d.primary },
              slots, primary: d.primary };
-  });
-}
-// [1/7-day] Slider -> weekly frequency, day-count aware: a 7-day week unlocks a
-// fourth weekly exposure for a maxed (slider 6) muscle. Gated on N >= 7 so every
-// existing 2-6 day program keeps the plain SPLIT_FREQ table (byte-identical).
-function splitFreqFor(sliderVal, N) {
-  return (SPLIT_FREQ[sliderVal] || 0) + (N >= 7 && sliderVal === 6 ? 1 : 0);
-}
-// [7-day] The generated pump day: light isolation work for the highest-focus
-// muscles, no mains. Used when a 7-day week has no slider at 6 (no muscle earns
-// a fourth exposure), so the seventh day becomes the week's fatigue valve.
-function generatePumpDay(focus) {
-  const used = new Set(), headsUsed = {};
-  const ms = FOCUS_KEYS.filter(m => SPLIT_FREQ[focus[m]])
-    .sort((a, b) => focus[b] - focus[a]).slice(0, 5);
-  const slots = [];
-  for (const m of ms) {
-    const hs = headsUsed[m] || (headsUsed[m] = new Set());
-    const id = pickAccessory(DEFAULT_ACC[m] || [], used, hs);
-    if (id) {
-      used.add(id); const h = accHead(id); if (h) hs.add(h);
-      slots.push({ type: 'acc', cat: (exById(id) || {}).movement, def: id });
-    }
-  }
-  return { name: 'Pump', nameKey: 'pump', slots };
+  }).filter(d => d.slots.length);
 }
 function generateBodybuildingDays(focus, N) {
   if (N <= 2) return generateFullBodyDays(focus, N); // [2-day] full-body, not upper/lower
-  // [7-day] Without a slider-6 muscle nothing trains 4x, so a 7th split day would
-  // only thin the week out; generate the 6-day split and close with a pump day.
-  if (N >= 7 && !FOCUS_KEYS.some(m => focus[m] === 6 && SPLIT_FREQ[focus[m]])) {
-    const week = generateBodybuildingDays(focus, N - 1);
-    if (!week || !week.length) return week;
-    week.push(generatePumpDay(focus));
-    return week;
-  }
-  const freq = {};
-  for (const m of FOCUS_KEYS) if (splitFreqFor(focus[m], N)) freq[m] = splitFreqFor(focus[m], N);
-  const pts = ms => ms.reduce((s, m) => s + (focus[m] || 0), 0);
-  const upPts = pts(UPPER_MUSCLES), loPts = pts(LOWER_MUSCLES);
-  if (upPts + loPts === 0) return []; // everything removed -> fall back / empty-day guard
+  const { freq, depth } = focusFreqDepth(focus, N);
+  const ms = FOCUS_KEYS.filter(m => freq[m]);
+  if (!ms.length) return []; // everything removed -> empty-week guard
+  const cap = Engine.coach.bounds.maxMusclesPerDay;
+
+  // [B4] Only the days the dose needs: total exposures bound the week, so a
+  // lone specialized muscle gets its frequency and REST DAYS, never seven
+  // straight lead days. (Also full-body when so few exposures exist that an
+  // upper/lower split would strand them.)
+  const totalExp = ms.reduce((s, m) => s + freq[m], 0);
+  const D = Math.max(1, Math.min(N, totalExp));
+  if (D <= 2) return generateFullBodyDays(focus, D);
+
   const upHas = UPPER_MUSCLES.some(m => freq[m]), loHas = LOWER_MUSCLES.some(m => freq[m]);
-  let upDays = Math.round(N * upPts / (upPts + loPts));
-  let loDays = N - upDays;
-  // Do not strand a region that has trained muscles, and do not spend days on an
-  // empty region.
-  if (!upHas) { upDays = 0; loDays = N; }
-  else if (!loHas) { upDays = N; loDays = 0; }
-  else { if (upDays === 0) { upDays = 1; loDays = N - 1; } if (loDays === 0) { loDays = 1; upDays = N - 1; } }
+  const exp = list => list.reduce((s, m) => s + (freq[m] || 0), 0);
+  const upExp = exp(UPPER_MUSCLES), loExp = exp(LOWER_MUSCLES);
+  let upDays = Math.round(D * upExp / (upExp + loExp));
+  let loDays = D - upDays;
+  // Do not strand a region that has trained muscles, and do not spend days on
+  // an empty region.
+  if (!upHas) { upDays = 0; loDays = D; }
+  else if (!loHas) { upDays = D; loDays = 0; }
+  else { if (upDays === 0) { upDays = 1; loDays = D - 1; } if (loDays === 0) { loDays = 1; upDays = D - 1; } }
 
   const used = new Set();
   const headsUsed = {};
   const usedMains = new Set();
-  // [Cluster C] Head-aware pick: a muscle trained 2-3x spreads across its heads
-  // (e.g. upper then mid/lower chest) instead of doubling one region.
-  const pick = m => {
+  // [Cluster C] Head-aware pick: a 2x muscle spreads across its heads; [B4] a
+  // 3x+ muscle passes the day's rotation group so emphasis alternates.
+  const pick = (m, dayUsed, pref) => {
     const hs = headsUsed[m] || (headsUsed[m] = new Set());
-    const id = pickAccessory(DEFAULT_ACC[m] || [], used, hs);
+    const id = pickAccessory(musclePool(m), used, hs, 0, pref || null, dayUsed);
     if (id) { used.add(id); const h = accHead(id); if (h) hs.add(h); }
     return id;
   };
-  const accSlot = m => { const id = pick(m); return id ? { type: 'acc', cat: (exById(id) || {}).movement, def: id } : null; };
+  const accSlot = (m, dayUsed, pref) => {
+    const id = pick(m, dayUsed, pref);
+    if (!id) return null;
+    if (dayUsed) dayUsed.add(id);
+    return { type: 'acc', cat: (exById(id) || {}).movement, def: id };
+  };
 
-  function buildRegion(muscles, nDays) {
-    if (nDays <= 0) return [];
+  // 1. Day skeletons per region with the F7 LEAD CAP: a primary assignment
+  //    consumes one of the muscle's paid exposures, so a muscle may lead at
+  //    most freq[m] days; when no region muscle has an exposure left for a
+  //    day, that day is simply not created (the region shrinks).
+  const skel = [];
+  const primCount = {};
+  const mkRegion = (muscles, nDays, region) => {
     const rms = muscles.filter(m => freq[m]);
-    if (!rms.length) return [];
-    // 1. Assign a PRIMARY (the day's focus + anchor) to each day, rotating across
-    //    the anchor-capable muscles so leadership spreads (a Chest day, a Shoulder
-    //    day, a Back day) rather than the top slider leading every day.
-    // A muscle can lead a day if it is anchor-capable (rank >= 2). Glutes is gated
-    // on being trained twice or more a week so a de-emphasized (1x) glute does not
-    // claim a whole day; this gives the lower region a second lead besides Legs.
+    if (!rms.length) return;
     const canLead = m => ANCHOR_RANK[m] >= 2 && (m !== 'glutes' || freq[m] >= 2);
     const anchorM = rms.filter(canLead);
     const leadPool = (anchorM.length ? anchorM : rms);
-    const primaryOf = [], primCount = {};
     for (let i = 0; i < nDays; i++) {
-      const cand = leadPool.slice().sort((a, b) =>
-        ((primCount[a] || 0) - (primCount[b] || 0)) || (focus[b] - focus[a]));
-      const m = cand[0];
-      primaryOf.push(m); primCount[m] = (primCount[m] || 0) + 1;
+      const cand = leadPool.filter(m => (primCount[m] || 0) < freq[m])
+        .sort((a, b) => ((primCount[a] || 0) - (primCount[b] || 0)) || (freq[b] - freq[a]));
+      if (!cand.length) return;
+      skel.push({ primary: cand[0], region, accs: [], load: 1 });
+      primCount[cand[0]] = (primCount[cand[0]] || 0) + 1;
     }
-    // 2. Spread each muscle's remaining frequency (beyond its primary days) as
-    //    accessories across the least-loaded days, avoiding repeats on a day.
-    const day = primaryOf.map(p => ({ primary: p, acc: [], load: 1 }));
-    for (const m of rms.slice().sort((a, b) => focus[b] - focus[a])) {
-      let r = freq[m] - (primCount[m] || 0);
-      while (r-- > 0) {
-        const avail = day.map((d, i) => i).filter(i => day[i].primary !== m && !day[i].acc.includes(m));
-        const pool = (avail.length ? avail : day.map((d, i) => i)).sort((a, b) => day[a].load - day[b].load);
-        const di = pool[0]; day[di].acc.push(m); day[di].load++;
+  };
+  mkRegion(UPPER_MUSCLES, upDays, 'upper');
+  mkRegion(LOWER_MUSCLES, loDays, 'lower');
+
+  // 2. Spread each muscle's remaining exposures across the least-loaded days
+  //    that do not already train it: same-region days first, then ANY day
+  //    (cross-region spill is what lets a high-frequency muscle keep its
+  //    promise when its region got few days; the owner's own examples mix a
+  //    back accessory onto a legs day). A day at the muscle cap is skipped;
+  //    if no day can host the exposure it is dropped (capacity is the
+  //    contract's one excuse, and the budget makes it rare).
+  const owns = (d, m) => d.primary === m || d.accs.includes(m);
+  const musclesOn = d => 1 + d.accs.length;
+  const regionOf = m => UPPER_MUSCLES.includes(m) ? 'upper' : 'lower';
+  for (const m of ms.slice().sort((a, b) => freq[b] - freq[a])) {
+    let r = freq[m] - skel.filter(d => owns(d, m)).length;
+    while (r-- > 0) {
+      const room = skel.filter(d => !owns(d, m) && musclesOn(d) < cap);
+      const same = room.filter(d => d.region === regionOf(m));
+      const pool = (same.length ? same : room).sort((a, b) => a.load - b.load);
+      if (!pool.length) break;
+      pool[0].accs.push(m); pool[0].load++;
+    }
+  }
+
+  // 3. Depth: surplus points deepen the muscle's own days round-robin, one
+  //    paid point per extra slot.
+  const depthLeft = Object.assign({}, depth);
+  for (const m of ms) {
+    let guard = skel.length * FOCUS_MAX;
+    let i = 0;
+    const owners = skel.filter(d => owns(d, m));
+    while ((depthLeft[m] || 0) > 0 && owners.length && guard-- > 0) {
+      const d = owners[i++ % owners.length];
+      d.depthOf = d.depthOf || {};
+      d.depthOf[m] = (d.depthOf[m] || 0) + 1;
+      depthLeft[m]--;
+    }
+  }
+
+  // 4. Build slots: the primary's anchor (a working-max main on first
+  //    appearance, a secondary volume exposure after), one accessory per
+  //    co-trained muscle, then the day's depth slots. No pad floor: the day
+  //    is as long as the dose, and a 3x+ muscle's picks prefer the day's
+  //    head-emphasis group (rotation by exposure index).
+  const expIdx = {}, leadSeen = {};
+  const built = skel.map(d => {
+    const slots = [], dayUsed = new Set();
+    const prefOf = m => {
+      const g = headGroupFor(m, freq, expIdx[m] || 0);
+      expIdx[m] = (expIdx[m] || 0) + 1;
+      return g;
+    };
+    const a = PRIMARY_ANCHOR[d.primary];
+    // The anchor decision keys on how often this muscle has LED (not its
+    // total exposures, which accessory appearances on other days inflate).
+    const kPrim = leadSeen[d.primary] || 0;
+    leadSeen[d.primary] = kPrim + 1;
+    const primPref = prefOf(d.primary);
+    // Anchor: the working-max main on its FIRST lead, a secondary volume
+    // exposure on the second; [B4] a 3x+ primary's LATER lead days rotate
+    // into head-group accessory leads (an incline day, a row day) so high
+    // frequency alternates tissue instead of repeating one barbell pattern
+    // all week.
+    if (a && a.main && !usedMains.has(a.main)) {
+      usedMains.add(a.main); dayUsed.add(a.main);
+      slots.push({ type: 'main', lift: a.main });
+    } else if (a && a.main && (kPrim <= 1 || !primPref)) {
+      dayUsed.add(a.main);
+      slots.push({ type: 'secondary', lift: a.main, baseLift: a.main });
+    } else if (a && a.acc && !used.has(a.acc) && !primPref) {
+      used.add(a.acc); dayUsed.add(a.acc);
+      slots.push({ type: 'acc', cat: (exById(a.acc) || {}).movement, def: a.acc });
+    } else { const s = accSlot(d.primary, dayUsed, primPref); if (s) slots.push(s); }
+    for (const m of d.accs) { const s = accSlot(m, dayUsed, prefOf(m)); if (s) slots.push(s); }
+    for (const m of Object.keys(d.depthOf || {})) {
+      const groups = FOCUS_HEAD_ROTATION[m];
+      for (let k = 0; k < d.depthOf[m]; k++) {
+        const pref = groups ? groups[(k + 1) % groups.length] : null;
+        const s = accSlot(m, dayUsed, pref);
+        if (!s) break;
+        slots.push(s);
       }
     }
-    // 3. Build slots: primary anchor (a working-max main the first time that lift
-    //    appears, a secondary volume exposure after), then one accessory per other
-    //    muscle, an extra for an emphasized (>=5) primary, padded to >= 3.
-    return day.map(d => {
-      const slots = [];
-      const a = PRIMARY_ANCHOR[d.primary];
-      if (a && a.main) {
-        if (!usedMains.has(a.main)) { usedMains.add(a.main); slots.push({ type: 'main', lift: a.main }); }
-        else slots.push({ type: 'secondary', lift: a.main, baseLift: a.main });
-      } else if (a && a.acc && !used.has(a.acc)) { used.add(a.acc); slots.push({ type: 'acc', cat: (exById(a.acc) || {}).movement, def: a.acc }); }
-      else { const s = accSlot(d.primary); if (s) slots.push(s); }
-      for (const m of d.acc) { const s = accSlot(m); if (s) slots.push(s); }
-      if (focus[d.primary] >= 5) { const s = accSlot(d.primary); if (s) slots.push(s); }
-      let g = 0;
-      // [7-day] Thin days are the point at 7/week (frequency spreads, volume does
-      // not inflate), so the pad floor drops to 2; N <= 6 keeps the floor of 3.
-      const floor = N >= 7 ? 2 : 3;
-      while (slots.length < floor && g++ < 6) { const s = accSlot(d.primary); if (!s) break; slots.push(s); }
-      const upper = UPPER_MUSCLES.includes(d.primary);
-      const region = upper ? 'Upper' : 'Lower';
-      // `primary` is carried for the same-muscle spacing pass below; render reads
-      // name + slots (and now `theme`), so the extra field is inert everywhere
-      // else. [i18n phase 3] `theme` is the structured, render-translated form of
-      // the name; the English `name` string stays for back-compat and exports.
-      return { name: `${region} · ${FOCUS_LABELS[d.primary] || d.primary}`,
-               theme: { region: upper ? 'upper' : 'lower', primary: d.primary },
-               slots, primary: d.primary };
-    });
-  }
-  const up = buildRegion(UPPER_MUSCLES, upDays);
-  const lo = buildRegion(LOWER_MUSCLES, loDays);
+    const upper = d.region === 'upper';
+    // `primary` is carried for the same-muscle spacing pass below; render reads
+    // name + slots (and now `theme`), so the extra field is inert everywhere
+    // else. [i18n phase 3] `theme` is the structured, render-translated form of
+    // the name; the English `name` string stays for back-compat and exports.
+    return { name: `${upper ? 'Upper' : 'Lower'} · ${FOCUS_LABELS[d.primary] || d.primary}`,
+             theme: { region: d.region, primary: d.primary },
+             slots, primary: d.primary };
+  }).filter(d => d.slots.length);
+
   // Interleave so the smaller region's days are spread out, not clustered.
+  const up = built.filter(d => d.theme.region === 'upper');
+  const lo = built.filter(d => d.theme.region === 'lower');
   const total = up.length + lo.length;
   const small = up.length >= lo.length ? lo : up;
   const big = small === lo ? up : lo;
@@ -842,6 +995,60 @@ function spaceSameMuscle(days) {
     }
   }
   return days;
+}
+// [B4] The split generator's frequency contract, in ONE place: the honesty
+// sweep test, the manual probe kit, and any future generator work all consult
+// this checker, so the contract cannot drift. Pure given globals (exById,
+// MOVEMENT_SLIDER, FOCUS_KEYS, Engine.coach.bounds). Returns a list of
+// violation strings; empty = the week keeps the sliders' promise.
+// The contract, for availability N and sliders focus (0..FOCUS_MAX):
+//   1. Only days the dose needs: days.length <= N, no empty days; an all-zero
+//      focus is the only excuse for an empty week.
+//   2. A muscle with slider 0 appears nowhere.
+//   3. appearances(m) <= min(focus[m], N): never more weekly exposures than
+//      the slider paid for (no F7 lead monopolies, rule 5 tightens leads).
+//   4. appearances(m) == min(focus[m], N) unless every day missing m is
+//      already at the per-day muscle cap (bounds.maxMusclesPerDay): capacity
+//      is the only excuse for under-delivering frequency.
+//   5. A muscle LEADS at most min(focus[m], N) days.
+//   6. No exercise id appears twice within one day (no F8 lazy repeats).
+function validateFocusWeek(days, focus, N) {
+  const v = [];
+  const cap = Engine.coach.bounds.maxMusclesPerDay;
+  const anyFocus = FOCUS_KEYS.some(m => (focus[m] || 0) > 0);
+  if (!days || !days.length) {
+    if (anyFocus) v.push('empty week for a nonzero focus');
+    return v;
+  }
+  if (days.length > N) v.push(`built ${days.length} days for ${N} available`);
+  const perDay = days.map(d => {
+    const ms = new Set(), ids = new Set();
+    const slots = d.slots || [];
+    if (!slots.length) v.push(`${d.name || 'day'}: empty day`);
+    for (const sl of slots) {
+      const id = sl.def || sl.ex || sl.lift || sl.baseLift;
+      if (id) {
+        if (ids.has(id)) v.push(`${d.name || 'day'}: ${id} repeats within the day`);
+        ids.add(id);
+      }
+      const ex = id && exById(id);
+      const m = ex && MOVEMENT_SLIDER[ex.movement];
+      if (m) ms.add(m);
+    }
+    return ms;
+  });
+  for (const m of FOCUS_KEYS) {
+    const want = Math.min(focus[m] || 0, N);
+    const got = perDay.filter(s => s.has(m)).length;
+    const leads = days.filter(d => d.primary === m).length;
+    if (!want && got) v.push(`${m}: slider 0 but appears on ${got} days`);
+    if (got > want) v.push(`${m}: ${got} exposures for slider ${focus[m] || 0} (max ${want})`);
+    if (got < want && perDay.some(s => !s.has(m) && s.size < cap)) {
+      v.push(`${m}: ${got}/${want} exposures with day capacity left`);
+    }
+    if (leads > want) v.push(`${m}: leads ${leads} days for slider ${focus[m] || 0}`);
+  }
+  return v;
 }
 function P() { return S.program; }
 // The one gate most non-default behavior hangs off: is this a bodybuilding program?
@@ -1348,8 +1555,10 @@ function prunePriority(rs, mainMovs, tc) {
     const key = MOVEMENT_SLIDER[mov];
     const v = key != null ? tc.muscleFocus[key] : null;
     if (v != null) {
-      if (v >= 4) return -(v - 3);          // specialized: kept first (more emphasis = harder)
-      deprior = (3 - v) / 3;
+      // [B4] 0-4 scale, baseline 2: specialized (3+) kept first under a time
+      // cap; below-baseline sheds first.
+      if (v >= 3) return -(v - 2);
+      deprior = (2 - v) / 2;
     }
   }
   return cov + deprior;
@@ -1805,7 +2014,7 @@ function obDefaults() {
            // unanswered like every other choice step.
            meetChoice: null, meetDate: null,
            showAdvanced: false, // program-length presets tucked away
-           muscleFocus: { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
+           muscleFocus: { arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 },
            maxes: {} };
 }
 // [Epic I2] The onboarding step pipeline for the draft's track, from the
@@ -1865,21 +2074,63 @@ function obConfirmGate(step, issues, onDecline) {
 function obIssueBanners(issues) {
   return issues.map(i => `<div class="banner-warn mt8">${esc(t(i.key, i.params))}</div>`).join('');
 }
-// Warning copy for any slider at the extremes (0 = removed, 6 = maxed).
+// [B4/CTO] Haptics seam: navigator.vibrate where the browser has it (Android
+// Chrome today), silent no-op elsewhere. ONE place for the native wrap
+// (R2/R4) to swap in Platform.haptics. Never load-bearing.
+function hapticTap() {
+  try { if (navigator.vibrate) navigator.vibrate(10); } catch (e) { /* no-op */ }
+}
+// [B4] The focus budget numbers for a days/time context: affordable points
+// vs points spent by the sliders. Shared by the onboarding focus step and
+// the in-app focus editor (which passes the program's own config).
+function focusBudgetInfo(focus, days, timeMode, timeCapMin) {
+  const cap = timeMode === 'custom' ? (parseInt(timeCapMin, 10) || null) : null;
+  const have = Engine.coach.focusBudget(days, cap);
+  const spent = Engine.coach.focusSpend(focus);
+  return { have, spent, left: have - spent };
+}
+function obBudgetLine(ob) {
+  const info = focusBudgetInfo(ob.muscleFocus, ob.daysPerWeek, ob.timeMode, ob.timeCapMin);
+  return t('focus.budget', { have: info.have, spent: info.spent });
+}
+// Warning copy for any slider at the extremes (0 = removed, FOCUS_MAX = maxed).
 // [Epic I5] All zeros is not a warning, it is a blocked program (nothing to
 // train); the master coach's error renders instead and Continue refuses.
+// [B4] Over budget is ALSO a blocked program: the banner carries the honest
+// have/need numbers and the one-tap rebalance.
 function obFocusWarning(focus) {
   if (Engine.coach.checkFocus(focus)) {
     return `<div class="banner-warn mt8">${esc(t('val.focus_all_zero'))}</div>`;
   }
+  const ob = V.ob || {};
+  const over = Engine.coach.checkFocusBudget(focus, ob.daysPerWeek,
+    ob.timeMode === 'custom' ? parseInt(ob.timeCapMin, 10) : null);
+  if (over) {
+    return `<div class="banner-warn mt8">${esc(t(over.key, over.params))}
+      <button class="btn btn-outline mt8" onclick="obFocusRebalance()">${esc(t('focus.rebalance_btn'))}</button></div>`;
+  }
   const removed = FOCUS_KEYS.filter(k => focus[k] === 0).map(k => t('muscle.' + k));
-  const maxed = FOCUS_KEYS.filter(k => focus[k] === 6).map(k => t('muscle.' + k));
+  const maxed = FOCUS_KEYS.filter(k => focus[k] === FOCUS_MAX).map(k => t('muscle.' + k));
   if (!removed.length && !maxed.length) return '';
   const parts = [];
   if (removed.length) parts.push(t('ob.focus_removed', { list: removed.join(', ') }));
   if (maxed.length) parts.push(t('ob.focus_maxed', { list: maxed.join(', ') }));
   parts.push(t('ob.focus_rebalance'));
   return `<div class="banner-warn mt8">${esc(parts.join(' '))}</div>`;
+}
+// [B4] One-tap proportional rebalance to fit the budget. A rebalance is a
+// coach decision, so the toast names every change (from -> to); the same
+// delta becomes a T1 receipt when receipts land.
+function obFocusRebalance() {
+  const ob = V.ob;
+  const cap = ob.timeMode === 'custom' ? (parseInt(ob.timeCapMin, 10) || null) : null;
+  const res = Engine.coach.rebalanceFocus(ob.muscleFocus, Engine.coach.focusBudget(ob.daysPerWeek, cap));
+  ob.muscleFocus = res.focus;
+  hapticTap();
+  if (res.delta.length) {
+    toast(t('focus.rebalanced', { list: res.delta.map(d => `${t('muscle.' + d.m)} ${d.from}→${d.to}`).join(', ') }));
+  }
+  render();
 }
 // Informative only: median training-day length for the current focus. Builds a
 // throwaway bodybuilding program from the onboarding answers and times each day
@@ -2066,12 +2317,15 @@ function vOnboarding() {
   } else if (id === 'focus') {
     body = `
       <div class="ob-title">${esc(t('ob.focus_title'))}</div>
+      <p class="subtle">${esc(t('ob.focus_sub'))}</p>
+      <div id="mf-budget" class="focus-time" role="status">${esc(obBudgetLine(ob))}</div>
       ${FOCUS_KEYS.map(k => `
         <div class="focus-row">
           <div class="row"><span>${esc(t('muscle.' + k))}</span><b id="mf-val-${k}">${ob.muscleFocus[k]}</b></div>
-          <input type="range" min="0" max="6" step="1" value="${ob.muscleFocus[k]}" oninput="obSlider('${k}', this.value)">
+          <input type="range" min="0" max="${FOCUS_MAX}" step="1" value="${ob.muscleFocus[k]}"
+            aria-label="${esc(t('muscle.' + k))}" oninput="obSlider('${k}', this.value)">
         </div>`).join('')}
-      <div id="mf-warn">${obFocusWarning(ob.muscleFocus)}</div>
+      <div id="mf-warn" role="alert">${obFocusWarning(ob.muscleFocus)}</div>
       <div id="mf-time" class="focus-time">${esc(focusTimeLine(ob))}</div>
       <button class="btn btn-green mt16" onclick="obNext(${step})">${esc(t('ob.continue'))}</button>`;
   } else if (id === 'maxes') {
@@ -2238,6 +2492,12 @@ function obSlider(k, v) {
   const el = byId('mf-val-' + k); if (el) el.textContent = v;
   const wn = byId('mf-warn'); if (wn) wn.innerHTML = obFocusWarning(V.ob.muscleFocus);
   const tl = byId('mf-time'); if (tl) tl.textContent = focusTimeLine(V.ob);
+  // [B4] Live budget line + a tactile nudge at the ceiling and on crossing
+  // over budget (the crossing check keeps it one buzz, not a drone).
+  const bd = byId('mf-budget'); if (bd) bd.textContent = obBudgetLine(V.ob);
+  const info = focusBudgetInfo(V.ob.muscleFocus, V.ob.daysPerWeek, V.ob.timeMode, V.ob.timeCapMin);
+  if (parseInt(v) === FOCUS_MAX || (info.left < 0 && (V._budgetLeft == null || V._budgetLeft >= 0))) hapticTap();
+  V._budgetLeft = info.left;
 }
 function obNext(step) {
   const ob = V.ob;
@@ -2320,7 +2580,7 @@ function obNext(step) {
         goalArchetype: ob.track === 'bodybuilding' ? (ob.goalArchetype || null) : null,
         timeMode: ob.timeMode,
         timeCapMin: ob.timeMode === 'custom' ? (parseInt(ob.timeCapMin) || null) : null,
-        muscleFocus: Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 }, ob.muscleFocus),
+        muscleFocus: Object.assign({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 }, ob.muscleFocus),
       };
       S.profile.trainingAge = { startedTs: Date.now(), blocksCompleted: 0 };
       // [B3/FPL2] The equipment micro-step: bar and smallest jump chosen at
@@ -3219,8 +3479,18 @@ function endBlock(finishedBlock, bb) {
     // fresh generation supersedes the accessory rotation below for this boundary.
     if (bb && p.pendingFocus) {
       const days = generateBodybuildingDays(p.pendingFocus, p.daysPerWeek);
-      if (days && days.length === p.daysPerWeek) {
+      // [B4] A SHORT week is a legal regeneration (rest days); only a truly
+      // empty one keeps the old split. The schedule remaps onto an evenly
+      // spaced subset of the old availability so Calendar stays aligned.
+      if (days && days.length) {
         p.days = days;
+        if (Array.isArray(p.schedule) && p.schedule.length >= days.length) {
+          const sport = new Set(p.schedule.filter(s => s.sport).map(s => s.wd));
+          p.schedule = scheduleSubset(p.schedule.map(s => s.wd), days.length)
+            .map(wd => ({ wd, sport: sport.has(wd) }));
+        } else if (Array.isArray(p.schedule)) {
+          delete p.schedule; // grew past the known weekdays: cannot honestly map
+        }
         p.trainingConfig.muscleFocus = Object.assign({}, p.pendingFocus);
         if (S.profile.training) S.profile.training.muscleFocus = Object.assign({}, p.pendingFocus);
         p.pendingFocus = null;
@@ -3230,7 +3500,7 @@ function endBlock(finishedBlock, bb) {
         save(); render();
         return;
       }
-      p.pendingFocus = null; // generation could not fill the week: keep the old split
+      p.pendingFocus = null; // generation came back empty (all-zero focus): keep the old split
     }
     // Clear block-scoped accessory selections so the user picks fresh each block.
     // [Cluster C] For bodybuilding, also rotate each generator-default accessory
@@ -3247,7 +3517,7 @@ function endBlock(finishedBlock, bb) {
         const m = bb ? muscleOfAcc(sl.def) : null;
         if (m) {
           const hs = headsUsed[m] || (headsUsed[m] = new Set());
-          const id = pickAccessory(DEFAULT_ACC[m], used, hs, p.pointer.block);
+          const id = pickAccessory(musclePool(m), used, hs, p.pointer.block);
           if (id) { sl.def = id; used.add(id); const h = accHead(id); if (h) hs.add(h); }
         }
       }
@@ -5922,8 +6192,9 @@ function seFreqChips() {
   const p = P();
   const focus = (p.trainingConfig && p.trainingConfig.muscleFocus) || {};
   const perDay = p.days.map(splitDayMuscles);
-  return `<div class="px-chips">${FOCUS_KEYS.filter(k => SPLIT_FREQ[focus[k]]).map(k => {
-    const target = splitFreqFor(focus[k], p.daysPerWeek || p.days.length);
+  return `<div class="px-chips">${FOCUS_KEYS.filter(k => focus[k] > 0).map(k => {
+    // [B4] The slider IS the frequency target, clamped by availability.
+    const target = Math.min(focus[k], p.daysPerWeek || p.days.length);
     const actual = perDay.filter(s => s.has(k)).length;
     return `<span class="px-chip ${actual < target ? 'warn' : ''}">${esc(t('muscle.' + k))} ${actual}/${target}x</span>`;
   }).join('')}</div>`;
@@ -6016,22 +6287,69 @@ function openFocusEditor() {
   V.feDraft = Object.assign({}, (P().pendingFocus || P().trainingConfig.muscleFocus));
   showModal(renderFocusEditor);
 }
+// [B4] The in-app editor prices against the PROGRAM's own days + time cap
+// (the config this cycle actually runs under), same banner + rebalance as
+// onboarding, and refuses to stage an unaffordable pendingFocus.
+function feBudgetCtx() {
+  const p = P(), tc = p.trainingConfig || {};
+  return { days: p.daysPerWeek || p.days.length, timeMode: tc.timeMode, cap: tc.timeCapMin };
+}
+function feBudgetLine() {
+  const c = feBudgetCtx();
+  const info = focusBudgetInfo(V.feDraft, c.days, c.timeMode, c.cap);
+  return t('focus.budget', { have: info.have, spent: info.spent });
+}
+function feWarning() {
+  const c = feBudgetCtx();
+  const over = Engine.coach.checkFocusBudget(V.feDraft, c.days,
+    c.timeMode === 'custom' ? c.cap : null);
+  if (over) {
+    return `<div class="banner-warn mt8">${esc(t(over.key, over.params))}
+      <button class="btn btn-outline mt8" onclick="feRebalance()">${esc(t('focus.rebalance_btn'))}</button></div>`;
+  }
+  if (Engine.coach.checkFocus(V.feDraft)) {
+    return `<div class="banner-warn mt8">${esc(t('val.focus_all_zero'))}</div>`;
+  }
+  return '';
+}
 function renderFocusEditor(anim) {
   const rows = FOCUS_KEYS.map(k => `
     <div class="focus-row">
       <div class="row"><span>${esc(t('muscle.' + k))}</span><b id="fe-val-${k}">${V.feDraft[k]}</b></div>
-      <input type="range" min="0" max="6" step="1" value="${V.feDraft[k]}" oninput="feSlider('${k}', this.value)">
+      <input type="range" min="0" max="${FOCUS_MAX}" step="1" value="${V.feDraft[k]}"
+        aria-label="${esc(t('muscle.' + k))}" oninput="feSlider('${k}', this.value)">
     </div>`).join('');
   $modal.innerHTML = modalShell(anim, t('fe.title'), `
+    <div id="fe-budget" class="focus-time" role="status">${esc(feBudgetLine())}</div>
     ${rows}
+    <div id="fe-warn" role="alert">${feWarning()}</div>
     <p class="faint">${esc(t('fe.next_block'))}</p>
     <button class="btn btn-blue" onclick="feSave()">${esc(t('common.save'))}</button>`);
 }
 function feSlider(k, v) {
   V.feDraft[k] = parseInt(v);
   const el = byId('fe-val-' + k); if (el) el.textContent = v;
+  const bd = byId('fe-budget'); if (bd) bd.textContent = feBudgetLine();
+  const wn = byId('fe-warn'); if (wn) wn.innerHTML = feWarning();
+  if (parseInt(v) === FOCUS_MAX) hapticTap();
+}
+function feRebalance() {
+  const c = feBudgetCtx();
+  const res = Engine.coach.rebalanceFocus(V.feDraft,
+    Engine.coach.focusBudget(c.days, c.timeMode === 'custom' ? c.cap : null));
+  V.feDraft = res.focus;
+  hapticTap();
+  if (res.delta.length) {
+    toast(t('focus.rebalanced', { list: res.delta.map(d => `${t('muscle.' + d.m)} ${d.from}→${d.to}`).join(', ') }));
+  }
+  showModal(renderFocusEditor);
 }
 function feSave() {
+  // [B4] The gate mirrors onboarding: no all-zero, no over-budget staging.
+  const c = feBudgetCtx();
+  const bad = Engine.coach.checkFocus(V.feDraft)
+    || Engine.coach.checkFocusBudget(V.feDraft, c.days, c.timeMode === 'custom' ? c.cap : null);
+  if (bad) { toast(t(bad.key, bad.params), true); return; }
   P().pendingFocus = Object.assign({}, V.feDraft);
   V.feDraft = null;
   save(); closeAllModals(); render();
@@ -6152,7 +6470,7 @@ function programFromTemplate(tpl) {
     completedDays: {}, weekMod: null, volAdj: {}, belowStd: {},
     trainingConfig: {
       track, goalArchetype: null, timeMode: 'unlimited', timeCapMin: null,
-      muscleFocus: Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
+      muscleFocus: Object.assign({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 },
         (S.profile.training && S.profile.training.muscleFocus) || {}),
     },
   };
@@ -6256,7 +6574,7 @@ function doNewProgram() {
            experience: S.profile.experience || 'intermediate',
            timeMode: tr.timeMode || 'unlimited',
            timeCapMin: tr.timeCapMin || '',
-           muscleFocus: Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 }, tr.muscleFocus || {}) };
+           muscleFocus: Object.assign({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 }, tr.muscleFocus || {}) };
   S.program = makeProgram(V.ob);
   save(); toast(t('dash.new_cycle_toast'));
   V.tab = 'dashboard'; nav('dashboard');

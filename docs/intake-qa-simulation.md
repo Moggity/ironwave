@@ -144,6 +144,15 @@ structurally senseless. And the generator is lazy by construction once
 its curated pool runs dry: it does not consult the ~179-exercise library
 at all.
 
+> **CLOSED (2026-07-21, roundtable step B4 expanded).** F7 and F8 are dead
+> by construction: the sliders became a 0-4 weekly-frequency currency, the
+> generator honors a hard contract (a muscle appears and leads at most
+> min(slider, days) times, selection exhausts the full library and never
+> repeats within a day), and the old judgment probes below are enforced as
+> CI assertions in `app/test/focus-honesty.test.js` via `validateFocusWeek`.
+> The write-ups stay as the historical record; re-run the probe kit after
+> any generator change per the protocol above.
+
 ### F7. Single-muscle specialization breaks the frequency contract: no recovery days
 
 `SPLIT_FREQ[6] = 3`: a maxed muscle is designed to train 3x/week (the

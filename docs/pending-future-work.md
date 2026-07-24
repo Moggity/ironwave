@@ -200,7 +200,10 @@ Derived future branches, in dependency order:
     churn micro-survey (support report, one enum tap, no free text).
   - **L5. Boundary tests:** un-entitled render-smoke across all views;
     the monetization report's free/coach boundary table as an executable
-    checklist (free surfaces reachable, coach surfaces gated).
+    checklist (free surfaces reachable, coach surfaces gated). Note from
+    B4 (TB6): the focus points-budget UI is coach-derived intelligence
+    on coach surfaces (onboarding focus step, focus editor); the free
+    routine editor must not inherit it - add that row to the checklist.
 - **Tier boundary constraints TB3-TB8 (LAUNCH builds only — the prototype
   enforces nothing, owner ruling 2026-07-17;** see
   `docs/tier-usage-analysis.md` section 9. L4's full-detachment ruling
@@ -368,7 +371,10 @@ Derived future branches, in dependency order:
   `S`), AN3 lifecycle/funnel instrumentation (onboarding steps keyed by
   `TRACK_SPEC.obSteps`, session lifecycle on `finishSession`, receipt
   counters coordinated with T1, lock/plateau events, review-prompt yield;
-  supersedes M7's client half), AN4 the pseudonymous install-ID join
+  supersedes M7's client half; CANDIDATES filed 2026-07-21 from B4 for
+  the pre-freeze catalog decision: `focus_over_budget_shown` and
+  `focus_rebalanced` - in the catalog before the September schema freeze
+  or not at all, prototype ships neither), AN4 the pseudonymous install-ID join
   across PostHog/RevenueCat/Sentry with aliasing at account creation, AN5
   the metrics dictionary + gate-scoreboard dashboards, AN6 the beta
   dress-rehearsal checklist with a schema freeze at beta. Amends the
@@ -715,7 +721,13 @@ Adversaries worth simulating:
     exposures, e.g. arms days 2-5 are 100% biceps) and F8 (pool exhaustion
     repeats `DEFAULT_ACC[m][0]` up to 16 of 18 weekly slots, including
     three times within one day, never consulting the full library).
-    Absorbed: IQ6 -> Epic I slice I5; IQ7-IQ8 -> Cluster C (still open).
+    Absorbed: IQ6 -> Epic I slice I5; IQ7-IQ8 -> Cluster C. ~~IQ7-IQ8~~
+    CLOSED (2026-07-21, roundtable step B4 expanded): the F7/F8 probe
+    checks are hard CI assertions now (`test/focus-honesty.test.js`
+    sweeps every muscle x days x slider through `validateFocusWeek`);
+    a lone specialized muscle gets rest days and full-library variety
+    by construction, and the sliders themselves became a 0-4 frequency
+    currency priced by a days+time points budget (see CHANGELOG).
 
 Lower priority, do not skip forever: a finance/ops advisor (entity,
 liability insurance, IAP tax treatment, Small Business Program enrollment)

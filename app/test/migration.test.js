@@ -61,9 +61,11 @@ test('migrateState backfills a legacy program to powerbuilding defaults', () => 
   assert.strictEqual(s.profile.training.track, 'powerbuilding');
   assert.strictEqual(s.profile.training.timeMode, 'unlimited');
   assert.strictEqual(s.profile.training.timeCapMin, null);
+  // [B4] Backfill lands on the new 0-4 scale's standard (2 = 2x/week).
   assert.deepStrictEqual(s.profile.training.muscleFocus, {
-    arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3,
+    arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2,
   });
+  assert.strictEqual(s.profile.training.focusScale, 4, 'scale marker stamped');
   assert.strictEqual(s.profile.experience, 'intermediate');
 
   // Training age seeds from the program start date; landmarks get seeded.
@@ -121,10 +123,42 @@ test('migrateState does not clobber a partially migrated save', () => {
   assert.strictEqual(s.profile.training.track, 'bodybuilding');
   assert.strictEqual(s.profile.training.timeMode, 'custom');
   assert.strictEqual(s.profile.training.timeCapMin, 45);
-  // Existing slider values are preserved; missing ones fill to the 3 default.
-  assert.strictEqual(s.profile.training.muscleFocus.arms, 5);
-  assert.strictEqual(s.profile.training.muscleFocus.chest, 4);
-  assert.strictEqual(s.profile.training.muscleFocus.back, 3);
+  // [B4] Old-scale values map through the rescale table (5 -> 3, 4 -> 2);
+  // missing sliders fill to the new standard 2.
+  assert.strictEqual(s.profile.training.muscleFocus.arms, 3);
+  assert.strictEqual(s.profile.training.muscleFocus.chest, 2);
+  assert.strictEqual(s.profile.training.muscleFocus.back, 2);
+});
+
+test('migrateState rescales sliders 0-6 to the 0-4 frequency scale, idempotently (B4)', () => {
+  const s = legacyState();
+  s.profile.training = { track: 'bodybuilding', timeMode: 'unlimited', timeCapMin: null,
+    muscleFocus: { arms: 0, chest: 1, back: 2, shoulders: 3, glutes: 4, legs: 5, calves: 6 } };
+  s.program.trainingConfig = { track: 'bodybuilding', timeMode: 'unlimited', timeCapMin: null,
+    muscleFocus: { arms: 6, chest: 3 } };
+  s.program.pendingFocus = { arms: 1, chest: 6 };
+  app.migrateState(s);
+  // The full map on the profile copy: {0,1,2,3,4,5,6} -> {0,1,1,2,2,3,3}.
+  assert.deepStrictEqual(s.profile.training.muscleFocus,
+    { arms: 0, chest: 1, back: 1, shoulders: 2, glutes: 2, legs: 3, calves: 3 });
+  // The snapshot and the staged edit are mapped too.
+  assert.strictEqual(s.program.trainingConfig.muscleFocus.arms, 3);
+  assert.strictEqual(s.program.pendingFocus.chest, 3);
+  assert.strictEqual(s.profile.training.focusScale, 4);
+  // Idempotent: a second run must not re-map the already-new values.
+  const once = JSON.stringify(s);
+  app.migrateState(s);
+  assert.strictEqual(JSON.stringify(s), once);
+});
+
+test('migrateState: an old slider 6 on a 7-day program keeps its 4x unlock (B4)', () => {
+  const s = legacyState();
+  s.program.daysPerWeek = 7;
+  s.profile.training = { track: 'bodybuilding', timeMode: 'unlimited', timeCapMin: null,
+    muscleFocus: { chest: 6, back: 6 } };
+  app.migrateState(s);
+  assert.strictEqual(s.profile.training.muscleFocus.chest, 4, '6 on 7 days -> 4');
+  assert.strictEqual(s.profile.training.muscleFocus.back, 4);
 });
 
 test('migrateState seeds landmarks on a fresh default state, idempotently', () => {

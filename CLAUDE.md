@@ -75,12 +75,18 @@ every other track, which is why default/powerbuilding output stays byte-identica
 
 ### The bodybuilding split generator
 
-`generateBodybuildingDays(focus, N)` in `app.js` builds a week from the seven
-focus sliders: it splits N days into upper/lower by slider points, assigns each
-day a **primary** (anchor) muscle rotating across anchor-capable muscles, spreads
-remaining frequency as accessories, then interleaves the regions. The
-split-generator tuning items in `docs/pending-future-work.md` all live in this
-one function plus the `ANCHOR_RANK`/`PRIMARY_ANCHOR` tables.
+[B4] A focus slider value IS a weekly frequency, scale 0-4 (`FOCUS_MAX`),
+priced by a points budget from days x session time (`Engine.coach.focusBudget`,
+derived from `TIME_MODEL`; overspend blocks with a one-tap rebalance).
+`generateBodybuildingDays(focus, N)` in `app.js` builds a week under the
+frequency contract stated by `validateFocusWeek` (exposures = min(slider, N),
+lead caps, same-day depth for surplus, cross-region spill, head rotation at
+3x+, no within-day repeats, short weeks legal - rest days are honest output;
+`daysPerWeek` means AVAILABILITY, not `days.length`). The contract is enforced
+on every build by `test/focus-honesty.test.js`; extend the contract there and
+in `validateFocusWeek` together, never in only one place. Selection draws from
+`musclePool` (curated order, then the full library by SFR). The tuning tables
+are `ANCHOR_RANK`/`PRIMARY_ANCHOR`/`FOCUS_HEAD_ROTATION`.
 
 ### Hypertrophy clusters (A-F): the one invariant
 

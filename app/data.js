@@ -1527,11 +1527,39 @@ const RESTPAUSE_DEFAULTS = { bursts: 2, burstReps: 3 };
 // it simple and distinct from rest-pause (which is multiple same-weight bursts).
 const PARTIAL_DEFAULTS = { sets: 1, partialReps: 6 };
 
-// Bodybuilding muscle-focus slider (0..6) -> accessory set-count multiplier vs
-// the scheme baseline (slider 3 = 1.0 = unchanged). 0 removes the exercise.
-// Emphasis (4-6) is expressed by ADDING exercises (refill, see app.js), not by
-// inflating set counts, so only de-emphasis (1-2) scales sets here.
-const FOCUS_FACTOR = { 0: 0, 1: 0.5, 2: 0.75, 3: 1, 4: 1, 5: 1, 6: 1 };
+// [B4] The slider ceiling: a slider VALUE is a weekly training frequency
+// (0..FOCUS_MAX exposures per week), and 4 is the maximum healthy frequency
+// the coach will schedule. A future advanced/experimental tab may reopen
+// more; head rotation (below) is what makes 4x honest, never a license for
+// daily same-muscle work.
+const FOCUS_MAX = 4;
+// [B4] Old-scale (0-6) slider values map to the new frequency scale (0-4)
+// with this table; the one coded exception lives in migrateState (an old 6
+// on a 7-day program maps to 4, preserving the historical 4x unlock). Kept
+// exported so a hotfix could reverse-map if a rollback were ever needed.
+const FOCUS_SCALE_MIGRATION = { 0: 0, 1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 3 };
+// [B4] High-frequency head rotation: when a muscle trains 3x+ a week, its
+// days alternate emphasis groups so different tissue leads while the rest
+// recovers (a biceps day is NOT full rest for pressing tissue, which is why
+// rotation mitigates 4x rather than justifying 7x). Groups are ordered; the
+// muscle's exposure k prefers group k mod length. Muscles without head tags
+// (glutes, calves, quads) are absent and rotate by exercise variety instead.
+const FOCUS_HEAD_ROTATION = {
+  arms:      [['bi-long', 'bi-short'], ['tri-long', 'tri-lateral']],
+  chest:     [['chest-upper'], ['chest-lower']],
+  // Rear delts attribute to the BACK slider in the taxonomy (delt-rear ->
+  // upperback), so the shoulders rotation alternates side and front heads.
+  shoulders: [['delt-side'], ['delt-front']],
+  back:      [['back-lat'], ['back-upper']],
+  legs:      [['ham-hip'], ['ham-knee']],
+};
+
+// [B4] Slider (0..FOCUS_MAX) -> accessory set-count multiplier. The slider
+// buys FREQUENCY; volume per exposure is owned by the landmarks and autoreg
+// (keeping those axes separate is what keeps both loops convergent). So the
+// table only encodes maintenance-vs-full: 0 removes, 1 is the minimum-dose
+// setting (0.6x sets), 2-4 leave the scheme's sets alone.
+const FOCUS_FACTOR = { 0: 0, 1: 0.6, 2: 1, 3: 1, 4: 1 };
 
 // Default accessory pools per focus muscle, used to refill freed/empty slots and
 // to give a select-only emphasized muscle (glutes, calves) real exercises.
@@ -1549,10 +1577,8 @@ const DEFAULT_ACC = {
 const MUSCLE_MAIN = { chest: 'comp-bench', legs: 'comp-squat', shoulders: 'military-press' };
 
 // ---- Frequency-driven split generator (bodybuilding) ----
-// Slider -> weekly training frequency (days the muscle is trained). Per product:
-// focus is frequency. 3 = 2x/week baseline; 4 = 2x but a day's primary focus with
-// more volume; 5-6 = 3x. 0 removes the muscle.
-const SPLIT_FREQ = { 0: 0, 1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 3 };
+// [B4] The slider value IS the weekly frequency (0..FOCUS_MAX); the old
+// SPLIT_FREQ lookup died with the 0-6 scale so the meaning cannot drift.
 const UPPER_MUSCLES = ['chest', 'back', 'shoulders', 'arms'];
 const LOWER_MUSCLES = ['legs', 'glutes', 'calves'];
 // A day is themed/anchored by its highest-ranked muscle. Rank >= 2 can lead a

@@ -24,7 +24,7 @@ const { loadApp } = require('./load-app');
 
 const app = loadApp();
 
-const FOCUS = { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 };
+const FOCUS = { arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 }; // [B4] 0-4 scale standard
 
 function freshS() { app.S = app.defaultState(); return app.S; }
 
@@ -60,17 +60,17 @@ function trainedDays(days, muscle) {
 }
 
 // ---------------------------------------------------------------------------
-// splitFreqFor: the 7-day 4x unlock, inert everywhere else
+// [B4] focusFreqDepth: the slider IS the frequency, clamped by days; surplus
+// becomes same-day depth.
 // ---------------------------------------------------------------------------
-test('splitFreqFor unlocks 4x only for slider 6 on a 7-day week', () => {
-  assert.strictEqual(app.splitFreqFor(6, 7), 4);
-  assert.strictEqual(app.splitFreqFor(6, 6), 3);
-  assert.strictEqual(app.splitFreqFor(5, 7), 3, 'slider 5 stays 3x even at 7 days');
-  assert.strictEqual(app.splitFreqFor(3, 7), 2);
-  assert.strictEqual(app.splitFreqFor(0, 7), 0);
-  for (let v = 0; v <= 6; v++) for (let n = 2; n <= 6; n++) {
-    assert.strictEqual(app.splitFreqFor(v, n), app.SPLIT_FREQ[v], `slider ${v} at ${n} days unchanged`);
-  }
+test('focusFreqDepth: slider = frequency clamped by days, surplus = depth', () => {
+  const f = (v, N) => app.focusFreqDepth({ chest: v }, N);
+  assert.strictEqual(f(4, 7).freq.chest, 4, 'slider 4 is 4x when days allow');
+  assert.strictEqual(f(4, 2).freq.chest, 2, 'clamped by availability');
+  assert.strictEqual(f(4, 2).depth.chest, 2, 'the surplus is paid out as depth');
+  assert.strictEqual(f(2, 7).freq.chest, 2, 'no free frequency from extra days');
+  assert.strictEqual(f(0, 5).freq.chest, undefined, 'slider 0 trains nothing');
+  assert.strictEqual(f(9, 7).freq.chest, 4, 'values clamp to FOCUS_MAX');
 });
 
 // ---------------------------------------------------------------------------
@@ -186,34 +186,31 @@ test('7-day powerlifting: resolves everywhere, realization week still has exactl
 });
 
 // ---------------------------------------------------------------------------
-// 7-day bodybuilding: the 4x unlock
+// [B4] 7-day bodybuilding: frequency honesty, no pump-day padding
 // ---------------------------------------------------------------------------
-test('7-day with a slider at 6: that muscle trains 4x, the rest keep SPLIT_FREQ', () => {
+test('7-day with a slider at 4: that muscle trains 4x, the rest keep their sliders', () => {
   freshS();
-  const focus = Object.assign({ ...FOCUS }, { chest: 6 });
+  const focus = Object.assign({ ...FOCUS }, { chest: 4 });
   const days = app.generateBodybuildingDays(focus, 7);
-  assert.strictEqual(days.length, 7);
-  assert.strictEqual(trainedDays(days, 'chest'), 4, 'slider 6 earns a 4th exposure');
+  assert.strictEqual(trainedDays(days, 'chest'), 4, 'slider 4 is 4 weekly exposures');
   for (const m of ['back', 'shoulders', 'arms', 'glutes', 'calves']) {
-    assert.strictEqual(trainedDays(days, m), app.SPLIT_FREQ[focus[m]], `${m} keeps its table frequency`);
+    assert.strictEqual(trainedDays(days, m), focus[m], `${m} trains its slider frequency`);
   }
-  assert.ok(days.every(d => d.slots.length >= 2), 'every day clears the 7-day slot floor');
-  for (const d of days) {
-    const defs = d.slots.filter(sl => sl.def).map(sl => sl.def);
-    assert.strictEqual(new Set(defs).size, defs.length,
-      `no duplicate accessory within a day (${d.name})`);
-  }
+  assert.deepStrictEqual(app.validateFocusWeek(days, focus, 7), [], 'contract holds');
 });
 
-test('7-day without any slider 6: the 6-day split closes with a generated Pump day', () => {
+test('7-day availability builds only the days the dose needs (rest days, no pump padding)', () => {
   freshS();
-  const days = app.generateBodybuildingDays({ ...FOCUS }, 7);
-  assert.strictEqual(days.length, 7);
-  const pump = days[6];
-  assert.strictEqual(pump.nameKey, 'pump');
-  assert.ok(pump.slots.length >= 3, 'the pump day carries real work');
-  assert.ok(pump.slots.every(sl => sl.type === 'acc'), 'isolation only, no mains');
-  assert.strictEqual(app.dayTheme(pump), 'Pump', 'renders via the i18n key');
+  // The all-2 standard: 14 exposures fill 7 honest days with no invented work.
+  const std = app.generateBodybuildingDays({ ...FOCUS }, 7);
+  assert.ok(std.length <= 7, 'never more days than availability');
+  assert.ok(std.every(d => !d.nameKey || d.nameKey !== 'pump'), 'the pump-day filler is gone');
+  assert.deepStrictEqual(app.validateFocusWeek(std, { ...FOCUS }, 7), []);
+  // A lone 3x muscle on 7 available days trains 3 days; the other 4 are rest.
+  const lone = { arms: 0, chest: 3, back: 0, shoulders: 0, glutes: 0, legs: 0, calves: 0 };
+  const days = app.generateBodybuildingDays(lone, 7);
+  assert.strictEqual(days.length, 3, 'the week is as long as the dose');
+  assert.deepStrictEqual(app.validateFocusWeek(days, lone, 7), []);
 });
 
 test('7-day bodybuilding program builds, resolves, and stays at or under MRV weekly', () => {
@@ -246,14 +243,17 @@ test('perSessionCapDiv divides by the real frequency at 4x and stays 2 below it'
 });
 
 // ---------------------------------------------------------------------------
-// Inertness of the pad floor for 2-6 days
+// [B4] The pad floor is DEAD: days are as long as the dose, never padded
 // ---------------------------------------------------------------------------
-test('the 3-slot pad floor is unchanged for 3-6 day weeks', () => {
+test('no pad floor: total weekly slots equal the paid exposures for 3-6 day weeks', () => {
+  const spend = Object.values(FOCUS).reduce((a, b) => a + b, 0);
   for (const n of [3, 4, 5, 6]) {
     freshS();
     const days = app.generateBodybuildingDays({ ...FOCUS }, n);
-    assert.strictEqual(days.length, n);
-    assert.ok(days.every(d => d.slots.length >= 3), `${n}-day week keeps the >=3 floor`);
+    assert.ok(days.length <= n, `${n}-day availability never over-builds`);
+    const slots = days.reduce((s, d) => s + d.slots.length, 0);
+    assert.strictEqual(slots, spend, `${n} days: ${slots} slots for ${spend} paid exposures`);
+    assert.deepStrictEqual(app.validateFocusWeek(days, { ...FOCUS }, n), []);
   }
 });
 
