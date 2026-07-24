@@ -1527,10 +1527,37 @@ const RESTPAUSE_DEFAULTS = { bursts: 2, burstReps: 3 };
 // it simple and distinct from rest-pause (which is multiple same-weight bursts).
 const PARTIAL_DEFAULTS = { sets: 1, partialReps: 6 };
 
+// [B4] The slider ceiling: a slider VALUE is a weekly training frequency
+// (0..FOCUS_MAX exposures per week), and 4 is the maximum healthy frequency
+// the coach will schedule. A future advanced/experimental tab may reopen
+// more; head rotation (below) is what makes 4x honest, never a license for
+// daily same-muscle work.
+const FOCUS_MAX = 4;
+// [B4] Old-scale (0-6) slider values map to the new frequency scale (0-4)
+// with this table; the one coded exception lives in migrateState (an old 6
+// on a 7-day program maps to 4, preserving the historical 4x unlock). Kept
+// exported so a hotfix could reverse-map if a rollback were ever needed.
+const FOCUS_SCALE_MIGRATION = { 0: 0, 1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 3 };
+// [B4] High-frequency head rotation: when a muscle trains 3x+ a week, its
+// days alternate emphasis groups so different tissue leads while the rest
+// recovers (a biceps day is NOT full rest for pressing tissue, which is why
+// rotation mitigates 4x rather than justifying 7x). Groups are ordered; the
+// muscle's exposure k prefers group k mod length. Muscles without head tags
+// (glutes, calves, quads) are absent and rotate by exercise variety instead.
+const FOCUS_HEAD_ROTATION = {
+  arms:      [['bi-long', 'bi-short'], ['tri-long', 'tri-lateral']],
+  chest:     [['chest-upper'], ['chest-lower']],
+  shoulders: [['delt-side', 'delt-front'], ['delt-rear']],
+  back:      [['back-lat'], ['back-upper']],
+  legs:      [['ham-hip'], ['ham-knee']],
+};
+
 // Bodybuilding muscle-focus slider (0..6) -> accessory set-count multiplier vs
 // the scheme baseline (slider 3 = 1.0 = unchanged). 0 removes the exercise.
 // Emphasis (4-6) is expressed by ADDING exercises (refill, see app.js), not by
 // inflating set counts, so only de-emphasis (1-2) scales sets here.
+// [B4 NOTE] Flips to the 0-4 maintenance-vs-full table {0:0,1:0.6,2:1,3:1,4:1}
+// in the generator-rewrite commit, together with the migration + fixtures.
 const FOCUS_FACTOR = { 0: 0, 1: 0.5, 2: 0.75, 3: 1, 4: 1, 5: 1, 6: 1 };
 
 // Default accessory pools per focus muscle, used to refill freed/empty slots and

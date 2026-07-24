@@ -596,6 +596,11 @@ const Engine = {
       // session stops being a workout and becomes a tour. The split
       // generator, the focus budget, and validateFocusWeek all read it.
       maxMusclesPerDay: 6,
+      // [B4] What "unlimited time" prices at when funding the focus budget:
+      // a real-world long session, not infinity (the 11-hour honesty rule).
+      // 90 keeps the default intake (3 days, unlimited, every slider at the
+      // standard 2) affordable, which a 75-minute assumption narrowly broke.
+      defaultSessionMin: 90,
     },
     // The shortest meet runway that fits one full block plus the taper.
     // TRACK_SPEC declares the same number (49 at weeksPerBlock 5) so the
@@ -665,6 +670,105 @@ const Engine = {
       // machinery (not this advisory) is what handles genuine weakness.
       const suggested = Engine.roundLoad(implied, 1.25);
       return suggested < newWM && suggested > currentWM ? { suggested } : null;
+    },
+    // ---------- [B4] THE FOCUS BUDGET (sliders as frequency currency) ----
+    // A slider point is one weekly exposure of session time. Prices are
+    // DERIVED from TIME_MODEL + JBB_HYP so the budget can never drift from
+    // what the session estimator will later charge; estimateSessionSec is
+    // the post-generation verifier (see test/focus-honesty.test.js).
+    exposurePriceSec(kind) {
+      const TM = TIME_MODEL, J = JBB_HYP;
+      if (kind === 'main') {
+        // A day's lead: barbell setup, a warmup ramp, and mid-meso main work
+        // (4 sets of ~8 controlled reps with full rest).
+        const sets = J.mainSets[1][1];
+        return TM.setupSec.bb + 4 * TM.warmupSecPerSet
+          + sets * (8 * TM.execSecPerRep.main + TM.restSec.main);
+      }
+      // An accessory exposure: typical setup and mid-meso accessory work.
+      const sets = J.accSets[1][1];
+      return TM.setupSecDefault
+        + sets * (J.accReps * TM.execSecPerRep.accessory + TM.restSec.accessory);
+    },
+    // Total points a focus vector spends: one point per weekly exposure.
+    // Surplus slider beyond the schedulable day count becomes same-day depth,
+    // which costs the same session time as an exposure, so spend stays a
+    // plain (clamped) sum.
+    focusSpend(focus) {
+      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 4;
+      let n = 0;
+      for (const k in (focus || {})) n += Math.max(0, Math.min(MAX, focus[k] || 0));
+      return n;
+    },
+    // Affordable points for (available days, session cap in minutes). Each
+    // training day funds one main-priced lead; remaining weekly time funds
+    // accessory-priced exposures. Unlimited time prices at a default session
+    // length: unlimited availability must NOT mean unlimited points (an
+    // 11-hour cap buys a coherent plan, not 11 hours of exercises).
+    focusBudget(days, timeCapMin) {
+      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 4;
+      const d = Math.max(1, Math.min(7, days || 0));
+      const sessionSec = Math.max(0,
+        (timeCapMin > 0 ? timeCapMin : this.bounds.defaultSessionMin) * 60
+        - TIME_MODEL.sessionOverheadSec);
+      const mainP = this.exposurePriceSec('main');
+      const accP = this.exposurePriceSec('accessory');
+      let have = d + Math.max(0, Math.floor((d * sessionSec - d * mainP) / accP));
+      // Minimum guarantee: the even minimum week (all seven sliders at 1) is
+      // always affordable when each day can host its share of 7 accessory
+      // exposures, so an athlete can never be priced out of even training.
+      if (Math.ceil(7 / d) * accP <= sessionSec) have = Math.max(have, 7);
+      return Math.min(have, 7 * MAX, d * this.bounds.maxMusclesPerDay);
+    },
+    // null = affordable; otherwise the error-level intake issue with the
+    // honest numbers (the UI renders have/need and offers the rebalance).
+    checkFocusBudget(focus, days, timeCapMin) {
+      if (!focus || !(days > 0)) return null;
+      const have = this.focusBudget(days, timeCapMin);
+      const need = this.focusSpend(focus);
+      return need > have ? { key: 'val.focus_over_budget', params: { have, need } } : null;
+    },
+    // Deterministic proportional scale-down to fit the budget. Preserves the
+    // athlete's ratios, floors every nonzero slider at 1 for as long as the
+    // budget allows, never grows a slider past its asked value, and returns
+    // the per-muscle delta alongside the new focus: a rebalance is a coach
+    // decision, and coach decisions are never silent (T1 receipts contract).
+    rebalanceFocus(focus, have) {
+      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 4;
+      const KEYS = typeof FOCUS_KEYS !== 'undefined' ? FOCUS_KEYS : Object.keys(focus || {});
+      const out = {};
+      for (const k of KEYS) out[k] = Math.max(0, Math.min(MAX, (focus || {})[k] || 0));
+      const spend = this.focusSpend(out);
+      const mkDelta = () => KEYS
+        .filter(k => out[k] !== Math.max(0, Math.min(MAX, (focus || {})[k] || 0)))
+        .map(k => ({ m: k, from: Math.max(0, Math.min(MAX, focus[k] || 0)), to: out[k] }));
+      if (spend <= have) return { focus: out, delta: [] };
+      const orig = Object.assign({}, out);
+      const nz = KEYS.filter(k => orig[k] > 0);
+      const raw = {};
+      for (const k of nz) { raw[k] = orig[k] * have / spend; out[k] = Math.max(1, Math.floor(raw[k])); }
+      let sum = this.focusSpend(out);
+      // The 1-floors can overshoot a tiny budget: shave the smallest asks
+      // first (tie: later slider order), zeroing them only as a last resort.
+      while (sum > have) {
+        const shrinkable = nz.filter(k => out[k] > 1)
+          .sort((a, b) => (orig[a] - orig[b]) || (KEYS.indexOf(b) - KEYS.indexOf(a)));
+        if (shrinkable.length) { out[shrinkable[0]]--; sum--; continue; }
+        const droppable = nz.filter(k => out[k] === 1)
+          .sort((a, b) => (orig[a] - orig[b]) || (KEYS.indexOf(b) - KEYS.indexOf(a)));
+        if (!droppable.length) break;
+        out[droppable[0]] = 0; sum--;
+      }
+      // Leftover points go to the largest fractional remainders (tie:
+      // earlier slider order), never past what the athlete asked for.
+      while (sum < have) {
+        const cand = nz.filter(k => out[k] > 0 && out[k] < Math.min(orig[k], MAX))
+          .sort((a, b) => ((raw[b] - Math.floor(raw[b])) - (raw[a] - Math.floor(raw[a])))
+            || (KEYS.indexOf(a) - KEYS.indexOf(b)));
+        if (!cand.length) break;
+        out[cand[0]]++; sum++;
+      }
+      return { focus: out, delta: mkDelta() };
     },
     // Intake-QA F4: every slider at 0 builds a program with nothing in it.
     checkFocus(focus) {
