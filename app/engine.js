@@ -592,6 +592,10 @@ const Engine = {
       // strength work and the taper, not a 4-5 week accumulation block.
       meetShortRunwayMaxDays: 75,
       meetLeadMaxWeeks: 2,
+      // [B4] Per-day coherence cap: past this many distinct muscle groups a
+      // session stops being a workout and becomes a tour. The split
+      // generator, the focus budget, and validateFocusWeek all read it.
+      maxMusclesPerDay: 6,
     },
     // The shortest meet runway that fits one full block plus the taper.
     // TRACK_SPEC declares the same number (49 at weeksPerBlock 5) so the

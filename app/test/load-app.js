@@ -86,6 +86,7 @@ const EXPORTS = `return {
   seMove, seRename, seAddDay, seRemoveDay, seFreqChips, splitDayMuscles,
   blockWeeks, weeksBefore, totalProgramWeeks, vMeet, obMeetLine,
   generateFullBodyDays, generatePumpDay, splitFreqFor, perSessionCapDiv,
+  validateFocusWeek,
   BB_DAY_TEMPLATES,
   programTemplate, validateTemplate, programFromTemplate,
   TEMPLATE_SCHEMA_VERSION,

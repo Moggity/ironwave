@@ -843,6 +843,60 @@ function spaceSameMuscle(days) {
   }
   return days;
 }
+// [B4] The split generator's frequency contract, in ONE place: the honesty
+// sweep test, the manual probe kit, and any future generator work all consult
+// this checker, so the contract cannot drift. Pure given globals (exById,
+// MOVEMENT_SLIDER, FOCUS_KEYS, Engine.coach.bounds). Returns a list of
+// violation strings; empty = the week keeps the sliders' promise.
+// The contract, for availability N and sliders focus (0..FOCUS_MAX):
+//   1. Only days the dose needs: days.length <= N, no empty days; an all-zero
+//      focus is the only excuse for an empty week.
+//   2. A muscle with slider 0 appears nowhere.
+//   3. appearances(m) <= min(focus[m], N): never more weekly exposures than
+//      the slider paid for (no F7 lead monopolies, rule 5 tightens leads).
+//   4. appearances(m) == min(focus[m], N) unless every day missing m is
+//      already at the per-day muscle cap (bounds.maxMusclesPerDay): capacity
+//      is the only excuse for under-delivering frequency.
+//   5. A muscle LEADS at most min(focus[m], N) days.
+//   6. No exercise id appears twice within one day (no F8 lazy repeats).
+function validateFocusWeek(days, focus, N) {
+  const v = [];
+  const cap = Engine.coach.bounds.maxMusclesPerDay;
+  const anyFocus = FOCUS_KEYS.some(m => (focus[m] || 0) > 0);
+  if (!days || !days.length) {
+    if (anyFocus) v.push('empty week for a nonzero focus');
+    return v;
+  }
+  if (days.length > N) v.push(`built ${days.length} days for ${N} available`);
+  const perDay = days.map(d => {
+    const ms = new Set(), ids = new Set();
+    const slots = d.slots || [];
+    if (!slots.length) v.push(`${d.name || 'day'}: empty day`);
+    for (const sl of slots) {
+      const id = sl.def || sl.ex || sl.lift || sl.baseLift;
+      if (id) {
+        if (ids.has(id)) v.push(`${d.name || 'day'}: ${id} repeats within the day`);
+        ids.add(id);
+      }
+      const ex = id && exById(id);
+      const m = ex && MOVEMENT_SLIDER[ex.movement];
+      if (m) ms.add(m);
+    }
+    return ms;
+  });
+  for (const m of FOCUS_KEYS) {
+    const want = Math.min(focus[m] || 0, N);
+    const got = perDay.filter(s => s.has(m)).length;
+    const leads = days.filter(d => d.primary === m).length;
+    if (!want && got) v.push(`${m}: slider 0 but appears on ${got} days`);
+    if (got > want) v.push(`${m}: ${got} exposures for slider ${focus[m] || 0} (max ${want})`);
+    if (got < want && perDay.some(s => !s.has(m) && s.size < cap)) {
+      v.push(`${m}: ${got}/${want} exposures with day capacity left`);
+    }
+    if (leads > want) v.push(`${m}: leads ${leads} days for slider ${focus[m] || 0}`);
+  }
+  return v;
+}
 function P() { return S.program; }
 // The one gate most non-default behavior hangs off: is this a bodybuilding program?
 function bbTrack() { const tc = P() && P().trainingConfig; return !!(tc && tc.track === 'bodybuilding'); }
