@@ -1527,15 +1527,18 @@ const RESTPAUSE_DEFAULTS = { bursts: 2, burstReps: 3 };
 // it simple and distinct from rest-pause (which is multiple same-weight bursts).
 const PARTIAL_DEFAULTS = { sets: 1, partialReps: 6 };
 
-// [B4] The slider ceiling: a slider VALUE is a weekly training frequency
-// (0..FOCUS_MAX exposures per week), and 4 is the maximum healthy frequency
-// the coach will schedule. A future advanced/experimental tab may reopen
-// more; head rotation (below) is what makes 4x honest, never a license for
-// daily same-muscle work.
-const FOCUS_MAX = 4;
-// [B4] Old-scale (0-6) slider values map to the new frequency scale (0-4)
-// with this table; the one coded exception lives in migrateState (an old 6
-// on a 7-day program maps to 4, preserving the historical 4x unlock). Kept
+// [B4] The slider ceiling: a slider VALUE is a weekly training frequency.
+// [G1] Owner ruling 2026-07-24: the main control is 1..3 (Light / Standard /
+// High); 3 is the top of the standard range. 0 is legal STORAGE (a muscle
+// turned off) but is never a slider position: turning a muscle off is a
+// deliberate, confirm-gated action, and 4x+ frequency returns only through
+// the advanced specialization tab (per-muscle ceilings, coach-gated), where
+// head rotation makes high frequency honest.
+const FOCUS_MAX = 3;
+// [B4] Old-scale (0-6) slider values map through this table; it lands in
+// 0..3 already, and the one historical exception (an old 6 on a 7-day
+// program unlocked 4x) is preserved by migrateState as a specialization ask
+// (`focusSpecAsk`) for the advanced tab instead of a live value. Kept
 // exported so a hotfix could reverse-map if a rollback were ever needed.
 const FOCUS_SCALE_MIGRATION = { 0: 0, 1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 3 };
 // [B4] High-frequency head rotation: when a muscle trains 3x+ a week, its
@@ -1557,9 +1560,11 @@ const FOCUS_HEAD_ROTATION = {
 // [B4] Slider (0..FOCUS_MAX) -> accessory set-count multiplier. The slider
 // buys FREQUENCY; volume per exposure is owned by the landmarks and autoreg
 // (keeping those axes separate is what keeps both loops convergent). So the
-// table only encodes maintenance-vs-full: 0 removes, 1 is the minimum-dose
-// setting (0.6x sets), 2-4 leave the scheme's sets alone.
-const FOCUS_FACTOR = { 0: 0, 1: 0.6, 2: 1, 3: 1, 4: 1 };
+// table only encodes maintenance-vs-full: 0 removes (a muscle turned off),
+// 1 is the minimum-dose setting (0.6x sets), 2-3 leave the scheme's sets
+// alone. [G1] Readers clamp to FOCUS_MAX first so a stale out-of-scale
+// value can never index off the table.
+const FOCUS_FACTOR = { 0: 0, 1: 0.6, 2: 1, 3: 1 };
 
 // Default accessory pools per focus muscle, used to refill freed/empty slots and
 // to give a select-only emphasized muscle (glutes, calves) real exercises.

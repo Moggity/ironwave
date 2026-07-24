@@ -75,7 +75,15 @@ every other track, which is why default/powerbuilding output stays byte-identica
 
 ### The bodybuilding split generator
 
-[B4] A focus slider value IS a weekly frequency, scale 0-4 (`FOCUS_MAX`).
+[B4] A focus slider value IS a weekly frequency. [G1] The main control runs
+1-3 (`FOCUS_MAX` 3: Light / Standard / High); 0 is legal storage (a muscle
+turned off) but never a slider position - turning off is a confirm-gated
+control on the focus row, and 4x+ frequency belongs to the future advanced
+specialization tab (per-muscle ceilings; migration preserves old 4x asks in
+`profile.training.focusSpecAsk`). The scale marker `focusScale` chains
+none -> 4 -> 3 in `migrateState` and MUST be stamped wherever
+`profile.training` is rebuilt, or reload re-runs the 0-6 remap and decays
+sliders.
 [B4.1] Sliders are NOT session length: the points budget
 (`Engine.coach.focusBudget`, derived from `TIME_MODEL`; overspend blocks with
 a one-tap rebalance) applies ONLY under a custom time cap. With no time limit

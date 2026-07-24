@@ -97,9 +97,9 @@ test('feSave stores pendingFocus; endBlock regenerates the split from it', () =>
   const p = s.program;
   p.wm['comp-bench'] = 80;
   const lmBefore = JSON.stringify(s.profile.landmarks);
-  app.V.feDraft = Object.assign({}, FOCUS, { chest: 4, legs: 1 });
+  app.V.feDraft = Object.assign({}, FOCUS, { chest: 3, legs: 1 });
   app.feSave();
-  assert.deepStrictEqual(p.pendingFocus.chest, 4, 'stored on the program');
+  assert.deepStrictEqual(p.pendingFocus.chest, 3, 'stored on the program');
   const oldDays = p.days;
   // Cross the block boundary.
   p.pointer.week = p.weeksPerBlock - 1;
@@ -107,7 +107,7 @@ test('feSave stores pendingFocus; endBlock regenerates the split from it', () =>
   assert.strictEqual(p.pointer.block, 1, 'block advanced');
   assert.notStrictEqual(p.days, oldDays, 'split regenerated');
   assert.strictEqual(p.pendingFocus, null, 'pending focus spent');
-  assert.strictEqual(p.trainingConfig.muscleFocus.chest, 4, 'config follows');
+  assert.strictEqual(p.trainingConfig.muscleFocus.chest, 3, 'config follows');
   assert.strictEqual(p.wm['comp-bench'], 80, 'working maxes preserved');
   assert.strictEqual(JSON.stringify(s.profile.landmarks), lmBefore, 'landmarks preserved');
   const chestDays = p.days.filter(d => app.splitDayMuscles(d).has('chest')).length;

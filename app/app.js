@@ -23,7 +23,7 @@ function defaultState() {
                plates: JSON.parse(JSON.stringify(DEFAULT_PLATES)),
                // Dynamic engine (see docs/dynamic-routine-engine-design.md). All
                // defaults make a routine identical to the legacy output.
-               training: { track: 'powerbuilding', timeMode: 'unlimited', timeCapMin: null, focusScale: 4,
+               training: { track: 'powerbuilding', timeMode: 'unlimited', timeCapMin: null, focusScale: 3,
                  muscleFocus: { arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 } },
                experience: 'intermediate',
                trainingAge: { startedTs: null, blocksCompleted: 0 },
@@ -126,17 +126,39 @@ function migrateState(s) {
   // Raw values are ambiguous (all-2 is valid on both scales), so a scale
   // marker makes this idempotent. Mapping runs BEFORE the defaults merge so
   // a legacy save's missing keys take the new default directly. An old 6 on
-  // a 7-day program keeps its historical 4x unlock; anything unrecognized
-  // clamps to 0. Applied to all three persisted focus locations.
-  if (t.focusScale !== 4) {
-    const seven = !!(s.program && s.program.daysPerWeek >= 7);
-    const remap = f => {
-      if (f) for (const k in f) f[k] = (f[k] === 6 && seven) ? 4 : (FOCUS_SCALE_MIGRATION[f[k]] || 0);
+  // a 7-day program keeps its historical 4x unlock (transient, resolved by
+  // the G1 step below); anything unrecognized clamps to 0. Applied to all
+  // three persisted focus locations.
+  // [G1] The marker is the scale's FOCUS_MAX (4 = B4 era, 3 = current), and
+  // the steps CHAIN: no marker runs both, 4 runs only the clamp. NOTE: this
+  // also fixes a real corruption bug, since doNewProgram used to rebuild
+  // profile.training WITHOUT the marker, so every reload re-ran the 0-6
+  // remap and silently decayed new-scale sliders (2 -> 1). doNewProgram now
+  // stamps the marker at creation.
+  if (t.focusScale !== 3) {
+    const each = fn => {
+      fn(t.muscleFocus);
+      if (s.program && s.program.trainingConfig) fn(s.program.trainingConfig.muscleFocus);
+      if (s.program && s.program.pendingFocus) fn(s.program.pendingFocus);
     };
-    remap(t.muscleFocus);
-    if (s.program && s.program.trainingConfig) remap(s.program.trainingConfig.muscleFocus);
-    if (s.program && s.program.pendingFocus) remap(s.program.pendingFocus);
-    t.focusScale = 4;
+    if (t.focusScale !== 4) {
+      const seven = !!(s.program && s.program.daysPerWeek >= 7);
+      each(f => {
+        if (f) for (const k in f) f[k] = (f[k] === 6 && seven) ? 4 : (FOCUS_SCALE_MIGRATION[f[k]] || 0);
+      });
+    }
+    // [G1] 0-4 -> the 1-3 main scale: a stored 4 clamps to 3 and the ask is
+    // preserved additively in focusSpecAsk, the seed the advanced
+    // specialization tab (G2+) reopens; nothing else changes, and clamping
+    // is prescription-neutral today (FOCUS_FACTOR treats 3 and the old 4
+    // identically). 0 stays legal storage: a muscle turned off.
+    each(f => {
+      if (f) for (const k in f) if (f[k] > FOCUS_MAX) {
+        (t.focusSpecAsk = t.focusSpecAsk || {})[k] = Math.max(f[k], (t.focusSpecAsk || {})[k] || 0);
+        f[k] = FOCUS_MAX;
+      }
+    });
+    t.focusScale = 3;
   }
   t.muscleFocus = Object.assign({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 },
                                 t.muscleFocus || {});
@@ -1196,10 +1218,11 @@ function applySetDelta(sets, delta) {
 // are never touched (they carry the wave math and working-max progression).
 // Returns { removed } or { delta } of plain working sets to apply via applySetDelta.
 // [7-day] Per-session landmark cap divisor. The historical mrv/2 assumes ~2
-// sessions/wk/muscle; a muscle trained 4x or more (only reachable on a 7-day
-// week with a slider at 6) divides by its real frequency so the weekly total
-// stays at or under MRV. Below 4x the divisor stays 2, byte-identical to every
-// existing program.
+// sessions/wk/muscle; a muscle trained 4x or more divides by its real
+// frequency so the weekly total stays at or under MRV. [G1] With the main
+// sliders capped at 3, 4x weeks return only through the advanced
+// specialization tab; this stays as that epic's seam. Below 4x the divisor
+// stays 2, byte-identical to every existing program.
 function perSessionCapDiv(sliderKey) {
   const p = P();
   if (!sliderKey || !p || !Array.isArray(p.days)) return 2;
@@ -1212,8 +1235,11 @@ function focusForAccessory(exId, sets) {
   const e = exById(exId);
   const key = e && MOVEMENT_SLIDER[e.movement];
   if (!key) return { delta: 0 };
-  const v = tc.muscleFocus[key];
-  if (v == null || v === 3) return { delta: 0 };
+  // [G1] Clamp before the table read: a stale out-of-scale value (an
+  // un-migrated 4) behaves as 3 instead of indexing off FOCUS_FACTOR.
+  const raw = tc.muscleFocus[key];
+  const v = raw == null ? null : Math.min(FOCUS_MAX, raw);
+  if (v == null || v === FOCUS_MAX) return { delta: 0 };
   if (v === 0) return { removed: true };
   const plain = sets.filter(s => !s.amrap && !s.ramp && !s.calib).length;
   if (!plain) return { delta: 0 }; // a calibration ramp: nothing to scale yet
@@ -1610,8 +1636,8 @@ function prunePriority(rs, mainMovs, tc) {
     const key = MOVEMENT_SLIDER[mov];
     const v = key != null ? tc.muscleFocus[key] : null;
     if (v != null) {
-      // [B4] 0-4 scale, baseline 2: specialized (3+) kept first under a time
-      // cap; below-baseline sheds first.
+      // [G1] 1-3 scale (0 = off), baseline 2: the High setting (3) is kept
+      // first under a time cap; below-baseline sheds first.
       if (v >= 3) return -(v - 2);
       deprior = (2 - v) / 2;
     }
@@ -2191,6 +2217,51 @@ function obFocusWarning(focus) {
   }
   return banners.join('');
 }
+// [G1] One focus row, shared by onboarding ('ob') and the in-app editor
+// ('fe'). The main control is 1..FOCUS_MAX (Light / Standard / High): 0 is
+// never a slider position, so abandoning a muscle can never be a slider
+// slip. A muscle turned OFF renders as a compact off state with one tap
+// back on; turning OFF lives behind its own small control plus a confirm.
+function focusRowHTML(k, v, surface) {
+  const fe = surface === 'fe';
+  const pre = fe ? 'fe' : 'mf';
+  const slide = fe ? `feSlider('${k}', this.value)` : `obSlider('${k}', this.value)`;
+  const off = fe ? `feFocusOff('${k}')` : `obFocusOff('${k}')`;
+  const back = fe ? `feFocusOn('${k}')` : `obFocusOn('${k}')`;
+  if (v === 0) {
+    return `
+      <div class="focus-row">
+        <div class="row"><span class="faint">${esc(t('muscle.' + k))} · ${esc(t('focus.off_state'))}</span>
+          <button class="btn-ghost" onclick="${back}">${esc(t('focus.on_btn'))}</button></div>
+      </div>`;
+  }
+  return `
+    <div class="focus-row">
+      <div class="row"><span>${esc(t('muscle.' + k))}</span>
+        <span class="row" style="gap:12px">
+          <b id="${pre}-val-${k}">${v}</b>
+          <button class="btn-ghost faint" onclick="${off}"
+            aria-label="${esc(t('focus.off_aria', { m: t('muscle.' + k) }))}">${esc(t('focus.off_btn'))}</button>
+        </span></div>
+      <input type="range" min="1" max="${FOCUS_MAX}" step="1" value="${v}"
+        aria-label="${esc(t('muscle.' + k))}" oninput="${slide}">
+    </div>`;
+}
+// [G1] Turning a muscle OFF is a coach-grade decision with real consequences
+// (expect to lose some size and strength there), so it is confirm-gated.
+// The previous value is remembered on V so one tap back on restores it.
+function obFocusOff(k) {
+  confirmModal({ title: t('focus.off_title', { m: t('muscle.' + k) }),
+    message: t('focus.off_msg'), danger: true, confirmLabel: t('focus.off_confirm') }, () => {
+    (V._offPrev = V._offPrev || {})[k] = V.ob.muscleFocus[k] || 2;
+    V.ob.muscleFocus[k] = 0;
+    hapticTap(); render();
+  });
+}
+function obFocusOn(k) {
+  V.ob.muscleFocus[k] = (V._offPrev && V._offPrev[k]) || 2;
+  hapticTap(); render();
+}
 // [B4] One-tap proportional rebalance to fit the budget. A rebalance is a
 // coach decision, so the toast names every change (from -> to); the same
 // delta becomes a T1 receipt when receipts land.
@@ -2392,12 +2463,7 @@ function vOnboarding() {
       <div class="ob-title">${esc(t('ob.focus_title'))}</div>
       <p class="subtle">${esc(t('ob.focus_sub'))}</p>
       <div id="mf-budget" class="focus-time" role="status">${esc(obBudgetLine(ob))}</div>
-      ${FOCUS_KEYS.map(k => `
-        <div class="focus-row">
-          <div class="row"><span>${esc(t('muscle.' + k))}</span><b id="mf-val-${k}">${ob.muscleFocus[k]}</b></div>
-          <input type="range" min="0" max="${FOCUS_MAX}" step="1" value="${ob.muscleFocus[k]}"
-            aria-label="${esc(t('muscle.' + k))}" oninput="obSlider('${k}', this.value)">
-        </div>`).join('')}
+      ${FOCUS_KEYS.map(k => focusRowHTML(k, ob.muscleFocus[k], 'ob')).join('')}
       <div id="mf-warn" role="alert">${obFocusWarning(ob.muscleFocus)}</div>
       <div id="mf-time" class="focus-time">${esc(focusTimeLine(ob))}</div>
       <button class="btn btn-green mt16" onclick="obNext(${step})">${esc(t('ob.continue'))}</button>`;
@@ -2657,6 +2723,9 @@ function obNext(step) {
         goalArchetype: ob.track === 'bodybuilding' ? (ob.goalArchetype || null) : null,
         timeMode: ob.timeMode,
         timeCapMin: ob.timeMode === 'custom' ? (parseInt(ob.timeCapMin) || null) : null,
+        // [G1] Stamp the slider scale at creation. Rebuilding this object
+        // without the marker was the reload-decay bug (see migrateState).
+        focusScale: 3,
         muscleFocus: Object.assign({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 }, ob.muscleFocus),
       };
       S.profile.trainingAge = { startedTs: Date.now(), blocksCompleted: 0 };
@@ -6412,12 +6481,7 @@ function feWarning() {
   return '';
 }
 function renderFocusEditor(anim) {
-  const rows = FOCUS_KEYS.map(k => `
-    <div class="focus-row">
-      <div class="row"><span>${esc(t('muscle.' + k))}</span><b id="fe-val-${k}">${V.feDraft[k]}</b></div>
-      <input type="range" min="0" max="${FOCUS_MAX}" step="1" value="${V.feDraft[k]}"
-        aria-label="${esc(t('muscle.' + k))}" oninput="feSlider('${k}', this.value)">
-    </div>`).join('');
+  const rows = FOCUS_KEYS.map(k => focusRowHTML(k, V.feDraft[k], 'fe')).join('');
   $modal.innerHTML = modalShell(anim, t('fe.title'), `
     <div id="fe-budget" class="focus-time" role="status">${esc(feBudgetLine())}</div>
     ${rows}
@@ -6431,6 +6495,21 @@ function feSlider(k, v) {
   const bd = byId('fe-budget'); if (bd) bd.textContent = feBudgetLine();
   const wn = byId('fe-warn'); if (wn) wn.innerHTML = feWarning();
   if (parseInt(v) === FOCUS_MAX) hapticTap();
+}
+// [G1] Same off gate as onboarding, on the editor's draft. confirmResolve
+// re-renders the editor beneath before the callback runs, so the callback
+// re-renders the top modal again with the mutated draft.
+function feFocusOff(k) {
+  confirmModal({ title: t('focus.off_title', { m: t('muscle.' + k) }),
+    message: t('focus.off_msg'), danger: true, confirmLabel: t('focus.off_confirm') }, () => {
+    (V._offPrev = V._offPrev || {})[k] = V.feDraft[k] || 2;
+    V.feDraft[k] = 0;
+    hapticTap(); rerenderTop();
+  });
+}
+function feFocusOn(k) {
+  V.feDraft[k] = (V._offPrev && V._offPrev[k]) || 2;
+  hapticTap(); rerenderTop();
 }
 function feRebalance() {
   const c = feBudgetCtx();

@@ -1,5 +1,41 @@
 # IRONWAVE — Changelog
 
+## [The 1-3 main scale: off is a decision, not a slider position (G1)] (2026-07-24)
+
+Owner ruling 2026-07-24, second round of the B4 slider review. Two ideas:
+a slider should only ever offer real training plans, and abandoning a
+muscle must never be a slider slip. All bodybuilding-surface changes;
+golden master byte-identical.
+
+- **The main sliders are now 1-3** (`FOCUS_MAX` 3): 1 keeps a muscle
+  maintained (the 0.6x dose), 2 is the standard, 3 is high. 0 is legal
+  STORAGE (a muscle turned off) but no longer a slider position; the
+  range input runs min 1. 4x weekly frequency leaves the main surface
+  and returns through the advanced specialization tab (next slices),
+  where per-muscle healthy ceilings can gate it properly.
+- **Turning a muscle off is confirm-gated.** Each focus row (onboarding
+  and the in-app editor, one shared `focusRowHTML`) carries a small Off
+  control behind a danger-styled confirm that states the consequence
+  plainly; an off muscle renders as a compact off state with one tap
+  back on (the previous value is remembered). The all-off program block
+  still applies.
+- **Migration preserves intent** (`migrateState`, chained scale markers:
+  none -> 4 -> 3, idempotent): a B4-era 4 clamps to 3 and the ask is
+  kept additively in `profile.training.focusSpecAsk`, the seed the
+  advanced tab reopens; the historical 0-6 "slider 6 on 7 days" unlock
+  lands the same way. Clamping is prescription-neutral today
+  (`FOCUS_FACTOR` treated 3 and 4 identically), so no in-flight program
+  changes output. `focusForAccessory` clamps before its table read so a
+  stale out-of-scale value can never misprescribe.
+- **Fixed a real reload-decay bug found during this work**: doNewProgram
+  rebuilt `profile.training` WITHOUT the scale marker, so every reload
+  re-ran the 0-6 remap on new-scale values and silently decayed sliders
+  (2 -> 1). The marker is now stamped at creation and a regression test
+  pins the round-trip.
+- Suite: 531 green (migration chain, clamp+ask, depth/rotation/library
+  sweeps rebased to the 1-3 scale, off-control smoke); golden master
+  unchanged.
+
 ## [Sliders are not session length: the coach fills the session (B4.1)] (2026-07-24)
 
 CTO review of B4 (PR 88) landed three owner rulings, all master coach

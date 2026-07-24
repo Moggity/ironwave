@@ -742,7 +742,7 @@ const Engine = {
     // which costs the same session time as an exposure, so spend stays a
     // plain (clamped) sum.
     focusSpend(focus) {
-      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 4;
+      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 3;
       let n = 0;
       for (const k in (focus || {})) n += Math.max(0, Math.min(MAX, focus[k] || 0));
       return n;
@@ -753,7 +753,7 @@ const Engine = {
     // length: unlimited availability must NOT mean unlimited points (an
     // 11-hour cap buys a coherent plan, not 11 hours of exercises).
     focusBudget(days, timeCapMin) {
-      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 4;
+      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 3;
       const d = Math.max(1, Math.min(7, days || 0));
       const sessionSec = Math.max(0,
         (timeCapMin > 0 ? timeCapMin : this.bounds.defaultSessionMin) * 60
@@ -784,7 +784,7 @@ const Engine = {
     // the per-muscle delta alongside the new focus: a rebalance is a coach
     // decision, and coach decisions are never silent (T1 receipts contract).
     rebalanceFocus(focus, have) {
-      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 4;
+      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 3;
       const KEYS = typeof FOCUS_KEYS !== 'undefined' ? FOCUS_KEYS : Object.keys(focus || {});
       const out = {};
       for (const k of KEYS) out[k] = Math.max(0, Math.min(MAX, (focus || {})[k] || 0));
