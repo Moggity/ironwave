@@ -91,8 +91,13 @@ The overrides BUILD: `ob.focusAdv` -> `trainingConfig.focusAdv` ->
 `generateBodybuildingDays(..., { adv })`; `advTargets` is the ONE
 normalization (generator + `validateFocusWeek` rules 7-8 both consult it),
 `applyAdvOverrides` reconciles rows to eff = max(anchor days, capped ask),
-and absent asks are byte-identical by construction. G4 (the panel UI) is
-the only remaining slice; it must also wire asks into the points budget. The scale marker `focusScale` chains
+and absent asks are byte-identical by construction. [G4] The panel ships:
+`openAdvPanel`/`advPanelHTML` on both slider surfaces (pips locked past
+training days, absent past `advFreqCeiling`, MAX at the effective cap),
+asks priced into the points budget via `coach.advSpend`, the
+`bounds.specSlots` limit enforced by `coach.checkSpecSlots` (panel and
+intake), weekday placement preview (`advWeekdayPreview`), and
+`pendingFocusAdv` staging applied by `endBlock` with the pending sliders. The scale marker `focusScale` chains
 none -> 4 -> 3 in `migrateState` and MUST be stamped wherever
 `profile.training` is rebuilt, or reload re-runs the 0-6 remap and decays
 sliders.

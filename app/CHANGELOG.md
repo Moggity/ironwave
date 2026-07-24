@@ -1,5 +1,47 @@
 # IRONWAVE — Changelog
 
+## [The Specialization panel (G4): the advanced tab ships] (2026-07-24)
+
+Final slice of the advanced frequency epic (owner ruling 2026-07-24).
+Gaming UX with coaching honesty, bodybuilding-only, golden master
+untouched.
+
+- **The panel** (`openAdvPanel`/`advPanelHTML`, shared by onboarding and
+  the in-app focus editor): every `ADV_MUSCLES` row grouped under its
+  parent slider with frequency PIPS. Positions past the athlete's
+  training days render LOCKED with the unlock hint ("Train {n} days a
+  week to unlock"); positions past the muscle's healthy ceiling do not
+  exist at all; the active state reads "3x · MAX" at the effective cap
+  (the owner example: biceps maxed at 3 on 3 days, open to 6 on 6).
+  Auto follows the group slider; Off exists only for multi-row muscles;
+  an off muscle's rows render muted.
+- **Specialization slots enforced**: at most `bounds.specSlots` (2)
+  muscles above what their slider already hosts; the ledger is always
+  visible, the third ask shows the honest banner and disables save, and
+  `validateIntake` blocks it at Continue (`val.adv_spec_slots`, en+es).
+- **Asks spend the points budget**: new `coach.advSpend` prices the
+  exposures an ask adds beyond its slider (a biceps 4x over a 2x arms
+  slider costs 2 points; abs is all new work); `checkFocusBudget` and
+  the budget lines take the asks, custom-cap only as ever.
+  `coach.advTargets` moved from app.js onto the coach (app wrapper kept)
+  so the validator prices with the exact generator normalization.
+- **Weekday placement preview**: athletes who picked calendar days see
+  where each ask LANDS ("Lands on Mon · Wed · Fri", via one throwaway
+  build + the real `scheduleSubset` mapping) with a back-to-back
+  spacing flag. Count-mode athletes get no projection.
+- **Lifecycle**: onboarding saves asks to the draft (`ob.focusAdv` ->
+  makeProgram, G3) and the profile; the focus editor stages
+  `pendingFocusAdv` (null = clear) which `endBlock` applies WITH the
+  pending sliders and commits to `trainingConfig.focusAdv` +
+  `profile.training.focusAdv`; a new cycle carries the asks. The G1
+  migration seed (`focusSpecAsk`) surfaces in the panel until a real
+  ask exists.
+- Tests: adv-spec grows the G4 set (advSpend/specCount/slot gate,
+  ask-aware intake, locked/MAX panel states, weekday preview with the
+  back-to-back flag, seed hint, and the full apSave -> feSave ->
+  endBlock flow); render-smoke pins the onboarding entry point. Suite:
+  557 green.
+
 ## [Advanced frequency overrides in the generator (G3)] (2026-07-24)
 
 The heavy slice of the advanced specialization tab: per-muscle frequency

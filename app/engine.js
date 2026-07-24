@@ -646,6 +646,64 @@ const Engine = {
       const d = Math.max(1, Math.min(7, days || 0));
       return Math.max(1, Math.min(ceil, d));
     },
+    // [G4] (moved up from app.js so the intake validator can price asks)
+    // Normalize advanced asks into effective row targets for availability N:
+    // every ask clamps to advFreqCap; a row on an OFF muscle follows the
+    // muscle; an ask of 0 on a muscle's ONLY row is ignored (turning a
+    // whole muscle off is the slider's confirm-gated job, not a backdoor).
+    // The generator and validateFocusWeek consult THIS via the app wrapper,
+    // so build, contract, budget, and panel can never disagree.
+    advTargets(adv, focus, N) {
+      const out = {};
+      if (!adv) return out;
+      for (const r of ADV_MUSCLES) {
+        const ask = adv[r.id];
+        if (ask == null) continue;
+        if (r.slider && Math.max(0, (focus || {})[r.slider] || 0) === 0) continue;
+        if (ask <= 0 && r.slider
+            && ADV_MUSCLES.filter(x => x.slider === r.slider).length === 1) continue;
+        out[r.id] = ask <= 0 ? 0 : Math.min(ask, this.advFreqCap(r.id, N));
+      }
+      return out;
+    },
+    // [G4] Extra weekly exposures the asks add BEYOND what the sliders
+    // already host: a biceps ask of 4 over a 2x arms slider adds 2 new
+    // exposures (the two arms days can host the first two); a slider-less
+    // row (abs) is all new work. This is what the points budget charges.
+    advSpend(adv, focus, days) {
+      const t = this.advTargets(adv, focus, days);
+      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 3;
+      let n = 0;
+      for (const rid in t) {
+        const r = ADV_MUSCLES.find(x => x.id === rid);
+        const base = r.slider
+          ? Math.min(Math.max(0, Math.min(MAX, (focus || {})[r.slider] || 0)), Math.max(1, days || 1))
+          : 0;
+        n += Math.max(0, t[rid] - base);
+      }
+      return n;
+    },
+    // [G4] Specialization slots: how many rows sit ABOVE what their slider
+    // already hosts. Bounded by bounds.specSlots; over the limit is a
+    // blocked plan, not a warning (honest fatigue management).
+    specCount(adv, focus, days) {
+      const t = this.advTargets(adv, focus, days);
+      const MAX = typeof FOCUS_MAX !== 'undefined' ? FOCUS_MAX : 3;
+      let n = 0;
+      for (const rid in t) {
+        const r = ADV_MUSCLES.find(x => x.id === rid);
+        const base = r.slider
+          ? Math.min(Math.max(0, Math.min(MAX, (focus || {})[r.slider] || 0)), Math.max(1, days || 1))
+          : 0;
+        if (t[rid] > base) n++;
+      }
+      return n;
+    },
+    checkSpecSlots(adv, focus, days) {
+      const max = this.bounds.specSlots;
+      const used = this.specCount(adv, focus, days);
+      return used > max ? { key: 'val.adv_spec_slots', params: { used, max } } : null;
+    },
     // null = fine; otherwise the capped issue for a per-muscle frequency
     // ask. params.m carries the ADV row id (the G4 UI translates it via
     // 'adv.<id>'); the honest cap rides along.
@@ -813,10 +871,13 @@ const Engine = {
     // [B4.1] Owner ruling 2026-07-24: the points budget exists ONLY under a
     // custom time cap. No time limit means free sliders; the long-session
     // advisory (checkSessionEstimate) is the only voice there.
-    checkFocusBudget(focus, days, timeCapMin) {
+    // [G4] Advanced asks spend the same currency: `adv` (optional) adds
+    // advSpend's extra exposures to the need, so a specialization cannot
+    // silently overrun a capped session.
+    checkFocusBudget(focus, days, timeCapMin, adv) {
       if (!focus || !(days > 0) || !(timeCapMin > 0)) return null;
       const have = this.focusBudget(days, timeCapMin);
-      const need = this.focusSpend(focus);
+      const need = this.focusSpend(focus) + (adv ? this.advSpend(adv, focus, days) : 0);
       return need > have ? { key: 'val.focus_over_budget', params: { have, need } } : null;
     },
     // Deterministic proportional scale-down to fit the budget. Preserves the
@@ -942,9 +1003,14 @@ const Engine = {
       // session time afford block like the all-zero gate; the focus step's
       // banner carries the numbers and the one-tap rebalance. [B4.1] Custom
       // cap only: with no time limit checkFocusBudget stays silent (free
-      // sliders, warn-only session advisory in the UI).
+      // sliders, warn-only session advisory in the UI). [G4] Advanced asks
+      // ride the same budget, and the specialization slot limit blocks
+      // like the budget does.
       coachIssue('focus', this.coach.checkFocusBudget(ob.muscleFocus, ob.daysPerWeek,
-        ob.timeMode === 'custom' ? parseFloat(ob.timeCapMin) : null));
+        ob.timeMode === 'custom' ? parseFloat(ob.timeCapMin) : null, ob.focusAdv || null));
+      if (ob.focusAdv) {
+        coachIssue('focus', this.coach.checkSpecSlots(ob.focusAdv, ob.muscleFocus, ob.daysPerWeek));
+      }
     }
     if (ob.timeMode === 'custom') {
       const cap = parseInt(ob.timeCapMin, 10);

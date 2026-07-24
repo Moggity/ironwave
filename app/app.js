@@ -703,25 +703,13 @@ function advRowPool(rid) {
   return advRowExercises(r).filter(e => !anchors.has(e.id))
     .sort((a, b) => (b.sfr - a.sfr)).map(e => e.id);
 }
-// [G3] Normalize the athlete's advanced asks into effective row targets for
-// availability N. The coach cap (physiology x days) bounds every ask; a row
-// whose parent slider sits at 0 follows the muscle off (the override cannot
-// resurrect removed work); an ask of 0 on a muscle's ONLY row is ignored
-// (turning a whole muscle off is the slider's confirm-gated job, not a
-// backdoor). Consulted by the generator AND validateFocusWeek so the
-// contract cannot drift from the build.
+// [G3->G4] Normalize the athlete's advanced asks into effective row targets
+// for availability N. The logic lives on the master coach
+// (Engine.coach.advTargets) so the intake validator and the points budget
+// share it; this wrapper keeps the generator's and validateFocusWeek's
+// call sites (and the test shim) stable.
 function advTargets(adv, focus, N) {
-  const out = {};
-  if (!adv) return out;
-  for (const r of ADV_MUSCLES) {
-    const ask = adv[r.id];
-    if (ask == null) continue;
-    if (r.slider && Math.max(0, (focus || {})[r.slider] || 0) === 0) continue;
-    if (ask <= 0 && r.slider
-        && ADV_MUSCLES.filter(x => x.slider === r.slider).length === 1) continue;
-    out[r.id] = ask <= 0 ? 0 : Math.min(ask, Engine.coach.advFreqCap(r.id, N));
-  }
-  return out;
+  return Engine.coach.advTargets(adv, focus, N);
 }
 // [G3] Exercise ids of every targeted row (the generator's fill pass must
 // not disturb a pinned row's frequency) and of the rows asked OFF (the base
@@ -2387,10 +2375,13 @@ function hapticTap() {
 // [B4] The focus budget numbers for a days/time context: affordable points
 // vs points spent by the sliders. Shared by the onboarding focus step and
 // the in-app focus editor (which passes the program's own config).
-function focusBudgetInfo(focus, days, timeMode, timeCapMin) {
+function focusBudgetInfo(focus, days, timeMode, timeCapMin, adv) {
   const cap = timeMode === 'custom' ? (parseInt(timeCapMin, 10) || null) : null;
   const have = Engine.coach.focusBudget(days, cap);
-  const spent = Engine.coach.focusSpend(focus);
+  // [G4] Advanced asks spend the same points (extra exposures beyond what
+  // the sliders already host), so the line and the gate stay honest.
+  const spent = Engine.coach.focusSpend(focus)
+    + (adv ? Engine.coach.advSpend(adv, focus, days) : 0);
   return { have, spent, left: have - spent };
 }
 function obBudgetLine(ob) {
@@ -2398,7 +2389,7 @@ function obBudgetLine(ob) {
   // Unlimited athletes see the session estimate line and, past the coach's
   // expected band, a warn-only banner instead.
   if (ob.timeMode !== 'custom') return '';
-  const info = focusBudgetInfo(ob.muscleFocus, ob.daysPerWeek, ob.timeMode, ob.timeCapMin);
+  const info = focusBudgetInfo(ob.muscleFocus, ob.daysPerWeek, ob.timeMode, ob.timeCapMin, ob.focusAdv);
   return t('focus.budget', { have: info.have, spent: info.spent });
 }
 // Warning copy for any slider at the extremes (0 = removed, FOCUS_MAX = maxed).
@@ -2412,7 +2403,7 @@ function obFocusWarning(focus) {
   }
   const ob = V.ob || {};
   const over = Engine.coach.checkFocusBudget(focus, ob.daysPerWeek,
-    ob.timeMode === 'custom' ? parseInt(ob.timeCapMin, 10) : null);
+    ob.timeMode === 'custom' ? parseInt(ob.timeCapMin, 10) : null, ob.focusAdv || null);
   if (over) {
     return `<div class="banner-warn mt8">${esc(t(over.key, over.params))}
       <button class="btn btn-outline mt8" onclick="obFocusRebalance()">${esc(t('focus.rebalance_btn'))}</button></div>`;
@@ -2472,6 +2463,158 @@ function obFocusRebalance() {
     toast(t('focus.rebalanced', { list: res.delta.map(d => `${t('muscle.' + d.m)} ${d.from}→${d.to}`).join(', ') }));
   }
   render();
+}
+// ------------------------------------------------------------
+// [G4] THE SPECIALIZATION PANEL (advanced per-muscle frequency)
+// Owner ruling 2026-07-24: an Advanced surface beneath the group sliders
+// where a specific muscle (ADV_MUSCLES row) gets its own weekly frequency.
+// Gaming UX with coaching honesty: frequency pips per row, positions past
+// the athlete's training days render LOCKED with the unlock hint, positions
+// past the muscle's healthy ceiling do not exist at all, and at most
+// bounds.specSlots muscles may run above their slider at once. Shared by
+// onboarding ('ob' surface, drafts on V.ob.focusAdv) and the in-app focus
+// editor ('fe', staged via V.feAdvDraft -> pendingFocusAdv at feSave).
+// ------------------------------------------------------------
+function advCtx() {
+  if (V.advSurface === 'fe') {
+    const p = P(), tc = p.trainingConfig || {};
+    const sched = Array.isArray(p.schedule) ? p.schedule.filter(x => x && x.wd != null) : [];
+    return { focus: V.feDraft || {}, days: p.daysPerWeek || p.days.length,
+             timeMode: tc.timeMode, cap: tc.timeCapMin,
+             trainingDays: sched.length ? sched.map(x => x.wd) : null };
+  }
+  const ob = V.ob || {};
+  return { focus: ob.muscleFocus || {}, days: ob.daysPerWeek || 0,
+           timeMode: ob.timeMode, cap: ob.timeCapMin,
+           trainingDays: ob.daysMode !== 'count' && Array.isArray(ob.trainingDays)
+             && ob.trainingDays.length ? ob.trainingDays : null };
+}
+function openAdvPanel(surface) {
+  V.advSurface = surface;
+  V.advDraft = Object.assign({}, surface === 'fe'
+    ? (V.feAdvDraft || {}) : ((V.ob && V.ob.focusAdv) || {}));
+  showModal(renderAdvPanel);
+}
+// [G4] Project which chosen weekdays each asked row lands on: ONE throwaway
+// build of the week, then the same evenly spaced weekday mapping the real
+// program uses (scheduleSubset). Only meaningful when the athlete picked
+// calendar days; count-mode athletes get no preview. Back-to-back flags a
+// pair of consecutive weekdays (including the Sun->Mon wrap).
+function advWeekdayPreview(ctx, draft) {
+  if (!ctx.trainingDays || !ctx.trainingDays.length || !(ctx.days > 0)) return null;
+  const targets = advTargets(draft, ctx.focus, ctx.days);
+  if (!Object.keys(targets).length) return null;
+  const days = generateBodybuildingDays(ctx.focus, ctx.days, { adv: draft });
+  if (!days || !days.length || ctx.trainingDays.length < days.length) return null;
+  const wds = scheduleSubset(ctx.trainingDays, days.length);
+  const sets = advRowSets();
+  const byRow = {}, backToBack = {};
+  for (const rid in targets) {
+    const list = [];
+    days.forEach((d, i) => {
+      if (d.slots.some(sl => sets[rid].has(sl.def || sl.ex || sl.lift || sl.baseLift))) list.push(wds[i]);
+    });
+    const sorted = list.slice().sort((a, b) => a - b);
+    byRow[rid] = sorted;
+    backToBack[rid] = sorted.some((w, i) => i > 0 && w - sorted[i - 1] === 1)
+      || (sorted.length > 1 && sorted[0] === 0 && sorted[sorted.length - 1] === 6);
+  }
+  return { byRow, backToBack };
+}
+function advPanelHTML() {
+  const ctx = advCtx();
+  const draft = V.advDraft || {};
+  const coach = Engine.coach;
+  const days = Math.max(1, ctx.days || 1);
+  const spec = { used: coach.specCount(draft, ctx.focus, days), max: coach.bounds.specSlots };
+  const slotsIssue = coach.checkSpecSlots(draft, ctx.focus, days);
+  const over = ctx.timeMode === 'custom'
+    ? coach.checkFocusBudget(ctx.focus, days, parseInt(ctx.cap, 10) || null, draft) : null;
+  const preview = advWeekdayPreview(ctx, draft);
+  let lastGroup = null;
+  const rows = ADV_MUSCLES.map(r => {
+    const group = r.slider ? t('muscle.' + r.slider) : t('adv.group_other');
+    const head = group !== lastGroup
+      ? `<div class="section-title" style="margin-top:12px">${esc(group)}</div>` : '';
+    lastGroup = group;
+    const sliderV = r.slider ? Math.max(0, Math.min(FOCUS_MAX, ctx.focus[r.slider] || 0)) : 0;
+    if (r.slider && sliderV === 0) {
+      return `${head}<div class="adv-row adv-muted"><div class="row"><span>${esc(t('adv.' + r.id))}</span>
+        <span class="faint">${esc(t('adv.muscle_off'))}</span></div></div>`;
+    }
+    const ask = draft[r.id];
+    const capEff = coach.advFreqCap(r.id, days);
+    const ceil = coach.bounds.advFreqCeiling[r.id] || coach.bounds.advFreqDefault;
+    const multiRow = !!r.slider && ADV_MUSCLES.filter(x => x.slider === r.slider).length > 1;
+    const state = ask == null ? t('adv.auto')
+      : ask === 0 ? t('focus.off_badge')
+      : `${ask}x${ask >= capEff ? ' · ' + t('adv.max') : ''}`;
+    const pips = [
+      `<button class="adv-pip adv-auto ${ask == null ? 'on' : ''}" onclick="apAsk('${r.id}', null)">${esc(t('adv.auto'))}</button>`,
+    ];
+    if (multiRow) {
+      pips.push(`<button class="adv-pip adv-auto ${ask === 0 ? 'on' : ''}" onclick="apAsk('${r.id}', 0)">${esc(t('adv.off_pip'))}</button>`);
+    }
+    for (let v = 1; v <= ceil; v++) {
+      const locked = v > capEff;
+      pips.push(`<button class="adv-pip ${ask === v ? 'on' : ''} ${locked ? 'locked' : ''}"${locked ? ' disabled' : ''}
+        title="${locked ? esc(t('adv.locked_hint', { n: v })) : ''}"
+        aria-label="${esc(t('adv.' + r.id))} ${v}x"
+        onclick="apAsk('${r.id}', ${v})">${v}</button>`);
+    }
+    let landing = '';
+    if (preview && ask > 0 && preview.byRow[r.id] && preview.byRow[r.id].length) {
+      const names = preview.byRow[r.id].map(wd => t('wd.s' + wd)).join(' · ');
+      landing = `<div class="faint" style="font-size:.82em;margin-top:2px">${esc(t('adv.lands_on', { list: names }))}${
+        preview.backToBack[r.id] ? ` <span style="color:var(--amber)">${esc(t('adv.back_to_back'))}</span>` : ''}</div>`;
+    }
+    return `${head}<div class="adv-row">
+      <div class="row"><span>${esc(t('adv.' + r.id))}</span><b class="adv-state">${esc(state)}</b></div>
+      <div class="adv-pips">${pips.join('')}</div>${landing}</div>`;
+  }).join('');
+  // [G1 seed] Old 4x asks preserved by the scale migration surface here
+  // once, until the athlete sets a real ask.
+  const seed = S.profile.training && S.profile.training.focusSpecAsk;
+  const seedLine = seed && Object.keys(seed).length && !Object.keys(draft).length
+    ? `<div class="banner-warn mt8">${esc(t('adv.seed_hint', {
+        list: Object.keys(seed).map(m => `${t('muscle.' + m)} ${seed[m]}x`).join(', ') }))}</div>`
+    : '';
+  const banners = [];
+  if (slotsIssue) banners.push(`<div class="banner-warn mt8">${esc(t(slotsIssue.key, slotsIssue.params))}</div>`);
+  if (over) banners.push(`<div class="banner-warn mt8">${esc(t(over.key, over.params))}</div>`);
+  return `
+    <p class="subtle">${esc(t('adv.panel_sub', { days }))}</p>
+    <div class="focus-time" role="status">${esc(t('adv.spec_slots', { used: spec.used, max: spec.max }))}</div>
+    ${seedLine}${rows}
+    <div id="ap-warn" role="alert">${banners.join('')}</div>
+    <button class="btn btn-blue mt16" onclick="apSave()"${slotsIssue || over ? ' disabled' : ''}>${esc(t('common.save'))}</button>`;
+}
+function renderAdvPanel(anim) {
+  $modal.innerHTML = modalShell(anim, t('adv.panel_title'), advPanelHTML());
+}
+function apAsk(rid, v) {
+  if (v == null) delete V.advDraft[rid];
+  else V.advDraft[rid] = v;
+  hapticTap();
+  rerenderTop();
+}
+function apSave() {
+  const ctx = advCtx();
+  const days = Math.max(1, ctx.days || 1);
+  const blocked = Engine.coach.checkSpecSlots(V.advDraft, ctx.focus, days)
+    || (ctx.timeMode === 'custom'
+      ? Engine.coach.checkFocusBudget(ctx.focus, days, parseInt(ctx.cap, 10) || null, V.advDraft)
+      : null);
+  if (blocked) { toast(t(blocked.key, blocked.params), true); return; }
+  const clean = Object.keys(V.advDraft || {}).length ? Object.assign({}, V.advDraft) : null;
+  if (V.advSurface === 'fe') {
+    V.feAdvDraft = clean || {};
+    closeModal(); // back to the focus editor, re-rendered beneath
+  } else {
+    if (clean) V.ob.focusAdv = clean; else if (V.ob) delete V.ob.focusAdv;
+    closeModal(); render();
+  }
+  toast(t('adv.saved'));
 }
 // Informative only: median training-day length for the current focus. Builds a
 // throwaway bodybuilding program from the onboarding answers and times each day
@@ -2661,6 +2804,8 @@ function vOnboarding() {
       <p class="subtle">${esc(t('ob.focus_sub'))}</p>
       <div id="mf-budget" class="focus-time" role="status">${esc(obBudgetLine(ob))}</div>
       ${FOCUS_KEYS.map(k => focusRowHTML(k, ob.muscleFocus[k], 'ob')).join('')}
+      <button class="btn btn-outline mt8" onclick="openAdvPanel('ob')">${esc(t('adv.open_btn'))}${
+        ob.focusAdv && Object.keys(ob.focusAdv).length ? ' · ' + Object.keys(ob.focusAdv).length : ''}</button>
       <div id="mf-warn" role="alert">${obFocusWarning(ob.muscleFocus)}</div>
       <div id="mf-time" class="focus-time">${esc(focusTimeLine(ob))}</div>
       <button class="btn btn-green mt16" onclick="obNext(${step})">${esc(t('ob.continue'))}</button>`;
@@ -2845,7 +2990,7 @@ function obSlider(k, v) {
   // the ceiling buzz.
   const bd = byId('mf-budget'); if (bd) bd.textContent = obBudgetLine(V.ob);
   if (V.ob.timeMode === 'custom') {
-    const info = focusBudgetInfo(V.ob.muscleFocus, V.ob.daysPerWeek, V.ob.timeMode, V.ob.timeCapMin);
+    const info = focusBudgetInfo(V.ob.muscleFocus, V.ob.daysPerWeek, V.ob.timeMode, V.ob.timeCapMin, V.ob.focusAdv);
     if (parseInt(v) === FOCUS_MAX || (info.left < 0 && (V._budgetLeft == null || V._budgetLeft >= 0))) hapticTap();
     V._budgetLeft = info.left;
   } else if (parseInt(v) === FOCUS_MAX) hapticTap();
@@ -2935,6 +3080,9 @@ function obNext(step) {
         // without the marker was the reload-decay bug (see migrateState).
         focusScale: 3,
         muscleFocus: Object.assign({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 }, ob.muscleFocus),
+        // [G4] Advanced asks persist on the profile like the sliders do.
+        ...(ob.focusAdv && Object.keys(ob.focusAdv).length
+          ? { focusAdv: Object.assign({}, ob.focusAdv) } : {}),
       };
       S.profile.trainingAge = { startedTs: Date.now(), blocksCompleted: 0 };
       // [B3/FPL2] The equipment micro-step: bar and smallest jump chosen at
@@ -3835,9 +3983,13 @@ function endBlock(finishedBlock, bb) {
       // [B4.1] Regeneration keeps the cycle's own time contract: a short cap
       // is still the fill target for the new split.
       const tcRe = p.trainingConfig || {};
+      // [G4] Staged advanced asks (pendingFocusAdv; null = clear) apply with
+      // the pending sliders, so both regenerate as one coach decision.
+      const advNext = p.pendingFocusAdv !== undefined
+        ? p.pendingFocusAdv : (tcRe.focusAdv || null);
       const days = generateBodybuildingDays(p.pendingFocus, p.daysPerWeek,
         { targetSec: Engine.coach.sessionTargetSec(tcRe.timeMode, tcRe.timeCapMin),
-          adv: tcRe.focusAdv || null });
+          adv: advNext });
       // [B4] A SHORT week is a legal regeneration (rest days); only a truly
       // empty one keeps the old split. The schedule remaps onto an evenly
       // spaced subset of the old availability so Calendar stays aligned.
@@ -3852,6 +4004,14 @@ function endBlock(finishedBlock, bb) {
         }
         p.trainingConfig.muscleFocus = Object.assign({}, p.pendingFocus);
         if (S.profile.training) S.profile.training.muscleFocus = Object.assign({}, p.pendingFocus);
+        // [G4] Commit the asks the new split was built with (null clears).
+        if (advNext) p.trainingConfig.focusAdv = Object.assign({}, advNext);
+        else delete p.trainingConfig.focusAdv;
+        if (S.profile.training) {
+          if (advNext) S.profile.training.focusAdv = Object.assign({}, advNext);
+          else delete S.profile.training.focusAdv;
+        }
+        delete p.pendingFocusAdv;
         p.pendingFocus = null;
         toast(t('fe.applied'));
         toast(t('week.new_block_toast', { label: blockDisplayLabel(p.blocks[p.pointer.block]) }));
@@ -6644,6 +6804,11 @@ function seRemoveDay(di) {
 // ------------------------------------------------------------
 function openFocusEditor() {
   V.feDraft = Object.assign({}, (P().pendingFocus || P().trainingConfig.muscleFocus));
+  // [G4] The advanced asks ride the same edit cycle: staged draft first,
+  // then whatever the config runs today.
+  const p = P();
+  V.feAdvDraft = Object.assign({},
+    p.pendingFocusAdv !== undefined ? (p.pendingFocusAdv || {}) : (p.trainingConfig.focusAdv || {}));
   showModal(renderFocusEditor);
 }
 // [B4] The in-app editor prices against the PROGRAM's own days + time cap
@@ -6657,7 +6822,7 @@ function feBudgetLine() {
   const c = feBudgetCtx();
   // [B4.1] Same rule as onboarding: no time limit, no points line.
   if (c.timeMode !== 'custom') return '';
-  const info = focusBudgetInfo(V.feDraft, c.days, c.timeMode, c.cap);
+  const info = focusBudgetInfo(V.feDraft, c.days, c.timeMode, c.cap, V.feAdvDraft);
   return t('focus.budget', { have: info.have, spent: info.spent });
 }
 // [B4.1] An onboarding-shaped draft for the editor's session estimate: the
@@ -6672,7 +6837,7 @@ function feEstimateOb() {
 function feWarning() {
   const c = feBudgetCtx();
   const over = Engine.coach.checkFocusBudget(V.feDraft, c.days,
-    c.timeMode === 'custom' ? c.cap : null);
+    c.timeMode === 'custom' ? c.cap : null, V.feAdvDraft);
   if (over) {
     return `<div class="banner-warn mt8">${esc(t(over.key, over.params))}
       <button class="btn btn-outline mt8" onclick="feRebalance()">${esc(t('focus.rebalance_btn'))}</button></div>`;
@@ -6691,9 +6856,11 @@ function feWarning() {
 }
 function renderFocusEditor(anim) {
   const rows = FOCUS_KEYS.map(k => focusRowHTML(k, V.feDraft[k], 'fe')).join('');
+  const advN = Object.keys(V.feAdvDraft || {}).length;
   $modal.innerHTML = modalShell(anim, t('fe.title'), `
     <div id="fe-budget" class="focus-time" role="status">${esc(feBudgetLine())}</div>
     ${rows}
+    <button class="btn btn-outline mt8" onclick="openAdvPanel('fe')">${esc(t('adv.open_btn'))}${advN ? ' · ' + advN : ''}</button>
     <div id="fe-warn" role="alert">${feWarning()}</div>
     <p class="faint">${esc(t('fe.next_block'))}</p>
     <button class="btn btn-blue" onclick="feSave()">${esc(t('common.save'))}</button>`);
@@ -6729,12 +6896,20 @@ function feRebalance() {
 }
 function feSave() {
   // [B4] The gate mirrors onboarding: no all-zero, no over-budget staging.
+  // [G4] The advanced draft rides the same gate (budget + spec slots) and
+  // stages as pendingFocusAdv: applied with pendingFocus at the block
+  // boundary, so sliders and asks regenerate together.
   const c = feBudgetCtx();
+  const nextAdv = Object.keys(V.feAdvDraft || {}).length ? Object.assign({}, V.feAdvDraft) : null;
   const bad = Engine.coach.checkFocus(V.feDraft)
-    || Engine.coach.checkFocusBudget(V.feDraft, c.days, c.timeMode === 'custom' ? c.cap : null);
+    || Engine.coach.checkFocusBudget(V.feDraft, c.days, c.timeMode === 'custom' ? c.cap : null, nextAdv)
+    || Engine.coach.checkSpecSlots(nextAdv || {}, V.feDraft, c.days);
   if (bad) { toast(t(bad.key, bad.params), true); return; }
   P().pendingFocus = Object.assign({}, V.feDraft);
-  V.feDraft = null;
+  if (JSON.stringify(nextAdv) !== JSON.stringify(P().trainingConfig.focusAdv || null)) {
+    P().pendingFocusAdv = nextAdv; // null = clear the asks at the boundary
+  }
+  V.feDraft = null; V.feAdvDraft = null;
   save(); closeAllModals(); render();
   toast(t('fe.saved'));
 }
@@ -6957,7 +7132,10 @@ function doNewProgram() {
            experience: S.profile.experience || 'intermediate',
            timeMode: tr.timeMode || 'unlimited',
            timeCapMin: tr.timeCapMin || '',
-           muscleFocus: Object.assign({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 }, tr.muscleFocus || {}) };
+           muscleFocus: Object.assign({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 }, tr.muscleFocus || {}),
+           // [G4] A new cycle keeps the athlete's advanced asks.
+           ...(tr.focusAdv && Object.keys(tr.focusAdv).length
+             ? { focusAdv: Object.assign({}, tr.focusAdv) } : {}) };
   S.program = makeProgram(V.ob);
   save(); toast(t('dash.new_cycle_toast'));
   V.tab = 'dashboard'; nav('dashboard');
