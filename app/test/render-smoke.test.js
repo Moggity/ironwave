@@ -414,9 +414,9 @@ test('focus step renders the budget line and the rebalance offer when over budge
   assert.ok(/id="mf-budget"/.test(html), 'the budget line renders');
   assert.ok(/points to spend/.test(html), 'the have/spent copy renders');
   assert.ok(/obFocusRebalance\(\)/.test(html), 'the one-tap rebalance is offered');
-  assert.ok(/max="3"/.test(html) && /min="1"/.test(html), 'sliders run the 1-3 main scale');
-  assert.ok(/obFocusOff\(/.test(html), 'the confirm-gated off control renders');
-  assert.ok(/obFocusOn\(/.test(html), 'a muscle turned off offers one tap back on');
+  assert.ok(/max="3"/.test(html) && /min="0"/.test(html), 'sliders run the full 0-3 scale');
+  assert.ok(!/obFocusOff\(/.test(html), 'no separate off button next to the value');
+  assert.ok(/>Off</.test(html), 'a muscle at 0 keeps its full row and reads Off');
 });
 
 test('lb mode: onboarding step 0 shows the unit toggle and lb bodyweight label', () => {

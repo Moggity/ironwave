@@ -75,10 +75,12 @@ every other track, which is why default/powerbuilding output stays byte-identica
 
 ### The bodybuilding split generator
 
-[B4] A focus slider value IS a weekly frequency. [G1] The main control runs
-1-3 (`FOCUS_MAX` 3: Light / Standard / High); 0 is legal storage (a muscle
-turned off) but never a slider position - turning off is a confirm-gated
-control on the focus row, and 4x+ frequency belongs to the future advanced
+[B4] A focus slider value IS a weekly frequency. [G1/G1.1] `FOCUS_MAX` is 3
+(1 Light / 2 Standard / 3 High) and the slider shows the FULL 0-3 storage
+scale (the thumb must never lie about the value). Sliding down to 0 (off)
+is confirm-gated in `obSlider`/`feSlider`; an off row keeps full size and
+its slider, with only the value reading Off (never a separate Off button,
+never a shrunken row). 4x+ frequency belongs to the future advanced
 specialization tab (per-muscle ceilings; migration preserves old 4x asks in
 `profile.training.focusSpecAsk`). The scale marker `focusScale` chains
 none -> 4 -> 3 in `migrateState` and MUST be stamped wherever

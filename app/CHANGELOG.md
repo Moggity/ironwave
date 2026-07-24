@@ -1,5 +1,25 @@
 # IRONWAVE — Changelog
 
+## [Focus row UX revision: the slider shows 0-3 again (G1.1)] (2026-07-24)
+
+Owner ruling 2026-07-24, third pass on the slider surface after using G1
+live: the separate Off button next to the value read as "2 Off", and a
+1-3 track made position 1 sit at the far left and read as zero. UI-only
+revision; the G1 semantics (FOCUS_MAX 3, confirm-gated off, migration,
+focusSpecAsk) are unchanged.
+
+- The range input runs the full **0-3 storage scale** again, so the
+  thumb position never lies about the value. The Off button is gone.
+- **Sliding down to 0 is the confirm gate now** (obSlider/feSlider): the
+  coach asks before a muscle is turned off completely; cancel re-renders
+  and the thumb snaps back to the still-stored value.
+- **An off row keeps its full size and normal slider.** The only
+  difference is the value reading Off in amber: subtle but evident,
+  never smaller or shadier. Dragging back up turns the muscle on with no
+  prompt (raising is always safe).
+- i18n: the off button/state keys collapse into one `focus.off_badge`;
+  `ob.focus_sub` explains 0 and the confirm.
+
 ## [The 1-3 main scale: off is a decision, not a slider position (G1)] (2026-07-24)
 
 Owner ruling 2026-07-24, second round of the B4 slider review. Two ideas:
