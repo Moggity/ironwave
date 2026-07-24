@@ -143,8 +143,9 @@ sweep('depth: the owner example (2 days, arms at 4) builds two deep arm days', (
       return ex && ['bicep', 'tricep'].includes(ex.movement);
     });
     assert.ok(armSlots.length >= 2, `${d.name}: surplus became depth (${armSlots.length} arm slots)`);
-    const heads = new Set(armSlots.map(sl => (EX[sl.def] || {}).head).filter(Boolean));
-    assert.ok(heads.size >= 2, `${d.name}: depth spans both biceps and triceps tissue`);
+    const tissues = new Set(armSlots.map(sl => (EX[sl.def] || {}).movement));
+    assert.ok(tissues.has('bicep') && tissues.has('tricep'),
+      `${d.name}: depth spans both biceps and triceps tissue`);
   }
 });
 

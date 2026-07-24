@@ -1547,7 +1547,9 @@ const FOCUS_SCALE_MIGRATION = { 0: 0, 1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 3 };
 const FOCUS_HEAD_ROTATION = {
   arms:      [['bi-long', 'bi-short'], ['tri-long', 'tri-lateral']],
   chest:     [['chest-upper'], ['chest-lower']],
-  shoulders: [['delt-side', 'delt-front'], ['delt-rear']],
+  // Rear delts attribute to the BACK slider in the taxonomy (delt-rear ->
+  // upperback), so the shoulders rotation alternates side and front heads.
+  shoulders: [['delt-side'], ['delt-front']],
   back:      [['back-lat'], ['back-upper']],
   legs:      [['ham-hip'], ['ham-knee']],
 };
@@ -1557,9 +1559,7 @@ const FOCUS_HEAD_ROTATION = {
 // (keeping those axes separate is what keeps both loops convergent). So the
 // table only encodes maintenance-vs-full: 0 removes, 1 is the minimum-dose
 // setting (0.6x sets), 2-4 leave the scheme's sets alone.
-// The 5/6 entries are transitional back-compat for the pre-rewrite generator
-// and die with it in the generator-rewrite commit.
-const FOCUS_FACTOR = { 0: 0, 1: 0.6, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
+const FOCUS_FACTOR = { 0: 0, 1: 0.6, 2: 1, 3: 1, 4: 1 };
 
 // Default accessory pools per focus muscle, used to refill freed/empty slots and
 // to give a select-only emphasized muscle (glutes, calves) real exercises.
@@ -1577,10 +1577,8 @@ const DEFAULT_ACC = {
 const MUSCLE_MAIN = { chest: 'comp-bench', legs: 'comp-squat', shoulders: 'military-press' };
 
 // ---- Frequency-driven split generator (bodybuilding) ----
-// Slider -> weekly training frequency (days the muscle is trained). Per product:
-// focus is frequency. 3 = 2x/week baseline; 4 = 2x but a day's primary focus with
-// more volume; 5-6 = 3x. 0 removes the muscle.
-const SPLIT_FREQ = { 0: 0, 1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 3 };
+// [B4] The slider value IS the weekly frequency (0..FOCUS_MAX); the old
+// SPLIT_FREQ lookup died with the 0-6 scale so the meaning cannot drift.
 const UPPER_MUSCLES = ['chest', 'back', 'shoulders', 'arms'];
 const LOWER_MUSCLES = ['legs', 'glutes', 'calves'];
 // A day is themed/anchored by its highest-ranked muscle. Rank >= 2 can lead a
