@@ -23,8 +23,8 @@ function defaultState() {
                plates: JSON.parse(JSON.stringify(DEFAULT_PLATES)),
                // Dynamic engine (see docs/dynamic-routine-engine-design.md). All
                // defaults make a routine identical to the legacy output.
-               training: { track: 'powerbuilding', timeMode: 'unlimited', timeCapMin: null,
-                 muscleFocus: { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 } },
+               training: { track: 'powerbuilding', timeMode: 'unlimited', timeCapMin: null, focusScale: 4,
+                 muscleFocus: { arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 } },
                experience: 'intermediate',
                trainingAge: { startedTs: null, blocksCompleted: 0 },
                phase: 'lean-gain', // [Cluster F] current training phase
@@ -122,7 +122,23 @@ function migrateState(s) {
   t.track = t.track || 'powerbuilding';
   t.timeMode = t.timeMode || 'unlimited';
   if (t.timeCapMin === undefined) t.timeCapMin = null;
-  t.muscleFocus = Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
+  // [B4] Slider rescale, 0-6 -> 0-4 (a value is now a weekly frequency).
+  // Raw values are ambiguous (all-2 is valid on both scales), so a scale
+  // marker makes this idempotent. Mapping runs BEFORE the defaults merge so
+  // a legacy save's missing keys take the new default directly. An old 6 on
+  // a 7-day program keeps its historical 4x unlock; anything unrecognized
+  // clamps to 0. Applied to all three persisted focus locations.
+  if (t.focusScale !== 4) {
+    const seven = !!(s.program && s.program.daysPerWeek >= 7);
+    const remap = f => {
+      if (f) for (const k in f) f[k] = (f[k] === 6 && seven) ? 4 : (FOCUS_SCALE_MIGRATION[f[k]] || 0);
+    };
+    remap(t.muscleFocus);
+    if (s.program && s.program.trainingConfig) remap(s.program.trainingConfig.muscleFocus);
+    if (s.program && s.program.pendingFocus) remap(s.program.pendingFocus);
+    t.focusScale = 4;
+  }
+  t.muscleFocus = Object.assign({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 },
                                 t.muscleFocus || {});
   p.experience = p.experience || 'intermediate';
   if (!p.trainingAge) p.trainingAge = { startedTs: (s.program && s.program.startDate) || null, blocksCompleted: 0 };
@@ -543,7 +559,7 @@ function makeProgram(ob) {
     wm[lift] = ob.maxes[lift] ? Math.round(ob.maxes[lift] * 0.9 / 1.25) * 1.25 : null;
     increments[lift] = Engine.defaultIncrement(lift);
   }
-  const focus = Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
+  const focus = Object.assign({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 },
                              ob.muscleFocus || {});
   // Bodybuilding: generate the split from the athlete's muscle focus (frequency
   // driven, region days proportional to slider points). Falls back to the fixed
@@ -1859,7 +1875,7 @@ function obDefaults() {
            // unanswered like every other choice step.
            meetChoice: null, meetDate: null,
            showAdvanced: false, // program-length presets tucked away
-           muscleFocus: { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
+           muscleFocus: { arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 },
            maxes: {} };
 }
 // [Epic I2] The onboarding step pipeline for the draft's track, from the
@@ -2374,7 +2390,7 @@ function obNext(step) {
         goalArchetype: ob.track === 'bodybuilding' ? (ob.goalArchetype || null) : null,
         timeMode: ob.timeMode,
         timeCapMin: ob.timeMode === 'custom' ? (parseInt(ob.timeCapMin) || null) : null,
-        muscleFocus: Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 }, ob.muscleFocus),
+        muscleFocus: Object.assign({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 }, ob.muscleFocus),
       };
       S.profile.trainingAge = { startedTs: Date.now(), blocksCompleted: 0 };
       // [B3/FPL2] The equipment micro-step: bar and smallest jump chosen at
@@ -6206,7 +6222,7 @@ function programFromTemplate(tpl) {
     completedDays: {}, weekMod: null, volAdj: {}, belowStd: {},
     trainingConfig: {
       track, goalArchetype: null, timeMode: 'unlimited', timeCapMin: null,
-      muscleFocus: Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 },
+      muscleFocus: Object.assign({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 },
         (S.profile.training && S.profile.training.muscleFocus) || {}),
     },
   };
@@ -6310,7 +6326,7 @@ function doNewProgram() {
            experience: S.profile.experience || 'intermediate',
            timeMode: tr.timeMode || 'unlimited',
            timeCapMin: tr.timeCapMin || '',
-           muscleFocus: Object.assign({ arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 }, tr.muscleFocus || {}) };
+           muscleFocus: Object.assign({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 }, tr.muscleFocus || {}) };
   S.program = makeProgram(V.ob);
   save(); toast(t('dash.new_cycle_toast'));
   V.tab = 'dashboard'; nav('dashboard');

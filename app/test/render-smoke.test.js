@@ -17,7 +17,7 @@ const assert = require('node:assert');
 // Node-18 CI leg green.
 const NODE_MAJOR = Number(process.versions.node.split('.')[0]);
 
-const DEFAULT_FOCUS = { arms: 3, chest: 3, back: 3, shoulders: 3, glutes: 3, legs: 3, calves: 3 };
+const DEFAULT_FOCUS = { arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 }; // [B4] the 0-4 scale standard
 
 // A fresh app instance per test, so state never leaks between cases.
 function fresh() {

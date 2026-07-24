@@ -1552,13 +1552,14 @@ const FOCUS_HEAD_ROTATION = {
   legs:      [['ham-hip'], ['ham-knee']],
 };
 
-// Bodybuilding muscle-focus slider (0..6) -> accessory set-count multiplier vs
-// the scheme baseline (slider 3 = 1.0 = unchanged). 0 removes the exercise.
-// Emphasis (4-6) is expressed by ADDING exercises (refill, see app.js), not by
-// inflating set counts, so only de-emphasis (1-2) scales sets here.
-// [B4 NOTE] Flips to the 0-4 maintenance-vs-full table {0:0,1:0.6,2:1,3:1,4:1}
-// in the generator-rewrite commit, together with the migration + fixtures.
-const FOCUS_FACTOR = { 0: 0, 1: 0.5, 2: 0.75, 3: 1, 4: 1, 5: 1, 6: 1 };
+// [B4] Slider (0..FOCUS_MAX) -> accessory set-count multiplier. The slider
+// buys FREQUENCY; volume per exposure is owned by the landmarks and autoreg
+// (keeping those axes separate is what keeps both loops convergent). So the
+// table only encodes maintenance-vs-full: 0 removes, 1 is the minimum-dose
+// setting (0.6x sets), 2-4 leave the scheme's sets alone.
+// The 5/6 entries are transitional back-compat for the pre-rewrite generator
+// and die with it in the generator-rewrite commit.
+const FOCUS_FACTOR = { 0: 0, 1: 0.6, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
 
 // Default accessory pools per focus muscle, used to refill freed/empty slots and
 // to give a select-only emphasized muscle (glutes, calves) real exercises.
