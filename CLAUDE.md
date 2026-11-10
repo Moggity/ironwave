@@ -3,6 +3,15 @@
 Guidance for Claude (and humans) working in this repo. Read `CONTRIBUTING.md`
 for style and branching; this file focuses on what is easy to get wrong.
 
+## Beginner app (planned, not built yet)
+
+A second product is planned in this repo: a very simple app for complete beginners,
+in a new `beginner/` folder that shares `app/engine.js` and `app/data.js`. If your
+task concerns it, **read `docs/beginner-app/README.md` first**. It is the handoff
+note and points to the acceptance criteria and coding plan (the source of truth), the
+product plan and the algorithms report. Everything below this section describes the
+existing Ironwave app in `app/`.
+
 ## Project shape
 
 - Self-hosted powerbuilding web app. **Plain Node + vanilla JS, no build step.**
