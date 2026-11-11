@@ -6,9 +6,13 @@
    Top-level globals must be single plain declarations at column zero, one name
    per declaration (the harness auto-exports them).
 
-   const BEGINNER_EXERCISES  array of 36..44 frozen objects (Object.freeze each):
+   const BEGINNER_EXERCISES  array of 36..44 objects; the array AND every row are
+     Object.freeze()d. Each row has exactly these fields:
      id         string, an id of a row in EXERCISE_LIST, unique
-     name       non-empty string, no em dash, unique (may be simpler than Ironwave's)
+     name       non-empty string, no em dash, no forbidden term (see cue), unique, never
+                containing the word "Competition". The four barbell lifts are named
+                exactly: comp-squat "Barbell Squat", comp-bench "Barbell Bench Press",
+                comp-deadlift "Barbell Deadlift", military-press "Barbell Overhead Press".
      movement   equals that EXERCISE_LIST row's movement
      muscle     one of arms, chest, back, shoulders, glutes, legs, calves.
                 Equals MOVEMENT_SLIDER[movement]. RULE CHOSEN for movements with no
@@ -25,15 +29,20 @@
                 (no newline, at most one of . ! ?, and only as the last character), no
                 em dash, none of: RPE, RIR, 1RM, MEV, MRV, deload, volume, %, missed,
                 streak, drop set, myo (case-insensitive).
-     demo       exactly 'media/' + id + '.mp4' (real clips arrive in package 13)
+     demo       a string starting 'media/', ending '.mp4' and containing the id; use
+                exactly 'media/' + id + '.mp4' for now (real clips arrive in package 13)
      starter    boolean. true = the app may suggest it unprompted, false = search-only.
                 Every bb exercise is starter:false. At least 24 are starter:true.
+                The exercise with id 'pullup', if present, is starter:false.
    const BEGINNER_EQUIPMENT  frozen object, equipKey -> { label } (label non-empty, no
-     em dash). 'none' is NOT a key. Every key is used by at least one exercise, and all
-     exercises of one key share the same coarse `equipment` code.
+     em dash, no forbidden term). 'none' is NOT a key. Every key is used by at least one
+     exercise, and all exercises of one key share the same coarse `equipment` code. No key
+     covers more than BEGINNER_CONFIG.exercises.equipKeyMaxExercises (8) exercises, except
+     the key 'dumbbells'. If lat-pulldown and cable-row are in the list, each has its own
+     key, different from each other and from the general cable key.
    const BEGINNER_GOALS  frozen object, exactly keys arms chest legs fit strong, each
      { label, focus }. Labels: Bigger arms, Bigger chest, Legs and glutes, Look fit,
-     Look strong. focus has exactly the seven keys, integers 0..FOCUS_MAX (3).
+     Look strong. Labels carry no forbidden term (see cue). focus has exactly the seven keys, integers 0..FOCUS_MAX (3).
      arms: arms 3, rest 2. chest: chest 3, rest 2. legs: legs 3 and glutes 3, rest 2.
      fit: all 2. strong: chest, back, shoulders, legs 3, rest 2. Freeze deeply.
    const BEGINNER_DEFAULT_GOAL = 'fit'
@@ -49,16 +58,26 @@
    starters, at least 2 of them on different equipKeys so removing one piece of
    equipment never empties a muscle), with extra depth for arms, chest, legs and
    glutes (any muscle a goal sets to 3 needs at least 4 exercises). At least 3 starters
-   are equipKey 'none'. Use EXERCISE_LIST ids only; look up the movement and the
+   are equipKey 'none'. HOME USER: the starters with equipKey 'none' must number at least
+   6 and cover at least 5 of the 7 muscles (legs may be missing; the real list has no good
+   legs bodyweight row; pike-pushup, inverted-row, glute-bridge, frog-pumps, pushup,
+   close-grip-pushup, sl-calf-raise are bodyweight rows with a muscle). Pull-ups are
+   search-only. Use EXERCISE_LIST ids only; look up the movement and the
    coarse code for each id there. Do not use core movements (abs, lowback).
 
-   BEGINNER_CONFIG.exercises must hold the tunables read below:
+   goalDepthMin counts STARTERS only: every muscle a goal sets to 3 needs at least
+   goalDepthMin starter exercises.
+   Cues for db-rdl and leg-press, if present, must mention the back (/back/i).
+
+   BEGINNER_CONFIG.exercises must hold these tunables, each a positive integer (the tests
+   read them, and do not pin their values, so tuning needs no test edit). Starting values:
      cueMaxLength 90, exerciseCountMin 36, exerciseCountMax 44, starterMin 24,
      perMuscleStarterMin 3, perMuscleStarterKeysMin 2, goalDepthMin 4,
-     noneStarterMin 3, placeholderMaxBytes 4096
+     noneStarterMin 6, homeStarterMin 6, equipKeyMaxExercises 8, placeholderMaxBytes 4096
 
    MEDIA: beginner/media/manifest.json = { "schemaVersion": 1, "items": {} } (items
-     only for ids in the list whose file exists). beginner/media/placeholder.svg:
+     only for ids in the list, each value a non-empty string naming a file that exists
+     under beginner/media/). beginner/media/placeholder.svg:
      non-empty, under 4096 bytes, must carry xmlns="http://www.w3.org/2000/svg"; apart from that no http, no href, no <script, no <text/<tspan/<title/<desc.
    ============================================================ */
 'use strict';
@@ -80,8 +99,8 @@ const MEDIA_DIR = path.join(__dirname, '..', 'media');
 const ROWS = new Map(B.EXERCISE_LIST.map(r => [r[0], { id: r[0], movement: r[2], equipment: r[3] }]));
 // MOVEMENT_SLIDER and FOCUS_MAX are not exported by the harness; read them from the same data.js.
 const DATA_SRC = fs.readFileSync(path.join(__dirname, '..', '..', 'app', 'data.js'), 'utf8');
-const MOVEMENT_SLIDER = vm.runInNewContext(DATA_SRC + ';MOVEMENT_SLIDER');
-const FOCUS_MAX = vm.runInNewContext(DATA_SRC + ';FOCUS_MAX');
+const MOVEMENT_SLIDER = vm.runInNewContext(DATA_SRC + '\n;MOVEMENT_SLIDER');
+const FOCUS_MAX = vm.runInNewContext(DATA_SRC + '\n;FOCUS_MAX');
 
 const EX = () => B.BEGINNER_EXERCISES;
 const CFG = () => B.BEGINNER_CONFIG.exercises;
@@ -103,16 +122,21 @@ const FORBIDDEN = [
   [/\bstreak\b/i, 'streak'], [/drop\s*set/i, 'drop set'], [/\bmyo/i, 'myo'],
 ];
 
-test('B3 config holds the exercise tunables with their starting values', () => {
-  const want = { cueMaxLength: 90, exerciseCountMin: 36, exerciseCountMax: 44, starterMin: 24,
-    perMuscleStarterMin: 3, perMuscleStarterKeysMin: 2, goalDepthMin: 4, noneStarterMin: 3, placeholderMaxBytes: 4096 };
-  for (const k of Object.keys(want)) assert.equal(CFG()[k], want[k], 'BEGINNER_CONFIG.exercises.' + k + ' should be ' + want[k] + ', got ' + CFG()[k]);
+const TUNABLES = ['cueMaxLength', 'exerciseCountMin', 'exerciseCountMax', 'starterMin', 'perMuscleStarterMin',
+  'perMuscleStarterKeysMin', 'goalDepthMin', 'noneStarterMin', 'homeStarterMin', 'equipKeyMaxExercises', 'placeholderMaxBytes'];
+
+test('B3 config holds every exercise tunable as a positive integer', () => {
+  for (const k of TUNABLES) {
+    const v = CFG()[k];
+    assert.ok(Number.isInteger(v) && v > 0, 'BEGINNER_CONFIG.exercises.' + k + ' must be a positive integer, got ' + v);
+  }
 });
 
 test('B3 BEGINNER_EXERCISES is a list of 36 to 44 frozen objects', () => {
   assert.ok(Array.isArray(EX()), 'BEGINNER_EXERCISES must be an array');
   assert.ok(EX().length >= cfg('exerciseCountMin') && EX().length <= cfg('exerciseCountMax'),
     'BEGINNER_EXERCISES has ' + EX().length + ' items, need ' + cfg('exerciseCountMin') + ' to ' + cfg('exerciseCountMax'));
+  assert.ok(Object.isFrozen(EX()), 'the BEGINNER_EXERCISES array itself must be Object.freeze()d');
   eachEx((e, id) => assert.ok(e && typeof e === 'object' && Object.isFrozen(e), id + ': each exercise must be Object.freeze()d'));
 });
 
@@ -126,6 +150,8 @@ test('B3 every exercise has exactly the schema fields and unique id and name', (
     assert.ok(isStr(e.name), id + ': name must be a non-empty string');
     assert.ok(!names.has(e.name), id + ': duplicate name "' + e.name + '"'); names.add(e.name);
     assert.ok(!EM.test(e.name), id + ': name must not contain an em dash');
+    assert.ok(!/competition/i.test(e.name), id + ': name "' + e.name + '" must not contain the word Competition');
+    for (const [re, word] of FORBIDDEN) assert.ok(!re.test(e.name), id + ': name "' + e.name + '" contains forbidden term "' + word + '"');
   });
 });
 
@@ -168,9 +194,11 @@ test('B3 BEGINNER_EQUIPMENT is frozen, labelled, used, and one coarse code per k
   for (const k of Object.keys(eq)) {
     assert.ok(isStr(eq[k] && eq[k].label), 'equipment "' + k + '": label must be a non-empty string');
     assert.ok(!EM.test(eq[k].label), 'equipment "' + k + '": label must not contain an em dash');
+    for (const [re, word] of FORBIDDEN) assert.ok(!re.test(eq[k].label), 'equipment "' + k + '": label "' + eq[k].label + '" contains forbidden term "' + word + '"');
     const users = EX().filter(e => e.equipKey === k);
     assert.ok(users.length >= 1, 'equipment "' + k + '" is not used by any exercise; remove it');
     const codes = [...new Set(users.map(e => e.equipment))];
+    if (k !== 'dumbbells') assert.ok(users.length <= cfg('equipKeyMaxExercises'), 'equipment "' + k + '" covers ' + users.length + ' exercises (' + users.map(e => e.id).join(', ') + '), max ' + cfg('equipKeyMaxExercises') + ' (only "dumbbells" is exempt); split it into specific equipment');
     assert.equal(codes.length, 1, 'equipment "' + k + '" mixes coarse codes ' + codes.join(', ') + ' (' + users.map(e => e.id + ':' + e.equipment).join(', ') + ')');
   }
 });
@@ -190,9 +218,10 @@ test('B3 every exercise has exactly one valid form cue', () => {
   });
 });
 
-test('B3 every demo path is media/<id>.mp4', () => {
+test('B3 every demo path is media/...<id>...mp4', () => {
   assert.ok(EX().length > 0, 'BEGINNER_EXERCISES is empty');
-  eachEx((e, id) => assert.equal(e.demo, 'media/' + e.id + '.mp4', id + ': demo must be "media/' + e.id + '.mp4", got "' + e.demo + '"'));
+  eachEx((e, id) => assert.ok(typeof e.demo === 'string' && e.demo.startsWith('media/') && e.demo.endsWith('.mp4') && e.demo.includes(e.id),
+    id + ': demo must start with "media/", end with ".mp4" and contain the id (use "media/' + e.id + '.mp4"), got "' + e.demo + '"'));
 });
 
 test('B3 starter is boolean, barbell lifts are search-only, at least 24 are starters', () => {
@@ -202,6 +231,19 @@ test('B3 starter is boolean, barbell lifts are search-only, at least 24 are star
   });
   const n = EX().filter(e => e.starter).length;
   assert.ok(n >= cfg('starterMin'), 'only ' + n + ' starter exercises, need at least ' + cfg('starterMin'));
+});
+
+test('B3 pull-ups are search-only', () => {
+  eachEx((e, id) => { if (e.id === 'pullup') assert.equal(e.starter, false, 'pullup: must be starter:false (most beginners cannot do one)'); });
+});
+
+test('B3 the four barbell lifts are named Barbell ...', () => {
+  const want = { 'comp-squat': 'Barbell Squat', 'comp-bench': 'Barbell Bench Press', 'comp-deadlift': 'Barbell Deadlift', 'military-press': 'Barbell Overhead Press' };
+  for (const id of Object.keys(want)) {
+    const e = EX().find(x => x.id === id);
+    assert.ok(e, id + ': must be in the list');
+    assert.equal(e && e.name, want[id], id + ': name must be "' + want[id] + '", got "' + (e && e.name) + '"');
+  }
 });
 
 test('B3 the four barbell lifts are present and search-only', () => {
@@ -218,16 +260,32 @@ test('B3 every muscle has enough starters on different equipment', () => {
   }
 });
 
-test('B3 enough bodyweight starters need no equipment at all', () => {
-  const n = EX().filter(e => e.starter && e.equipKey === 'none').length;
-  assert.ok(n >= cfg('noneStarterMin'), 'only ' + n + ' starters with equipKey "none", need ' + cfg('noneStarterMin'));
+test('B3 a home user with no equipment still has enough starters across muscles', () => {
+  const home = EX().filter(e => e.starter && e.equipKey === 'none');
+  const need = Math.max(cfg('homeStarterMin'), cfg('noneStarterMin'), 6);
+  assert.ok(home.length >= need, 'only ' + home.length + ' starters with equipKey "none" (' + home.map(e => e.id).join(', ') + '), need ' + need);
+  const muscles = [...new Set(home.map(e => e.muscle))];
+  assert.ok(muscles.length >= 5, 'no-equipment starters cover only ' + muscles.length + ' muscles (' + muscles.join(', ') + '), need at least 5 of the 7 (legs may be missing)');
 });
 
-test('B3 every goal muscle at focus 3 has at least 4 exercises', () => {
+test('B3 cues for db-rdl and leg-press mention the back', () => {
+  for (const e of EX()) if (e.id === 'db-rdl' || e.id === 'leg-press') assert.ok(/back/i.test(e.cue), e.id + ': cue "' + e.cue + '" must mention the back');
+});
+
+test('B3 lat-pulldown and cable-row have their own equipment keys', () => {
+  const k = id => { const e = EX().find(x => x.id === id); return e && e.equipKey; };
+  const ld = k('lat-pulldown'), cr = k('cable-row');
+  const general = EX().filter(e => e.equipment === 'cb' && !['lat-pulldown', 'cable-row'].includes(e.id)).map(e => e.equipKey);
+  if (ld) assert.ok(!general.includes(ld), 'lat-pulldown: equipKey "' + ld + '" is shared with other cable exercises; give it its own key');
+  if (cr) assert.ok(!general.includes(cr), 'cable-row: equipKey "' + cr + '" is shared with other cable exercises; give it its own key');
+  if (ld && cr) assert.notEqual(ld, cr, 'lat-pulldown and cable-row must have different equipKeys');
+});
+
+test('B3 every goal muscle at focus 3 has enough starter exercises', () => {
   const goals = need('BEGINNER_GOALS');
   for (const g of GOAL_KEYS) for (const m of FOCUS_KEYS) if (goals[g] && goals[g].focus && goals[g].focus[m] === 3) {
-    const n = EX().filter(e => e.muscle === m).length;
-    assert.ok(n >= cfg('goalDepthMin'), 'goal "' + g + '" sets ' + m + ' to 3 but only ' + n + ' exercises have muscle "' + m + '", need ' + cfg('goalDepthMin'));
+    const n = EX().filter(e => e.muscle === m && e.starter).length;
+    assert.ok(n >= cfg('goalDepthMin'), 'goal "' + g + '" sets ' + m + ' to 3 but only ' + n + ' STARTER exercises have muscle "' + m + '", need ' + cfg('goalDepthMin'));
   }
 });
 
@@ -238,6 +296,8 @@ test('A5 BEGINNER_GOALS has exactly the five goals with exact labels and frozen 
   const labels = { arms: 'Bigger arms', chest: 'Bigger chest', legs: 'Legs and glutes', fit: 'Look fit', strong: 'Look strong' };
   for (const g of GOAL_KEYS) {
     assert.equal(goals[g].label, labels[g], 'goal "' + g + '": label must be "' + labels[g] + '"');
+    assert.ok(!EM.test(goals[g].label), 'goal "' + g + '": label must not contain an em dash');
+    for (const [re, word] of FORBIDDEN) assert.ok(!re.test(goals[g].label), 'goal "' + g + '": label contains forbidden term "' + word + '"');
     assert.deepEqual(Object.keys(goals[g].focus).sort(), [...FOCUS_KEYS].sort(), 'goal "' + g + '": focus must have exactly the seven keys');
     for (const m of FOCUS_KEYS) {
       const v = goals[g].focus[m];
@@ -296,7 +356,9 @@ test('B3 media manifest has the app schema and lists only real exercises with re
   const ids = new Set(EX().map(e => e.id));
   for (const id of Object.keys(m.items)) {
     assert.ok(ids.has(id), 'manifest lists "' + id + '", which is not in BEGINNER_EXERCISES');
-    assert.ok(fs.existsSync(path.join(MEDIA_DIR, id + '.mp4')), 'manifest lists "' + id + '" but beginner/media/' + id + '.mp4 does not exist');
+    const v = m.items[id];
+    assert.ok(typeof v === 'string' && v.trim().length > 0, 'manifest item "' + id + '" must be a non-empty string file name');
+    assert.ok(typeof v === 'string' && fs.existsSync(path.join(MEDIA_DIR, v)), 'manifest item "' + id + '" names "' + v + '" but beginner/media/' + v + ' does not exist');
   }
 });
 
