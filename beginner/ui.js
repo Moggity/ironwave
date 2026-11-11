@@ -55,6 +55,8 @@ const UI = (function () {
     if (units !== 'lb') return round2(kg);
     const inc = Coach.incrementKg(e.equipment, units) / factor(units);
     const x = kg / KG_PER_LB;
+    // A typed pound value is never altered: keep it when it is a two-decimal value.
+    if (Math.abs(x - round2(x)) < 1e-6) return round2(x);
     return inc > 0 ? Math.round(x / inc) * inc : round2(x);
   }
   const toKg = (v, units) => v * factor(units);
@@ -188,7 +190,7 @@ const UI = (function () {
 
   function remainingNow() {
     if (V.restStart === null) return null;
-    return Math.max(0, Math.ceil((V.restStart + cfg().restSec * 1000 - now()) / 1000));
+    return Math.min(cfg().restSec, Math.max(0, Math.ceil((V.restStart + cfg().restSec * 1000 - now()) / 1000)));
   }
   function clockText(sec) {
     const m = Math.floor(sec / 60);
@@ -385,7 +387,8 @@ const UI = (function () {
     stopTimer();
     // A rest still running when the app was killed continues from the newest set.
     const newest = w.sets.reduce((a, x) => (a === null || x.at >= a.at ? x : a), null);
-    if (newest && newest.at + cfg().restSec * 1000 > now()) {
+    const sinceSet = newest ? now() - newest.at : -1;
+    if (newest && sinceSet >= 0 && sinceSet < cfg().restSec * 1000) {
       V.restStart = newest.at;
       startTimer();
     }
@@ -521,7 +524,7 @@ const UI = (function () {
     const wk = db.activeWorkout();
     const prev = wk ? wk.sets.reduce((a, x) => (x.exerciseId === e.id ? Math.max(a, x.at) : a), -Infinity) : -Infinity;
     const gap = now() - prev;
-    if (gap < cfg().doubleTapMs) return;
+    if (gap >= 0 && gap < cfg().doubleTapMs) return;
     V.busy = true;
     patchDone();
     try {
@@ -551,12 +554,13 @@ const UI = (function () {
   function stepWeight(dir) {
     const e = exOf(V.curId);
     const inc = stepOf(e, unitsNow());
-    V.w = dir > 0 ? round6((V.w || 0) + inc) : (V.w === null ? null : Math.max(0, round6(V.w - inc)));
+    const capW = round6(cfg().maxWeightKg / factor(unitsNow()));
+    V.w = dir > 0 ? Math.min(capW, round6((V.w || 0) + inc)) : (V.w === null ? null : Math.max(0, round6(V.w - inc)));
     V.touched = true;
     patchFields(null);
   }
   function stepReps(dir) {
-    V.r = dir > 0 ? (V.r || 0) + 1 : (V.r === null ? null : Math.max(0, V.r - 1));
+    V.r = dir > 0 ? Math.min(cfg().maxReps, (V.r || 0) + 1) : (V.r === null ? null : Math.max(0, V.r - 1));
     V.touched = true;
     patchFields(null);
   }
@@ -691,7 +695,8 @@ const UI = (function () {
   }
   function typed(el, id, commit) {
     const isWeight = id === 'weight-value';
-    const v = parseTyped(el.value, isWeight);
+    let v = parseTyped(el.value, isWeight);
+    if (v !== null && !Number.isNaN(v) && (isWeight ? toKg(v, unitsNow()) > cfg().maxWeightKg + 1e-9 : v > cfg().maxReps)) v = NaN;
     if (Number.isNaN(v)) {
       if (commit) el.value = numText(isWeight ? V.w : V.r);
       return;

@@ -72,6 +72,8 @@ const BEGINNER_CONFIG = beginnerDeepFreeze({
     fallbackStep: 1,
     doubleTapMs: 500,
     revokeMs: 4000,
+    maxWeightKg: 500,
+    maxReps: 100,
     placeholder: 'media/placeholder.svg',
   },
 });
