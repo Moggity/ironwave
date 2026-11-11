@@ -4,7 +4,7 @@
 // BEGINNER_CONFIG.store (schemaVersion, key, dbName, storeName, exportApp,
 // memoKeys, writeTimeoutMs).
 const Store = (function () {
-  const GOALS = ['arms', 'chest', 'legs', 'fit', 'strong'];
+  const goalKeys = () => (typeof BEGINNER_GOALS !== 'undefined' ? Object.keys(BEGINNER_GOALS) : []);
   const EFFORTS = ['easy', 'good', 'hard'];
   const FEELS = ['easy', 'right', 'much'];
   const UNITS = ['kg', 'lb'];
@@ -31,7 +31,7 @@ const Store = (function () {
 
   function cleanSet(s) {
     if (!isObj(s) || !isStr(s.exerciseId) || !isNum(s.weightKg) || s.weightKg < 0 || !Number.isInteger(s.reps) || s.reps < 0) return null;
-    const out = { exerciseId: s.exerciseId, weightKg: noNegZero(s.weightKg), reps: s.reps, effort: EFFORTS.includes(s.effort) ? s.effort : null, at: isNum(s.at) ? s.at : 0 };
+    const out = { exerciseId: s.exerciseId, weightKg: noNegZero(s.weightKg), reps: s.reps, effort: EFFORTS.includes(s.effort) ? s.effort : null, at: isNum(s.at) ? noNegZero(s.at) : 0 };
     if (s.extra === true) out.extra = true;
     return out;
   }
@@ -43,13 +43,13 @@ const Store = (function () {
     if (!isObj(w) || !isStr(w.id) || w.id === '' || !isNum(w.startedAt)) return null;
     const c = {
       id: w.id,
-      startedAt: w.startedAt,
+      startedAt: noNegZero(w.startedAt),
       endedAt: null,
       feel: FEELS.includes(w.feel) ? w.feel : null,
       plan: Array.isArray(w.plan) ? w.plan.filter(isStr) : [],
       sets: Array.isArray(w.sets) ? w.sets.map(cleanSet).filter(Boolean) : [],
     };
-    if (w.endedAt !== null && w.endedAt !== undefined) c.endedAt = isNum(w.endedAt) ? Math.max(w.endedAt, c.startedAt) : lastAt(c);
+    if (w.endedAt !== null && w.endedAt !== undefined) c.endedAt = noNegZero(isNum(w.endedAt) ? Math.max(w.endedAt, c.startedAt) : lastAt(c));
     return c;
   }
 
@@ -62,7 +62,7 @@ const Store = (function () {
     if (!isObj(raw)) return { state: out, droppedWorkouts, droppedSets };
     if (Number.isInteger(raw.version) && raw.version > cfg().schemaVersion) throw fail('E_NEWER_VERSION', 'Saved data is from a newer version');
     if (isStr(raw.name)) out.name = raw.name;
-    if (Array.isArray(raw.goals)) out.goals = uniq(raw.goals.filter(g => GOALS.includes(g)));
+    if (Array.isArray(raw.goals)) out.goals = uniq(raw.goals.filter(g => goalKeys().includes(g)));
     if (typeof raw.onboarded === 'boolean') out.onboarded = raw.onboarded;
     if (Array.isArray(raw.excludedEquipment)) out.excludedEquipment = uniq(raw.excludedEquipment.filter(isStr));
     if (UNITS.includes(raw.units)) out.units = raw.units;
@@ -70,7 +70,7 @@ const Store = (function () {
       // Walk the whitelist, never the raw keys, so a hostile key is never touched.
       for (const k of cfg().memoKeys) {
         const v = Object.prototype.hasOwnProperty.call(raw.memo, k) ? raw.memo[k] : undefined;
-        if (isScalar(v)) defProp(out.memo, k, v);
+        if (isScalar(v)) defProp(out.memo, k, isNum(v) ? noNegZero(v) : v);
       }
     }
     if (Array.isArray(raw.workouts)) {
@@ -80,16 +80,20 @@ const Store = (function () {
       for (const w of list) if (w.endedAt === null && (!keep || w.startedAt >= keep.startedAt)) keep = w;
       const used = new Set(list.map(w => w.id));
       const seen = new Set();
+      const counter = new Map();
       for (const w of list) {
         if (w.endedAt === null && w !== keep) {
           if (w.sets.length === 0) continue;
-          w.endedAt = lastAt(w);
+          w.endedAt = noNegZero(lastAt(w));
           w.feel = null;
         }
         if (seen.has(w.id)) {
-          let n = 1;
-          while (used.has(w.id + '-' + n) || seen.has(w.id + '-' + n)) n++;
-          w.id = w.id + '-' + n;
+          // A running counter per base id keeps renaming linear.
+          let n = counter.get(w.id) || 0;
+          let id;
+          do { n++; id = w.id + '-' + n; } while (used.has(id) || seen.has(id));
+          counter.set(w.id, n);
+          w.id = id;
         }
         seen.add(w.id);
         out.workouts.push(w);
@@ -144,7 +148,8 @@ const Store = (function () {
         let tx;
         let rq;
         const timer = setTimeout(() => {
-          try { tx.abort(); } catch (e) { /* nothing to abort */ }
+          // If abort throws the commit is under way: let complete or abort decide.
+          try { tx.abort(); } catch (e) { return; }
           reject(fail('E_STORAGE', 'Storage timed out'));
         }, cfg().writeTimeoutMs);
         const end = (f, v) => { clearTimeout(timer); f(v); };
