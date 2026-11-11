@@ -48,6 +48,11 @@
        document. access, storage, Date.now, new Date(), fetch( are forbidden).
      - assemble-beginner.js also exports SHARED_FROM_APP (starts data.js, engine.js)
        and BEGINNER_FILES; every SHARED_FROM_APP entry is copied byte-identical.
+   ROUND 3: beginner top-level globals must be single plain declarations at column
+     zero (no destructuring, one name per declaration). Harness exports are LIVE
+     (reading a name after the code reassigns it gives the new value), and the scan
+     must not be fooled by declaration-looking lines inside template strings or
+     block comments. The script tags before config.js must equal SHARED_FROM_APP.
    CI: ci.yml keeps job `check` (matrix [18, 20], working-directory app) and gains
      job `beginner` (matrix [18, 20], working-directory beginner, npm ci, npm test).
    ============================================================ */
@@ -62,7 +67,6 @@ const NODE_MAJOR = Number(process.versions.node.split('.')[0]);
 const ROOT = path.resolve(__dirname, '..', '..');
 const B = path.join(ROOT, 'beginner');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
-const SEVEN = ['data.js', 'engine.js', 'config.js', 'exercises.js', 'coach.js', 'store.js', 'ui.js'];
 
 function load() { return require('./load-beginner').loadBeginner(); }
 
@@ -194,6 +198,35 @@ test('K2 loadBeginner auto-exposes every top-level declaration of the beginner f
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+const HARD_CASES = [
+  '',
+  'const TEMPLATE_PROBE = `first line',
+  'let us begin',
+  'last line`;',
+  '/* a block comment',
+  'class names are applied later',
+  '*/',
+  'let probeCounter = 0;',
+  'function bumpProbe() { probeCounter += 1; }',
+  ''
+].join('\n');
+
+function checkHardCases(surface) {
+  assert.strictEqual(typeof surface.TEMPLATE_PROBE, 'string');
+  assert.strictEqual(surface.us, undefined, 'false name inside a template string reads undefined');
+  assert.strictEqual(surface.names, undefined, 'false name inside a block comment reads undefined');
+  assert.strictEqual(surface.probeCounter, 0);
+  surface.bumpProbe();
+  assert.strictEqual(surface.probeCounter, 1, 'exports are live getters, not snapshots');
+}
+
+test('K2 loadBeginner export scan survives column-zero lookalikes and exports reassigned lets live', () => {
+  const dir = probeDir();
+  fs.appendFileSync(path.join(dir, 'exercises.js'), HARD_CASES);
+  try { checkHardCases(require('./load-beginner').loadBeginner({ beginnerDir: dir })); }
+  finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 // ---------- index.html ----------
 test('K2 index.html has #app, a viewport meta and ordered flat-path scripts (extras allowed)', () => {
   const html = read('beginner', 'index.html');
@@ -206,7 +239,8 @@ test('K2 index.html has #app, a viewport meta and ordered flat-path scripts (ext
   for (const f of ['data.js', 'engine.js', ...own]) assert.ok(idx(f) >= 0, `missing script ${f}`);
   assert.ok(idx('data.js') < idx('engine.js'), 'data.js before engine.js');
   for (let i = 1; i < own.length; i++) assert.ok(idx(own[i - 1]) < idx(own[i]), `${own[i - 1]} before ${own[i]}`);
-  for (const s of srcs.slice(0, idx('config.js'))) assert.ok(idx(s) < idx('config.js'));
+  assert.deepStrictEqual(srcs.slice(0, idx('config.js')), require(path.join(ROOT, 'scripts', 'assemble-beginner.js')).SHARED_FROM_APP,
+    'script tags before config.js must equal SHARED_FROM_APP');
   assert.ok(idx('engine.js') < idx('config.js') && idx('data.js') < idx('config.js'), 'shared scripts precede config.js');
 });
 
@@ -252,6 +286,13 @@ if (NODE_MAJOR < 20) {
       assert.strictEqual(app.UI_PROBE, 5);
       assert.ok(app.UI && app.Coach && app.Store && app.Engine);
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  test('K2 loadDom export scan survives column-zero lookalikes and exports reassigned lets live', () => {
+    const dir = probeDir();
+    fs.appendFileSync(path.join(dir, 'ui.js'), HARD_CASES);
+    try { checkHardCases(require('./load-dom').loadDom({ beginnerDir: dir }).app); }
+    finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 
   test('K2 loadDom returns independent windows', () => {
