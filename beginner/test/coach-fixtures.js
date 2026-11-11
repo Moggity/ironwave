@@ -144,8 +144,9 @@ function mulberry32(seed) {
 function beginnerDirWithCoachConfig(overrides) {
   const src = path.join(__dirname, '..');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bg-coachcfg-'));
-  for (const f of ['config.js', 'exercises.js', 'coach.js', 'store.js', 'ui.js', 'index.html']) {
-    if (fs.existsSync(path.join(src, f))) fs.copyFileSync(path.join(src, f), path.join(dir, f));
+  // Copy every beginner source, not a fixed list, so a new source file (strings.js) is included.
+  for (const f of fs.readdirSync(src).filter(n => n.endsWith('.js') || n === 'index.html')) {
+    fs.copyFileSync(path.join(src, f), path.join(dir, f));
   }
   const cfgPath = path.join(dir, 'config.js');
   let cfg = fs.readFileSync(cfgPath, 'utf8');
