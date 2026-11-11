@@ -13,7 +13,9 @@
    - dir          the assembled folder served by the fake network
    - cacheStorage optional, from makeCacheStorage(), shared between two envs to model an
                   update (the old worker's caches are still there for the new one)
-   net: { calls: [{ url, method }], offline: boolean }. Every fetch attempt is logged, also
+   net: { calls: [{ url, method, cache }], offline: boolean } (cache is the cache mode of the request, 'default' unless set).
+   The sandbox has a Request (relative URLs resolve against the worker). env.rebind() re-points a shared
+   storage at this worker after another env (for example Ironwave's app/sw.js) ran. Every fetch attempt is logged, also
    when offline. A request to another origin is answered 200 'external' so a test can see it.
    fetch() returns { handled, response }: handled is false when the worker did not call
    respondWith (the browser then does its own thing, which is what "pass through" means);
@@ -60,7 +62,7 @@ function baseCacheStorage(getBase, getFetch) {
     async add(req) { await this.addAll([req]); }
     async addAll(reqs) {
       const urls = reqs.map(r => hrefOf(r, getBase()));
-      const ress = await Promise.all(urls.map(u => getFetch()(u)));
+      const ress = await Promise.all(reqs.map(r => getFetch()(r)));
       ress.forEach((r, i) => { if (!r.ok) throw new TypeError('addAll failed for ' + urls[i] + ' (' + r.status + ')'); });
       ress.forEach((r, i) => this.map.set(urls[i], r.clone()));
     }
@@ -91,7 +93,8 @@ function createSwEnv(o) {
   async function fakeFetch(input, init) {
     const url = new URL(typeof input === 'string' ? input : input.url, swUrl);
     const method = (init && init.method) || (typeof input !== 'string' && input.method) || 'GET';
-    net.calls.push({ url: url.href, method });
+    const cacheMode = (init && init.cache) || (typeof input !== 'string' && input.cache) || 'default';
+    net.calls.push({ url: url.href, method, cache: cacheMode });
     if (net.offline) throw new TypeError('Failed to fetch');
     if (url.origin !== origin) return new Response('external', { status: 200 });
     const p = decodeURIComponent(url.pathname);
@@ -107,9 +110,16 @@ function createSwEnv(o) {
   const cacheStorage = o.cacheStorage || sharedCacheStorage();
   cacheStorage.bind({ swUrl, _fetch: fakeFetch });
   env.caches = cacheStorage;
+  env._fetch = fakeFetch;
+  // Shared storage resolves relative strings for whoever bound last; call after another env ran.
+  env.rebind = () => cacheStorage.bind(env);
 
+  // Like a browser, a relative URL given to new Request resolves against the worker's location.
+  class SwRequest extends Request {
+    constructor(input, init) { super(typeof input === 'string' ? new URL(input, swUrl).href : input, init); }
+  }
   const sandbox = {
-    URL, URLSearchParams, Response, Headers, TextEncoder, console, setTimeout, clearTimeout, queueMicrotask,
+    Request: SwRequest, URL, URLSearchParams, Response, Headers, TextEncoder, console, setTimeout, clearTimeout, queueMicrotask,
     fetch: fakeFetch,
     caches: cacheStorage,
     location: new URL(swUrl),

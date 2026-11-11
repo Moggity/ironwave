@@ -24,6 +24,14 @@
    on another failure the error screen stays with the retry control. Handlers are registered
    once (a retry must not double them).
 
+   ---------- ROUND 2 (review): retry is safe ----------
+   S2 (C6): retry is single-flight. While a store open is in progress the storage-retry control is
+     disabled and further clicks do nothing, so the store is never opened more than once at a time
+     (counted with an adapter whose get is held).
+   S3: after E_NEWER_VERSION the retry control calls platform.reload() (a NEW platform hook, default
+     location.reload()) and does NOT open the store again with the same old code. For every other
+     error code retry reopens the store and never reloads.
+
    ---------- carry-forward fixes in ui.js ----------
    (a) a typed lb weight with more than two decimals is rounded to two decimals when committed
        (shown value, logged kg and later pre-fills all use the rounded number);
@@ -187,6 +195,67 @@ if (H.NODE_MAJOR < 20) {
     await h.click('storage-retry');
     assert.strictEqual(h.screen(), 'goal');
   });
+
+  // ---------- S2, S3: retry is single-flight, and reloads after a newer version ----------
+  async function raw(adapter) {
+    const { loadDom } = require('./load-dom');
+    const { window, document, app } = loadDom();
+    window.structuredClone = window.structuredClone || structuredClone;
+    const root = document.getElementById('app');
+    const calls = { reload: 0 };
+    await app.UI.boot({ root, adapter, clock: fakeClock(), timers: fakeTimers(), locale: 'en-GB',
+      platform: { vibrate() {}, saveFile() {}, pickFile: async () => null, reload() { calls.reload++; } } });
+    const settle = async () => { for (let i = 0; i < 200; i++) await Promise.resolve(); };
+    await settle();
+    const q = id => root.querySelector('[data-testid="' + id + '"]');
+    const click = async el => { el.dispatchEvent(new window.MouseEvent('click', { bubbles: true, cancelable: true })); await settle(); };
+    return { root, calls, q, click, settle, screen: () => (root.querySelector('[data-screen]') || { getAttribute: () => null }).getAttribute('data-screen') };
+  }
+  test('C6 S2 retry is single-flight: while the store opens the control is disabled and clicks do nothing', async () => {
+    const base = Store.memoryAdapter();
+    const st = { gets: 0, release: null };
+    const adapter = {
+      get: k => {
+        st.gets++;
+        if (st.gets === 1) return Promise.reject(Object.assign(new Error('x'), { code: 'E_STORAGE' }));
+        if (st.gets === 2) return new Promise(res => { st.release = () => res(base.get(k)); });
+        return base.get(k);
+      },
+      set: (k, v) => base.set(k, v),
+    };
+    const h = await raw(adapter);
+    assert.strictEqual(h.screen(), 'error');
+    await h.click(h.q('storage-retry'));
+    assert.strictEqual(st.gets, 2, 'the first retry opens the store once');
+    const btn = h.q('storage-retry');
+    assert.ok(btn && btn.disabled, 'the retry control must be disabled while opening');
+    for (let i = 0; i < 4; i++) await h.click(h.q('storage-retry') || btn);
+    assert.strictEqual(st.gets, 2, 'extra clicks opened the store again');
+    st.release(); await h.settle();
+    assert.strictEqual(st.gets, 2);
+    assert.strictEqual(h.screen(), 'goal');
+  });
+  test('C6 S3 after E_NEWER_VERSION retry reloads the page and does not open the store again', async () => {
+    let gets = 0;
+    const adapter = { get: async () => { gets++; return { version: 9999 }; }, set: async () => {} };
+    const h = await raw(adapter);
+    assert.strictEqual(h.screen(), 'error');
+    assert.strictEqual(gets, 1);
+    await h.click(h.q('storage-retry'));
+    assert.strictEqual(h.calls.reload, 1, 'platform.reload not called');
+    assert.strictEqual(gets, 1, 'the store was opened again with the same old code');
+  });
+  for (const code of ['E_NO_STORAGE', 'E_STORAGE']) {
+    test('C6 S3 after ' + code + ' retry reopens the store and never reloads', async () => {
+      let gets = 0; const base = Store.memoryAdapter();
+      const adapter = { get: async k => { if (gets++ === 0) throw Object.assign(new Error('x'), { code }); return base.get(k); }, set: (k, v) => base.set(k, v) };
+      const h = await raw(adapter);
+      await h.click(h.q('storage-retry'));
+      assert.strictEqual(gets, 2);
+      assert.strictEqual(h.calls.reload, 0);
+      assert.strictEqual(h.screen(), 'goal');
+    });
+  }
 
   // ---------- carry-forward fixes in ui.js ----------
   const lift = async (boo = {}) => { const h = await boot({ seed: seedState({}), locale: 'en-US', ...boo }); await h.toLift(['db-curl']); return h; };

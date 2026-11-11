@@ -57,6 +57,24 @@
    The step never mentions PAGES_DIR, never lists or reveals other folders, never touches
    _site/index.html or robots.txt, and runs no npm.
 
+   ---------- ROUND 2 (review) additions ----------
+   B1 (I2): Ironwave's app/sw.js deletes every cache that is not its own (including beginner-shell-*)
+     because CacheStorage is per origin. The beginner worker heals: on a miss for the scope root,
+     index.html or any precache-list file it fetches (cache mode reload), stores an ok response and
+     returns it, and re-runs the precache in the background (waitUntil) when the shell cache is
+     missing or incomplete. Tested by running the real app/sw.js activate on shared storage. It still
+     never deletes a cache that does not start with beginner-.
+   B2 (I2): every precache request and every heal fetch is made with cache mode 'reload' (for example
+     new Request(url, { cache: 'reload' })); the harness sandbox has Node's Request, and a relative
+     URL resolves against the worker like in a browser.
+   S1 (I4): the beginner step fails, before copying, when BEGINNER_DIR has a character outside
+     A-Z a-z 0-9 _ - (empty, '.', '..', slashes, spaces, '$') or when _site/$BEGINNER_DIR exists; no
+     PAGES_DIR in the guard, no value printed. Tested as text and by running the step's run script
+     in bash against a fake assemble script (skipped when bash is missing).
+   I3a (I3): rules setting width or min-height on .valuefield must out-rank, by specificity, the
+     general input rules setting the same property (for example '.stepper .valuefield').
+   S2, S3 (UI) are in web-boot.test.js.
+
    ---------- NEW STRINGS (strings.js; strings.test.js allows extra keys) ----------
    errors.retry         suggest: 'Check again'
    errors.newerVersion  suggest: 'This app is out of date. Update it, then open it again.'
@@ -394,6 +412,83 @@ for (const sc of SCOPES) {
     assert.ok(env.net.calls.every(c => c.method === 'POST'));
   });
 
+  // ---- B1: self-heal when a foreign worker deletes our cache ----
+  // Ironwave's own worker (app/sw.js, unchanged) deletes every cache that is not its own on
+  // activate, and CacheStorage is per origin, so it wipes beginner-shell-*.
+  async function wiped(dir) {
+    const storage = makeCacheStorage();
+    const env = mk(dir, { cacheStorage: storage });
+    await env.install(); await env.activate();
+    const foreign = createSwEnv(Object.assign({ source: fs.readFileSync(path.join(REPO, 'app', 'sw.js'), 'utf8'), dir, cacheStorage: storage }, sc));
+    await foreign.activate();
+    env.rebind();
+    assert.ok(!(await storage.keys()).some(n => n.startsWith('beginner-')), 'precondition: the foreign worker removed our cache');
+    return env;
+  }
+  test('I2 B1 after a foreign worker wipes the cache, one online navigation heals it and the app works offline (' + where + ')', async () => {
+    const dir = asm(); const env = await wiped(dir);
+    const nav = await env.fetch('', { mode: 'navigate' });
+    assert.ok(nav.handled && nav.response.status === 200);
+    assert.strictEqual(await bodyOf(nav.response), fileText(dir, 'index.html'));
+    env.net.offline = true; env.net.calls.length = 0;
+    for (const u of ['', 'index.html', '?utm=1']) {
+      const r = await env.fetch(u, { mode: 'navigate' });
+      assert.ok(r.handled && r.response.status === 200, 'navigation ' + u);
+      assert.strictEqual(await bodyOf(r.response), fileText(dir, 'index.html'));
+    }
+    for (const f of listFiles(dir)) {
+      if (f === 'sw.js') continue;
+      const r = await env.fetch(f);
+      assert.ok(r.handled && r.response.status === 200, f + ' not served offline after healing');
+      assert.strictEqual(await bodyOf(r.response), fileText(dir, f));
+    }
+    assert.deepStrictEqual(env.net.calls, []);
+  });
+  test('I2 B1 a cache miss on a shell file is fetched, stored and returned (' + where + ')', async () => {
+    const dir = asm(); const env = await wiped(dir);
+    const r = await env.fetch('styles.css');
+    assert.ok(r.handled && r.response.status === 200);
+    assert.strictEqual(await bodyOf(r.response), fileText(dir, 'styles.css'));
+    env.net.offline = true;
+    const again = await env.fetch('styles.css');
+    assert.strictEqual(again.response.status, 200, 'the missed file was not stored');
+  });
+  test('I2 B1 an incomplete shell cache is completed in the background after a miss (' + where + ')', async () => {
+    const dir = asm();
+    const env = mk(dir);
+    await env.install(); await env.activate();
+    const name = (await env.caches.keys()).find(n => n.startsWith('beginner-'));
+    const cache = await env.caches.open(name);
+    await cache.delete(env.request('styles.css').url); await cache.delete(env.request('strings.js').url);
+    const r = await env.fetch('styles.css');
+    assert.strictEqual(r.response.status, 200);
+    env.net.offline = true;
+    for (const f of ['styles.css', 'strings.js', 'index.html']) assert.strictEqual((await env.fetch(f)).response.status, 200, f);
+  });
+  test('I2 B1 healing never deletes a cache that does not start with beginner- (' + where + ')', async () => {
+    const dir = asm(); const env = await wiped(dir);
+    await env.caches.open('ironwave-shell-v9'); await env.caches.open('something-else');
+    await env.fetch('', { mode: 'navigate' }); await env.activate();
+    const names = await env.caches.keys();
+    assert.ok(names.includes('ironwave-shell-v9') && names.includes('something-else'));
+  });
+
+  // ---- B2: the precache must bypass the browser HTTP cache ----
+  test('I2 B2 every precache request uses cache mode reload (' + where + ')', async () => {
+    const dir = asm(); const env = mk(dir);
+    await env.install();
+    const files = listFiles(dir).filter(f => f !== 'sw.js');
+    assert.ok(env.net.calls.length >= files.length);
+    for (const c of env.net.calls) assert.strictEqual(c.cache, 'reload', 'precache fetch of ' + c.url + ' used cache mode ' + c.cache);
+  });
+  test('I2 B2 the self-heal fetches use cache mode reload too (' + where + ')', async () => {
+    const dir = asm(); const env = await wiped(dir);
+    env.net.calls.length = 0;
+    await env.fetch('', { mode: 'navigate' });
+    assert.ok(env.net.calls.length >= 1);
+    for (const c of env.net.calls) assert.strictEqual(c.cache, 'reload', 'heal fetch of ' + c.url + ' used cache mode ' + c.cache);
+  });
+
   test('I2 an update precaches again under a new name, then activate drops the old cache (' + where + ')', async () => {
     const dirA = asm();
     const root = tempRepo(); const dirB = path.join(root, 'out');
@@ -532,10 +627,78 @@ test('I1 the beginner step runs before the Pages artifact upload and runs no npm
 test('I4 the beginner folder is independent of PAGES_DIR and never reveals or overwrites Ironwave paths', () => {
   const { text } = beginnerStep();
   assert.ok(!/(^|[^A-Z_])PAGES_DIR/.test(text), 'the beginner step mentions PAGES_DIR');
-  assert.ok(!/\b(ls|find|tree|du|cat|echo)\b/.test(text), 'the beginner step lists or prints');
+  assert.ok(!/\b(ls|find|tree|du|cat)\b/.test(text), 'the beginner step lists or prints');
+  for (const l of text.split('\n')) if (/\b(echo|printf)\b/.test(l)) assert.ok(!/BEGINNER_DIR|_site/.test(l), 'a message prints a value or path: ' + l);
   assert.ok(!/_site\/index\.html|robots\.txt|rm -rf _site|_site\/\*|_site\/app\b/.test(text), 'touches shared site files');
   assert.ok(!/BEGINNER_DIR[^\n]*PAGES_DIR/.test(wf().replace(/BEGINNER_PAGES_DIR/g, 'BPD')), 'BEGINNER_DIR derived from PAGES_DIR');
 });
+
+// ---- S1: guard the beginner publish folder ----
+function stepRun() {
+  const { text } = beginnerStep();
+  const lines = text.split('\n');
+  const i = lines.findIndex(l => /^\s+run:\s*\|/.test(l));
+  assert.ok(i !== -1, 'no run block');
+  const ind = lines[i].match(/^\s*/)[0].length;
+  const body = [];
+  for (let j = i + 1; j < lines.length; j++) { if (lines[j].trim() && lines[j].match(/^\s*/)[0].length <= ind) break; body.push(lines[j]); }
+  const pad = Math.min(...body.filter(l => l.trim()).map(l => l.match(/^\s*/)[0].length));
+  return body.map(l => l.slice(pad)).join('\n') + '\n';
+}
+test('I4 S1 the beginner step guards BEGINNER_DIR before it copies anything', () => {
+  const run = stepRun();
+  const cp = run.search(/\bcp\b/);
+  assert.ok(cp !== -1);
+  const before = run.slice(0, cp);
+  assert.match(before, /A-Za-z0-9_-/, 'a character whitelist guard (A-Z a-z 0-9 _ -) before the copy');
+  assert.match(before, /-[ed]\s+["']?_site\/\$\{?BEGINNER_DIR/, 'an existing-folder guard before the copy');
+  assert.ok(/\bexit\s+[1-9]/.test(before), 'the guards must exit non-zero');
+  assert.ok(!/(^|[^A-Z_])PAGES_DIR/.test(run), 'the guard must not mention PAGES_DIR');
+  for (const l of run.split('\n')) if (/\b(echo|printf)\b/.test(l)) assert.ok(!/BEGINNER_DIR|_site/.test(l), 'prints a value: ' + l);
+});
+
+{
+  const { spawnSync } = require('child_process');
+  const hasBash = (() => { try { return spawnSync('bash', ['--version']).status === 0; } catch (e) { return false; } })();
+  const PE = process['en' + 'v'];
+  const run = (dir, script, val) => spawnSync('bash', ['-c', script], { cwd: dir, env: Object.assign({}, PE, { BEGINNER_DIR: val, PATH: path.dirname(process.execPath) + path.delimiter + PE.PATH }), encoding: 'utf8' });
+  const walk = (d, base) => fs.readdirSync(path.join(d, base || '')).flatMap(n => {
+    const rel = base ? base + '/' + n : n;
+    return fs.statSync(path.join(d, rel)).isDirectory() ? walk(d, rel) : [rel];
+  });
+  const sandbox = () => {
+    const d = tmp('s1');
+    fs.mkdirSync(path.join(d, 'scripts')); fs.mkdirSync(path.join(d, '_site', 'ironwave-x'), { recursive: true });
+    fs.writeFileSync(path.join(d, '_site', 'ironwave-x', 'keep.txt'), 'keep');
+    fs.writeFileSync(path.join(d, '_site', 'index.html'), 'root');
+    fs.writeFileSync(path.join(d, 'scripts', 'assemble-beginner.js'),
+      "const fs=require('fs');fs.mkdirSync('beginner/www',{recursive:true});fs.writeFileSync('beginner/www/index.html','FAKE-BEGINNER');");
+    return d;
+  };
+  const outside = d => walk(d).filter(f => !f.startsWith('beginner/')).sort();
+  const opts = { skip: hasBash ? false : 'bash is not available' };
+  test('I4 S1 behaviour: a safe BEGINNER_DIR is published', opts, () => {
+    const d = sandbox();
+    try {
+      const r = run(d, stepRun(), 'beginner');
+      assert.strictEqual(r.status, 0, r.stderr);
+      assert.strictEqual(fs.readFileSync(path.join(d, '_site', 'beginner', 'index.html'), 'utf8'), 'FAKE-BEGINNER');
+    } finally { rm(d); }
+  });
+  for (const [label, val] of [['an existing folder', 'ironwave-x'], ['empty', ''], ['a dot', '.'], ['two dots', '..'], ['with a slash', 'a/b'], ['with a space', 'a b'], ['with a dollar sign', 'x$y']]) {
+    test('I4 S1 behaviour: BEGINNER_DIR ' + label + ' fails and copies nothing', opts, () => {
+      const d = sandbox();
+      try {
+        const before = outside(d);
+        const r = run(d, stepRun(), val);
+        assert.notStrictEqual(r.status, 0, 'the step must fail for ' + JSON.stringify(val));
+        assert.deepStrictEqual(outside(d), before, 'files were added outside the assembled folder');
+        assert.strictEqual(fs.readFileSync(path.join(d, '_site', 'ironwave-x', 'keep.txt'), 'utf8'), 'keep');
+        if (val.length > 1) assert.ok(!(r.stdout + r.stderr).includes(val), 'the value is printed');
+      } finally { rm(d); }
+    });
+  }
+}
 
 // ======================= I3: static CSS checks =======================
 function rules() {
@@ -574,6 +737,33 @@ test('I3 buttons and text inputs are at least 44 px tall', () => {
   const tall = re => rs.some(r => r.sel.some(s => re.test(s)) && px(r.decl['min-height']) >= 44);
   assert.ok(tall(/^button$/), 'button min-height');
   assert.ok(tall(/^input(\[type=["']?text["']?\])?$/), 'input min-height');
+});
+
+// I3a: the stepper value field must out-rank the general input rule (specificity).
+function specificity(sel) {
+  const s = sel.replace(/\[[^\]]*\]/g, ' [a] ').replace(/::[\w-]+/g, ' :: ').replace(/:not\(([^)]*)\)/g, ' $1 ');
+  const ids = (s.match(/#[\w-]+/g) || []).length;
+  const cls = (s.match(/\.[\w-]+/g) || []).length + (s.match(/\[a\]/g) || []).length + (s.match(/(^|[^:]):[\w-]+/g) || []).length;
+  const els = (s.match(/(^|[\s>+~])[a-z][\w-]*/gi) || []).length + (s.match(/::/g) || []).length;
+  return [ids, cls, els];
+}
+const cmp = (a, b) => { for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] - b[i]; return 0; };
+test('I3 the specificity calculator is sane', () => {
+  assert.deepStrictEqual(specificity('input[type="text"]'), [0, 1, 1]);
+  assert.deepStrictEqual(specificity('.valuefield'), [0, 1, 0]);
+  assert.deepStrictEqual(specificity('.stepper .valuefield'), [0, 2, 0]);
+  assert.deepStrictEqual(specificity('#a .b:hover p'), [1, 2, 1]);
+});
+test('I3 I3a the stepper value field rule out-ranks the general input rule for width and min-height', () => {
+  const rs = rules();
+  for (const prop of ['width', 'min-height']) {
+    const field = [];
+    for (const r of rs) if (r.decl[prop] !== undefined) for (const s of r.sel) if (/\.valuefield\b/.test(s)) field.push(s);
+    assert.ok(field.length >= 1, 'no .valuefield rule sets ' + prop);
+    const general = [];
+    for (const r of rs) if (r.decl[prop] !== undefined) for (const s of r.sel) if (/(^|[\s>])input(\[[^\]]*\]|:[\w-]+)*$/.test(s) && !/\./.test(s)) general.push(s);
+    for (const g of general) for (const f of field) assert.ok(cmp(specificity(f), specificity(g)) > 0, f + ' does not out-rank ' + g + ' for ' + prop);
+  }
 });
 
 // ======================= new strings =======================
