@@ -17,6 +17,8 @@ on:
     paths:
       - 'app/**'
       - '.github/workflows/pages.yml'
+      - 'beginner/**'
+      - 'scripts/assemble-beginner.js'
   workflow_dispatch:
 
 permissions:
@@ -58,6 +60,22 @@ jobs:
           # robots.txt is best-effort (crawlers honor it at the host root, which a
           # project page does not own); the per-page noindex meta is the real control.
           printf 'User-agent: *\nDisallow: /\n' > _site/robots.txt
+
+      - name: Assemble beginner app
+        env:
+          BEGINNER_DIR: ${{ vars.BEGINNER_PAGES_DIR || 'beginner' }}
+        run: |
+          set -e
+          case "${BEGINNER_DIR}" in
+            ""|*[!A-Za-z0-9_-]*) echo "Invalid beginner folder name"; exit 1 ;;
+          esac
+          if [ -e "_site/${BEGINNER_DIR}" ]; then
+            echo "Beginner folder is already taken"
+            exit 1
+          fi
+          node scripts/assemble-beginner.js
+          mkdir -p "_site/${BEGINNER_DIR}"
+          cp -r beginner/www/. "_site/${BEGINNER_DIR}/"
 
       - uses: actions/configure-pages@v5
 
