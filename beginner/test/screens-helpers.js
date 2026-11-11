@@ -295,9 +295,21 @@ async function boot(o = {}) {
     saveFile: (name, text) => { saved.push({ name, text }); },
     pickFile: async () => picked,
   };
+  // Package 7 (additive): o.spy adds the rest-signal hooks and records them in h.plat as
+  // ['schedule', atMs] / ['cancel']; h.pendingRest() replays them like a one-slot alarm
+  // (schedule replaces, cancel clears), so tests assert what the phone would really hold.
+  // o.platform adds or overrides platform keys (for example hooks that throw).
+  const plat = [];
+  if (o.spy) {
+    platform.scheduleRestEnd = at => { plat.push(['schedule', at]); };
+    platform.cancelRestEnd = () => { plat.push(['cancel']); };
+  }
+  if (o.platform) Object.assign(platform, o.platform);
   const root = document.getElementById('app');
   const h = {
-    window, document, app, root, adapter, clock, timers, vib, saved, clicks: 0, base,
+    window, document, app, root, adapter, clock, timers, vib, saved, clicks: 0, base, plat,
+    pendingRest: () => plat.reduce((p, c) => (c[0] === 'schedule' ? c[1] : null), null),
+    scheduleCalls: () => plat.filter(c => c[0] === 'schedule').length,
     S: app.BEGINNER_STRINGS,
     setPick: t => { picked = t; },
   };
@@ -401,7 +413,57 @@ const suggestFor = (state, excluded, now) => Coach.suggest({
   now,
 });
 
+// ---------- package 7: a hand-made Capacitor (no real Capacitor code ever runs in tests) ----------
+// Mirrors the documented surface: Capacitor.isNativePlatform(), Capacitor.Plugins.<Name> and
+// Capacitor.registerPlugin(name). o.via: 'both' (default) | 'plugins' | 'register' (then
+// Capacitor.Plugins is an empty object, like a page without a bundler). o.native:false makes it a
+// web Capacitor. o.perm: 'granted' (default) | 'denied'. o.reject: ['Plugin.method'] makes that
+// call reject. o.missing: plugin names left out. o.noMinimize drops App.minimizeApp.
+// Plugin calls are recorded in `calls` as [plugin, method, ...args], synchronously at call time.
+function fakeCapacitor(o = {}) {
+  const calls = [];
+  const listeners = {};
+  const pending = new Map();
+  const channels = {};
+  const perm = o.perm || 'granted';
+  const rec = (plugin, method, impl) => async (...a) => {
+    calls.push([plugin, method, ...a]);
+    if ((o.reject || []).includes(plugin + '.' + method)) throw new Error(plugin + '.' + method + ' failed');
+    return impl ? impl(...a) : undefined;
+  };
+  const P = {
+    App: {
+      addListener: rec('App', 'addListener', (n, cb) => { listeners[n] = cb; return { remove: async () => { delete listeners[n]; } }; }),
+      exitApp: rec('App', 'exitApp'),
+      minimizeApp: rec('App', 'minimizeApp'),
+    },
+    Haptics: { vibrate: rec('Haptics', 'vibrate') },
+    Filesystem: { writeFile: rec('Filesystem', 'writeFile', opts => ({ uri: 'file:///cache/' + opts.path })) },
+    Share: { share: rec('Share', 'share') },
+    LocalNotifications: {
+      createChannel: rec('LocalNotifications', 'createChannel', c => { channels[c.id] = c; }),
+      checkPermissions: rec('LocalNotifications', 'checkPermissions', () => ({ display: perm })),
+      requestPermissions: rec('LocalNotifications', 'requestPermissions', () => ({ display: perm === 'denied' ? 'denied' : 'granted' })),
+      schedule: rec('LocalNotifications', 'schedule', opts => {
+        if (perm === 'denied') throw new Error('notifications not allowed');
+        opts.notifications.forEach(n => pending.set(n.id, n));
+        return { notifications: opts.notifications.map(n => ({ id: n.id })) };
+      }),
+      cancel: rec('LocalNotifications', 'cancel', opts => { opts.notifications.forEach(n => pending.delete(n.id)); }),
+      cancelAll: rec('LocalNotifications', 'cancelAll', () => { pending.clear(); }),
+    },
+  };
+  if (o.noMinimize) delete P.App.minimizeApp;
+  for (const m of o.missing || []) delete P[m];
+  const cap = { isNativePlatform: () => o.native !== false, getPlatform: () => (o.native === false ? 'web' : 'android') };
+  const via = o.via || 'both';
+  cap.Plugins = via === 'register' ? {} : P;
+  if (via !== 'plugins') cap.registerPlugin = name => { if (!P[name]) throw new Error('not implemented: ' + name); return P[name]; };
+  return { cap, calls, listeners, pending, channels, P, win: { Capacitor: cap } };
+}
+
 module.exports = {
+  fakeCapacitor,
   NODE_MAJOR, N, Coach, Store, BEGINNER_CONFIG, BEGINNER_EXERCISES, BEGINNER_GOALS, BEGINNER_EQUIPMENT, beginnerGoalFocus,
   KEY, KG_PER_LB, DAY, HOUR, T0, ex, fakeClock, fakeTimers, gatedAdapter, copyBeginnerDir, workout, history, seedState, fmt, boot, suggestFor,
 };

@@ -80,6 +80,10 @@ const REQUIRED = {
   'errors.action': { suggest: 'That did not save. Tap again.' },
   'errors.import': { suggest: 'That file did not work. Nothing was changed.' },
   'errors.storage': { suggest: 'This device cannot save your workouts.' },
+  // Package 7 (J4): the text of the locked-phone rest-end notification (platform.js, native only).
+  'rest.notifyTitle': { suggest: 'Rest is over' },
+  'rest.notifyBody': { suggest: 'Your next set is ready' },
+  'rest.channelName': { suggest: 'Rest timer' },
 };
 
 // G2 forbidden words and D1 phrases (whole words / phrases, case-insensitive).
