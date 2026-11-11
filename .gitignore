@@ -10,3 +10,6 @@ ironwave-backup-*.json
 # OS / editor cruft
 .DS_Store
 *.log
+
+# Beginner app assembled output
+beginner/www/
