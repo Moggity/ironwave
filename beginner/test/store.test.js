@@ -1085,3 +1085,291 @@ test('H1 idbAdapter is lazy: zero indexedDB.open calls until the first get or se
     if (had) Object.defineProperty(globalThis, 'indexedDB', had); else delete globalThis.indexedDB;
   }
 });
+
+// ================= FOLLOW-UPS (package 3b) =================
+// RULES: (1) idbAdapter timeout: on the write timer, try tx.abort(); if abort THROWS
+//   (commit already under way) do not reject on the timer, wait for complete (resolve)
+//   or abort/error (reject); reject on the timer (code E_STORAGE) only when abort
+//   succeeded. (2) duplicate-id renaming in migrate is linear. (3) -0 is stored as 0
+//   in startedAt, endedAt, set.at and numeric memo values. (4) valid goal keys are
+//   Object.keys(BEGINNER_GOALS) at call time, in migrate and setProfile.
+// The adapter reads setTimeout from the global at call time, so these tests swap
+// globalThis.setTimeout for the exact configured writeTimeoutMs; no seam is needed.
+const { createFakeIdb } = require('./fake-idb');
+
+function fakeTimers() {
+  const realSet = globalThis.setTimeout, realClear = globalThis.clearTimeout;
+  const list = [];
+  globalThis.setTimeout = (fn, ms, ...a) => {
+    if (ms !== BEGINNER_CONFIG.store.writeTimeoutMs) return realSet(fn, ms, ...a);
+    const t = { live: true, fn };
+    list.push(t);
+    return t;
+  };
+  globalThis.clearTimeout = h => { if (h && typeof h === 'object' && 'live' in h) h.live = false; else realClear(h); };
+  return {
+    live: () => list.filter(t => t.live).length,
+    fire() { for (const t of list.filter(x => x.live)) { t.live = false; t.fn(); } },
+    restore() { globalThis.setTimeout = realSet; globalThis.clearTimeout = realClear; },
+  };
+}
+
+async function withIdb(fn) {
+  const fake = createFakeIdb();
+  fake.install();
+  const timers = fakeTimers();
+  try { await fn(fake, timers); } finally { timers.restore(); fake.restore(); }
+}
+const track = p => { const s = { done: false, ok: undefined, err: undefined }; p.then(v => { s.done = true; s.ok = v; }, e => { s.done = true; s.err = e; }); return s; };
+const idbStored = (fake, k) => fake.data.get(BEGINNER_CONFIG.store.dbName).get(BEGINNER_CONFIG.store.storeName).get(k);
+
+test('C6 idb get returns undefined for a missing key and the stored value otherwise', async () => {
+  await withIdb(async fake => {
+    const a = Store.idbAdapter();
+    assert.strictEqual(await a.get('nope'), undefined);
+    await a.set('k', { v: [1, 2, { w: 7.25 }] });
+    assert.deepStrictEqual(await a.get('k'), { v: [1, 2, { w: 7.25 }] });
+    assert.deepStrictEqual(await Store.idbAdapter().get('k'), { v: [1, 2, { w: 7.25 }] }, 'a second adapter sees it');
+    assert.strictEqual(fake.opens, 2, 'one open per adapter instance');
+  });
+});
+
+test('C6 idb set resolves on transaction complete, not on request success', async () => {
+  await withIdb(async fake => {
+    const a = Store.idbAdapter();
+    await a.get('warm');
+    fake.controls.mode = 'holdCommitting';
+    const before = fake.stats.requestSuccess;
+    const s = track(a.set('k', { v: 1 }));
+    await tick();
+    assert.ok(fake.stats.requestSuccess > before, 'the put request already succeeded');
+    assert.strictEqual(fake.held.length, 1);
+    assert.strictEqual(s.done, false, 'still pending before the transaction completes');
+    assert.strictEqual(idbStored(fake, 'k'), undefined, 'not on disk yet');
+    fake.held[0].complete();
+    await tick();
+    assert.strictEqual(s.done, true);
+    assert.strictEqual(s.err, undefined);
+    assert.deepStrictEqual(idbStored(fake, 'k'), { v: 1 });
+    assert.strictEqual(fake.controls.mode, 'holdCommitting');
+  });
+});
+
+test('C6 idb open failure rejects E_NO_STORAGE, and a later call can succeed', async () => {
+  await withIdb(async fake => {
+    const a = Store.idbAdapter();
+    fake.controls.failOpen = true;
+    await rejectsWith(a.get('k'), 'E_NO_STORAGE');
+    await rejectsWith(a.set('k', 1), 'E_NO_STORAGE');
+    fake.controls.failOpen = false;
+    await a.set('k', 5);
+    assert.strictEqual(await a.get('k'), 5);
+    const b = Store.idbAdapter();
+    fake.controls.blockOpen = true;
+    await rejectsWith(b.get('k'), 'E_NO_STORAGE');
+  });
+});
+
+test('C6 idb rejects when indexedDB does not exist at all with E_NO_STORAGE', async () => {
+  const had = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
+  delete globalThis.indexedDB;
+  try { await rejectsWith(Store.idbAdapter().get('k'), 'E_NO_STORAGE'); }
+  finally { if (had) Object.defineProperty(globalThis, 'indexedDB', had); }
+});
+
+test('C6 idb transaction abort rejects and writes nothing; the next call works', async () => {
+  await withIdb(async fake => {
+    const a = Store.idbAdapter();
+    await a.get('warm');
+    fake.controls.autoAbort = true;
+    await assert.rejects(a.set('k', { v: 1 }));
+    assert.strictEqual(idbStored(fake, 'k'), undefined);
+    fake.controls.autoAbort = false;
+    await a.set('k', { v: 2 });
+    assert.deepStrictEqual(await a.get('k'), { v: 2 });
+  });
+});
+
+test('C6 idb after onclose the next call reopens the database', async () => {
+  await withIdb(async fake => {
+    const a = Store.idbAdapter();
+    await a.set('k', { v: 1 });
+    assert.strictEqual(fake.opens, 1);
+    fake.closeConnections();
+    assert.deepStrictEqual(await a.get('k'), { v: 1 });
+    assert.strictEqual(fake.opens, 2, 'reopened');
+    await a.set('k', { v: 2 });
+    assert.deepStrictEqual(await a.get('k'), { v: 2 });
+  });
+});
+
+test('C6 idb full round trip: Store.open on idbAdapter, log a set, reopen sees it', async () => {
+  await withIdb(async fake => {
+    const db = await Store.open(Store.idbAdapter());
+    const id = await db.startWorkout({ plan: ['a', 'b'], now: 1 });
+    await db.logSet(SET1);
+    await db.setEffort({ index: 0, effort: 'good' });
+    const re = await Store.open(Store.idbAdapter());
+    assert.strictEqual(re.activeWorkout().id, id);
+    assert.deepStrictEqual(re.activeWorkout().plan, ['a', 'b']);
+    assert.deepStrictEqual(re.activeWorkout().sets.map(s => [s.weightKg, s.reps, s.effort]), [[12.5, 10, 'good']]);
+    assert.deepStrictEqual(re.state, db.state);
+  });
+});
+
+test('C6 idb a write timer is cleared when the write completes', async () => {
+  await withIdb(async (fake, timers) => {
+    const a = Store.idbAdapter();
+    await a.set('k', 1);
+    await a.get('k');
+    assert.strictEqual(timers.live(), 0);
+  });
+});
+
+test('C6 idb timeout while the transaction can still be aborted rejects E_STORAGE and writes nothing', async () => {
+  await withIdb(async (fake, timers) => {
+    const a = Store.idbAdapter();
+    await a.get('warm');
+    fake.controls.mode = 'holdActive';
+    const s = track(a.set('k', { v: 1 }));
+    await tick();
+    assert.strictEqual(s.done, false);
+    assert.strictEqual(timers.live(), 1, 'a timeout is armed');
+    timers.fire();
+    await tick();
+    assert.strictEqual(s.done, true);
+    assert.strictEqual(s.err && s.err.code, 'E_STORAGE');
+    assert.strictEqual(idbStored(fake, 'k'), undefined);
+  });
+});
+
+test('C6 idb timeout during commit (abort throws) does not reject; it resolves when the commit completes', async () => {
+  await withIdb(async (fake, timers) => {
+    const a = Store.idbAdapter();
+    await a.get('warm');
+    fake.controls.mode = 'holdCommitting';
+    const s = track(a.set('k', { v: 1 }));
+    await tick();
+    timers.fire();
+    await tick();
+    assert.strictEqual(s.done, false, 'must not reject on the timer while the commit is under way');
+    fake.held[0].complete();
+    await tick();
+    assert.strictEqual(s.done, true);
+    assert.strictEqual(s.err, undefined, 'resolved, because the data landed');
+    assert.deepStrictEqual(idbStored(fake, 'k'), { v: 1 });
+  });
+});
+
+test('C6 idb timeout during commit then a failed commit rejects and nothing is on disk', async () => {
+  await withIdb(async (fake, timers) => {
+    const a = Store.idbAdapter();
+    await a.get('warm');
+    fake.controls.mode = 'holdCommitting';
+    const s = track(a.set('k', { v: 1 }));
+    await tick();
+    timers.fire();
+    await tick();
+    assert.strictEqual(s.done, false);
+    fake.held[0].fail(new Error('quota'));
+    await tick();
+    assert.strictEqual(s.done, true);
+    assert.ok(s.err, 'rejected');
+    assert.strictEqual(idbStored(fake, 'k'), undefined);
+  });
+});
+
+test('C6 idb timeout during commit: memory and disk agree and a retry does not duplicate the set', async () => {
+  await withIdb(async (fake, timers) => {
+    const db = await Store.open(Store.idbAdapter());
+    await db.startWorkout({ plan: ['a'], now: 1 });
+    fake.controls.mode = 'holdCommitting';
+    const p = track(db.logSet(SET1));
+    await tick();
+    timers.fire();
+    await tick();
+    fake.held[0].complete();
+    await tick();
+    fake.controls.mode = 'normal';
+    assert.strictEqual(p.done, true);
+    assert.strictEqual(p.err, undefined, 'logSet resolved because the set is on disk');
+    assert.strictEqual(db.activeWorkout().sets.length, 1, 'memory has the set');
+    const re = await Store.open(Store.idbAdapter());
+    assert.strictEqual(re.activeWorkout().sets.length, 1, 'disk has exactly one set');
+    assert.deepStrictEqual(re.state, db.state);
+  });
+});
+
+// ---------- 2: linear duplicate-id renaming ----------
+test('H2 migrating 20000 workouts that share one id is fast, unique and idempotent', () => {
+  const N = 20000;
+  const workouts = [];
+  for (let i = 0; i < N; i++) workouts.push({ id: 'same', startedAt: i + 1, endedAt: i + 2, feel: null, plan: ['a'], sets: [mkSet(i + 1)] });
+  const t0 = process.hrtime.bigint();
+  const out = Store.migrate({ workouts });
+  const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+  assert.ok(ms < 2000, 'took ' + Math.round(ms) + ' ms');
+  assert.strictEqual(out.workouts.length, N);
+  assert.strictEqual(new Set(out.workouts.map(w => w.id)).size, N);
+  assert.strictEqual(out.workouts[0].id, 'same');
+  assert.ok(out.workouts.every(w => w.id.startsWith('same')));
+  const t1 = process.hrtime.bigint();
+  const again = Store.migrate(out);
+  assert.ok(Number(process.hrtime.bigint() - t1) / 1e6 < 2000);
+  assert.deepStrictEqual(again, out);
+});
+
+// ---------- 3: negative zero everywhere ----------
+test('H2 negative zero in startedAt, endedAt, set.at and memo values is stored as 0 and migrate survives a JSON round trip', () => {
+  const dir = customDir(s => { s.memoKeys = ['m']; });
+  try {
+    const L = loadBeginner({ beginnerDir: dir });
+    const raw = {
+      memo: { m: -0 },
+      workouts: [{ id: 'z', startedAt: -0, endedAt: -0, feel: null, plan: [], sets: [{ exerciseId: 'a', weightKg: -0, reps: 1, effort: null, at: -0 }] }],
+    };
+    const out = L.Store.migrate(raw);
+    const w = out.workouts[0];
+    assert.ok(Object.is(w.startedAt, 0), 'startedAt');
+    assert.ok(Object.is(w.endedAt, 0), 'endedAt');
+    assert.ok(Object.is(w.sets[0].at, 0), 'set.at');
+    assert.ok(Object.is(w.sets[0].weightKg, 0), 'weightKg');
+    assert.ok(Object.is(out.memo.m, 0), 'memo');
+    assert.deepStrictEqual(L.Store.migrate(JSON.parse(JSON.stringify(out))), out);
+    assert.deepStrictEqual(L.Store.migrate(JSON.parse(JSON.stringify(L.Store.migrate(raw)))), out, 'migrate stays idempotent across JSON');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('H2 a closed workout whose set.at is negative zero closes at a clean 0', () => {
+  const out = Store.migrate({ workouts: [{ id: 'q', startedAt: -0, endedAt: 'oops', plan: [], sets: [{ exerciseId: 'a', weightKg: 1, reps: 1, at: -0 }] }] });
+  assert.ok(Object.is(out.workouts[0].endedAt, 0));
+  assert.deepStrictEqual(Store.migrate(JSON.parse(JSON.stringify(out))), out);
+});
+
+// ---------- 4: goal keys come from BEGINNER_GOALS ----------
+test('H2 the valid goal keys are exactly Object.keys(BEGINNER_GOALS)', async () => {
+  const { BEGINNER_GOALS } = loadBeginner();
+  const keys = Object.keys(BEGINNER_GOALS);
+  assert.deepStrictEqual(Store.migrate({ goals: [...keys, 'bogus'] }).goals, keys);
+  const { db } = await fresh();
+  await db.setProfile({ goals: [...keys, 'bogus'] });
+  assert.deepStrictEqual(db.state.goals, keys);
+});
+
+test('H2 an extra goal added to exercises.js survives migrate and setProfile; unknown keys are still dropped', async () => {
+  const dir = customDir(() => {});
+  try {
+    const f = path.join(dir, 'exercises.js');
+    const src = fs.readFileSync(f, 'utf8');
+    const marker = 'const BEGINNER_GOALS = Object.freeze({\n';
+    assert.ok(src.includes(marker), 'exercises.js still declares BEGINNER_GOALS in the expected form');
+    fs.writeFileSync(f, src.replace(marker, marker + "  mobility: Object.freeze({ label: 'Move better', focus: Object.freeze({ arms: 2, chest: 2, back: 2, shoulders: 2, glutes: 2, legs: 2, calves: 2 }) }),\n"));
+    const L = loadBeginner({ beginnerDir: dir });
+    assert.ok('mobility' in L.BEGINNER_GOALS);
+    assert.deepStrictEqual(L.Store.migrate({ goals: ['mobility', 'arms', 'bogus', 'mobility'] }).goals, ['mobility', 'arms']);
+    const db = await L.Store.open(L.Store.memoryAdapter());
+    await db.setProfile({ goals: ['mobility', 'bogus', 'legs'] });
+    assert.deepStrictEqual(db.state.goals, ['mobility', 'legs']);
+    assert.deepStrictEqual(Store.migrate({ goals: ['mobility'] }).goals, [], 'the stock store still drops it');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
