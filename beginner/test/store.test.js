@@ -45,6 +45,37 @@
      - logSet stores `extra: true` only when extra === true; otherwise no key.
      - importData rejects E_BAD_IMPORT on non-string, invalid JSON, non-object,
        wrong or missing app marker ('ironwave-beginner'), or a newer-version state.
+
+   ROUND 2 RULES (review findings; every one is tested below):
+     - OPEN WORKOUTS: only `endedAt === null` or a MISSING endedAt means open. Any other
+       non-finite endedAt (string, NaN) means CLOSED with endedAt = max(startedAt, last
+       set.at). A finite endedAt earlier than startedAt is clamped up to startedAt, in
+       migrate AND in endWorkout. migrate keeps exactly ONE open workout, the
+       LATEST-STARTED one. Every other open workout that has sets is CLOSED (never
+       dropped) with endedAt = max(startedAt, last set.at) and feel null; only EMPTY
+       extra open workouts are dropped. All logged sets survive. Still idempotent.
+     - Duplicate workout ids in migrate are made unique (later duplicates get a
+       suffix, the id still starts with the original); idempotent.
+     - A weightKg of -0 is stored as 0 by migrate and by logSet.
+     - IMMUTABLE STATE: db.state and db.activeWorkout() are deep-frozen. Mutating them
+       throws or has no effect, never reaches the adapter, and a reopen deep-equals
+       db.state afterwards.
+     - ERROR CODES: setEffort/updatePlan/endWorkout with no active workout reject
+       E_NO_WORKOUT; setFeel with an unknown id rejects E_NO_WORKOUT; setEffort with an
+       out-of-range or non-integer index or an invalid effort rejects E_BAD_SET and
+       writes nothing; effort null succeeds.
+     - QUEUE: un-awaited calls run in order; one failing write rejects only its own
+       call, and later calls apply on the rolled-back state. There is NO optimistic
+       state: db.state shows the state BEFORE a change until its promise resolves.
+     - exportData({ now }) needs a finite now, else throws Error code E_BAD_EXPORT.
+     - importData resolves { workouts, sets, droppedWorkouts, droppedSets } counting
+       what was kept and what migration dropped from the file.
+     - MEMO: state gains memo: {}. BEGINNER_CONFIG.store.memoKeys is an array (the
+       whitelist). db.setMemo(key, value) persists a JSON scalar (string, finite
+       number, boolean, null) under a whitelisted key; otherwise rejects E_BAD_MEMO.
+       migrate keeps only whitelisted keys with scalar values.
+     - LAZY IDB: loading store.js and calling Store.idbAdapter() never calls
+       indexedDB.open; the first get or set does.
    ============================================================ */
 'use strict';
 const { test } = require('node:test');
@@ -68,10 +99,11 @@ function deepFreeze(o) {
 
 // Adapter wrapper: records set calls, can gate sets, fail sets, and delay sets.
 function instrument(base) {
-  const a = { sets: [], gate: null, failNext: 0, delays: [] };
+  const a = { sets: [], gate: null, failNext: 0, failAtCall: -1, delays: [] };
   a.get = k => base.get(k);
   a.set = async (k, v) => {
     a.sets.push(k);
+    if (a.failAtCall === a.sets.length) throw new Error('disk full at call');
     const d = a.delays.length ? a.delays.shift() : 0;
     for (let i = 0; i < d; i++) await new Promise(r => setImmediate(r));
     if (a.failNext > 0) { a.failNext--; throw new Error('disk full'); }
@@ -107,7 +139,9 @@ test('H2 config: schemaVersion is 1 and key is a non-empty string', () => {
 
 function customDir(mutate) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bg-store-'));
-  for (const f of ['exercises.js', 'coach.js', 'store.js', 'ui.js', 'index.html']) fs.copyFileSync(path.join(B, f), path.join(dir, f));
+  for (const f of fs.readdirSync(B)) {
+    if (f.endsWith('.js') || f === 'index.html') fs.copyFileSync(path.join(B, f), path.join(dir, f));
+  }
   const cfg = clone(BEGINNER_CONFIG);
   mutate(cfg.store);
   const src = fs.readFileSync(path.join(B, 'config.js'), 'utf8');
@@ -148,7 +182,7 @@ test('H1 loading store.js in Node does not throw and exposes the API by shape', 
 // ---------- H2 ----------
 test('H2 default state carries the version and the empty shape', () => {
   const s = Store.defaultState();
-  assert.deepStrictEqual(s, { version: VER, name: '', goals: [], onboarded: false, excludedEquipment: [], units: null, workouts: [] });
+  assert.deepStrictEqual(s, { version: VER, name: '', goals: [], onboarded: false, excludedEquipment: [], units: null, memo: {}, workouts: [] });
   assert.notStrictEqual(Store.defaultState(), Store.defaultState(), 'fresh object each call');
   s.goals.push('arms');
   assert.deepStrictEqual(Store.defaultState().goals, []);
@@ -172,7 +206,7 @@ const FIXTURES = {
   noVersionLegacy: { name: 'Sam', goals: ['arms', 'legs'], workouts: [GOOD_WORKOUT] },
   versionOnly: { version: 1 },
   partial: { version: 1, name: 'Al', workouts: [clone(GOOD_WORKOUT)] },
-  currentFull: { version: VER, name: 'Bo', goals: ['fit'], onboarded: true, excludedEquipment: ['barbell'], units: 'lb', workouts: [GOOD_WORKOUT, OPEN_WORKOUT] },
+  currentFull: { version: VER, name: 'Bo', goals: ['fit'], onboarded: true, excludedEquipment: ['barbell'], units: 'lb', memo: {}, workouts: [GOOD_WORKOUT, OPEN_WORKOUT] },
   unknownFields: { version: 1, name: 'C', mystery: { a: 1 }, extra: true, workouts: [] },
   badTypes: { version: 1, name: 5, goals: 'arms', onboarded: 'yes', excludedEquipment: [1, null, 'bench', 'bench'], units: 'stone', workouts: 'nope' },
   badGoalsDup: { goals: ['arms', 'arms', 'bogus', 7] },
@@ -191,7 +225,10 @@ function assertValidState(s) {
   assert.ok(Array.isArray(s.excludedEquipment) && s.excludedEquipment.every(e => typeof e === 'string'));
   assert.strictEqual(new Set(s.excludedEquipment).size, s.excludedEquipment.length);
   assert.ok(s.units === null || s.units === 'kg' || s.units === 'lb');
+  assert.ok(s.memo && typeof s.memo === 'object' && !Array.isArray(s.memo));
+  assert.ok(Object.values(s.memo).every(v => v === null || ['string', 'boolean'].includes(typeof v) || (typeof v === 'number' && Number.isFinite(v))));
   assert.ok(Array.isArray(s.workouts));
+  assert.strictEqual(new Set(s.workouts.map(w => w.id)).size, s.workouts.length, 'unique workout ids');
   let open = 0;
   for (const w of s.workouts) {
     assert.ok(typeof w.id === 'string' && w.id.length > 0);
@@ -234,10 +271,11 @@ test('H2 migrate never mutates its input (deeply frozen fixtures)', () => {
 test('H2 migrate output does not share references with its input', () => {
   const raw = clone(FIXTURES.currentFull);
   const out = Store.migrate(raw);
-  out.workouts[0].sets[0].reps = 99;
-  out.goals.push('chest');
-  assert.strictEqual(raw.workouts[0].sets[0].reps, 8);
-  assert.deepStrictEqual(raw.goals, ['fit']);
+  const snap = clone(out);
+  raw.workouts[0].sets[0].reps = 99;
+  raw.goals.push('chest');
+  assert.deepStrictEqual(out, snap, 'later changes to the input do not reach the output');
+  assert.strictEqual(out.workouts[0].sets[0].reps, 8);
 });
 
 test('H2 migrate of null, undefined, {} and a legacy no-version save gives sensible content', () => {
@@ -476,13 +514,14 @@ test('C6 after logSet resolves, a brand-new open on the same adapter sees the se
 });
 
 // Every write method must resolve only after adapter.set resolved.
+let lastId = null;
 const WRITERS = {
   startWorkout: { prep: async () => {}, run: db => db.startWorkout({ plan: ['a'], now: 1 }) },
   logSet: { prep: db => db.startWorkout({ plan: ['a'], now: 1 }), run: db => db.logSet(SET1) },
   setEffort: { prep: async db => { await db.startWorkout({ plan: ['a'], now: 1 }); await db.logSet(SET1); }, run: db => db.setEffort({ index: 0, effort: 'hard' }) },
   updatePlan: { prep: db => db.startWorkout({ plan: ['a'], now: 1 }), run: db => db.updatePlan(['a', 'b']) },
   endWorkout: { prep: async db => { await db.startWorkout({ plan: ['a'], now: 1 }); await db.logSet(SET1); }, run: db => db.endWorkout({ now: 9, feel: 'right' }) },
-  setFeel: { prep: async db => { const id = await db.startWorkout({ plan: ['a'], now: 1 }); await db.logSet(SET1); await db.endWorkout({ now: 9, feel: null }); db.__id = id; }, run: db => db.setFeel(db.__id, 'easy') },
+  setFeel: { prep: async db => { const id = await db.startWorkout({ plan: ['a'], now: 1 }); await db.logSet(SET1); await db.endWorkout({ now: 9, feel: null }); lastId = id; }, run: db => db.setFeel(lastId, 'easy') },
   setProfile: { prep: async () => {}, run: db => db.setProfile({ name: 'Q' }) },
   excludeEquipment: { prep: async () => {}, run: db => db.excludeEquipment('bench') },
   restoreEquipment: { prep: db => db.excludeEquipment('bench'), run: db => db.restoreEquipment('bench') },
@@ -738,4 +777,311 @@ test('H3 bad imports reject E_BAD_IMPORT and change nothing', async () => {
   }
   assert.strictEqual(ad.sets.length, n, 'adapter never written');
   assert.deepStrictEqual(await base.get(KEY), stored, 'adapter content untouched');
+});
+
+// ================= ROUND 2 =================
+const mkSet = (at, extra) => ({ exerciseId: 'a', weightKg: 5, reps: 5, effort: null, at, ...(extra || {}) });
+const byId = (s, id) => s.workouts.find(w => w.id === id);
+
+// ---------- 1 and 2: open workouts ----------
+const MULTI_OPEN = {
+  workouts: [
+    { id: 'b', startedAt: 200, endedAt: null, feel: 'easy', plan: ['a'], sets: [mkSet(250), mkSet(260)] },
+    { id: 'a', startedAt: 100, endedAt: null, feel: null, plan: ['a'], sets: [mkSet(150), mkSet(170)] },
+    { id: 'd', startedAt: 150, endedAt: null, feel: null, plan: ['a'], sets: [] },
+    { id: 'c', startedAt: 300, endedAt: null, feel: null, plan: ['a'], sets: [mkSet(310)] },
+    { id: 'e', startedAt: 120, plan: ['a'], sets: [mkSet(50)] },
+  ],
+};
+
+test('H2 migrate keeps the latest-started open workout, closes other open ones with sets, drops empty ones', () => {
+  const out = Store.migrate(MULTI_OPEN);
+  assertValidState(out);
+  assert.deepStrictEqual(out.workouts.map(w => w.id), ['b', 'a', 'c', 'e'], 'empty extra open workout d dropped, order kept');
+  assert.strictEqual(byId(out, 'c').endedAt, null, 'latest-started stays open');
+  assert.deepStrictEqual(byId(out, 'b').endedAt, 260);
+  assert.strictEqual(byId(out, 'b').feel, null);
+  assert.strictEqual(byId(out, 'a').endedAt, 170);
+  assert.strictEqual(byId(out, 'e').endedAt, 120, 'set.at before startedAt: endedAt is startedAt');
+  assert.strictEqual(out.workouts.reduce((n, w) => n + w.sets.length, 0), 6, 'every logged set survives');
+  assert.deepStrictEqual(Store.migrate(out), out);
+  assert.deepStrictEqual(Store.migrate(MULTI_OPEN), out);
+});
+
+test('H2 migrate keeps an empty workout open when it is the latest-started one', () => {
+  const out = Store.migrate({ workouts: [
+    { id: 'old', startedAt: 10, endedAt: null, plan: [], sets: [mkSet(20)] },
+    { id: 'new', startedAt: 90, endedAt: null, plan: ['a'], sets: [] },
+  ] });
+  assert.strictEqual(byId(out, 'new').endedAt, null);
+  assert.strictEqual(byId(out, 'old').endedAt, 20);
+  assert.deepStrictEqual(Store.migrate(out), out);
+});
+
+test('H2 a corrupted endedAt means closed, and the genuine open workout stays the active one', async () => {
+  const raw = { workouts: [
+    { id: 'x', startedAt: 100, endedAt: 'oops', plan: ['a'], sets: [mkSet(150), mkSet(180)] },
+    { id: 'n', startedAt: 110, endedAt: NaN, plan: ['a'], sets: [mkSet(120)] },
+    { id: 'real', startedAt: 500, endedAt: null, plan: ['a'], sets: [mkSet(520)] },
+  ] };
+  const out = Store.migrate(raw);
+  assert.strictEqual(byId(out, 'x').endedAt, 180);
+  assert.strictEqual(byId(out, 'n').endedAt, 120);
+  assert.strictEqual(byId(out, 'real').endedAt, null);
+  assert.deepStrictEqual(Store.migrate(out), out);
+  const db = await Store.open(Store.memoryAdapter({ [KEY]: raw }));
+  assert.strictEqual(db.activeWorkout().id, 'real');
+  assert.strictEqual(db.state.workouts.length, 3);
+});
+
+test('H2 an endedAt earlier than startedAt is clamped to startedAt', () => {
+  const out = Store.migrate({ workouts: [{ id: 'q', startedAt: 100, endedAt: 50, plan: [], sets: [mkSet(110)] }] });
+  assert.strictEqual(out.workouts[0].endedAt, 100);
+  assert.deepStrictEqual(Store.migrate(out), out);
+});
+
+test('C6 endWorkout never stamps an endedAt earlier than startedAt', async () => {
+  const { db, base } = await fresh();
+  const id = await db.startWorkout({ plan: ['a'], now: 1000 });
+  await db.logSet({ ...SET1, now: 1100 });
+  await db.endWorkout({ now: 900, feel: null });
+  assert.strictEqual(byId(db.state, id).endedAt, 1000);
+  assert.strictEqual(byId((await reopen(base)).state, id).endedAt, 1000);
+});
+
+// ---------- 3: immutable state ----------
+function assertDeepFrozen(o, where = 'state') {
+  if (o && typeof o === 'object') {
+    assert.ok(Object.isFrozen(o), where + ' is frozen');
+    for (const [k, v] of Object.entries(o)) assertDeepFrozen(v, where + '.' + k);
+  }
+}
+const attempt = fn => { try { fn(); } catch (e) { assert.ok(e instanceof TypeError, 'mutation throws TypeError or is ignored'); } };
+
+test('C6 db.state and db.activeWorkout() are deep-frozen, after open and after every kind of write', async () => {
+  const { db, base } = await fresh();
+  assertDeepFrozen(db.state);
+  await db.startWorkout({ plan: ['a', 'b'], now: 1 });
+  await db.logSet(SET1);
+  assertDeepFrozen(db.state);
+  assertDeepFrozen(db.activeWorkout());
+  await db.setProfile({ name: 'F', goals: ['fit'] });
+  await db.excludeEquipment('bench');
+  assertDeepFrozen(db.state);
+  await db.importData(db.exportData({ now: 1 }));
+  assertDeepFrozen(db.state);
+  assertDeepFrozen((await reopen(base)).state);
+});
+
+test('C6 mutating db.state or the active workout never reaches the adapter or a reopen', async () => {
+  const { db, base } = await fresh();
+  await db.startWorkout({ plan: ['a'], now: 1 });
+  await db.logSet(SET1);
+  await db.endWorkout({ now: 5, feel: null });
+  await db.startWorkout({ plan: ['a'], now: 10 });
+  await db.logSet({ ...SET1, now: 11 });
+  const before = clone(db.state);
+  const w = db.activeWorkout();
+  attempt(() => { db.state.name = 'HACK'; });
+  attempt(() => { db.state.goals.push('arms'); });
+  attempt(() => { w.sets.push({ exerciseId: 'evil', weightKg: 1, reps: 1, effort: null, at: 1 }); });
+  attempt(() => { w.sets[0].reps = 99; });
+  attempt(() => { w.plan.length = 0; });
+  attempt(() => { db.state.workouts.sort((a, b) => b.startedAt - a.startedAt); });
+  attempt(() => { db.state.workouts.reverse(); });
+  attempt(() => { db.state.workouts.pop(); });
+  assert.deepStrictEqual(db.state, before, 'state unchanged by mutation attempts');
+  await db.setProfile({ name: 'Real' }); // unrelated write must not carry the mutations
+  const re = await reopen(base);
+  assert.deepStrictEqual(re.state, db.state);
+  assert.strictEqual(re.state.name, 'Real');
+  assert.deepStrictEqual(re.state.workouts.map(x => x.startedAt), [1, 10]);
+  assert.strictEqual(re.activeWorkout().sets.length, 1);
+  assert.strictEqual(re.activeWorkout().sets[0].reps, 10);
+  assert.deepStrictEqual(re.activeWorkout().plan, ['a']);
+});
+
+// ---------- 4: error codes ----------
+test('C6 setEffort, updatePlan and endWorkout with no active workout reject E_NO_WORKOUT and write nothing', async () => {
+  const { db, ad } = await fresh();
+  await rejectsWith(db.setEffort({ index: 0, effort: 'good' }), 'E_NO_WORKOUT');
+  await rejectsWith(db.updatePlan(['a']), 'E_NO_WORKOUT');
+  await rejectsWith(db.endWorkout({ now: 5, feel: null }), 'E_NO_WORKOUT');
+  assert.strictEqual(ad.sets.length, 0);
+});
+
+test('C6 setFeel with an unknown workout id rejects E_NO_WORKOUT and writes nothing', async () => {
+  const { db, ad } = await fresh();
+  await db.startWorkout({ plan: ['a'], now: 1 });
+  await db.logSet(SET1);
+  const n = ad.sets.length;
+  await rejectsWith(db.setFeel('no-such-id', 'easy'), 'E_NO_WORKOUT');
+  assert.strictEqual(ad.sets.length, n);
+});
+
+test('C6 setEffort rejects a bad index or effort with E_BAD_SET and writes nothing; null succeeds', async () => {
+  const { db, ad } = await fresh();
+  await db.startWorkout({ plan: ['a'], now: 1 });
+  await db.logSet(SET1);
+  await db.logSet({ ...SET1, now: 2 });
+  await db.setEffort({ index: 0, effort: 'hard' });
+  const n = ad.sets.length;
+  for (const bad of [{ index: -1, effort: 'good' }, { index: 2, effort: 'good' }, { index: 99, effort: 'good' }, { index: 0.5, effort: 'good' },
+    { index: NaN, effort: 'good' }, { index: undefined, effort: 'good' }, { index: 0, effort: 'wild' }, { index: 0, effort: undefined }]) {
+    await rejectsWith(db.setEffort(bad), 'E_BAD_SET');
+  }
+  assert.strictEqual(ad.sets.length, n);
+  assert.strictEqual(db.activeWorkout().sets[0].effort, 'hard');
+  await db.setEffort({ index: 0, effort: null });
+  assert.strictEqual(db.activeWorkout().sets[0].effort, null);
+});
+
+// ---------- 5: queue semantics ----------
+test('C6 five un-awaited logSet calls with the third write failing: ok, ok, rejected, ok, ok', async () => {
+  const { db, ad, base } = await fresh();
+  await db.startWorkout({ plan: ['a'], now: 1 });
+  ad.failAtCall = ad.sets.length + 3;
+  const ps = [];
+  for (let i = 1; i <= 5; i++) ps.push(db.logSet({ exerciseId: 'a', weightKg: i, reps: i, effort: null, now: 100 + i }));
+  const res = await Promise.allSettled(ps);
+  assert.deepStrictEqual(res.map(r => r.status), ['fulfilled', 'fulfilled', 'rejected', 'fulfilled', 'fulfilled']);
+  assert.deepStrictEqual(db.activeWorkout().sets.map(s => s.reps), [1, 2, 4, 5]);
+  const re = await reopen(base);
+  assert.deepStrictEqual(re.activeWorkout().sets.map(s => s.reps), [1, 2, 4, 5]);
+  assert.deepStrictEqual(re.state, db.state);
+});
+
+test('C6 there is no optimistic state: db.state shows the state before a change until it resolves', async () => {
+  const { db, ad } = await fresh();
+  await db.startWorkout({ plan: ['a'], now: 1 });
+  const gate = ad.arm();
+  const p = db.logSet(SET1);
+  assert.strictEqual(db.activeWorkout().sets.length, 0, 'immediately after the call');
+  await tick();
+  assert.strictEqual(db.state.workouts[0].sets.length, 0, 'while the write is pending');
+  assert.strictEqual(db.activeWorkout().sets.length, 0);
+  gate.release();
+  await p;
+  assert.strictEqual(db.activeWorkout().sets.length, 1, 'after it resolves');
+});
+
+// ---------- 6 and 7: ids and negative zero ----------
+test('H2 duplicate workout ids in migrate are made unique, keep the first, and stay idempotent', () => {
+  const mk = (t) => ({ id: 'dup', startedAt: t, endedAt: t + 5, feel: null, plan: ['a'], sets: [mkSet(t + 1)] });
+  const out = Store.migrate({ workouts: [mk(10), mk(20), mk(30)] });
+  assert.strictEqual(out.workouts.length, 3, 'no workout lost');
+  assert.strictEqual(out.workouts[0].id, 'dup');
+  assert.strictEqual(new Set(out.workouts.map(w => w.id)).size, 3);
+  assert.ok(out.workouts.every(w => w.id.startsWith('dup')));
+  assert.deepStrictEqual(out.workouts.map(w => w.startedAt), [10, 20, 30]);
+  assert.deepStrictEqual(Store.migrate(out), out);
+  assert.deepStrictEqual(Store.migrate({ workouts: [mk(10), mk(20), mk(30)] }), out, 'deterministic');
+});
+
+test('H2 negative zero weight is stored as 0 by migrate and by logSet', async () => {
+  const out = Store.migrate({ workouts: [{ id: 'z', startedAt: 1, endedAt: 2, plan: [], sets: [{ exerciseId: 'a', weightKg: -0, reps: 3, effort: null, at: 1 }] }] });
+  assert.ok(Object.is(out.workouts[0].sets[0].weightKg, 0));
+  const { db, base } = await fresh();
+  await db.startWorkout({ plan: ['a'], now: 1 });
+  await db.logSet({ ...SET1, weightKg: -0 });
+  assert.ok(Object.is(db.activeWorkout().sets[0].weightKg, 0));
+  assert.ok(Object.is((await reopen(base)).activeWorkout().sets[0].weightKg, 0));
+});
+
+// ---------- 8 and 9: export / import ----------
+test('H3 exportData requires a finite now and throws E_BAD_EXPORT otherwise', async () => {
+  const { db } = await fresh();
+  for (const arg of [undefined, {}, { now: undefined }, { now: NaN }, { now: Infinity }, { now: '5' }, { now: null }]) {
+    assert.throws(() => db.exportData(arg), e => e instanceof Error && e.code === 'E_BAD_EXPORT', String(JSON.stringify(arg)));
+  }
+  assert.doesNotThrow(() => db.exportData({ now: 0 }));
+});
+
+test('H3 importData resolves a summary of what was kept and what migration dropped', async () => {
+  const { db } = await busySession();
+  const clean = await (await fresh()).db.importData(db.exportData({ now: 1 }));
+  assert.deepStrictEqual(clean, { workouts: 2, sets: 4, droppedWorkouts: 0, droppedSets: 0 });
+  const target = (await fresh()).db;
+  const file = JSON.stringify({ app: 'ironwave-beginner', exportedAt: 1, state: { version: VER, workouts: [
+    GOOD_WORKOUT, null, { id: 'nots' },
+    { id: 'mixed', startedAt: 1, endedAt: 9, plan: [], sets: [mkSet(2), { exerciseId: 'a', weightKg: -1, reps: 1, at: 3 }, mkSet(4)] },
+  ] } });
+  const sum = await target.importData(file);
+  assert.deepStrictEqual(sum, { workouts: 2, sets: 4, droppedWorkouts: 2, droppedSets: 1 });
+  assert.strictEqual(target.state.workouts.length, 2);
+});
+
+// ---------- 10: memo ----------
+test('H2 config: memoKeys is an array and the default state has an empty memo', () => {
+  assert.ok(Array.isArray(BEGINNER_CONFIG.store.memoKeys));
+  assert.deepStrictEqual(Store.defaultState().memo, {});
+  assert.deepStrictEqual(Store.migrate({ memo: { 'zz-never-listed': 1 } }).memo, {});
+});
+
+test('H2 memo: setMemo persists whitelisted JSON scalars and rejects everything else with E_BAD_MEMO', async () => {
+  const dir = customDir(s => { s.memoKeys = ['tip', 'lastKg', 'flag', 'nothing']; });
+  try {
+    const L = loadBeginner({ beginnerDir: dir });
+    const base = L.Store.memoryAdapter();
+    const ad = instrument(base);
+    const db = await L.Store.open(ad);
+    await db.setMemo('tip', 'hello');
+    await db.setMemo('lastKg', 7.25);
+    await db.setMemo('flag', false);
+    await db.setMemo('nothing', null);
+    assert.deepStrictEqual(db.state.memo, { tip: 'hello', lastKg: 7.25, flag: false, nothing: null });
+    assert.deepStrictEqual((await L.Store.open(base)).state.memo, db.state.memo);
+    await db.setMemo('tip', 'again');
+    assert.strictEqual(db.state.memo.tip, 'again');
+    const n = ad.sets.length;
+    for (const [k, v] of [['unlisted', 1], ['tip', {}], ['tip', []], ['tip', NaN], ['tip', Infinity], ['tip', undefined], ['tip', () => 1], ['__proto__', 1]]) {
+      await rejectsWith(db.setMemo(k, v), 'E_BAD_MEMO');
+    }
+    assert.strictEqual(ad.sets.length, n, 'nothing written');
+    assert.strictEqual(db.state.memo.tip, 'again');
+    const m = L.Store.migrate({ memo: { tip: 'x', lastKg: 2, flag: true, nothing: null, unlisted: 1, nested: { a: 1 } } });
+    assert.deepStrictEqual(m.memo, { tip: 'x', lastKg: 2, flag: true, nothing: null });
+    assert.deepStrictEqual(L.Store.migrate({ memo: { tip: { a: 1 }, lastKg: [1], flag: NaN } }).memo, {});
+    assert.deepStrictEqual(L.Store.migrate({ memo: [1, 2] }).memo, {});
+    assert.deepStrictEqual(L.Store.migrate(m), m);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('H3 memo round-trips through export and import', async () => {
+  const dir = customDir(s => { s.memoKeys = ['tip']; });
+  try {
+    const L = loadBeginner({ beginnerDir: dir });
+    const a = await L.Store.open(L.Store.memoryAdapter());
+    await a.setMemo('tip', 'kept');
+    const b = await L.Store.open(L.Store.memoryAdapter());
+    await b.importData(a.exportData({ now: 1 }));
+    assert.deepStrictEqual(b.state.memo, { tip: 'kept' });
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// ---------- 11: lazy IndexedDB ----------
+test('H1 idbAdapter is lazy: zero indexedDB.open calls until the first get or set', async () => {
+  const had = Object.getOwnPropertyDescriptor(globalThis, 'indexedDB');
+  const opens = [];
+  Object.defineProperty(globalThis, 'indexedDB', {
+    configurable: true, writable: true,
+    value: { open(name, ver) { opens.push([name, ver]); return {}; } },
+  });
+  try {
+    const L = loadBeginner();
+    assert.strictEqual(opens.length, 0, 'loading the app opens nothing');
+    const a = L.Store.idbAdapter();
+    assert.strictEqual(opens.length, 0, 'creating the adapter opens nothing');
+    a.get('k').catch(() => {});
+    await tick();
+    assert.ok(opens.length >= 1, 'first get opens the database');
+    opens.length = 0;
+    const b = L.Store.idbAdapter();
+    assert.strictEqual(opens.length, 0);
+    b.set('k', { v: 1 }).catch(() => {});
+    await tick();
+    assert.ok(opens.length >= 1, 'first set opens the database');
+  } finally {
+    if (had) Object.defineProperty(globalThis, 'indexedDB', had); else delete globalThis.indexedDB;
+  }
 });
