@@ -10,6 +10,9 @@ const { SHARED_FROM_APP } = require('../../scripts/assemble-beginner.js');
 const SHARED_NAMES = ['Engine', 'EXERCISES', 'EXERCISE_LIST', 'EX_META', 'EX_CUES', 'VOLUME_LANDMARKS', 'EXPERIENCE_FACTOR', 'TIME_MODEL'];
 const PURE_FILES = ['config.js', 'exercises.js', 'coach.js', 'store.js'];
 
+// Rule: beginner top-level globals are single plain declarations at column zero,
+// one name per declaration, no destructuring. A lookalike line inside a template
+// string or comment yields a name that simply reads undefined (guarded getter).
 // Column-zero top-level declaration names found in a source text.
 function topLevelNames(src) {
   const names = [];
@@ -19,6 +22,11 @@ function topLevelNames(src) {
   return names;
 }
 
+// One guarded, live getter per name; emitted in the scope where the scripts ran.
+function exportShim(names, lead) {
+  return lead + ' {' + names.map(n => 'get ' + n + '() { return typeof ' + n + " !== 'undefined' ? " + n + " : undefined; }").join(', ') + '};';
+}
+
 function loadBeginner(opts) {
   const appDir = path.join(__dirname, '..', '..', 'app');
   const bDir = (opts && opts.beginnerDir) || path.join(__dirname, '..');
@@ -26,8 +34,8 @@ function loadBeginner(opts) {
   const own = PURE_FILES.map(f => rd(bDir, f));
   const names = [...new Set([...SHARED_NAMES, ...own.flatMap(topLevelNames)])];
   const src = [...SHARED_FROM_APP.map(f => rd(appDir, f)), ...own].join('\n;\n');
-  const exp = 'return {' + names.join(', ') + '};';
+  const exp = exportShim(names, 'return');
   return vm.runInThisContext('(function(){\n' + src + '\n;\n' + exp + '\n})', { filename: 'beginner-bundle.js' })();
 }
 
-module.exports = { loadBeginner, topLevelNames, SHARED_NAMES };
+module.exports = { loadBeginner, topLevelNames, exportShim, SHARED_NAMES };

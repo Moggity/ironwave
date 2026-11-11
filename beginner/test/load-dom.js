@@ -5,7 +5,7 @@
 const fs = require('fs');
 const path = require('path');
 const { SHARED_FROM_APP } = require('../../scripts/assemble-beginner.js');
-const { topLevelNames, SHARED_NAMES } = require('./load-beginner.js');
+const { topLevelNames, exportShim, SHARED_NAMES } = require('./load-beginner.js');
 
 function loadDom(opts) {
   const { JSDOM } = require('jsdom');
@@ -33,7 +33,10 @@ function loadDom(opts) {
   const read = f => fs.readFileSync(path.join(SHARED_FROM_APP.includes(f) ? appDir : bDir, f), 'utf8');
   const sources = srcs.map(read);
   const names = [...new Set([...SHARED_NAMES, ...srcs.filter(f => !SHARED_FROM_APP.includes(f)).flatMap(f => topLevelNames(read(f)))])];
-  const exp = ';window.__APP__ = {' + names.join(', ') + '};';
+  // Rule: beginner top-level globals are single plain declarations at column zero,
+  // one name per declaration, no destructuring. const/let are not window properties,
+  // so the live guarded getters are evaluated in the same script scope.
+  const exp = exportShim(names, ';window.__APP__ =');
   window.eval([...sources, exp].join('\n;\n'));
   return { window, document: window.document, app: window.__APP__ };
 }
