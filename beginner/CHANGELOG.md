@@ -16,3 +16,7 @@
 
 ## Package 3b: store follow-ups
 - Timeout no longer rejects a commit already under way, duplicate-id renaming is linear, negative zero is normalised in times and memo, and goal keys come from `BEGINNER_GOALS`.
+
+## Package 5: screens
+- The four screens (goal, pick, lift with rest timer, done) plus export and import, rendered from state by one path, with a silent strings table (`strings.js`), mobile-first light and dark styles, and the `ui` config section (rest length, stale-workout limit, units regions).
+- Harnesses load `strings.js`, ignore reserved words in the top-level name scan and fall back to the default folder for files a custom folder lacks; the assemble script copies `strings.js`.

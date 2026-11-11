@@ -64,5 +64,16 @@ const BEGINNER_CONFIG = beginnerDeepFreeze({
 
   // ui: owned by the screens package
   ui: {
+    restSec: 90,
+    staleWorkoutHours: 6,
+    vibrateMs: 200,
+    tickMs: 1000,
+    lbRegions: ['US', 'LR', 'MM'],
+    fallbackStep: 1,
+    doubleTapMs: 500,
+    revokeMs: 4000,
+    maxWeightKg: 500,
+    maxReps: 100,
+    placeholder: 'media/placeholder.svg',
   },
 });

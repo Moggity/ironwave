@@ -177,7 +177,8 @@ test('K2 BEGINNER_CONFIG is deeply frozen, sectioned, and has no top-level schem
 // ---------- automatic harness exports ----------
 function probeDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bg-probe-'));
-  for (const f of ['config.js', 'exercises.js', 'coach.js', 'store.js', 'ui.js', 'index.html']) {
+  // Copy every beginner source, not a fixed list, so a new source file (strings.js) is included.
+  for (const f of fs.readdirSync(B).filter(n => n.endsWith('.js') || n === 'index.html')) {
     fs.copyFileSync(path.join(B, f), path.join(dir, f));
   }
   fs.appendFileSync(path.join(dir, 'exercises.js'), '\nconst EXTRA_PROBE = 42;\nfunction extraProbeFn() { return 7; }\n');

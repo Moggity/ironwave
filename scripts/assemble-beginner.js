@@ -7,7 +7,7 @@ const ROOT = path.resolve(__dirname, '..');
 // Scripts shared from app/, copied byte-identical. Add a shared script here only.
 const SHARED_FROM_APP = ['data.js', 'engine.js'];
 // Beginner-owned files and folders, copied when present.
-const BEGINNER_FILES = ['index.html', 'styles.css', 'config.js', 'exercises.js', 'coach.js', 'store.js', 'ui.js', 'media'];
+const BEGINNER_FILES = ['index.html', 'styles.css', 'config.js', 'exercises.js', 'strings.js', 'coach.js', 'store.js', 'ui.js', 'media'];
 
 function assemble(opts) {
   const outDir = (opts && opts.outDir) || path.join(ROOT, 'beginner', 'www');
