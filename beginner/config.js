@@ -13,6 +13,11 @@ const BEGINNER_CONFIG = beginnerDeepFreeze({
 
   // store: owned by the persistence package
   store: {
+    schemaVersion: 1,
+    key: 'ironwave-beginner-state',
+    dbName: 'ironwave-beginner',
+    storeName: 'kv',
+    exportApp: 'ironwave-beginner',
   },
 
   // coach: owned by the coaching-logic package
