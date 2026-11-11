@@ -13,6 +13,10 @@
    must not mention BEGINNER_EXERCISES, Store, UI or beginnerGoalFocus. Inputs are
    never mutated, outputs are fresh plain data, same input -> same output.
    Every number below is read from BEGINNER_CONFIG.coach, never written in logic.
+   ROUND 2 (F3): the comment-stripped source of coach.js must not contain the words
+   Date, document, window, localStorage, sessionStorage, indexedDB, fetch, nor the
+   engine names doubleProgression, repRangeFor, bestE1RM, anchorE1RM, e1rmTrend,
+   _recordsByDay.
    Do NOT use Engine.bestE1RM / anchorE1RM / e1rmTrend / _recordsByDay: they read
    Date.now() and apply a 120-day window. Engine.e1rm, Engine.weightFor and
    Engine.roundLoad are clock-free and are the ones to use. If you wrap
@@ -35,6 +39,8 @@
      setsFirst: 2, setsFirstSessions: 2, setsAfter: 3, setsMin: 1, setsMax: 4,  // D9
      suggestCount: 6, tickCount: 3,           // B1
      muscleOrder: ['chest', 'back', 'legs', 'glutes', 'shoulders', 'arms', 'calves'],  // B1, B2 ties
+     goalFocus: 3,                            // B2: the focus value that marks a goal muscle
+     defaultFocus: 2,                         // B2: every muscle's focus when no goal is chosen
      increments: {                            // weight step per equipment code, in DISPLAY units
        kg: { bb: 2.5, db: 2, mc: 5, cb: 2.5, kb: 4, bw: 0, bd: 0 },
        lb: { bb: 5,   db: 5, mc: 10, cb: 5,  kb: 5, bw: 0, bd: 0 },
@@ -57,7 +63,8 @@
 
    Coach.incrementKg(equipment, units) -> number                             (D4)
      increments[units][equipment] converted to kg (lb value * KG_PER_LB).
-     units null/undefined -> 'kg'. Reps-only codes give 0.
+     units null/undefined -> 'kg'. Reps-only codes give 0, and so does a code
+     missing from the table.
 
    Coach.prefill({ exercise, workouts, currentWorkoutId, units, now })
      -> { weightKg: number|null, reps: number|null, rule: string }   (C2, D3 to D8)
@@ -79,8 +86,15 @@
            weight W, reps clamp(r_i, lo, hi), no raise, no drop.         'gap'
          * else if L is short and it is the (holdsBeforeDrop + 1)th short session
            in a row: weight = down(W), reps t_i.                         'drop' (D5)
-         * else if every working set has reps >= hi and none is Hard:
-           weight = up(W), reps lo for every set.                        'raise' (D4)
+           ROUND 2 (F1): a drop never raises. When down(W) would not be below W
+           (W at or below one increment, or an increment of 0), the weight holds:
+           weight W, reps t_i, rule 'reps' (no 'drop' is reported because nothing
+           dropped), and the short count restarts at 0 exactly as after a drop (LD3).
+         * else if every working set has reps >= hi and none is Hard, AND the
+           increment is > 0: weight = up(W), reps lo for every set.      'raise' (D4)
+           ROUND 2 (F2): an equipment code missing from `increments`, or tuned to
+           0, has a 0 increment: never 'raise', never 'drop'; it falls through to
+           the plain 'reps' rule (40 kg x 12, 12 -> 40 kg x 12, 'reps').
          * else weight W, reps t_i.                                       'reps' (D3)
          The pre-fill for set k uses t_k; past the last working set, t_n.
        - SHORT: a session is short when its top weight equals (1e-6) the weight
@@ -91,7 +105,8 @@
          the session done on that target then counts as 1 if it is short.
        - up(W): in display units, the largest multiple of the increment that is
          <= W + inc (so a raise is > W and never more than one increment).
-         down(W): the smallest multiple >= W - inc, and never below one increment.
+         down(W): the smallest multiple >= W - inc, and never below one increment;
+         if that is not below W, there is no drop (see F1 above).
          Holds keep W exactly (no re-rounding). Grid math in display units with a
          small epsilon; return kg.
        - Reps-only exercises (equipment in repsOnlyEquipment, D8): weight W always
@@ -452,6 +467,63 @@ test('D5 the drop never goes below one increment', () => {
   expectPre(p, 2, 8, 'a 2 kg dumbbell stays 2 kg');
 });
 
+// ---------- ROUND 2 (review F1): a drop never raises the weight
+// LEAD-DECISION (LD10, LD3): when down(W) is not below W the weight holds, the rule is
+// the plain 'reps' (nothing dropped), and the short count restarts as after a drop.
+const threeShort = (id, w) => [W(0, `${id}: ${w} x 6, 6`), W(2, `${id}: ${w} x 6, 6`), W(4, `${id}: ${w} x 6, 6`), W(6, `${id}: ${w} x 6, 6`)];
+
+test('D5 a drop never raises: three short sessions at 1 kg on dumbbells hold 1 kg', () => {
+  const p = pre('db-curl', threeShort('db-curl', 1));
+  expectPre(p, 1, 8, '1 kg dumbbell after three short sessions');
+  assert.strictEqual(p.rule, 'reps', 'nothing dropped, so the rule is the plain reps rule');
+});
+
+test('D5 a drop never raises: three short sessions at 0 kg on a machine hold 0 kg', () => {
+  const p = pre('leg-press', threeShort('leg-press', 0));
+  expectPre(p, 0, 8, 'empty machine after three short sessions');
+  assert.strictEqual(p.rule, 'reps');
+});
+
+test('D5 at exactly one increment three short sessions hold the weight with the reps rule', () => {
+  const p = pre('db-curl', threeShort('db-curl', 2));
+  expectPre(p, 2, 8, '2 kg dumbbell');
+  assert.strictEqual(p.rule, 'reps', 'no drop is reported when the weight did not move');
+});
+
+test('D5 just above one increment the drop still happens, never below one increment', () => {
+  const p = pre('db-curl', threeShort('db-curl', 3));
+  expectPre(p, 2, 8, '3 kg dumbbell drops to 2 kg');
+  assert.strictEqual(p.rule, 'drop');
+});
+
+test('D5 lb user: a drop never raises (3 lb, 5 lb, and 2 kg logged before switching to lb)', () => {
+  for (const [w, label] of [['3lb', '3 lb dumbbell'], ['5lb', '5 lb dumbbell'], ['2', '2 kg = 4.4 lb dumbbell']]) {
+    const hist = threeShort('db-curl', w);
+    const held = hist[3].sets[0].weightKg;
+    const p = pre('db-curl', hist, { units: 'lb' });
+    expectPre(p, held, 8, label);
+    assert.strictEqual(p.rule, 'reps', `${label}: rule`);
+  }
+  const ok = pre('db-curl', threeShort('db-curl', '12lb'), { units: 'lb' });
+  expectPre(ok, lb(10), 8, '12 lb drops to the 5 lb grid point 10 lb');
+});
+
+// ---------- ROUND 2 (review F2): a zero or missing increment never raises or drops
+test('D4 an equipment code missing from the increments table never raises: 40 kg x 12, 12 gives 40 kg x 12', () => {
+  assert.strictEqual(api('incrementKg')('xx', 'kg'), 0, 'missing code has a 0 increment');
+  const p = pre('sled-push', [W(0, 'sled-push: 40 x 12, 12')]);
+  expectPre(p, 40, 12, 'sled with no increment');
+  assert.strictEqual(p.rule, 'reps', 'plain reps rule, not raise');
+  const lbp = pre('sled-push', [W(0, 'sled-push: 40 x 12, 12')], { units: 'lb' });
+  expectPre(lbp, 40, 12, 'same for a lb user');
+});
+
+test('D5 an equipment code missing from the increments table never drops', () => {
+  const p = pre('sled-push', threeShort('sled-push', 40));
+  expectPre(p, 40, 8, 'sled after three short sessions');
+  assert.strictEqual(p.rule, 'reps');
+});
+
 test('D5 lb user: the drop is one lb increment and lands on the lb grid', () => {
   const hist = [W(0, 'bb-curl: 50lb x 12, 12'), W(2, 'bb-curl: 55lb x 6, 6'), W(4, 'bb-curl: 55lb x 6, 6'), W(6, 'bb-curl: 55lb x 6, 6')];
   expectPre(pre('bb-curl', hist.slice(0, 1), { units: 'lb' }), lb(55), 8, 'raised to 55 lb');
@@ -543,7 +615,7 @@ test('D6 bodyweight exercises never get a weight', () => {
 });
 
 // ============================================================ D7
-function simulate(seed, exId, units, compliant) {
+function simulate(seed, exId, units, compliant, startFactor = 4) {
   const rng = mulberry32(seed);
   const row = ex(exId);
   const incKg = units === 'lb' ? lb(LB_INC[row.equipment]) : KG_INC[row.equipment];
@@ -559,18 +631,21 @@ function simulate(seed, exId, units, compliant) {
     const first = call();
     const nSets = 1 + Math.floor(rng() * 4);
     let maxLifted = 0;
+    let onTarget = first.weightKg != null, missed = false;
     for (let i = 0; i < nSets; i++) {
       const p = i === 0 ? first : call();
-      let w = p.weightKg == null ? 4 * incKg : p.weightKg;
+      let w = p.weightKg == null ? startFactor * incKg : p.weightKg;
       if (!compliant && rng() < 0.3) w = Math.max(incKg, w + (Math.floor(rng() * 5) - 2) * incKg);
       const reps = i === 0 && rng() < 0.3 ? 12 + Math.floor(rng() * 5) : 4 + Math.floor(rng() * 11);
       const effort = [null, 'easy', 'good', 'hard'][Math.floor(rng() * 4)];
       cur.sets.push({ exerciseId: exId, weightKg: w, reps, effort, at: startedAt + (i + 1) * 120e3 });
+      if (first.weightKg == null || Math.abs(w - first.weightKg) > EPS) onTarget = false;
+      else if (p.reps != null && reps <= p.reps - 2) missed = true;
       maxLifted = Math.max(maxLifted, w);
     }
     if (rng() < 0.2) cur.sets.push({ exerciseId: exId, weightKg: maxLifted + 3 * incKg, reps: 5, effort: 'hard', at: startedAt + 900e3, extra: true });
     workouts.push(Object.assign({}, cur, { id: 'w' + k, endedAt: startedAt + 3600e3 }));
-    out.push({ first, maxLifted, day });
+    out.push({ first, maxLifted, day, short: onTarget && missed });
   }
   return { out, incKg };
 }
@@ -591,6 +666,7 @@ test('D7 property: following the pre-fill, the weight never rises more than one 
           `${where}: pre-fill rose from ${prev.first.weightKg} to ${cur.first.weightKg} kg, more than one ${incKg} kg increment`);
       }
       assert.ok(cur.first.weightKg <= prev.maxLifted + incKg + EPS, `${where}: more than one increment above what was lifted`);
+      if (prev.short) assert.ok(cur.first.weightKg <= prev.first.weightKg + EPS, `${where}: the pre-fill rose after a short session`);
       assert.ok(cur.first.weightKg >= incKg - EPS, `${where}: never below one increment (${cur.first.weightKg})`);
       assert.ok(cur.first.reps >= 8 && cur.first.reps <= 12, `${where}: reps ${cur.first.reps} inside 8 to 12`);
       const disp = units === 'lb' ? kgToLb(cur.first.weightKg) : cur.first.weightKg;
@@ -617,6 +693,22 @@ test('D7 property: whatever weight the user picks, the next pre-fill is at most 
       assert.ok(w >= incKg - EPS, `${exId} ${units} seed ${seed} session ${k}: never below one increment`);
     }
   }
+});
+
+test('D7 property: the pre-fill never rises after a short session, even from a weight at or below one increment', () => {
+  // ROUND 2 (F1): starts at 0, half an increment (off the grid) and one increment.
+  let shorts = 0;
+  for (const units of ['kg', 'lb']) for (const exId of SIM_EX) for (const factor of [0, 0.5, 1]) for (let seed = 1; seed <= 12; seed++) {
+    const { out } = simulate(seed * 6151 + factor * 17, exId, units, true, factor);
+    for (let k = 1; k < out.length; k++) {
+      const prev = out[k - 1], cur = out[k];
+      if (!prev.short) continue;
+      shorts++;
+      assert.ok(cur.first.weightKg <= prev.first.weightKg + EPS,
+        `${exId} ${units} start ${factor} inc seed ${seed} session ${k}: pre-fill rose from ${prev.first.weightKg} to ${cur.first.weightKg} kg after a short session (rule ${cur.first.rule})`);
+    }
+  }
+  assert.ok(shorts > 200, 'the generator produced many short sessions');
 });
 
 test('D7 after a D6 session the next session starts from what was lifted, plus at most one increment', () => {
@@ -799,6 +891,26 @@ test('K3 coach.js takes its data as arguments: no BEGINNER_EXERCISES, Store, UI 
   assert.ok(/\bBEGINNER_CONFIG\b/.test(src), 'coach.js reads its thresholds from BEGINNER_CONFIG');
 });
 
+// ROUND 2 (review F3): a wider source scan, with a self-check so it cannot go vacuous.
+const stripJsComments = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\'"`])\/\/[^\n]*/g, '$1');
+const FORBIDDEN_IN_COACH = [/\bDate\b/, /\bdocument\b/, /\bwindow\b/, /\b(local|session)Storage\b/, /\bindexedDB\b/, /\bfetch\b/,
+  /\bdoubleProgression\b/, /\brepRangeFor\b/, /\bbestE1RM\b/, /\banchorE1RM\b/, /\be1rmTrend\b/, /\b_recordsByDay\b/];
+const forbiddenHits = src => FORBIDDEN_IN_COACH.filter(re => re.test(stripJsComments(src))).map(String);
+
+test('K3 the coach source scanner flags bad samples and ignores comments (cannot go vacuous)', () => {
+  const bad = ['const t = Date.now();', 'const d = new Date(ts);', 'document.title', 'window.x', 'localStorage.x', 'sessionStorage.x',
+    'indexedDB.open()', 'fetch(u)', 'Engine.doubleProgression(r)', 'Engine.repRangeFor(m)', 'Engine.bestE1RM(r)',
+    'Engine.anchorE1RM(r, 10)', 'Engine.e1rmTrend(r)', 'Engine._recordsByDay(r, 9)'];
+  for (const s of bad) assert.ok(forbiddenHits(s).length > 0, 'scanner must flag: ' + s);
+  const good = '// Date, document, window and fetch only in prose\n/* bestE1RM reads the clock, so we use Engine.e1rm */\nconst dateKey = 1; const updated = 2;';
+  assert.deepStrictEqual(forbiddenHits(good), []);
+});
+
+test('K3 coach.js mentions no clock, DOM, storage or network, nor the clock-reading engine helpers', () => {
+  const hits = forbiddenHits(fs.readFileSync(path.join(__dirname, '..', 'coach.js'), 'utf8'));
+  assert.deepStrictEqual(hits, [], 'coach.js must not contain: ' + hits.join(', '));
+});
+
 test('K3 inputs are never mutated and same input gives the same output', () => {
   const ws = [W(0, 'bb-curl: 20 x 12e, 12', 'db-curl: 10 x 10'), W(3, 'bb-curl: 22.5 x 8, 8'), open(5, 'bb-curl: 22.5 x 12e')];
   const snap = JSON.stringify(ws);
@@ -855,6 +967,17 @@ test('D5 the holds before a drop are read from config (1)', () => {
   withConfig({ holdsBeforeDrop: 1 }, s => {
     const hist = [RAISED, W(2, 'bb-curl: 12.5 x 6, 6'), W(4, 'bb-curl: 12.5 x 6, 6')];
     expectPre(pre('bb-curl', hist, {}, s), 10, 8, 'the second short session drops');
+  });
+});
+
+test('D4 an increment tuned to 0 in config neither raises nor drops (review F2)', () => {
+  withConfig({ increments: { kg: { bb: 0 } } }, s => {
+    const up = pre('bb-curl', [W(0, 'bb-curl: 40 x 12, 12')], {}, s);
+    expectPre(up, 40, 12, 'barbell with a 0 kg step after 12, 12');
+    assert.strictEqual(up.rule, 'reps');
+    const down = pre('bb-curl', threeShort('bb-curl', 40), {}, s);
+    expectPre(down, 40, 8, 'barbell with a 0 kg step after three short sessions');
+    assert.strictEqual(down.rule, 'reps');
   });
 });
 

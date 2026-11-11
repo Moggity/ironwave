@@ -6,7 +6,8 @@
      exercises: rows (a FROZEN array: copy before sorting, never push/sort in place).
      goalFocuses: one focus object per selected goal, in selection order (the caller
        maps each goal key through package 2's beginnerGoalFocus). [] behaves as
-       Look fit: every muscle 2. Muscle missing from a focus object -> 0.
+       Look fit: every muscle at defaultFocus (2). ROUND 2: "at 3" below always means
+       at goalFocus (3); both come from BEGINNER_CONFIG.coach, never literals. Muscle missing from a focus object -> 0.
      excludedEquipment: equipKeys. 'none' can never be excluded.
      Later arguments (workouts, now) will be added by package 10 (E1 to E4), which
      replaces the ranking step only; callers do not change. Ignore unknown fields.
@@ -185,6 +186,24 @@ test('B2 property: for every goal combination goal muscles lead and every goal i
       }
     }
   }
+});
+
+// ROUND 2 (review F4): the goal marker and the no-goal focus are config, not literals.
+test('B2 goalFocus (3) and defaultFocus (2) live in BEGINNER_CONFIG.coach', () => {
+  assert.strictEqual(app.BEGINNER_CONFIG.coach.goalFocus, 3, 'goalFocus starts at 3');
+  assert.strictEqual(app.BEGINNER_CONFIG.coach.defaultFocus, 2, 'defaultFocus starts at 2');
+});
+
+test('B2 the tick rule follows goalFocus from config (goal muscles marked 2)', () => {
+  const dir = F.beginnerDirWithCoachConfig({ goalFocus: 2 });
+  try {
+    const s = loadBeginner({ beginnerDir: dir });
+    const one = m => Object.fromEntries(F.MUSCLES.map(x => [x, m.includes(x) ? 2 : 1]));
+    const r = api('suggest', s)({ exercises: EXERCISES, excludedEquipment: [],
+      goalFocuses: deepFreeze([one(['chest', 'back', 'legs', 'glutes']), one(['arms'])]) });
+    assert.deepStrictEqual(r.list, ['chest-press', 'lat-pulldown', 'leg-press', 'hip-thrust', 'db-curl', 'lateral-raise']);
+    assert.deepStrictEqual(r.ticked, ['chest-press', 'lat-pulldown', 'db-curl'], 'the arms goal (marked 2) gets its tick');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('B2 an empty goal selection behaves as Look fit', () => {

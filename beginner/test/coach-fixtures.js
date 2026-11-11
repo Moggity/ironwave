@@ -66,6 +66,8 @@ const EXERCISES = deepFreeze([
   // extra rows used only by the progression tests (one per equipment code)
   row('bb-curl', 'arms', 'bb', 'barbell', false, 'bicep'),
   row('kb-press', 'shoulders', 'kb', 'kettlebell', false, 'press'),
+  // a weighted exercise whose equipment code has no entry in the increments table
+  row('sled-push', 'legs', 'xx', 'sled', false, 'quad'),
 ]);
 const byId = Object.fromEntries(EXERCISES.map(e => [e.id, e]));
 const ex = id => { if (!byId[id]) throw new Error('no fixture exercise ' + id); return byId[id]; };
