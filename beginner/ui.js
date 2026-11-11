@@ -21,8 +21,8 @@ const UI = (function () {
   // Ephemeral view state. Losing it only resets the UI.
   const V = {
     screen: '', goals: [], name: '',
-    list: [], ticked: [], search: '', confirm: null, importError: false, profileError: false,
-    curId: null, w: null, r: null, rule: '', touched: false, busy: false, saveError: false,
+    list: [], ticked: [], search: '', confirm: null, importError: false, saveError: false,
+    curId: null, w: null, r: null, rule: '', touched: false, busy: false,
     lastIndex: null, restStart: null, vibrated: false, moreFor: null, panel: null,
     doneId: null,
   };
@@ -59,19 +59,11 @@ const UI = (function () {
   }
   const toKg = (v, units) => v * factor(units);
 
-  // Civil date from epoch ms (no Date object), for the export file name.
+  // Local calendar date for the export file name, built from the injected clock value.
   function dayText(ms) {
-    const z = Math.floor(ms / DAY_MS) + 719468;
-    const era = Math.floor(z / 146097);
-    const doe = z - era * 146097;
-    const yoe = Math.floor((doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365);
-    const doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100));
-    const mp = Math.floor((5 * doy + 2) / 153);
-    const d = doy - Math.floor((153 * mp + 2) / 5) + 1;
-    const m = mp < 10 ? mp + 3 : mp - 9;
-    const y = yoe + era * 400 + (m <= 2 ? 1 : 0);
+    const d = new opt.DateCtor(ms);
     const p2 = n => (n < 10 ? '0' : '') + n;
-    return y + '-' + p2(m) + '-' + p2(d);
+    return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
   }
 
   // ---------- default platform and timers ----------
@@ -87,7 +79,7 @@ const UI = (function () {
         doc.body.appendChild(a);
         a.click();
         doc.body.removeChild(a);
-        win.URL.revokeObjectURL(url);
+        win.setTimeout(() => win.URL.revokeObjectURL(url), cfg().revokeMs);
       },
       pickFile: () => new Promise(resolve => {
         const i = doc.createElement('input');
@@ -119,6 +111,8 @@ const UI = (function () {
     return '<img class="demo" data-testid="' + testid + '" src="' + esc(cfg().placeholder) + '" alt="' + esc(STR().pick.demoAlt) + '" loading="lazy">';
   }
 
+  const errHTML = () => (V.saveError ? '<p class="error" data-testid="save-error" role="alert">' + esc(STR().errors.save) + '</p>' : '');
+
   function goalHTML() {
     const S = STR();
     const tiles = Object.keys(BEGINNER_GOALS).map(k => {
@@ -130,7 +124,7 @@ const UI = (function () {
       '<div class="tiles">' + tiles + '</div>' +
       '<div class="field"><label for="name-input">' + esc(S.goal.nameLabel) + '</label>' +
       '<input id="name-input" data-testid="name-input" type="text" autocomplete="given-name" value="' + esc(V.name) + '"></div>' +
-      (V.profileError ? '<p class="error" role="alert">' + esc(S.errors.storage) + '</p>' : '') +
+      errHTML() +
       '<div class="actions"><button type="button" class="primary" data-testid="goal-continue" data-act="continue">' + esc(S.goal.continue) + '</button>' +
       '<button type="button" class="quiet" data-testid="goal-skip" data-act="skip">' + esc(S.goal.skip) + '</button></div>' +
       '</main>';
@@ -168,16 +162,16 @@ const UI = (function () {
     const restore = st.excludedEquipment.length
       ? '<section class="restore"><h2>' + esc(S.pick.restoreHeading) + '</h2>' + st.excludedEquipment.map(k =>
         '<button type="button" class="quiet" data-testid="restore-item" data-equip="' + esc(k) + '" data-act="restore" data-key="' + esc(k) + '">' +
-        esc(S.pick.restore) + ' ' + esc(has(BEGINNER_EQUIPMENT, k) ? BEGINNER_EQUIPMENT[k].label : k) + '</button>').join('') + '</section>'
+        esc(fmt(S.pick.restoreItem, { item: has(BEGINNER_EQUIPMENT, k) ? BEGINNER_EQUIPMENT[k].label : k })) + '</button>').join('') + '</section>'
       : '';
     const confirm = V.confirm !== null
-      ? '<div class="confirm" data-testid="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-text">' +
+      ? '<div class="confirm" data-testid="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirm-text" tabindex="-1">' +
         '<p id="confirm-text">' + esc(S.data.confirm) + '</p>' +
         '<div class="actions"><button type="button" class="primary" data-testid="confirm-yes" data-act="confirm-yes">' + esc(S.data.yes) + '</button>' +
         '<button type="button" class="quiet" data-testid="confirm-no" data-act="confirm-no">' + esc(S.data.no) + '</button></div></div>'
       : '';
     return '<main data-screen="pick" class="screen">' +
-      '<h1 data-testid="routine-header">' + esc(header) + '</h1>' +
+      '<h1 data-testid="routine-header">' + esc(header) + '</h1>' + errHTML() +
       (finished ? '<button type="button" class="quiet" data-testid="pick-repeat" data-act="repeat">' + esc(S.pick.repeat) + '</button>' : '') +
       '<div class="cards">' + cards + '</div>' +
       '<div class="startbar"><button type="button" class="primary" data-testid="pick-start" data-act="start"' + (V.ticked.length ? '' : ' disabled') + '>' + esc(S.pick.start) + '</button></div>' +
@@ -202,14 +196,14 @@ const UI = (function () {
     return m + ':' + (s < 10 ? '0' : '') + s;
   }
 
-  function stepperHTML(kind, label, value, minusAct, plusAct, unit) {
-    const S = STR();
+  function stepperHTML(kind, label, value, minusAct, plusAct, unit, minusName, plusName) {
+    const mode = kind === 'weight' ? 'decimal' : 'numeric';
     return '<div class="stepper" role="group" aria-label="' + esc(label) + '">' +
       '<span class="steplabel">' + esc(label) + '</span>' +
-      '<button type="button" class="step" data-testid="' + kind + '-minus" data-act="' + minusAct + '" aria-label="' + esc(label + ' ' + S.lift.less) + '">-</button>' +
-      '<span class="value"><span data-testid="' + kind + '-value">' + esc(numText(value)) + '</span>' +
+      '<button type="button" class="step" data-testid="' + kind + '-minus" data-act="' + minusAct + '" aria-label="' + esc(minusName) + '">-</button>' +
+      '<span class="value"><input type="text" class="valuefield" data-testid="' + kind + '-value" inputmode="' + mode + '" autocomplete="off" aria-label="' + esc(label) + '" value="' + esc(numText(value)) + '">' +
       (unit ? ' <span class="unit" data-testid="weight-unit">' + esc(unit) + '</span>' : '') + '</span>' +
-      '<button type="button" class="step" data-testid="' + kind + '-plus" data-act="' + plusAct + '" aria-label="' + esc(label + ' ' + S.lift.more) + '">+</button>' +
+      '<button type="button" class="step" data-testid="' + kind + '-plus" data-act="' + plusAct + '" aria-label="' + esc(plusName) + '">+</button>' +
       '</div>';
   }
 
@@ -219,7 +213,7 @@ const UI = (function () {
     const e = exOf(V.curId);
     const st = db.state;
     const units = unitsNow();
-    const plan = w.plan;
+    const plan = knownPlan(w);
     const idx = plan.indexOf(e.id);
     const logged = w.sets.filter(s => s.exerciseId === e.id).length;
     const m = Coach.setCount({ exerciseId: e.id, exercise: e, workouts: st.workouts, currentWorkoutId: w.id, now: now() });
@@ -230,13 +224,13 @@ const UI = (function () {
     if (inputMode) {
       main += '<p class="counter" data-testid="set-counter">' + esc(fmt(S.lift.setOf, { n: logged + 1, m: Math.max(m, logged + 1) })) + '</p>';
       if (V.rule === 'first') main += '<p class="prompt" data-testid="lift-prompt">' + esc(S.lift.first) + '</p>';
-      if (e.equipment !== 'bw') main += stepperHTML('weight', S.lift.weight, V.w, 'w-', 'w+', S.units[units]);
-      main += stepperHTML('reps', S.lift.reps, V.r, 'r-', 'r+', '');
-      if (V.saveError) main += '<p class="error" data-testid="save-error" role="alert">' + esc(S.errors.save) + '</p>';
-      main += '<button type="button" class="primary big" data-testid="lift-done" data-act="done-set"' + (V.r >= 1 ? '' : ' disabled') + '>' + esc(S.lift.done) + '</button>';
+      if (e.equipment !== 'bw') main += stepperHTML('weight', S.lift.weight, V.w, 'w-', 'w+', S.units[units], S.lift.weightLess, S.lift.weightMore);
+      main += stepperHTML('reps', S.lift.reps, V.r, 'r-', 'r+', '', S.lift.repsLess, S.lift.repsMore);
+      main += '<button type="button" class="primary big" data-testid="lift-done" data-act="done-set"' + (V.r >= 1 && !V.busy ? '' : ' disabled') + '>' + esc(S.lift.done) + '</button>';
     } else {
       main += '<button type="button" class="primary big" data-testid="one-more" data-act="one-more">' + esc(S.lift.oneMore) + '</button>';
     }
+    main = errHTML() + main;
     main += hasNext
       ? '<button type="button" class="secondary" data-testid="next-exercise" data-act="next">' + esc(S.lift.nextExercise) + '</button>'
       : '<button type="button" class="secondary" data-testid="lift-finish" data-act="finish">' + esc(S.lift.finish) + '</button>';
@@ -249,7 +243,6 @@ const UI = (function () {
     }
     const rem = remainingNow();
     if (rem !== null) {
-      if (rem === 0) V.vibrated = true;
       after += '<p class="rest" data-testid="rest-timer" role="timer" data-remaining="' + rem + '">' + esc(S.lift.rest) + ' <span data-role="time">' + clockText(rem) + '</span></p>';
     }
 
@@ -284,13 +277,14 @@ const UI = (function () {
     const st = db.state;
     const w = st.workouts.find(x => x.id === V.doneId);
     if (!w) return '<main data-screen="done" class="screen"></main>';
-    const exCount = new Set(w.sets.map(s => s.exerciseId)).size;
+    const known = w.sets.filter(s => exOf(s.exerciseId));
+    const exCount = new Set(known.map(s => s.exerciseId)).size;
     const best = Coach.newBests({ workouts: st.workouts, workoutId: w.id });
     const feels = [['easy', 'easy'], ['right', 'right'], ['much', 'much']];
     return '<main data-screen="done" class="screen">' +
-      '<p class="summary" data-testid="done-summary" data-line>' + esc(fmt(S.done.summary, { exercises: exCount, sets: w.sets.length })) + '</p>' +
+      '<p class="summary" data-testid="done-summary" data-line>' + esc(fmt(S.done.summary, { exercises: exCount, exerciseWord: exCount === 1 ? S.done.exerciseOne : S.done.exerciseMany, sets: known.length, setWord: known.length === 1 ? S.done.setOne : S.done.setMany })) + '</p>' +
       (best.length ? '<p class="best" data-testid="done-best" data-line>' + esc(S.done.newBest) + '</p>' : '') +
-      '<p id="feel-q">' + esc(S.done.question) + '</p>' +
+      errHTML() + '<p id="feel-q">' + esc(S.done.question) + '</p>' +
       '<div class="faces" role="group" aria-labelledby="feel-q">' + feels.map(f =>
         '<button type="button" class="face" data-testid="feel-' + f[0] + '" data-act="feel" data-feel="' + f[1] + '" aria-pressed="' + (w.feel === f[1]) + '">' + esc(S.done[f[1]]) + '</button>').join('') + '</div>' +
       '<button type="button" class="primary" data-testid="done-back" data-act="back">' + esc(S.done.back) + '</button>' +
@@ -336,7 +330,7 @@ const UI = (function () {
     V.screen = 'goal';
     V.goals = [];
     V.name = '';
-    V.profileError = false;
+    V.saveError = false;
     render();
   }
   function showPick() {
@@ -348,12 +342,14 @@ const UI = (function () {
     V.search = '';
     V.confirm = null;
     V.importError = false;
+    V.saveError = false;
     V.screen = 'pick';
     render();
   }
   function showDone(id) {
     stopTimer();
     V.doneId = id;
+    V.saveError = false;
     V.screen = 'done';
     render();
   }
@@ -368,10 +364,11 @@ const UI = (function () {
     V.r = p.reps === null || p.reps === undefined ? null : p.reps;
     V.touched = false;
   }
+  const knownPlan = w => w.plan.filter(id => exOf(id));
   function resumeId(w) {
     let best = null;
-    w.sets.forEach(s => { if (w.plan.indexOf(s.exerciseId) !== -1 && (best === null || s.at >= best.at)) best = s; });
-    return best ? best.exerciseId : (w.plan[0] || null);
+    w.sets.forEach(s => { if (w.plan.indexOf(s.exerciseId) !== -1 && exOf(s.exerciseId) && (best === null || s.at >= best.at)) best = s; });
+    return best ? best.exerciseId : (knownPlan(w)[0] || null);
   }
   function showLift() {
     const w = db.activeWorkout();
@@ -386,6 +383,12 @@ const UI = (function () {
     V.saveError = false;
     computePrefill();
     stopTimer();
+    // A rest still running when the app was killed continues from the newest set.
+    const newest = w.sets.reduce((a, x) => (a === null || x.at >= a.at ? x : a), null);
+    if (newest && newest.at + cfg().restSec * 1000 > now()) {
+      V.restStart = newest.at;
+      startTimer();
+    }
     V.screen = 'lift';
     render();
   }
@@ -408,14 +411,21 @@ const UI = (function () {
   async function finishGoal(useGoals) {
     const keys = Object.keys(BEGINNER_GOALS);
     const goals = useGoals ? keys.filter(k => V.goals.indexOf(k) !== -1) : [];
+    const r = await write(() => db.setProfile({ goals, name: V.name.trim(), onboarded: true }));
+    if (r.ok) showPick();
+  }
+
+  // Every db write goes through here: a failure shows the one save-error alert, nothing is lost.
+  async function write(fn) {
     try {
-      await db.setProfile({ goals, name: V.name.trim(), onboarded: true });
+      const r = await fn();
+      V.saveError = false;
+      return { ok: true, value: r };
     } catch (e) {
-      V.profileError = true;
+      V.saveError = true;
       render();
-      return;
+      return { ok: false };
     }
-    showPick();
   }
 
   const cardOrder = () => V.list.filter(id => V.ticked.indexOf(id) !== -1);
@@ -423,14 +433,14 @@ const UI = (function () {
   async function startWorkout() {
     const plan = cardOrder();
     if (!plan.length) return;
-    try { await db.startWorkout({ plan, now: now() }); } catch (e) { render(); return; }
-    showLift();
+    const r = await write(() => db.startWorkout({ plan, now: now() }));
+    if (r.ok) showLift();
   }
 
   async function missing(id) {
     const e = exOf(id);
     if (!e || e.equipKey === 'none') return;
-    try { await db.excludeEquipment(e.equipKey); } catch (err) { render(); return; }
+    if (!(await write(() => db.excludeEquipment(e.equipKey))).ok) return;
     const st = db.state;
     const r = Coach.refill({
       exercises: BEGINNER_EXERCISES, goalFocuses: goalFocuses(st), excludedEquipment: st.excludedEquipment,
@@ -456,6 +466,10 @@ const UI = (function () {
     render();
   }
 
+  function focusImport() {
+    const b = root.querySelector('[data-testid="import-btn"]');
+    if (b) b.focus();
+  }
   async function doExport() {
     try {
       await opt.platform.saveFile(BEGINNER_CONFIG.store.exportApp + '-' + dayText(now()) + '.json', db.exportData({ now: now() }));
@@ -468,26 +482,49 @@ const UI = (function () {
     V.confirm = text;
     V.importError = false;
     render();
+    const dlg = root.querySelector('[data-testid="confirm-dialog"]');
+    if (dlg) dlg.focus();
   }
   async function doImportYes() {
     const text = V.confirm;
     V.confirm = null;
+    V.saveError = false;
     try {
       await db.importData(text);
     } catch (e) {
       V.importError = true;
       render();
+      focusImport();
       return;
     }
     V.importError = false;
     await route();
   }
 
+  const doneBtn = () => root.querySelector('[data-testid="lift-done"]');
+  function patchDone() {
+    const b = doneBtn();
+    if (b) b.disabled = !(V.r >= 1) || V.busy;
+  }
+  function patchFields(skip) {
+    [['weight-value', V.w], ['reps-value', V.r]].forEach(p => {
+      const el = root.querySelector('[data-testid="' + p[0] + '"]');
+      if (el && el !== skip) el.value = numText(p[1]);
+    });
+    patchDone();
+  }
+
   async function logDone() {
     if (V.busy || !(V.r >= 1)) return;
     const e = exOf(V.curId);
     const units = unitsNow();
+    const wk = db.activeWorkout();
+    const prev = wk ? wk.sets.reduce((a, x) => Math.max(a, x.at), -Infinity) : -Infinity;
+    const gap = now() - prev;
+    // A second tap right after a logged set is a double tap; a gap of 0 is not a human gap.
+    if (gap > 0 && gap < cfg().doubleTapMs) return;
     V.busy = true;
+    patchDone();
     try {
       const at = now();
       await db.logSet({ exerciseId: e.id, weightKg: toKg(V.w || 0, units), reps: V.r, effort: null, now: at });
@@ -507,7 +544,7 @@ const UI = (function () {
 
   async function setFace(effort) {
     if (V.lastIndex === null) return;
-    try { await db.setEffort({ index: V.lastIndex, effort }); } catch (e) { render(); return; }
+    if (!(await write(() => db.setEffort({ index: V.lastIndex, effort }))).ok) return;
     if (!V.touched) computePrefill();
     render();
   }
@@ -517,19 +554,20 @@ const UI = (function () {
     const inc = stepOf(e, unitsNow());
     V.w = dir > 0 ? round6((V.w || 0) + inc) : (V.w === null ? null : Math.max(0, round6(V.w - inc)));
     V.touched = true;
-    render();
+    patchFields(null);
   }
   function stepReps(dir) {
     V.r = dir > 0 ? (V.r || 0) + 1 : (V.r === null ? null : Math.max(0, V.r - 1));
     V.touched = true;
-    render();
+    patchFields(null);
   }
 
   function nextExercise() {
     const w = db.activeWorkout();
-    const idx = w.plan.indexOf(V.curId);
-    if (idx === -1 || idx >= w.plan.length - 1) return;
-    V.curId = w.plan[idx + 1];
+    const plan = knownPlan(w);
+    const idx = plan.indexOf(V.curId);
+    if (idx === -1 || idx >= plan.length - 1) return;
+    V.curId = plan[idx + 1];
     V.moreFor = null;
     V.panel = null;
     V.saveError = false;
@@ -541,14 +579,14 @@ const UI = (function () {
     const w = db.activeWorkout();
     if (!w) { showPick(); return; }
     const id = w.id;
-    try { await db.endWorkout({ now: now(), feel: null }); } catch (e) { render(); return; }
+    if (!(await write(() => db.endWorkout({ now: now(), feel: null }))).ok) return;
     if (db.state.workouts.some(x => x.id === id)) showDone(id); else showPick();
   }
 
   async function swapPick(id) {
     const w = db.activeWorkout();
     const plan = w.plan.map(x => (x === V.curId ? id : x));
-    try { await db.updatePlan(plan); } catch (e) { render(); return; }
+    if (!(await write(() => db.updatePlan(plan))).ok) return;
     V.curId = id;
     V.panel = null;
     V.moreFor = null;
@@ -557,7 +595,7 @@ const UI = (function () {
   }
   async function addPick(id) {
     const w = db.activeWorkout();
-    try { await db.updatePlan(w.plan.concat(id)); } catch (e) { render(); return; }
+    if (!(await write(() => db.updatePlan(w.plan.concat(id)))).ok) return;
     V.panel = null;
     render();
   }
@@ -576,7 +614,8 @@ const UI = (function () {
       case 'tick': {
         const id = el.getAttribute('data-id');
         V.ticked = el.checked ? V.ticked.concat(id) : V.ticked.filter(x => x !== id);
-        render();
+        const sb = root.querySelector('[data-testid="pick-start"]');
+        if (sb) sb.disabled = !V.ticked.length;
         return;
       }
       case 'missing': return missing(el.getAttribute('data-id'));
@@ -590,14 +629,13 @@ const UI = (function () {
         return;
       }
       case 'restore': {
-        try { await db.restoreEquipment(el.getAttribute('data-key')); } catch (e) { /* unchanged */ }
-        render();
+        if ((await write(() => db.restoreEquipment(el.getAttribute('data-key')))).ok) render();
         return;
       }
       case 'export': return doExport();
       case 'import': return doImportPick();
       case 'confirm-yes': return doImportYes();
-      case 'confirm-no': V.confirm = null; render(); return;
+      case 'confirm-no': V.confirm = null; render(); focusImport(); return;
       case 'w-': return stepWeight(-1);
       case 'w+': return stepWeight(1);
       case 'r-': return stepReps(-1);
@@ -618,8 +656,7 @@ const UI = (function () {
       case 'swap-pick': return swapPick(el.getAttribute('data-id'));
       case 'add-pick': return addPick(el.getAttribute('data-id'));
       case 'feel': {
-        try { await db.setFeel(V.doneId, el.getAttribute('data-feel')); } catch (e) { /* unchanged */ }
-        render();
+        if ((await write(() => db.setFeel(V.doneId, el.getAttribute('data-feel')))).ok) render();
         return;
       }
       case 'back': showPick(); return;
@@ -638,11 +675,38 @@ const UI = (function () {
     if (!t || !t.getAttribute) return;
     const id = t.getAttribute('data-testid');
     if (id === 'name-input') V.name = t.value;
+    else if (id === 'weight-value' || id === 'reps-value') typed(t, id, false);
     else if (id === 'pick-search') {
       V.search = t.value;
       const region = root.querySelector('[data-region="results"]');
       if (region) region.innerHTML = resultsHTML();
     }
+  }
+
+  // Typed numbers: weight in the display unit (point or comma), reps a whole number.
+  function parseTyped(text, isWeight) {
+    const t = text.trim();
+    if (t === '') return null;
+    if (isWeight) return /^(\d+[.,]?\d*|[.,]\d+)$/.test(t) ? Number(t.replace(',', '.')) : NaN;
+    return /^\d+$/.test(t) ? Number(t) : NaN;
+  }
+  function typed(el, id, commit) {
+    const isWeight = id === 'weight-value';
+    const v = parseTyped(el.value, isWeight);
+    if (Number.isNaN(v)) {
+      if (commit) el.value = numText(isWeight ? V.w : V.r);
+      return;
+    }
+    if (isWeight) V.w = v; else V.r = v;
+    V.touched = true;
+    if (commit) el.value = numText(v);
+    patchDone();
+  }
+  function onChange(ev) {
+    const t = ev.target;
+    if (!t || !t.getAttribute) return;
+    const id = t.getAttribute('data-testid');
+    if (id === 'weight-value' || id === 'reps-value') typed(t, id, true);
   }
 
   // ---------- boot ----------
@@ -660,12 +724,14 @@ const UI = (function () {
       locale: o.locale || (win.navigator && win.navigator.language) || '',
       timers: o.timers || { setInterval: (fn, ms) => win.setInterval(fn, ms), clearInterval: id => win.clearInterval(id) },
       platform: Object.assign({}, dflt, o.platform || {}),
+      DateCtor: win.Date,
       media: o.media || { items: {} },
     };
     byId = {};
     BEGINNER_EXERCISES.forEach(e => { byId[e.id] = e; });
     root.addEventListener('click', onClick);
     root.addEventListener('input', onInput);
+    root.addEventListener('change', onChange);
     doc.addEventListener('visibilitychange', updateTimer);
     try {
       db = await Store.open(o.adapter || Store.idbAdapter());

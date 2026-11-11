@@ -32,7 +32,8 @@ function loadDom(opts) {
   };
   const read = f => {
     const p = path.join(SHARED_FROM_APP.includes(f) ? appDir : bDir, f);
-    return fs.readFileSync(fs.existsSync(p) ? p : path.join(__dirname, '..', f), 'utf8');
+    if (!fs.existsSync(p)) throw new Error('Missing beginner file ' + f + ' in ' + path.dirname(p));
+    return fs.readFileSync(p, 'utf8');
   };
   const sources = srcs.map(read);
   const names = [...new Set([...SHARED_NAMES, ...srcs.filter(f => !SHARED_FROM_APP.includes(f)).flatMap(f => topLevelNames(read(f)))])];

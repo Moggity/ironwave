@@ -70,6 +70,8 @@ const BEGINNER_CONFIG = beginnerDeepFreeze({
     tickMs: 1000,
     lbRegions: ['US', 'LR', 'MM'],
     fallbackStep: 1,
+    doubleTapMs: 500,
+    revokeMs: 4000,
     placeholder: 'media/placeholder.svg',
   },
 });

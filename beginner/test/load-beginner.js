@@ -33,7 +33,8 @@ function loadBeginner(opts) {
   const bDir = (opts && opts.beginnerDir) || path.join(__dirname, '..');
   const rd = (dir, f) => {
     const p = path.join(dir, f);
-    return fs.readFileSync(fs.existsSync(p) ? p : path.join(__dirname, '..', f), 'utf8');
+    if (!fs.existsSync(p)) throw new Error('Missing beginner file ' + f + ' in ' + dir);
+    return fs.readFileSync(p, 'utf8');
   };
   const own = PURE_FILES.map(f => rd(bDir, f));
   const names = [...new Set([...SHARED_NAMES, ...own.flatMap(topLevelNames)])];
