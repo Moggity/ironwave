@@ -34,7 +34,7 @@ const REQUIRED = {
   'pick.searchLabel': { suggest: 'Search all exercises' },
   'pick.noMatches': { suggest: 'No exercises found' },
   'pick.restoreHeading': { suggest: "Equipment you don't have" },
-  'pick.restore': { suggest: 'Put back' },
+  'pick.restoreItem': { suggest: 'Put back {item}', has: ['item'] },
   'pick.demoAlt': { suggest: 'Exercise demo' },
   'lift.first': FIRST,
   'lift.setOf': { exact: 'Set {n} of {m}', has: ['n', 'm'] },
@@ -49,15 +49,22 @@ const REQUIRED = {
   'lift.end': { suggest: 'End workout' },
   'lift.weight': { suggest: 'Weight' },
   'lift.reps': { suggest: 'Reps' },
-  'lift.less': { suggest: 'Less' },
-  'lift.more': { suggest: 'More' },
+  'lift.weightLess': { suggest: 'Less weight' },
+  'lift.weightMore': { suggest: 'More weight' },
+  'lift.repsLess': { suggest: 'Fewer reps' },
+  'lift.repsMore': { suggest: 'More reps' },
   'lift.rest': { suggest: 'Rest' },
   'units.kg': 'kg',
   'units.lb': 'lb',
   'faces.easy': 'Easy',
   'faces.good': 'Good',
   'faces.hard': 'Hard',
-  'done.summary': { suggest: '{exercises} exercises, {sets} sets', has: ['exercises', 'sets'] },
+  // One template, four word forms chosen by count == 1: "1 exercise, 1 set", "2 exercises, 3 sets".
+  'done.summary': { suggest: '{exercises} {exerciseWord}, {sets} {setWord}', has: ['exercises', 'exerciseWord', 'sets', 'setWord'] },
+  'done.exerciseOne': { suggest: 'exercise' },
+  'done.exerciseMany': { suggest: 'exercises' },
+  'done.setOne': { suggest: 'set' },
+  'done.setMany': { suggest: 'sets' },
   'done.newBest': 'New best',
   'done.question': 'How was that?',
   'done.easy': 'Too easy',
@@ -118,6 +125,21 @@ test('A2 criterion-fixed wording is exact', () => {
     const exact = typeof want === 'string' ? want : want.exact;
     if (exact !== undefined) assert.strictEqual(L[key], exact, key);
   }
+});
+
+test('D10 the singular and plural word forms differ and are single lowercase words', () => {
+  const L = leaves(load());
+  for (const [one, many] of [['done.exerciseOne', 'done.exerciseMany'], ['done.setOne', 'done.setMany']]) {
+    assert.notStrictEqual(L[one], L[many], one + ' must differ from ' + many);
+    assert.match(L[one], /^[a-z]+$/, one);
+    assert.match(L[many], /^[a-z]+$/, many);
+  }
+});
+
+test('C1 button names are single strings, never built from two keys', () => {
+  const L = leaves(load());
+  assert.ok(!('lift.less' in L) && !('lift.more' in L), 'lift.less and lift.more are replaced by the four named keys');
+  assert.ok(!('pick.restore' in L), 'pick.restore is replaced by pick.restoreItem');
 });
 
 test('G3 templates keep their placeholders', () => {

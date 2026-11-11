@@ -87,7 +87,36 @@
                       "Pick a weight you could lift for 12 repetitions. Stop when it gets hard."
      weight-minus, weight-plus, weight-value, weight-unit   NOT rendered for equipment 'bw'
      reps-minus, reps-plus, reps-value
-       *-value textContent is just the number ('' when empty). weight-unit is the unit string
+       ROUND 2 (LD): weight-value and reps-value are editable <input> elements (NOT
+       type=number, so a comma works), inputmode="decimal" (weight) / "numeric" (reps),
+       whose .value is the number ('' when empty); plus and minus still step them. A typed
+       weight is read in the DISPLAY unit (point or comma), stored as kg = typed * factor,
+       NO snapping to the grid (the user typed what they did); a typed reps value must be an
+       integer >= 0. Invalid or negative input is ignored and the previous value is restored
+       on `change`. Done is enabled once reps >= 1. Plus/minus after a typed off-grid value
+       step from the typed value. weight-unit is the unit string.
+       Accessible names (aria-label, or text when absent) come from single strings:
+       weight-minus lift.weightLess, weight-plus lift.weightMore, reps-minus lift.repsLess,
+       reps-plus lift.repsMore. restore-item's accessible name is pick.restoreItem with {item}
+       = the equipment label (no concatenation in code).
+       NO REBUILD (LD): a stepper tap, typing, or ticking a Pick card must not replace the
+       DOM of the unaffected parts: the same lift-demo node stays in the document, the clicked
+       button (or typed input, or tick) is the same node and keeps focus; on Pick the other
+       cards' pick-demo nodes keep identity.
+       DOUBLE TAP (LD): a Done click within BEGINNER_CONFIG.ui.doubleTapMs (start 500) of the
+       previous LOGGED set (injected clock, set.at) logs nothing; lift-done is `disabled`
+       while a save is pending.
+       REST AFTER KILL (LD): on boot, if the latest set of the open workout is within restSec,
+       the Lift screen shows rest-timer with remaining = restSec - (clock - lastSet.at), and it
+       vibrates once at the end; if the rest already ended, no rest-timer and no vibration.
+       VIBRATION (LD): only the tick (or the visibilitychange handler) vibrates, exactly once
+       per rest; a re-render must never swallow or fire it.
+       FAILED WRITES (LD): ANY failed db write (Start, End workout, Finish, Swap, Add, exclude,
+       restore, goal continue or skip, a Done-screen feel answer, logSet) shows an element
+       testid save-error with role="alert" on the current screen (same testid everywhere), keeps
+       the user on that screen with nothing lost, and a retry works; it clears on success.
+       UNKNOWN IDS (LD): plan or set ids not in BEGINNER_EXERCISES are skipped everywhere a plan
+       or log is read (resume, next, swap, repeat last workout, Done summary), never throw.
      set-counter      "Set {n} of {m}": n = sets of this exercise already logged in this
                       workout + 1, m = Coach.setCount
      lift-done        button. Disabled until reps >= 1. LD: weight empty counts as 0.
@@ -128,8 +157,10 @@
        the kg equivalent of the DISPLAYED value. LD: first plus on an empty weight goes to one
        increment, first plus on empty reps goes to 1, minus never goes below empty/0.
    Done (data-screen="done"):
-     done-summary     data-line; text = done.summary with {exercises} (distinct exercises with
-                      sets) and {sets}; no weight totals. LD: tests use counts >= 2
+     done-summary     data-line; text = done.summary with {exercises}, {exerciseWord}, {sets},
+                      {setWord}; the words are done.exerciseOne/exerciseMany and
+                      done.setOne/setMany chosen by count == 1: "1 exercise, 1 set",
+                      "2 exercises, 3 sets"; no weight totals
      done-best        data-line; ONLY when Coach.newBests is non-empty; ONE element in all
                       (LD), text contains "New best"
      feel-easy, feel-right, feel-much   "Too easy", "Just right", "Too much" ->
@@ -212,6 +243,17 @@ function seedState(o = {}) {
   s.workouts = o.workouts || [];
   return s;
 }
+// A temp copy of the beginner sources: EVERY *.js and index.html (so a new file such as
+// strings.js is never forgotten), minus the names in `omit`. The caller removes the folder.
+function copyBeginnerDir(omit = []) {
+  const fs = require('fs'); const os = require('os'); const path = require('path');
+  const src = path.join(__dirname, '..');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bg-screens-'));
+  for (const f of fs.readdirSync(src)) {
+    if ((f.endsWith('.js') || f === 'index.html') && !omit.includes(f)) fs.copyFileSync(path.join(src, f), path.join(dir, f));
+  }
+  return dir;
+}
 const fmt = (tpl, vars) => tpl.replace(/\{(\w+)\}/g, (_, k) => String(vars[k]));
 
 // ---------- the harness ----------
@@ -247,7 +289,15 @@ async function boot(o = {}) {
     return els[0].getAttribute('data-screen');
   };
   h.text = () => root.textContent.replace(/\s+/g, ' ').trim();
-  h.val = id => { const el = h.q(id); return el ? el.textContent.trim() : undefined; };
+  h.val = id => { const el = h.q(id); return el ? (el.tagName === 'INPUT' ? el.value : el.textContent).trim() : undefined; };
+  h.errors = [];
+  window.addEventListener('error', e => { h.errors.push(e.error || e.message); });
+  h.focusClick = async target => {
+    const el = typeof target === 'string' ? h.q(target) : target;
+    el.focus();
+    await h.click(el);
+  };
+  h.accName = el => (el.getAttribute('aria-label') || el.textContent).trim();
   h.num = id => { const t = h.val(id); return t === undefined || t === '' ? null : Number(t); };
   h.click = async target => {
     const el = typeof target === 'string' ? h.q(target) : target;
@@ -295,6 +345,11 @@ async function boot(o = {}) {
       await h.click('lift-done');
     }
   };
+  h.attrTexts = () => {
+    const out = [];
+    for (const el of root.querySelectorAll('*')) for (const a of ['alt', 'aria-label', 'title', 'placeholder']) if (el.getAttribute(a)) out.push(el.getAttribute(a));
+    return out;
+  };
   h.hiddenNote = () => {
     const w = new window.Event('visibilitychange', { bubbles: true });
     document.dispatchEvent(w);
@@ -324,5 +379,5 @@ const suggestFor = (state, excluded, now) => Coach.suggest({
 
 module.exports = {
   NODE_MAJOR, N, Coach, Store, BEGINNER_CONFIG, BEGINNER_EXERCISES, BEGINNER_GOALS, BEGINNER_EQUIPMENT, beginnerGoalFocus,
-  KEY, KG_PER_LB, DAY, HOUR, T0, ex, fakeClock, fakeTimers, gatedAdapter, workout, history, seedState, fmt, boot, suggestFor,
+  KEY, KG_PER_LB, DAY, HOUR, T0, ex, fakeClock, fakeTimers, gatedAdapter, copyBeginnerDir, workout, history, seedState, fmt, boot, suggestFor,
 };

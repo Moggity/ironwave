@@ -10,6 +10,10 @@ const { boot, seedState, workout, history, ex, fmt, Coach, Store, KEY, T0 } = H;
 if (H.NODE_MAJOR < 20) {
   test('screens done and data DOM tests (skipped: jsdom requires Node >= 20)', { skip: true }, () => {});
 } else {
+  const summaryFor = (h, n, m) => fmt(h.S.done.summary, {
+    exercises: n, exerciseWord: n === 1 ? h.S.done.exerciseOne : h.S.done.exerciseMany,
+    sets: m, setWord: m === 1 ? h.S.done.setOne : h.S.done.setMany,
+  });
   const finishTwo = async h => {
     await h.toLift(['db-curl', 'db-bench']);
     await h.logSets(2);
@@ -23,9 +27,36 @@ if (H.NODE_MAJOR < 20) {
     await finishTwo(h);
     assert.strictEqual(h.screen(), 'done');
     const w = (await h.state()).workouts[0];
-    const want = fmt(h.S.done.summary, { exercises: new Set(w.sets.map(s => s.exerciseId)).size, sets: w.sets.length });
-    assert.strictEqual(h.val('done-summary'), want);
+    assert.strictEqual(h.val('done-summary'), summaryFor(h, new Set(w.sets.map(s => s.exerciseId)).size, w.sets.length));
     assert.ok(!/kg|lb/.test(h.val('done-summary')));
+  });
+
+  test('D10 one exercise with one set reads in the singular', async () => {
+    const h = await boot({ seed: seedState() });
+    await h.toLift(['db-curl']);
+    await h.logSets(1);
+    await h.click('lift-end');
+    assert.strictEqual(h.val('done-summary'), summaryFor(h, 1, 1));
+    assert.ok(!/\b1 (exercises|sets)\b/.test(h.val('done-summary')), 'grammar: ' + h.val('done-summary'));
+  });
+
+  test('D10 one exercise with two sets reads "1 exercise, 2 sets"', async () => {
+    const h = await boot({ seed: seedState() });
+    await h.toLift(['db-curl']);
+    await h.logSets(2);
+    await h.click('lift-end');
+    assert.strictEqual(h.val('done-summary'), summaryFor(h, 1, 2));
+    assert.ok(!/\b1 exercises\b/.test(h.val('done-summary')));
+  });
+
+  test('D10 two exercises with three sets reads "2 exercises, 3 sets"', async () => {
+    const h = await boot({ seed: seedState() });
+    await h.toLift(['db-curl', 'db-bench']);
+    await h.logSets(2);
+    await h.click('next-exercise');
+    await h.logSets(1);
+    await h.click('lift-end');
+    assert.strictEqual(h.val('done-summary'), summaryFor(h, 2, 3));
   });
 
   test('D10 no "New best" on a first workout', async () => {
@@ -112,12 +143,12 @@ if (H.NODE_MAJOR < 20) {
 
   test('G3 no rendered text, alt, label or placeholder on any screen contains an em or en dash', async () => {
     const { texts } = await tour();
-    for (const t of texts) assert.ok(!/[—–]/.test(t), 'dash in: ' + t.slice(0, 200));
+    for (const t of texts) assert.ok(!/[\u2014\u2013]/.test(t), 'dash in: ' + t.slice(0, 200));
   });
 
   test('G3 no BEGINNER_STRINGS value contains an em or en dash', async () => {
     const h = await boot();
-    const walk = (o, p) => Object.entries(o).forEach(([k, v]) => typeof v === 'string' ? assert.ok(!/[—–]/.test(v), p + k) : walk(v, p + k + '.'));
+    const walk = (o, p) => Object.entries(o).forEach(([k, v]) => typeof v === 'string' ? assert.ok(!/[\u2014\u2013]/.test(v), p + k) : walk(v, p + k + '.'));
     walk(h.S, '');
   });
 
@@ -133,9 +164,13 @@ if (H.NODE_MAJOR < 20) {
   test('D1 a returning exercise shows steppers and no sentence about what to lift', async () => {
     const h = await boot({ seed: seedState({ workouts: history('db-curl', 10, [10, 10]) }) });
     await h.toLift(['db-curl']);
-    const t = h.allText();
     assert.strictEqual(h.q('lift-prompt'), null);
-    assert.ok(!/\b(target|aim|goal for)\b/i.test(h.text()), 'target wording: ' + h.text());
+    const labels = h.attrTexts();
+    assert.ok(labels.length > 0, 'precondition: the Lift screen has aria-labels to scan');
+    for (const t of [h.text(), ...labels]) {
+      assert.ok(!/\b(target|aim|goal for|try)\b|last time|time to go up/i.test(t), 'target wording: ' + t);
+      assert.ok(!/[\u2014\u2013]/.test(t), 'dash: ' + t);
+    }
   });
 
   test('H1 the whole tour makes no network request', async () => {
