@@ -66,6 +66,13 @@ jobs:
           BEGINNER_DIR: ${{ vars.BEGINNER_PAGES_DIR || 'beginner' }}
         run: |
           set -e
+          case "${BEGINNER_DIR}" in
+            ""|*[!A-Za-z0-9_-]*) echo "Invalid beginner folder name"; exit 1 ;;
+          esac
+          if [ -e "_site/${BEGINNER_DIR}" ]; then
+            echo "Beginner folder is already taken"
+            exit 1
+          fi
           node scripts/assemble-beginner.js
           mkdir -p "_site/${BEGINNER_DIR}"
           cp -r beginner/www/. "_site/${BEGINNER_DIR}/"

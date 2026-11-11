@@ -97,7 +97,7 @@ input[type="text"] {
 .stepper { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 0.5rem; margin: 0.75rem 0; }
 .steplabel { grid-column: 1 / -1; color: var(--muted); }
 .stepper .step { min-width: 56px; min-height: 56px; font-size: 1.5rem; }
-.valuefield { width: 5rem; min-height: 56px; font: inherit; font-weight: 700; text-align: center; border: 1px solid var(--line); border-radius: 0.75rem; background: var(--surface); }
+.stepper .valuefield { width: 5rem; min-height: 56px; font: inherit; font-weight: 700; text-align: center; border: 1px solid var(--line); border-radius: 0.75rem; background: var(--surface); }
 .stepper .value { font-size: 1.75rem; font-weight: 700; text-align: center; min-width: 4.5rem; grid-column: 2; }
 .stepper .step:first-of-type { grid-column: 1; justify-self: start; }
 .unit { font-size: 1rem; font-weight: 400; color: var(--muted); }

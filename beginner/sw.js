@@ -5,13 +5,19 @@
 const CACHE = 'beginner-shell-__SHELL_HASH__';
 const PREFIX = 'beginner-';
 const FILES = [/*__SHELL_FILES__*/];
+const SCOPE = new URL('./', self.location.href).href;
+
+// Every shell request bypasses the browser HTTP cache, so a redeploy never freezes a mix
+// of old and new files.
+const fresh = rel => new Request(rel, { cache: 'reload' });
+
+async function precache() {
+  const cache = await caches.open(CACHE);
+  await cache.addAll(['./'].concat(FILES).map(fresh));
+}
 
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE)
-      .then(cache => cache.addAll(['./'].concat(FILES)))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil(precache().then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', event => {
@@ -31,17 +37,30 @@ self.addEventListener('fetch', event => {
   let url;
   try { url = new URL(req.url); } catch (e) { return; }
   if (url.origin !== self.location.origin) return;
-  event.respondWith(answer(req));
+  // Held open so a background repair of the cache can finish.
+  let finish = () => {};
+  event.waitUntil(new Promise(res => { finish = res; }));
+  event.respondWith(answer(req, url, finish));
 });
 
-async function answer(req) {
-  const cache = await caches.open(CACHE);
-  if (req.mode === 'navigate') {
-    const page = await cache.match(new URL('index.html', self.location.href).href);
-    if (page) return page;
-  } else {
-    const hit = await cache.match(req, { ignoreSearch: true });
+async function answer(req, url, finish) {
+  try {
+    const cache = await caches.open(CACHE);
+    const nav = req.mode === 'navigate';
+    const hit = nav
+      ? await cache.match(new URL('index.html', SCOPE).href)
+      : await cache.match(req, { ignoreSearch: true });
     if (hit) return hit;
-  }
-  return fetch(req);
+    const rel = url.href.indexOf(SCOPE) === 0 ? url.href.slice(SCOPE.length).split('?')[0].split('#')[0] : null;
+    const shell = nav || (rel !== null && (rel === '' || FILES.indexOf(rel) !== -1));
+    if (!shell) return await fetch(req);
+    // A shell file the cache lacks: another worker on this origin may have deleted our cache.
+    const key = nav ? new URL('index.html', SCOPE).href : SCOPE + rel;
+    const res = await fetch(fresh(key));
+    if (res.ok) {
+      try { await cache.put(key, res.clone()); } catch (e) { /* still answer */ }
+      try { if ((await cache.keys()).length < FILES.length + 1) await precache(); } catch (e) { /* repaired next time */ }
+    }
+    return res;
+  } finally { finish(); }
 }

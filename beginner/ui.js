@@ -18,6 +18,7 @@ const UI = (function () {
   let byId = {};
   let timerId = null;
   let storeAdapter = null;
+  let opening = false;
 
   // Ephemeral view state. Losing it only resets the UI.
   const V = {
@@ -74,6 +75,7 @@ const UI = (function () {
     const doc = win.document;
     return {
       vibrate: ms => { try { if (win.navigator && win.navigator.vibrate) win.navigator.vibrate(ms); } catch (e) { /* no vibration */ } },
+      reload: () => { try { win.location.reload(); } catch (e) { /* nothing to reload */ } },
       saveFile: (name, text) => {
         const url = win.URL.createObjectURL(new win.Blob([text], { type: 'application/json' }));
         const a = doc.createElement('a');
@@ -614,7 +616,13 @@ const UI = (function () {
         el.setAttribute('aria-pressed', String(V.goals.indexOf(k) !== -1));
         return;
       }
-      case 'storage-retry': return openStore();
+      case 'storage-retry': {
+        // After a newer-version error the same old code would fail again: reload instead.
+        if (V.openError === 'E_NEWER_VERSION') { opt.platform.reload(); return; }
+        if (opening) return;
+        el.disabled = true;
+        return openStore();
+      }
       case 'continue': return finishGoal(true);
       case 'skip': return finishGoal(false);
       case 'tick': {
@@ -745,15 +753,18 @@ const UI = (function () {
   }
   // Opening the store is repeatable: the error screen offers a retry that comes back here.
   async function openStore() {
+    opening = true;
     try {
       db = await Store.open(storeAdapter);
     } catch (e) {
       V.screen = 'error';
       V.openError = (e && e.code) || '';
+      opening = false;
       render();
       return;
     }
     V.openError = '';
+    opening = false;
     await route();
   }
 

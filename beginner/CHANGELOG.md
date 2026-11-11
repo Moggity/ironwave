@@ -37,3 +37,10 @@
   data is from a newer app) instead of a dead end.
 - Fixes: a typed lb weight is rounded to two decimals; a logged weight never exceeds
   `maxWeightKg`. `styles.css` constrains `img` and `video`.
+
+## Package 6: review fixes
+
+- `sw.js` heals its cache when another worker on the same origin deletes it: a miss on a shell file is fetched, stored and returned, and an incomplete cache is re-filled in the background. All precache and heal requests use cache mode `reload`.
+- `pages.yml` guards `BEGINNER_DIR` (characters `A-Za-z0-9_-` only, folder must not exist) before copying, without printing the value.
+- Storage retry is single-flight and reloads the page (`platform.reload`) after a newer-version error.
+- The stepper value field rule out-ranks the general text input rule, so it keeps its width.
