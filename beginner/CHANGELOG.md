@@ -20,3 +20,20 @@
 ## Package 5: screens
 - The four screens (goal, pick, lift with rest timer, done) plus export and import, rendered from state by one path, with a silent strings table (`strings.js`), mobile-first light and dark styles, and the `ui` config section (rest length, stale-workout limit, units regions).
 - Harnesses load `strings.js`, ignore reserved words in the top-level name scan and fall back to the default folder for files a custom folder lacks; the assemble script copies `strings.js`.
+
+## Package 6: web release
+
+- Installable and offline: `manifest.json`, PNG icons in `icons/`, and `sw.js`, a cache-first
+  service worker whose cache name carries a content hash written by `assemble-beginner.js`
+  (it also injects the precache file list). Only `beginner-` caches are ever deleted.
+- `boot.js` replaces the inline boot: `beginnerBoot(env)` runs by itself only for a real
+  script tag, registers the worker after the first render (web only) and asks for
+  persistent storage once. `index.html` now has a strict Content-Security-Policy (all
+  `'self'`), theme-color, apple-touch-icon and noindex.
+- `pages.yml` gains one step that assembles the beginner app and copies the assembled
+  folder to `_site/${BEGINNER_DIR}` (variable `BEGINNER_PAGES_DIR`, default `beginner`),
+  plus the `beginner/**` and assemble-script triggers. Existing lines are unchanged.
+- Store-open failure now shows a retry button (and the newer-version text when the saved
+  data is from a newer app) instead of a dead end.
+- Fixes: a typed lb weight is rounded to two decimals; a logged weight never exceeds
+  `maxWeightKg`. `styles.css` constrains `img` and `video`.

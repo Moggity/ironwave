@@ -17,6 +17,7 @@ const UI = (function () {
   let opt = null;
   let byId = {};
   let timerId = null;
+  let storeAdapter = null;
 
   // Ephemeral view state. Losing it only resets the UI.
   const V = {
@@ -299,7 +300,8 @@ const UI = (function () {
     else if (V.screen === 'pick') html = pickHTML();
     else if (V.screen === 'lift') html = liftHTML();
     else if (V.screen === 'done') html = doneHTML();
-    else html = '<main data-screen="error" class="screen"><p class="error" role="alert">' + esc(STR().errors.storage) + '</p></main>';
+    else html = '<main data-screen="error" class="screen"><p class="error" role="alert">' + esc(V.openError === 'E_NEWER_VERSION' ? STR().errors.newerVersion : STR().errors.storage) + '</p>' +
+      '<button type="button" class="primary" data-testid="storage-retry" data-act="storage-retry">' + esc(STR().errors.retry) + '</button></main>';
     root.innerHTML = html;
   }
 
@@ -529,7 +531,7 @@ const UI = (function () {
     patchDone();
     try {
       const at = now();
-      await db.logSet({ exerciseId: e.id, weightKg: toKg(V.w || 0, units), reps: V.r, effort: null, now: at });
+      await db.logSet({ exerciseId: e.id, weightKg: Math.min(toKg(V.w || 0, units), cfg().maxWeightKg), reps: V.r, effort: null, now: at });
       V.saveError = false;
       V.restStart = at;
       V.vibrated = false;
@@ -612,6 +614,7 @@ const UI = (function () {
         el.setAttribute('aria-pressed', String(V.goals.indexOf(k) !== -1));
         return;
       }
+      case 'storage-retry': return openStore();
       case 'continue': return finishGoal(true);
       case 'skip': return finishGoal(false);
       case 'tick': {
@@ -701,7 +704,7 @@ const UI = (function () {
       if (commit) el.value = numText(isWeight ? V.w : V.r);
       return;
     }
-    if (isWeight) V.w = v; else V.r = v;
+    if (isWeight) { v = round2(v); V.w = v; } else V.r = v;
     V.touched = true;
     if (commit) el.value = numText(v);
     patchDone();
@@ -737,13 +740,20 @@ const UI = (function () {
     root.addEventListener('input', onInput);
     root.addEventListener('change', onChange);
     doc.addEventListener('visibilitychange', updateTimer);
+    storeAdapter = o.adapter || Store.idbAdapter();
+    await openStore();
+  }
+  // Opening the store is repeatable: the error screen offers a retry that comes back here.
+  async function openStore() {
     try {
-      db = await Store.open(o.adapter || Store.idbAdapter());
+      db = await Store.open(storeAdapter);
     } catch (e) {
       V.screen = 'error';
+      V.openError = (e && e.code) || '';
       render();
       return;
     }
+    V.openError = '';
     await route();
   }
 

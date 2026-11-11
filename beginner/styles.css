@@ -111,3 +111,5 @@ input[type="text"] {
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+img, video { max-width: 100%; height: auto; }
