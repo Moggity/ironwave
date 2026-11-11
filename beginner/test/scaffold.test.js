@@ -79,9 +79,11 @@ test('K2 package.json declares the beginner scripts, engines and only jsdom', ()
   assert.strictEqual(pkg.engines.node, '>=18');
   assert.strictEqual(pkg.scripts.test, 'node --test test/*.test.js');
   assert.strictEqual(pkg.scripts.assemble, 'node ../scripts/assemble-beginner.js');
-  assert.deepStrictEqual(Object.keys(pkg.devDependencies || {}), ['jsdom']);
+  // Package 7 (lead edit): the Capacitor shell packages are allowed beside jsdom. Nothing else is,
+  // and no test may require them (the web app loads no package code).
+  const all = Object.keys(Object.assign({}, pkg.dependencies || {}, pkg.devDependencies || {}));
+  assert.deepStrictEqual(all.filter(n => n !== 'jsdom' && !n.startsWith('@capacitor/')), [], 'only jsdom and @capacitor/* packages');
   assert.strictEqual(pkg.devDependencies.jsdom, appPkg.devDependencies.jsdom);
-  assert.ok(!pkg.dependencies || Object.keys(pkg.dependencies).length === 0, 'no runtime dependencies');
 });
 
 test('K2 package-lock.json exists and locks jsdom', () => {

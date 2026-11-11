@@ -440,7 +440,9 @@ if (NODE_MAJOR < 20) {
     w.clock.advance(BEGINNER_CONFIG.ui.restSec * 1000);
     w.timers.tick();
     await settle();
-    assert.deepStrictEqual(w.f.calls.filter(c => c[0] === 'Haptics'), [['Haptics', 'vibrate', { duration: BEGINNER_CONFIG.ui.vibrateMs }]]);
+    // Lead edit: compared as JSON because platform.js runs in the jsdom realm here, so its option
+    // object has another realm's prototype and deepStrictEqual would reject identical content.
+    assert.strictEqual(JSON.stringify(w.f.calls.filter(c => c[0] === 'Haptics')), JSON.stringify([['Haptics', 'vibrate', { duration: BEGINNER_CONFIG.ui.vibrateMs }]]));
     assert.strictEqual(w.f.pending.size, 0, 'the scheduled signal must be cancelled when the in-app vibrate fires');
     assert.deepStrictEqual(w.rej, []);
   });
