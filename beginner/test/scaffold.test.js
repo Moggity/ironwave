@@ -33,6 +33,21 @@
      data.js byte-identical to app/, media/ if it exists. Never test/, node_modules/,
      package.json, package-lock.json, android/, www/. Clears outDir first (idempotent).
      beginner/www/ is git-ignored.
+   REVISED CONTRACT (after review):
+     - Script order in index.html is ordered, not closed: data.js, engine.js, then
+       any extra shared scripts, then config.js, exercises.js, coach.js, store.js,
+       ui.js in that relative order; all src values flat relative paths.
+     - BEGINNER_CONFIG has frozen plain sections exercises, store, coach, ui (more
+       may be added, contents free) and NO top-level schemaVersion.
+     - Both harnesses expose EVERY top-level const/let/var/function/class declared
+       in the beginner files (ui.js too for the DOM harness) plus the fixed shared
+       names, and accept an optional { beginnerDir } folder of alternative sources.
+     - loadDom() gives the window fetch and XMLHttpRequest stubs that record into
+       window.__netCalls (an array) and reject/throw; zero calls on load.
+     - Purity of coach.js is checked on comment-stripped source (real window./
+       document. access, storage, Date.now, new Date(), fetch( are forbidden).
+     - assemble-beginner.js also exports SHARED_FROM_APP (starts data.js, engine.js)
+       and BEGINNER_FILES; every SHARED_FROM_APP entry is copied byte-identical.
    CI: ci.yml keeps job `check` (matrix [18, 20], working-directory app) and gains
      job `beginner` (matrix [18, 20], working-directory beginner, npm ci, npm test).
    ============================================================ */
@@ -79,11 +94,23 @@ test('K2 the five beginner source files exist and each defines its top-level glo
   }
 });
 
-test('K2 coach.js is pure: no DOM, storage or clock references in its source', () => {
-  const src = read('beginner', 'coach.js');
-  for (const bad of [/\bdocument\b/, /\bwindow\b/, /\blocalStorage\b/, /\bindexedDB\b/, /Date\.now/, /new Date\(\s*\)/]) {
-    assert.ok(!bad.test(src), `coach.js must not match ${bad}`);
-  }
+function stripComments(s) {
+  return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\'"`])\/\/[^\n]*/g, '$1');
+}
+const IMPURE = [/\b(window|document)\s*[.\[]/, /\b(localStorage|indexedDB|sessionStorage)\b/, /Date\.now/, /new Date\(\s*\)/, /\bfetch\s*\(/];
+const impureHits = src => IMPURE.filter(re => re.test(stripComments(src)));
+
+test('K2 the purity check flags bad samples and passes good ones (cannot go vacuous)', () => {
+  const bad = ['const a = document.body;', 'x = window["y"];', 'localStorage.getItem(1)', 'indexedDB.open()',
+    'sessionStorage.x', 'const t = Date.now();', 'const d = new Date();', 'fetch("/x")'];
+  for (const s of bad) assert.ok(impureHits(s).length > 0, 'should flag: ' + s);
+  const good = '// rolling 7-day window, document it\n/* uses Date.now() and fetch( in prose */\nconst d = new Date(ts);\nconst windowSize = 7;';
+  assert.deepStrictEqual(impureHits(good), []);
+});
+
+test('K2 coach.js is pure: no DOM, storage, clock or network access in its source', () => {
+  const hits = impureHits(read('beginner', 'coach.js'));
+  assert.deepStrictEqual(hits.map(String), [], 'coach.js must stay pure');
 });
 
 test('K2 beginner global names do not collide with app/data.js or app/engine.js', () => {
@@ -121,30 +148,66 @@ test('K2 loadBeginner exposes a callable shared Engine returning this-realm valu
 test('K2 loadBeginner returns independent instances', () => {
   const a = load();
   const b = load();
-  assert.notStrictEqual(a.Engine, b.Engine);
-  assert.notStrictEqual(a.Coach, b.Coach);
-  a.TIME_MODEL.__probe = 1;
-  a.Coach.__probe = 1;
-  assert.strictEqual(b.TIME_MODEL.__probe, undefined);
-  assert.strictEqual(b.Coach.__probe, undefined);
+  // identity only: exported objects may be frozen by later packages
+  for (const k of ['Engine', 'Coach', 'Store', 'TIME_MODEL', 'BEGINNER_CONFIG', 'BEGINNER_EXERCISES', 'EXERCISES']) {
+    assert.notStrictEqual(a[k], b[k], `${k} must be a per-load instance`);
+  }
 });
 
-test('K2 BEGINNER_CONFIG is a deeply frozen plain object', () => {
+test('K2 BEGINNER_CONFIG is deeply frozen, sectioned, and has no top-level schemaVersion', () => {
   const { BEGINNER_CONFIG } = load();
   assert.strictEqual(Object.getPrototypeOf(BEGINNER_CONFIG), Object.prototype);
   (function walk(o, p) {
     assert.ok(Object.isFrozen(o), `${p} is not frozen`);
     for (const [k, v] of Object.entries(o)) if (v && typeof v === 'object') walk(v, p + '.' + k);
   })(BEGINNER_CONFIG, 'BEGINNER_CONFIG');
+  for (const s of ['exercises', 'store', 'coach', 'ui']) {
+    const sec = BEGINNER_CONFIG[s];
+    assert.ok(sec && typeof sec === 'object' && !Array.isArray(sec), `section ${s} must be an object`);
+    assert.strictEqual(Object.getPrototypeOf(sec), Object.prototype, `section ${s} must be plain`);
+    assert.ok(Object.isFrozen(sec), `section ${s} must be frozen`);
+  }
+  assert.ok(!('schemaVersion' in BEGINNER_CONFIG), 'schemaVersion belongs inside the store section');
+});
+
+// ---------- automatic harness exports ----------
+function probeDir() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bg-probe-'));
+  for (const f of ['config.js', 'exercises.js', 'coach.js', 'store.js', 'ui.js', 'index.html']) {
+    fs.copyFileSync(path.join(B, f), path.join(dir, f));
+  }
+  fs.appendFileSync(path.join(dir, 'exercises.js'), '\nconst EXTRA_PROBE = 42;\nfunction extraProbeFn() { return 7; }\n');
+  return dir;
+}
+
+test('K2 loadBeginner auto-exposes every top-level declaration of the beginner files', () => {
+  const dir = probeDir();
+  try {
+    const a = require('./load-beginner').loadBeginner({ beginnerDir: dir });
+    assert.strictEqual(a.EXTRA_PROBE, 42);
+    assert.strictEqual(a.extraProbeFn(), 7);
+    for (const k of ['BEGINNER_CONFIG', 'BEGINNER_EXERCISES', 'Coach', 'Store', 'Engine', 'EXERCISES']) {
+      assert.ok(a[k] !== undefined, `missing ${k}`);
+    }
+    assert.strictEqual(a.UI, undefined, 'ui.js is not loaded by the non-DOM harness');
+    assert.strictEqual(load().EXTRA_PROBE, undefined, 'default behaviour unchanged');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 // ---------- index.html ----------
-test('K2 index.html has #app, a viewport meta and the seven scripts in order by flat path', () => {
+test('K2 index.html has #app, a viewport meta and ordered flat-path scripts (extras allowed)', () => {
   const html = read('beginner', 'index.html');
   assert.match(html, /<div[^>]*\bid=["']app["']/);
   assert.match(html, /<meta[^>]*name=["']viewport["']/);
   const srcs = [...html.matchAll(/<script[^>]*\bsrc=["']([^"']+)["']/g)].map(m => m[1]);
-  assert.deepStrictEqual(srcs, SEVEN);
+  for (const s of srcs) assert.ok(!/[\/]|\.\.|http/i.test(s), `src must be a flat relative path: ${s}`);
+  const idx = f => srcs.indexOf(f);
+  const own = ['config.js', 'exercises.js', 'coach.js', 'store.js', 'ui.js'];
+  for (const f of ['data.js', 'engine.js', ...own]) assert.ok(idx(f) >= 0, `missing script ${f}`);
+  assert.ok(idx('data.js') < idx('engine.js'), 'data.js before engine.js');
+  for (let i = 1; i < own.length; i++) assert.ok(idx(own[i - 1]) < idx(own[i]), `${own[i - 1]} before ${own[i]}`);
+  for (const s of srcs.slice(0, idx('config.js'))) assert.ok(idx(s) < idx('config.js'));
+  assert.ok(idx('engine.js') < idx('config.js') && idx('data.js') < idx('config.js'), 'shared scripts precede config.js');
 });
 
 // ---------- harness 2 + DOM ----------
@@ -158,26 +221,44 @@ test('K2 load-dom exports loadDom and does not require jsdom at module load', ()
 if (NODE_MAJOR < 20) {
   test('K2 DOM scaffold tests (skipped: jsdom requires Node >= 20)', { skip: true }, () => {});
 } else {
-  test('K2 loadDom provides #app, all globals including UI, and makes no network request', () => {
-    let calls = 0;
-    const realFetch = globalThis.fetch;
-    globalThis.fetch = function () { calls++; return Promise.reject(new Error('network is forbidden in tests')); };
+  test('K2 loadDom provides #app and all globals including UI', () => {
+    const { window, document, app } = require('./load-dom').loadDom();
+    assert.ok(window && document);
+    assert.ok(document.getElementById('app'), '#app missing');
+    for (const k of ['Engine', 'BEGINNER_CONFIG', 'BEGINNER_EXERCISES', 'Coach', 'Store', 'UI']) {
+      assert.ok(app[k] !== undefined, `app.${k} missing`);
+    }
+    assert.strictEqual(typeof app.UI, 'object');
+  });
+
+  test('K2 loadDom records network use in window.__netCalls: none on load, live spy afterwards', () => {
+    const { window } = require('./load-dom').loadDom();
+    assert.ok(Array.isArray(window.__netCalls), 'window.__netCalls must be an array');
+    assert.strictEqual(window.__netCalls.length, 0, 'no network request on load');
+    assert.strictEqual(typeof window.XMLHttpRequest, 'function');
+    let result;
+    try { result = window.fetch('/x'); } catch (e) { result = null; }
+    if (result && typeof result.catch === 'function') result.catch(() => {});
+    assert.strictEqual(window.__netCalls.length, 1, 'the fetch spy must be live');
+  });
+
+  test('K2 loadDom auto-exposes every top-level declaration including ui.js', () => {
+    const dir = probeDir();
+    fs.appendFileSync(path.join(dir, 'ui.js'), '\nconst UI_PROBE = 5;\n');
     try {
-      const { window, document, app } = require('./load-dom').loadDom();
-      assert.ok(window && document);
-      assert.ok(document.getElementById('app'), '#app missing');
-      for (const k of ['Engine', 'BEGINNER_CONFIG', 'BEGINNER_EXERCISES', 'Coach', 'Store', 'UI']) {
-        assert.ok(app[k] !== undefined, `app.${k} missing`);
-      }
-      assert.strictEqual(typeof app.UI, 'object');
-      assert.strictEqual(calls, 0, 'no fetch on load');
-    } finally { globalThis.fetch = realFetch; }
+      const { app } = require('./load-dom').loadDom({ beginnerDir: dir });
+      assert.strictEqual(app.EXTRA_PROBE, 42);
+      assert.strictEqual(app.extraProbeFn(), 7);
+      assert.strictEqual(app.UI_PROBE, 5);
+      assert.ok(app.UI && app.Coach && app.Store && app.Engine);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 
   test('K2 loadDom returns independent windows', () => {
     const a = require('./load-dom').loadDom();
     const b = require('./load-dom').loadDom();
     assert.notStrictEqual(a.window, b.window);
+    assert.notStrictEqual(a.document, b.document);
     a.document.getElementById('app').innerHTML = '<p>x</p>';
     assert.strictEqual(b.document.getElementById('app').innerHTML, '');
   });
@@ -194,7 +275,17 @@ function listAll(dir, base = dir, out = []) {
 }
 function runAssemble(outDir) { return require(path.join(ROOT, 'scripts', 'assemble-beginner.js')).assemble({ outDir }); }
 
-test('K2 assemble copies the required files and engine/data byte-identical to app/', () => {
+test('K2 assemble exports SHARED_FROM_APP and BEGINNER_FILES lists', () => {
+  const m = require(path.join(ROOT, 'scripts', 'assemble-beginner.js'));
+  assert.ok(Array.isArray(m.SHARED_FROM_APP), 'SHARED_FROM_APP must be an array');
+  assert.ok(Array.isArray(m.BEGINNER_FILES), 'BEGINNER_FILES must be an array');
+  assert.deepStrictEqual(m.SHARED_FROM_APP.slice(0, 2), ['data.js', 'engine.js']);
+  for (const f of ['index.html', 'styles.css', 'config.js', 'exercises.js', 'coach.js', 'store.js', 'ui.js']) {
+    assert.ok(m.BEGINNER_FILES.includes(f), `BEGINNER_FILES must list ${f}`);
+  }
+});
+
+test('K2 assemble copies the required files and every shared file byte-identical to app/', () => {
   const out = tmp();
   try {
     runAssemble(out);
@@ -202,7 +293,9 @@ test('K2 assemble copies the required files and engine/data byte-identical to ap
     for (const f of ['index.html', 'styles.css', 'config.js', 'exercises.js', 'coach.js', 'store.js', 'ui.js', 'engine.js', 'data.js']) {
       assert.ok(files.includes(f), `missing ${f}`);
     }
-    for (const f of ['engine.js', 'data.js']) {
+    const m = require(path.join(ROOT, 'scripts', 'assemble-beginner.js'));
+    assert.ok(Array.isArray(m.SHARED_FROM_APP), 'SHARED_FROM_APP must be an array');
+    for (const f of m.SHARED_FROM_APP) {
       assert.ok(fs.readFileSync(path.join(out, f)).equals(fs.readFileSync(path.join(ROOT, 'app', f))), `${f} differs from app/`);
     }
     for (const f of ['index.html', 'styles.css', 'config.js', 'exercises.js', 'coach.js', 'store.js', 'ui.js']) {
