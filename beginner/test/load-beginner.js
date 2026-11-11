@@ -36,7 +36,11 @@ function loadBeginner(opts) {
     if (!fs.existsSync(p)) throw new Error('Missing beginner file ' + f + ' in ' + dir);
     return fs.readFileSync(p, 'utf8');
   };
-  const own = PURE_FILES.map(f => rd(bDir, f));
+  // Package 7: platform.js (BeginnerPlatform) is pure (it only touches the window object it is
+  // handed), so it loads here too. It is optional in the harness so a custom beginnerDir
+  // without it still loads; android.test.js asserts the real file exists.
+  const files = PURE_FILES.concat(fs.existsSync(path.join(bDir, 'platform.js')) ? ['platform.js'] : []);
+  const own = files.map(f => rd(bDir, f));
   const names = [...new Set([...SHARED_NAMES, ...own.flatMap(topLevelNames)])];
   const src = [...SHARED_FROM_APP.map(f => rd(appDir, f)), ...own].join('\n;\n');
   const exp = exportShim(names, 'return');

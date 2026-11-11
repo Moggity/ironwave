@@ -76,4 +76,11 @@ const BEGINNER_CONFIG = beginnerDeepFreeze({
     maxReps: 100,
     placeholder: 'media/placeholder.svg',
   },
+
+  // platform: owned by the Android package (platform.js)
+  platform: {
+    restChannelId: 'rest-timer',
+    restNotificationId: 7301,
+    restChannelImportance: 4,
+  },
 });
