@@ -8,17 +8,18 @@ const vm = require('vm');
 const { SHARED_FROM_APP } = require('../../scripts/assemble-beginner.js');
 
 const SHARED_NAMES = ['Engine', 'EXERCISES', 'EXERCISE_LIST', 'EX_META', 'EX_CUES', 'VOLUME_LANDMARKS', 'EXPERIENCE_FACTOR', 'TIME_MODEL'];
-const PURE_FILES = ['config.js', 'exercises.js', 'coach.js', 'store.js'];
+const PURE_FILES = ['config.js', 'exercises.js', 'strings.js', 'coach.js', 'store.js'];
 
 // Rule: beginner top-level globals are single plain declarations at column zero,
 // one name per declaration, no destructuring. A lookalike line inside a template
 // string or comment yields a name that simply reads undefined (guarded getter).
+const RESERVED = new Set(['for', 'if', 'in', 'of', 'new', 'this', 'return', 'class', 'function', 'const', 'let', 'var', 'do', 'while', 'else', 'switch', 'case', 'default', 'try', 'catch', 'finally', 'throw', 'typeof', 'delete', 'void', 'with', 'break', 'continue', 'null', 'true', 'false', 'super', 'import', 'export', 'extends', 'instanceof', 'yield', 'await', 'enum', 'static', 'debugger']);
 // Column-zero top-level declaration names found in a source text.
 function topLevelNames(src) {
   const names = [];
   const re = /^(?:async\s+)?(?:const|let|var|function\*?|class)\s+([A-Za-z_$][\w$]*)/gm;
   let m;
-  while ((m = re.exec(src))) names.push(m[1]);
+  while ((m = re.exec(src))) if (!RESERVED.has(m[1])) names.push(m[1]);
   return names;
 }
 
@@ -30,7 +31,10 @@ function exportShim(names, lead) {
 function loadBeginner(opts) {
   const appDir = path.join(__dirname, '..', '..', 'app');
   const bDir = (opts && opts.beginnerDir) || path.join(__dirname, '..');
-  const rd = (dir, f) => fs.readFileSync(path.join(dir, f), 'utf8');
+  const rd = (dir, f) => {
+    const p = path.join(dir, f);
+    return fs.readFileSync(fs.existsSync(p) ? p : path.join(__dirname, '..', f), 'utf8');
+  };
   const own = PURE_FILES.map(f => rd(bDir, f));
   const names = [...new Set([...SHARED_NAMES, ...own.flatMap(topLevelNames)])];
   const src = [...SHARED_FROM_APP.map(f => rd(appDir, f)), ...own].join('\n;\n');

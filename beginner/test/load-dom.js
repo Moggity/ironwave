@@ -30,7 +30,10 @@ function loadDom(opts) {
     calls.push({ type: 'xhr' });
     throw new Error('network is forbidden in tests');
   };
-  const read = f => fs.readFileSync(path.join(SHARED_FROM_APP.includes(f) ? appDir : bDir, f), 'utf8');
+  const read = f => {
+    const p = path.join(SHARED_FROM_APP.includes(f) ? appDir : bDir, f);
+    return fs.readFileSync(fs.existsSync(p) ? p : path.join(__dirname, '..', f), 'utf8');
+  };
   const sources = srcs.map(read);
   const names = [...new Set([...SHARED_NAMES, ...srcs.filter(f => !SHARED_FROM_APP.includes(f)).flatMap(f => topLevelNames(read(f)))])];
   // Rule: beginner top-level globals are single plain declarations at column zero,
