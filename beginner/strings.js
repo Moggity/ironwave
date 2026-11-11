@@ -79,6 +79,7 @@ const BEGINNER_STRINGS = (function beginnerStringsFreeze(o) {
   },
   errors: {
     save: 'That did not save. Tap Done again.',
+    action: 'That did not save. Tap again.',
     import: 'That file did not work. Nothing was changed.',
     storage: 'This device cannot save your workouts.',
   },
