@@ -164,6 +164,19 @@
        'lb')/KG_PER_LB lb; shown values are rounded to the lb grid; LD: the logged weightKg is
        the kg equivalent of the DISPLAYED value. LD: first plus on an empty weight goes to one
        increment, first plus on empty reps goes to 1, minus never goes below empty/0.
+       ROUND 4 (LD) NO SILENT CHANGE (N1): a typed weight is never altered. In lb display, if
+       the stored kg value is within 1e-6 of a value with at most two decimals in lb, that lb
+       value is shown (typed 47 shows 47, 47.5 shows 47.5, never 45); otherwise (a kg-native
+       value such as 22.5 kg) it is rounded to the lb grid (shows 50, never 49.6). A following
+       set logged without touching the weight stores exactly the same kg as the previous one;
+       the same holds in kg (typed 12.3 stays 12.3).
+       CLOCK GUARDS (N2): the double-tap guard applies only when 0 <= gap < doubleTapMs, so a
+       clock that moved BACK never blocks Done; a newest set in the future never blocks Done; a
+       rest is resumed after a kill only when 0 <= now - lastSet.at < restSec * 1000, and a shown
+       rest never exceeds restSec.
+       CAPS (N3): BEGINNER_CONFIG.ui.maxWeightKg (start 500, compared in kg whatever the
+       display unit) and ui.maxReps (start 100). A typed value above a cap is invalid (restored
+       on change); a value equal to the cap is valid; plus stops at the cap.
    Done (data-screen="done"):
      done-summary     data-line; text = done.summary with {exercises}, {exerciseWord}, {sets},
                       {setWord}; the words are done.exerciseOne/exerciseMany and
