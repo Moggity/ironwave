@@ -82,5 +82,7 @@ const BEGINNER_STRINGS = (function beginnerStringsFreeze(o) {
     action: 'That did not save. Tap again.',
     import: 'That file did not work. Nothing was changed.',
     storage: 'This device cannot save your workouts.',
+    retry: 'Check again',
+    newerVersion: 'This app is out of date. Update it, then open it again.',
   },
 });
