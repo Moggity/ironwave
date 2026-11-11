@@ -1,0 +1,17 @@
+{
+  "name": "ironwave-beginner",
+  "version": "1.0.0",
+  "description": "Ironwave beginner app: a very simple companion product sharing the Ironwave engine and data.",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "assemble": "node ../scripts/assemble-beginner.js"
+  },
+  "private": true,
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  }
+}
