@@ -179,7 +179,14 @@ if (H.NODE_MAJOR < 20) {
 
   test('D6 an Easy first set at 12 reps or more pre-fills the next set from the coach, with no message', async () => {
     const h = await lift(['db-curl']);
-    await h.clickN('weight-plus', 5);
+    // Search upward for the fewest plus clicks at which the coach's easy rule applies.
+    const inc = Coach.incrementKg('db', 'kg');
+    const easyAt = k => Coach.prefill({ exercise: ex('db-curl'), units: 'kg', now: h.clock(), currentWorkoutId: 'x',
+      workouts: [{ id: 'x', startedAt: h.clock(), endedAt: null, feel: null, plan: ['db-curl'], sets: [{ exerciseId: 'db-curl', weightKg: k * inc, reps: 12, effort: 'easy', at: h.clock() }] }] });
+    let clicks = 0;
+    for (let k = 1; k <= 60 && !clicks; k++) if (easyAt(k).rule === 'easy') clicks = k;
+    assert.ok(clicks > 0, 'precondition: some weight within 60 increments triggers the easy rule');
+    await h.clickN('weight-plus', clicks);
     await h.clickN('reps-plus', 12);
     await h.click('lift-done');
     await h.click('face-easy');
