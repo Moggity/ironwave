@@ -18,6 +18,8 @@ const BEGINNER_CONFIG = beginnerDeepFreeze({
     dbName: 'ironwave-beginner',
     storeName: 'kv',
     exportApp: 'ironwave-beginner',
+    memoKeys: [],
+    writeTimeoutMs: 5000,
   },
 
   // coach: owned by the coaching-logic package
