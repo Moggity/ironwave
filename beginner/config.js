@@ -16,7 +16,9 @@ const BEGINNER_CONFIG = beginnerDeepFreeze({
     perMuscleStarterMin: 3,
     perMuscleStarterKeysMin: 2,
     goalDepthMin: 4,
-    noneStarterMin: 3,
+    noneStarterMin: 6,
+    homeStarterMin: 6,
+    equipKeyMaxExercises: 8,
     placeholderMaxBytes: 4096,
   },
 
