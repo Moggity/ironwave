@@ -59,7 +59,7 @@
 
    MEDIA: beginner/media/manifest.json = { "schemaVersion": 1, "items": {} } (items
      only for ids in the list whose file exists). beginner/media/placeholder.svg:
-     non-empty, under 4096 bytes, no <script, no http, no <text/<tspan/<title/<desc.
+     non-empty, under 4096 bytes, must carry xmlns="http://www.w3.org/2000/svg"; apart from that no http, no href, no <script, no <text/<tspan/<title/<desc.
    ============================================================ */
 'use strict';
 const { test } = require('node:test');
@@ -306,9 +306,13 @@ test('B3 media placeholder.svg is a small, silent, self-contained SVG', () => {
   const buf = fs.readFileSync(p), s = buf.toString('utf8');
   assert.ok(buf.length > 0 && buf.length < cfg('placeholderMaxBytes'), 'placeholder.svg is ' + buf.length + ' bytes, need 1 to ' + (cfg('placeholderMaxBytes') - 1));
   assert.ok(/<svg[\s>]/.test(s), 'placeholder.svg must contain an <svg> element');
-  assert.ok(!/<script/i.test(s), 'placeholder.svg must not contain <script');
-  assert.ok(!/http/i.test(s), 'placeholder.svg must not contain "http" (no external URLs, not even the xmlns)');
-  assert.ok(!/<(text|tspan|title|desc)[\s>]/i.test(s), 'placeholder.svg must not contain text elements (text, tspan, title, desc)');
+  const NS = 'xmlns="http://www.w3.org/2000/svg"';
+  assert.ok(s.includes(NS), 'placeholder.svg must carry ' + NS + ' (an <img> will not render it otherwise)');
+  const rest = s.split(NS).join('');
+  assert.ok(!/http/i.test(rest), 'placeholder.svg must not contain "http" apart from the xmlns namespace');
+  assert.ok(!/href/i.test(rest), 'placeholder.svg must not contain href');
+  assert.ok(!/<script/i.test(rest), 'placeholder.svg must not contain <script');
+  assert.ok(!/<(text|tspan|title|desc)[\s>]/i.test(rest), 'placeholder.svg must not contain text elements (text, tspan, title, desc)');
 });
 
 function listFiles(dir, base) {
