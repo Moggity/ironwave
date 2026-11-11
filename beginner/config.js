@@ -17,6 +17,29 @@ const BEGINNER_CONFIG = beginnerDeepFreeze({
 
   // coach: owned by the coaching-logic package
   coach: {
+    repRange: [8, 12],
+    effortRpe: { easy: 6, good: 8, hard: 9.5 },
+    defaultRpe: 8,
+    shortfallReps: 2,
+    holdsBeforeDrop: 2,
+    easyTriggerReps: 12,
+    easyTargetReps: 10,
+    easyTargetRpe: 8,
+    longGapDays: 56,
+    repsOnlyEquipment: ['bw', 'bd'],
+    repsOnlyRange: [1, 20],
+    setsFirst: 2,
+    setsFirstSessions: 2,
+    setsAfter: 3,
+    setsMin: 1,
+    setsMax: 4,
+    suggestCount: 6,
+    tickCount: 3,
+    muscleOrder: ['chest', 'back', 'legs', 'glutes', 'shoulders', 'arms', 'calves'],
+    increments: {
+      kg: { bb: 2.5, db: 2, mc: 5, cb: 2.5, kb: 4, bw: 0, bd: 0 },
+      lb: { bb: 5, db: 5, mc: 10, cb: 5, kb: 5, bw: 0, bd: 0 },
+    },
   },
 
   // ui: owned by the screens package
