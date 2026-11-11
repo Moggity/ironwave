@@ -77,6 +77,12 @@ const BEGINNER_STRINGS = (function beginnerStringsFreeze(o) {
     yes: 'Yes, import',
     no: 'Cancel',
   },
+  // Package 7: the locked-phone rest-end notification (platform.js, Android only).
+  rest: {
+    notifyTitle: 'Rest is over',
+    notifyBody: 'Your next set is ready',
+    channelName: 'Rest timer',
+  },
   errors: {
     save: 'That did not save. Tap Done again.',
     action: 'That did not save. Tap again.',

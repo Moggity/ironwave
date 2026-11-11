@@ -1,0 +1,105 @@
+name: Android test build
+
+# Builds a signed test APK of the beginner app (a Capacitor shell around the same web files
+# the Pages build serves). Pull requests only build and upload the APK as a run artifact.
+# A push to main or a manual run also publishes it as the one pre-release "Latest test build".
+# The key is a public test key (beginner/android/test-signing), so there are no secrets here.
+# Keep this file name: the run number (the Android versionCode) restarts if it is recreated.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'beginner/**'
+      - 'app/engine.js'
+      - 'app/data.js'
+      - 'scripts/assemble-beginner.js'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'beginner/**'
+      - 'app/engine.js'
+      - 'app/data.js'
+      - 'scripts/assemble-beginner.js'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: beginner
+
+      # Exactly the command the Pages workflow runs, so both ship the same web files.
+      - name: Assemble the web files
+        run: node scripts/assemble-beginner.js
+
+      - name: Copy the web files into the Android project
+        run: npx cap sync android
+        working-directory: beginner
+
+      - name: Build the signed APK
+        run: ./gradlew assembleRelease
+        working-directory: beginner/android
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: beginner/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # One publish at a time, and a running publish is never cancelled half way.
+    concurrency:
+      group: android-publish
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
+          path: apk
+
+      # An older run that finishes late must not replace a newer APK: Android refuses to
+      # install a lower versionCode over a higher one. The run number is kept in the notes.
+      - name: Publish the pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_NUMBER: ${{ github.run_number }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -e
+          if gh release view test-latest --repo "$REPO" > /dev/null 2>&1; then
+            OLD=$(gh release view test-latest --repo "$REPO" --json body --jq .body | sed -n 's/^Run number: //p' | head -n 1)
+            if [ -n "$OLD" ] && [ "$OLD" -gt "$RUN_NUMBER" ]; then
+              echo "A newer build is already published, nothing to do."
+              exit 0
+            fi
+          else
+            gh release create test-latest --repo "$REPO" --target "$COMMIT" --prerelease --title "Latest test build" --notes "Run number: $RUN_NUMBER"
+          fi
+          gh release edit test-latest --repo "$REPO" --prerelease --title "Latest test build" --notes "Run number: $RUN_NUMBER
+          Commit: $COMMIT
+          Signed with a public test key. Not for any store."
+          gh release upload test-latest apk/app-release.apk --repo "$REPO" --clobber

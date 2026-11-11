@@ -26,7 +26,7 @@ const UI = (function () {
     list: [], ticked: [], search: '', confirm: null, importError: false, saveError: false,
     curId: null, w: null, r: null, rule: '', touched: false, busy: false,
     lastIndex: null, restStart: null, vibrated: false, moreFor: null, panel: null,
-    doneId: null,
+    doneId: null, pending: 0, resumeOpen: false,
   };
 
   // ---------- helpers ----------
@@ -68,6 +68,15 @@ const UI = (function () {
     const d = new opt.DateCtor(ms);
     const p2 = n => (n < 10 ? '0' : '') + n;
     return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+  }
+
+  // Optional platform hooks (rest signal on a locked phone). A hook that throws or rejects is ignored.
+  function hook(name, arg) {
+    try {
+      const f = opt.platform[name];
+      const r = typeof f === 'function' ? f(arg) : null;
+      if (r && typeof r.catch === 'function') r.catch(() => {});
+    } catch (e) { /* the rest signal is best effort */ }
   }
 
   // ---------- default platform and timers ----------
@@ -321,7 +330,11 @@ const UI = (function () {
       if (t) t.textContent = clockText(rem);
     }
     if (rem === 0) {
-      if (!V.vibrated) { V.vibrated = true; try { opt.platform.vibrate(cfg().vibrateMs); } catch (e) { /* ignore */ } }
+      if (!V.vibrated) {
+        V.vibrated = true;
+        try { opt.platform.vibrate(cfg().vibrateMs); } catch (e) { /* ignore */ }
+        hook('cancelRestEnd');
+      }
       stopTimer();
     }
   }
@@ -339,12 +352,21 @@ const UI = (function () {
     V.saveError = false;
     render();
   }
-  function showPick() {
+  // openPlan: Pick reached by back while a workout is open. It shows that workout's plan, all
+  // ticked, and Start resumes the workout instead of creating one.
+  function showPick(openPlan) {
     stopTimer();
     const st = db.state;
-    const r = Coach.suggest({ exercises: BEGINNER_EXERCISES, goalFocuses: goalFocuses(st), excludedEquipment: st.excludedEquipment, workouts: st.workouts, now: now() });
-    V.list = r.list.slice();
-    V.ticked = r.ticked.slice();
+    const w = openPlan ? db.activeWorkout() : null;
+    V.resumeOpen = !!w;
+    if (w) {
+      V.list = knownPlan(w);
+      V.ticked = V.list.slice();
+    } else {
+      const r = Coach.suggest({ exercises: BEGINNER_EXERCISES, goalFocuses: goalFocuses(st), excludedEquipment: st.excludedEquipment, workouts: st.workouts, now: now() });
+      V.list = r.list.slice();
+      V.ticked = r.ticked.slice();
+    }
     V.search = '';
     V.confirm = null;
     V.importError = false;
@@ -395,6 +417,7 @@ const UI = (function () {
     if (newest && sinceSet >= 0 && sinceSet < cfg().restSec * 1000) {
       V.restStart = newest.at;
       startTimer();
+      hook('scheduleRestEnd', newest.at + cfg().restSec * 1000);
     }
     V.screen = 'lift';
     render();
@@ -424,6 +447,7 @@ const UI = (function () {
 
   // Every db write goes through here: a failure shows the one save-error alert, nothing is lost.
   async function write(fn) {
+    V.pending++;
     try {
       const r = await fn();
       V.saveError = false;
@@ -432,6 +456,8 @@ const UI = (function () {
       V.saveError = 'action';
       render();
       return { ok: false };
+    } finally {
+      V.pending--;
     }
   }
 
@@ -439,6 +465,7 @@ const UI = (function () {
 
   async function startWorkout() {
     const plan = cardOrder();
+    if (V.resumeOpen && db.activeWorkout()) { showLift(); return; }
     if (!plan.length) return;
     const r = await write(() => db.startWorkout({ plan, now: now() }));
     if (r.ok) showLift();
@@ -496,6 +523,7 @@ const UI = (function () {
     const text = V.confirm;
     V.confirm = null;
     V.saveError = false;
+    V.pending++;
     try {
       await db.importData(text);
     } catch (e) {
@@ -503,6 +531,8 @@ const UI = (function () {
       render();
       focusImport();
       return;
+    } finally {
+      V.pending--;
     }
     V.importError = false;
     await route();
@@ -541,6 +571,7 @@ const UI = (function () {
       V.moreFor = null;
       computePrefill();
       startTimer();
+      hook('scheduleRestEnd', at + cfg().restSec * 1000);
     } catch (err) {
       V.saveError = 'save';
     }
@@ -587,6 +618,7 @@ const UI = (function () {
     if (!w) { showPick(); return; }
     const id = w.id;
     if (!(await write(() => db.endWorkout({ now: now(), feel: null }))).ok) return;
+    hook('cancelRestEnd');
     if (db.state.workouts.some(x => x.id === id)) showDone(id); else showPick();
   }
 
@@ -724,6 +756,18 @@ const UI = (function () {
     if (id === 'weight-value' || id === 'reps-value') typed(t, id, true);
   }
 
+  // The hardware back button. Synchronous. True when it was handled here, false when there is
+  // nothing to go back to (the caller then leaves the app). It never writes or deletes anything.
+  function back() {
+    if (!db || !root) return false;
+    if (V.screen === 'pick' && V.confirm !== null) { V.confirm = null; render(); focusImport(); return true; }
+    if (V.screen === 'lift' && V.panel) { V.panel = null; render(); return true; }
+    if (V.pending > 0 || V.busy) return true;
+    if (V.screen === 'done') { showPick(); return true; }
+    if (V.screen === 'lift') { hook('cancelRestEnd'); showPick(true); return true; }
+    return false;
+  }
+
   // ---------- boot ----------
   async function boot(opts) {
     const o = opts || {};
@@ -768,5 +812,5 @@ const UI = (function () {
     await route();
   }
 
-  return { boot };
+  return { boot, back };
 })();

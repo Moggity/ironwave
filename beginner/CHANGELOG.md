@@ -44,3 +44,10 @@
 - `pages.yml` guards `BEGINNER_DIR` (characters `A-Za-z0-9_-` only, folder must not exist) before copying, without printing the value.
 - Storage retry is single-flight and reloads the page (`platform.reload`) after a newer-version error.
 - The stepper value field rule out-ranks the general text input rule, so it keeps its width.
+
+## Package 7: Android APK
+
+- A Capacitor shell (`beginner/android`, `capacitor.config.json`, Capacitor 8) around the assembled web folder, with the default WebView origin so saved workouts survive updates. The copy of the web files inside the Android project is git-ignored.
+- `platform.js` (`BeginnerPlatform`): native vibrate, file export through the share sheet, the hardware back button (minimize on Pick), and one vibrating device notification at the end of the rest so a locked phone still signals. Plugins are read from `Capacitor.Plugins` (filled by the native bridge, no bundler), with `registerPlugin` as fallback. Web behaviour is unchanged.
+- `UI.back()`: back closes a dialog or panel, goes from Done or Lift to Pick, and never writes or deletes. A Pick reached from an open workout shows its plan and Start resumes it.
+- `boot.js` skips the service worker on native and wires the back button. `.github/workflows/android.yml` builds a signed APK on every pull request and publishes the pre-release "Latest test build" from main. The signing key is a public test key.
