@@ -5,3 +5,7 @@
 
 ## Package 2: exercise data
 - 42 beginner exercises with equipment keys, form cues and placeholder media, plus the five goals (Bigger arms, Bigger chest, Legs and glutes, Look fit, Look strong) with `beginnerGoalFocus`, where a skipped goal means Look fit.
+
+## Package 3: store
+- Versioned state with idempotent migration, memory and IndexedDB adapters, a serialised write-through session (every call resolves after the write; failed writes roll back), and one-file export and import.
+- Package 3 review fixes: migration never loses a set (extra open workouts are closed, duplicate ids made unique), frozen state, memo slot, import summary, export needs a time, hardened IndexedDB adapter (strict durability, reconnect, write timeout).
