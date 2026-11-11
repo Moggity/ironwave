@@ -9,6 +9,15 @@ function beginnerDeepFreeze(o) {
 const BEGINNER_CONFIG = beginnerDeepFreeze({
   // exercises: owned by the exercise-data package
   exercises: {
+    cueMaxLength: 90,
+    exerciseCountMin: 36,
+    exerciseCountMax: 44,
+    starterMin: 24,
+    perMuscleStarterMin: 3,
+    perMuscleStarterKeysMin: 2,
+    goalDepthMin: 4,
+    noneStarterMin: 3,
+    placeholderMaxBytes: 4096,
   },
 
   // store: owned by the persistence package
