@@ -77,6 +77,7 @@ const REQUIRED = {
   'data.yes': { suggest: 'Yes, import' },
   'data.no': { suggest: 'Cancel' },
   'errors.save': { suggest: 'That did not save. Tap Done again.' },
+  'errors.action': { suggest: 'That did not save. Tap again.' },
   'errors.import': { suggest: 'That file did not work. Nothing was changed.' },
   'errors.storage': { suggest: 'This device cannot save your workouts.' },
 };
@@ -125,6 +126,13 @@ test('A2 criterion-fixed wording is exact', () => {
     const exact = typeof want === 'string' ? want : want.exact;
     if (exact !== undefined) assert.strictEqual(L[key], exact, key);
   }
+});
+
+test('C6 errors.action does not tell the user to tap Done (it serves every failed write but Done)', () => {
+  const L = leaves(load());
+  assert.strictEqual(typeof L['errors.action'], 'string', 'errors.action is missing');
+  assert.ok(!/\bDone\b/i.test(L['errors.action']), L['errors.action']);
+  assert.notStrictEqual(L['errors.action'], L['errors.save']);
 });
 
 test('D10 the singular and plural word forms differ and are single lowercase words', () => {

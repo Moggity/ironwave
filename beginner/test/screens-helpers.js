@@ -93,7 +93,10 @@
        weight is read in the DISPLAY unit (point or comma), stored as kg = typed * factor,
        NO snapping to the grid (the user typed what they did); a typed reps value must be an
        integer >= 0. Invalid or negative input is ignored and the previous value is restored
-       on `change`. Done is enabled once reps >= 1. Plus/minus after a typed off-grid value
+       on `change`. Done is enabled once reps >= 1.
+       A3 (LD): the only inputs on Lift are weight-value and reps-value (typing what you did is
+       the product, not a question); no select, no textarea, and no label, placeholder or
+       aria-label asks about account, experience, body data, 1RM or training days. Plus/minus after a typed off-grid value
        step from the typed value. weight-unit is the unit string.
        Accessible names (aria-label, or text when absent) come from single strings:
        weight-minus lift.weightLess, weight-plus lift.weightMore, reps-minus lift.repsLess,
@@ -115,6 +118,11 @@
        restore, goal continue or skip, a Done-screen feel answer, logSet) shows an element
        testid save-error with role="alert" on the current screen (same testid everywhere), keeps
        the user on that screen with nothing lost, and a retry works; it clears on success.
+       Wording: a failed Done shows errors.save (it says to tap Done again); every OTHER failed
+       write shows errors.action (no mention of Done), both in the save-error alert.
+       DOUBLE TAP gap (LD): a Done at a gap of 0 ms, 1 ms or doubleTapMs - 1 from the newest
+       logged set logs nothing; at doubleTapMs it logs. h.logSets advances the fake clock by
+       doubleTapMs + 100 before each Done, so consecutive sets are never in the window.
        UNKNOWN IDS (LD): plan or set ids not in BEGINNER_EXERCISES are skipped everywhere a plan
        or log is read (resume, next, swap, repeat last workout, Done summary), never throw.
      set-counter      "Set {n} of {m}": n = sets of this exercise already logged in this
@@ -342,6 +350,7 @@ async function boot(o = {}) {
     for (let i = 0; i < n; i++) {
       if (h.q('reps-value') && h.val('reps-value') === '') await h.clickN('reps-plus', 10);
       if (h.q('weight-plus') && h.val('weight-value') === '') await h.click('weight-plus');
+      h.gap();
       await h.click('lift-done');
     }
   };
@@ -350,6 +359,8 @@ async function boot(o = {}) {
     for (const el of root.querySelectorAll('*')) for (const a of ['alt', 'aria-label', 'title', 'placeholder']) if (el.getAttribute(a)) out.push(el.getAttribute(a));
     return out;
   };
+  // Advance the fake clock past the double-tap window (BEGINNER_CONFIG.ui.doubleTapMs).
+  h.gap = () => clock.advance((BEGINNER_CONFIG.ui.doubleTapMs || 500) + 100);
   h.hiddenNote = () => {
     const w = new window.Event('visibilitychange', { bubbles: true });
     document.dispatchEvent(w);

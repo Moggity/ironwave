@@ -92,14 +92,18 @@ if (H.NODE_MAJOR < 20) {
     assert.strictEqual(inputs[0], h.q('name-input'));
   });
 
-  test('A3 no question is asked before the first set (Pick has only ticks and search, Lift no fields)', async () => {
+  test('A3 no question is asked before the first set (Pick has only ticks and search, Lift only the weight and reps values)', async () => {
     const h = await fresh();
     await h.click('goal-skip');
     const ok = new Set([h.q('pick-search'), ...h.all('pick-tick')]);
     assert.deepStrictEqual(h.rootInputs().filter(i => !ok.has(i)).length, 0, 'unexpected field on Pick');
     await h.click('pick-start');
     assert.strictEqual(h.screen(), 'lift');
-    assert.strictEqual(h.rootInputs().length, 0, 'unexpected field on Lift');
+    const allowed = new Set([h.q('weight-value'), h.q('reps-value')]);
+    assert.deepStrictEqual(h.rootInputs().filter(i => !allowed.has(i)).length, 0, 'unexpected field on Lift');
+    assert.strictEqual(h.root.querySelectorAll('select, textarea').length, 0, 'select or textarea on Lift');
+    const labels = [h.text(), ...h.attrTexts()].join(' | ');
+    assert.ok(!/account|experience|\bage\b|body ?weight|\b1RM\b|training days|days per week|how many days/i.test(labels), 'a forbidden question topic appears: ' + labels);
   });
 
   test('A4 from a fresh install three clicks (goal, continue, Start) reach the Lift screen', async () => {

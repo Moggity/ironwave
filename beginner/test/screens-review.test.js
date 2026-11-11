@@ -91,6 +91,7 @@ if (H.NODE_MAJOR < 20) {
     h.adapter.failNext = 1;
     await h.click('lift-done');
     assert.ok(alertOf(h), 'save-error with role="alert" missing');
+    assert.strictEqual(alertOf(h).textContent.trim(), h.S.errors.save, 'a failed Done says errors.save');
   });
 
   test('C6 a failed goal Continue is visible, keeps the selection and works on retry', async () => {
@@ -100,6 +101,7 @@ if (H.NODE_MAJOR < 20) {
     await h.click('goal-continue');
     assert.strictEqual(h.screen(), 'goal');
     assert.ok(alertOf(h));
+    assert.strictEqual(alertOf(h).textContent.trim(), h.S.errors.action, 'a failed non-Done write says errors.action');
     assert.strictEqual(h.all('goal-tile')[0].getAttribute('aria-pressed'), 'true');
     const s = await h.state();
     assert.ok(!s || s.onboarded === false);
@@ -114,6 +116,7 @@ if (H.NODE_MAJOR < 20) {
     await h.click('goal-skip');
     assert.strictEqual(h.screen(), 'goal');
     assert.ok(alertOf(h));
+    assert.strictEqual(alertOf(h).textContent.trim(), h.S.errors.action, 'a failed non-Done write says errors.action');
     await h.click('goal-skip');
     assert.strictEqual(h.screen(), 'pick');
   });
@@ -125,6 +128,7 @@ if (H.NODE_MAJOR < 20) {
     await h.click('pick-start');
     assert.strictEqual(h.screen(), 'pick');
     assert.ok(alertOf(h));
+    assert.strictEqual(alertOf(h).textContent.trim(), h.S.errors.action, 'a failed non-Done write says errors.action');
     assert.strictEqual(await h.active(), null);
     assert.deepStrictEqual(h.tickedIds(), ticked);
     await h.click('pick-start');
@@ -139,6 +143,7 @@ if (H.NODE_MAJOR < 20) {
     await h.click('lift-end');
     assert.strictEqual(h.screen(), 'lift');
     assert.ok(alertOf(h));
+    assert.strictEqual(alertOf(h).textContent.trim(), h.S.errors.action, 'a failed non-Done write says errors.action');
     assert.strictEqual((await h.active()).sets.length, 1);
     await h.click('lift-end');
     assert.strictEqual(h.screen(), 'done');
@@ -151,6 +156,7 @@ if (H.NODE_MAJOR < 20) {
     await h.click('lift-finish');
     assert.strictEqual(h.screen(), 'lift');
     assert.ok(alertOf(h));
+    assert.strictEqual(alertOf(h).textContent.trim(), h.S.errors.action, 'a failed non-Done write says errors.action');
     assert.strictEqual((await h.active()).sets.length, 1);
     await h.click('lift-finish');
     assert.strictEqual(h.screen(), 'done');
@@ -166,6 +172,7 @@ if (H.NODE_MAJOR < 20) {
     await h.click(opt);
     assert.strictEqual(h.screen(), 'lift');
     assert.ok(alertOf(h));
+    assert.strictEqual(alertOf(h).textContent.trim(), h.S.errors.action, 'a failed non-Done write says errors.action');
     assert.deepStrictEqual((await h.active()).plan, before);
     assert.strictEqual(h.val('lift-name'), name);
     if (!h.all('swap-option').length) await h.click('lift-swap');
@@ -181,6 +188,7 @@ if (H.NODE_MAJOR < 20) {
     h.adapter.failNext = 1;
     await h.click(opt);
     assert.ok(alertOf(h));
+    assert.strictEqual(alertOf(h).textContent.trim(), h.S.errors.action, 'a failed non-Done write says errors.action');
     assert.deepStrictEqual((await h.active()).plan, ['db-curl']);
     if (!h.all('add-option').length) await h.click('lift-add');
     await h.click(h.all('add-option')[0]);
@@ -195,6 +203,7 @@ if (H.NODE_MAJOR < 20) {
     h.adapter.failNext = 1;
     await h.click(card.querySelector('[data-testid="pick-missing"]'));
     assert.ok(alertOf(h));
+    assert.strictEqual(alertOf(h).textContent.trim(), h.S.errors.action, 'a failed non-Done write says errors.action');
     assert.deepStrictEqual(h.cardIds(), cards);
     assert.deepStrictEqual((await h.state()).excludedEquipment, []);
     await h.click(h.card(card.getAttribute('data-exercise')).querySelector('[data-testid="pick-missing"]'));
@@ -207,6 +216,7 @@ if (H.NODE_MAJOR < 20) {
     h.adapter.failNext = 1;
     await h.click('restore-item');
     assert.ok(alertOf(h));
+    assert.strictEqual(alertOf(h).textContent.trim(), h.S.errors.action, 'a failed non-Done write says errors.action');
     assert.strictEqual(h.all('restore-item').length, 1);
     assert.deepStrictEqual((await h.state()).excludedEquipment, ['dumbbells']);
     await h.click('restore-item');
@@ -221,6 +231,7 @@ if (H.NODE_MAJOR < 20) {
     await h.click('feel-easy');
     assert.strictEqual(h.screen(), 'done');
     assert.ok(alertOf(h));
+    assert.strictEqual(alertOf(h).textContent.trim(), h.S.errors.action, 'a failed non-Done write says errors.action');
     assert.strictEqual((await h.state()).workouts[0].feel, null);
     await h.click('feel-easy');
     assert.strictEqual((await h.state()).workouts[0].feel, 'easy');
@@ -388,24 +399,29 @@ if (H.NODE_MAJOR < 20) {
   });
 
   // ---------- double tap and pending (LD) ----------
-  test('C6 (LD) a second Done within doubleTapMs of the previous logged set logs nothing', async () => {
+  test('C6 (LD) a second Done at a gap of 0 ms, 1 ms or doubleTapMs - 1 from the newest set logs nothing', async () => {
     const ms = ui().doubleTapMs;
-    assert.ok(typeof ms === 'number' && ms > 0, 'BEGINNER_CONFIG.ui.doubleTapMs must exist');
+    assert.ok(typeof ms === 'number' && ms > 1, 'BEGINNER_CONFIG.ui.doubleTapMs must exist');
     const h = await lift(['db-curl']);
     await h.clickN('reps-plus', 10);
     await h.click('lift-done');
-    h.clock.advance(ms - 100);
     await h.click('lift-done');
-    assert.strictEqual((await h.active()).sets.length, 1);
+    assert.strictEqual((await h.active()).sets.length, 1, 'gap 0 ms');
+    h.clock.advance(1);
+    await h.click('lift-done');
+    assert.strictEqual((await h.active()).sets.length, 1, 'gap 1 ms');
+    h.clock.advance(ms - 2);
+    await h.click('lift-done');
+    assert.strictEqual((await h.active()).sets.length, 1, 'gap doubleTapMs - 1');
   });
 
-  test('C6 (LD) Done logs normally once doubleTapMs has passed', async () => {
+  test('C6 (LD) Done logs at a gap of exactly doubleTapMs', async () => {
     const ms = ui().doubleTapMs;
     assert.ok(typeof ms === 'number' && ms > 0, 'BEGINNER_CONFIG.ui.doubleTapMs must exist');
     const h = await lift(['db-curl']);
     await h.clickN('reps-plus', 10);
     await h.click('lift-done');
-    h.clock.advance(ms + 100);
+    h.clock.advance(ms);
     await h.click('lift-done');
     assert.strictEqual((await h.active()).sets.length, 2);
   });

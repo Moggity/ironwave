@@ -100,6 +100,7 @@ if (H.NODE_MAJOR < 20) {
     await h.click('one-more');
     assert.ok(h.q('lift-done'));
     assert.match(h.val('set-counter'), /^Set 3 of \d+$/);
+    h.gap();
     await h.click('lift-done');
     assert.strictEqual((await h.active()).sets.length, 3);
   });
@@ -231,6 +232,7 @@ if (H.NODE_MAJOR < 20) {
     await h.logSets(1);
     assert.ok(rem(h) > 0);
     assert.strictEqual(h.q('lift-done').disabled, false);
+    h.gap();
     await h.click('lift-done');
     assert.strictEqual((await h.active()).sets.length, 2);
   });
