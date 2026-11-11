@@ -4,20 +4,23 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const OWN = ['index.html', 'styles.css', 'config.js', 'exercises.js', 'coach.js', 'store.js', 'ui.js'];
-const SHARED = ['engine.js', 'data.js'];
+// Scripts shared from app/, copied byte-identical. Add a shared script here only.
+const SHARED_FROM_APP = ['data.js', 'engine.js'];
+// Beginner-owned files and folders, copied when present.
+const BEGINNER_FILES = ['index.html', 'styles.css', 'config.js', 'exercises.js', 'coach.js', 'store.js', 'ui.js', 'media'];
 
 function assemble(opts) {
   const outDir = (opts && opts.outDir) || path.join(ROOT, 'beginner', 'www');
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
-  for (const f of OWN) fs.copyFileSync(path.join(ROOT, 'beginner', f), path.join(outDir, f));
-  for (const f of SHARED) fs.copyFileSync(path.join(ROOT, 'app', f), path.join(outDir, f));
-  const media = path.join(ROOT, 'beginner', 'media');
-  if (fs.existsSync(media)) fs.cpSync(media, path.join(outDir, 'media'), { recursive: true });
+  for (const f of BEGINNER_FILES) {
+    const src = path.join(ROOT, 'beginner', f);
+    if (fs.existsSync(src)) fs.cpSync(src, path.join(outDir, f), { recursive: true });
+  }
+  for (const f of SHARED_FROM_APP) fs.copyFileSync(path.join(ROOT, 'app', f), path.join(outDir, f));
   return outDir;
 }
 
 if (require.main === module) console.log('Assembled to ' + assemble({}));
 
-module.exports = { assemble };
+module.exports = { assemble, SHARED_FROM_APP, BEGINNER_FILES };
