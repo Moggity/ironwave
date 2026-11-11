@@ -41,35 +41,71 @@ docs, re-export them over these files before continuing.
   and L5 enforce it.
 - **Stop for review after package 7** (Release 1: the APK on Martin's phone).
 
-## Verified facts about the repo (checked 10 Nov 2026)
+## What changed under the plans (read this before trusting any detail)
+
+The planning session worked from a local checkout that was 111 commits behind
+`main` (Ironwave v1.1.11, 209 tests). The algorithms report describes that old
+version too. This was only noticed at the end. The plans were then checked against
+current `main` (v1.19.0, 557 tests) for the points below, and corrected where a line
+was plainly wrong. The acceptance criteria describe behaviour, so they still hold.
+The parts that name Ironwave internals need a fresh look by whoever takes each
+package.
+
+- **Double progression already exists.** `Engine.doubleProgression(records, lo, hi,
+  targetRpe, inc)` (engine.js 505) and `Engine.repRangeFor(movement, sfr)` (480).
+  The "next target" rule in criteria D3 to D5 should wrap these, not reimplement
+  them. If their behaviour differs from D3 to D5, raise it with Martin; do not
+  change the engine.
+- **The focus scale is 0 to 3, not 0 to 6.** `FOCUS_MAX = 3` (data.js 1540): 1 Light,
+  2 Standard, 3 High, and the value is the weekly frequency. Goal tiles map to 3 for
+  the goal muscle and 2 for the rest. The two plan files were corrected. The
+  algorithms report still shows the old slider tables.
+- **The split generator was rewritten.** It is now
+  `generateBodybuildingDays(focus, N, opts)` (app.js 912 to 1094) under a frequency
+  contract enforced by `validateFocusWeek` and `test/focus-honesty.test.js`, with
+  short weeks allowed. Package 11's worry about 2 training days may already be
+  solved. Check before adding a fallback.
+- **`Engine.coach` exists** (engine.js 572): the arbitrator for plausibility and
+  session budgets, including `focusBudget` and `checkSessionEstimate`. Criterion E8
+  (a workout near 30 minutes) should consult it.
+- **Exercise media plumbing exists.** `app/media/manifest.json` and
+  `docs/exercise-media.md` define looping clips: one rep, 3 to 5 seconds, H.264 MP4
+  under 500 KB, named by exercise id. Use the same format and files for the demos in
+  criterion B3 instead of inventing one.
+- **kg and lb are already handled** as a display skin over kg storage
+  (`app/test/units.test.js`). Criterion G4 should reuse that code.
+- The repo also gained many documents under `docs/` (launch, monetization, legal,
+  release engineering, hidden UI). They were not read in the planning session.
+  `docs/release-engineering-report.md` may bear on the Android decision.
+
+## Verified facts about the repo (checked against main at v1.19.0, 10 Nov 2026)
 
 - Repository root is this `ironwave/` folder. Remote `origin` is on GitHub, branch
-  `main`, working tree was clean before these docs were added.
+  `main`. **Run `git pull` first.** The local checkout had been far behind.
 - `main` is branch-protected and requires the `check (18)` and `check (20)` CI jobs.
   Work goes through branches and pull requests, never a direct push.
-- Baseline: `cd app && npm test` gives 209 tests, 209 pass, 0 fail (Node 24 locally,
-  dependencies already installed).
+- This machine has no GitHub CLI. Git pushes work with
+  `git -c credential.helper=manager push`.
+- Baseline: `cd app && npm test` gives 557 tests, 557 pass, 0 fail (Node 24 locally).
 - `app/engine.js` is one pure `Engine` object (line 7). Confirmed present:
-  `e1rm` (33), `weightFor` (41), `bestE1RM` (48), `calibrationRamp` (104),
-  `warmupSets` (233), `tonnage` (262), `buildDropSet` (284), `buildMyoReps` (305),
-  `buildRestPause` (318), `restSecFor` (371), `e1rmTrend` (400). The technique
+  `e1rm` (39), `weightFor` (47), `bestE1RM` (54), `calibrationRamp` (126),
+  `buildDropSet` (329), `buildMyoReps` (350), `restSecFor` (416), `e1rmTrend` (445),
+  `repRangeFor` (480), `doubleProgression` (505), `coach` (572). The technique
   builders take an options argument, so a smaller dose (`drops: 1`, `minis: 2`) needs
-  no engine change.
+  no engine change. Line numbers drift; search by name.
 - `app/data.js` exercise rows are `[id, name, movement, equipment, isMain]` with
   equipment codes `bb, db, mc, cb, bw, kb, bd`. Those codes are too coarse for the
   "I don't have that here" button (criterion B4), which needs a specific key per
-  machine. Package 2 adds that key in `beginner/exercises.js`. `EX_CUES` (line 410)
-  already holds form cues, and `EX_META` (334) holds stimulus and muscle-head data.
-- Functions that package 9 lifts out of `app/app.js`:
-  `pickAccessory` (462) and `generateBodybuildingDays` (479 to 574) contain no direct
-  reference to the globals `S`, `V` or `P()`. `weeklyVolumeByMuscle` (2076 to 2097)
-  reads `P()` once. So the refactor is smaller than the coding plan assumes. Not
-  checked: which other `app.js` helpers and `data.js` tables these three call. Map
-  that before moving anything.
+  machine. Package 2 adds that key in `beginner/exercises.js`. `EX_CUES` (455) holds
+  form cues and `EX_META` (352) holds stimulus and muscle-head data.
+- Functions that package 9 lifts out of `app/app.js`: `pickAccessory` (754) and
+  `generateBodybuildingDays` (912 to 1094) contain no direct reference to the globals
+  `S`, `V` or `P()`. `weeklyVolumeByMuscle` (3547 to 3568) reads `P()` once. So the
+  refactor is smaller than the coding plan assumes. Not checked: which other `app.js`
+  helpers and `data.js` tables these three call. Map that before moving anything.
 - `autoregVolume`, `volumeStatus`, `seedLandmarks` and `deloadDepth` are named in
-  `CLAUDE.md` and the algorithms report as pure engine helpers. Their exact
-  signatures were not opened in the planning session. Read them before writing tests
-  against them.
+  `CLAUDE.md` as pure engine helpers. Their signatures were not opened in the
+  planning session. Read them before writing tests against them.
 - Tests reach the app through `app/test/load-app.js`, which concatenates the three
   scripts and compiles them in the current realm. The beginner app needs its own
   harness on the same pattern (package 1).

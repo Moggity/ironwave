@@ -1,5 +1,7 @@
 # Ironwave Training Algorithms Report
 
+> **Stale in places.** This report describes Ironwave v1.1.11. The repository is now at v1.19.0. Read the "What changed under the plans" section of `README.md` in this folder before relying on any detail here.
+
 Nov 10, 2026 · @Martin Arocha
 
 ## Summary

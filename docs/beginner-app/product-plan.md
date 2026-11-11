@@ -70,7 +70,7 @@ Every exercise in this app is treated as what Ironwave calls an accessory: loade
 | Weight for a target (`weightFor`) | Silently raises the pre-filled weight of the next set when the first was too easy. Also sets the starting weight after a swap | None |
 | Calibration ramp | The first-time prompt on any exercise. Beginner top set already stops at 3 reps in reserve | Shown as one sentence, not three feeler sets |
 | RPE per set | The Easy, Good, Hard tap | Easy = RPE 6, Good = 8, Hard = 9.5. No tap = 8, which is already the engine default |
-| Focus sliders | Set by the goal tiles. Bigger arms sets arms to 5 and the rest to 3. Several goals combine | Later nudged by what the user actually picks |
+| Focus sliders | Set by the goal tiles. Bigger arms sets arms to 3 (High) and the rest to 2 (Standard) on the current 0 to 3 scale. Several goals combine | Later nudged by what the user actually picks |
 | Volume landmarks at the beginner factor (0.65) | Decides which muscles the Today suggestion should cover | Counted over a rolling 7 days instead of a plan week |
 | Synergist coverage | Lets a row count toward arms, so suggestions stay honest about what is already trained | None |
 | Volume autoregulation (`autoregVolume`) | Adds or removes a set per muscle | Recovery signal comes from the faces and rep trend, not a check-in slider |
@@ -87,7 +87,7 @@ One Ironwave quirk becomes a feature here. A muscle with no recovery input sits 
 
 ### The one new algorithm: next target
 
-Ironwave solves each accessory weight from the estimated 1RM. That is accurate for an experienced lifter and jumpy for a beginner whose effort ratings are rough. The beginner app adds a thin rule on top, the standard double progression:
+Ironwave solves each accessory weight from the estimated 1RM. That is accurate for an experienced lifter and jumpy for a beginner whose effort ratings are rough. The beginner app uses the standard double progression. Current Ironwave already has `Engine.doubleProgression` and `Engine.repRangeFor`, so this is a thin wrapper on them, not new math:
 
 1. Each exercise has a rep range of 8 to 12.
 2. Next time, the target is the same weight and one more rep.
@@ -196,7 +196,7 @@ Build it as a new app beside Ironwave that shares the engine, in four phases tha
 ### How it is put together
 
 - **Shared**: `ironwave/app/engine.js` is one pure `Engine` object with no state, so it can be loaded as it is. The landmark, coverage, time-model and cue tables in `data.js` are reused too.
-- **Extracted**: the volume count, accessory picker and split generator currently live in the stateful `app.js`. They need to be lifted into a pure module both apps can load. Ironwave's 209 tests guard that move.
+- **Extracted**: the volume count, accessory picker and split generator currently live in the stateful `app.js`. They need to be lifted into a pure module both apps can load. Ironwave's test suite guards that move.
 - **New**: a small coach module holding the next-target rule and the Today suggestion, a trimmed exercise list of about 40 beginner-friendly movements with demo media, and the three screens.
 - **State**: one flat log of workouts and sets, plus the goal. There is no program tree. Every suggestion is derived from the log each time, which keeps it testable and means there is no plan to fall out of sync.
 - **Delivery**: one set of web files served two ways. GitHub Pages hosts it as an installable web app, and the same files are wrapped into an Android APK for installing directly on a phone. It is not published to a store for now. Both work offline and keep data on the device. Ironwave's Node server is not needed.

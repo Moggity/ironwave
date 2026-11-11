@@ -302,10 +302,10 @@ None of these blocks the build. Each has a default the agents will use.
 | Item | Needed by | Default if unanswered |
 | --- | --- | --- |
 | App name and Android application ID | Before any store release | Placeholder name, folder stays `beginner/`, a placeholder ID for test builds |
-| Source of the 40 exercise demos | Package 13 | Placeholder images until then |
+| Source of the 40 exercise demos | Package 13 | Placeholders until then. Reuse the clip format and manifest from `docs/exercise-media.md` |
 | Same repository, or its own? Ironwave's Pages path is deliberately obscured | Package 6 | Same repository, in its own path |
-| What Look fit and Look strong mean in muscle focus | Package 2 | Look fit: all muscles equal. Look strong: chest, back, shoulders and legs raised one step |
+| What Look fit and Look strong mean in muscle focus | Package 2 | Look fit: all muscles at 2 (Standard). Look strong: chest, back, shoulders and legs at 3 (High), on the current 0 to 3 scale |
 | The 8 weeks and 16 workouts before intensity techniques start | Package 12 | As written in L1. Both numbers sit in `config.js`, so you can lower them on your own phone to test sooner |
 | Hand-off of history to Ironwave | After release 4 | Not built. The export file from H3 already holds what Ironwave would need |
 
-The Product Plan was rewritten on 10 Nov 2026 to match these criteria, including the silent intensity techniques. The two documents now agree.
+The Product Plan was rewritten on 10 Nov 2026 to match these criteria, including the silent intensity techniques. The two documents now agree. Both were planned against an old copy of Ironwave (v1.1.11). The repository is at v1.19.0, which already has double progression, a 0 to 3 focus scale, exercise media plumbing and kg and lb support. `README.md` in this folder lists what that changes.
