@@ -111,7 +111,7 @@ const UI = (function () {
     return '<img class="demo" data-testid="' + testid + '" src="' + esc(cfg().placeholder) + '" alt="' + esc(STR().pick.demoAlt) + '" loading="lazy">';
   }
 
-  const errHTML = () => (V.saveError ? '<p class="error" data-testid="save-error" role="alert">' + esc(STR().errors.save) + '</p>' : '');
+  const errHTML = () => (V.saveError ? '<p class="error" data-testid="save-error" role="alert">' + esc(STR().errors[V.saveError]) + '</p>' : '');
 
   function goalHTML() {
     const S = STR();
@@ -422,7 +422,7 @@ const UI = (function () {
       V.saveError = false;
       return { ok: true, value: r };
     } catch (e) {
-      V.saveError = true;
+      V.saveError = 'action';
       render();
       return { ok: false };
     }
@@ -519,10 +519,9 @@ const UI = (function () {
     const e = exOf(V.curId);
     const units = unitsNow();
     const wk = db.activeWorkout();
-    const prev = wk ? wk.sets.reduce((a, x) => Math.max(a, x.at), -Infinity) : -Infinity;
+    const prev = wk ? wk.sets.reduce((a, x) => (x.exerciseId === e.id ? Math.max(a, x.at) : a), -Infinity) : -Infinity;
     const gap = now() - prev;
-    // A second tap right after a logged set is a double tap; a gap of 0 is not a human gap.
-    if (gap > 0 && gap < cfg().doubleTapMs) return;
+    if (gap < cfg().doubleTapMs) return;
     V.busy = true;
     patchDone();
     try {
@@ -536,7 +535,7 @@ const UI = (function () {
       computePrefill();
       startTimer();
     } catch (err) {
-      V.saveError = true;
+      V.saveError = 'save';
     }
     V.busy = false;
     render();
