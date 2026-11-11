@@ -35,6 +35,8 @@ const BEGINNER_CONFIG = beginnerDeepFreeze({
     setsMax: 4,
     suggestCount: 6,
     tickCount: 3,
+    goalFocus: 3,
+    defaultFocus: 2,
     muscleOrder: ['chest', 'back', 'legs', 'glutes', 'shoulders', 'arms', 'calves'],
     increments: {
       kg: { bb: 2.5, db: 2, mc: 5, cb: 2.5, kb: 4, bw: 0, bd: 0 },

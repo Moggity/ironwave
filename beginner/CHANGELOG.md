@@ -5,3 +5,4 @@
 
 ## Package 4: coach part 1
 - `Coach` silent math and Pick logic: effort mapping, next-target pre-fill (reps, raise, drop, long gap, easy-set correction, reps-only), set count, new bests, suggested six with ticks, equipment exclusion and in-place refill; all thresholds in `BEGINNER_CONFIG.coach`.
+- Review fixes: a drop never raises the weight, a zero or missing increment neither raises nor drops, goal and default focus values moved to config.

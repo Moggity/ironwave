@@ -82,10 +82,15 @@ const Coach = (function () {
     }
     if (gap) return { weight: sess.top, reps: r.map(x => clamp(x, lo, hi)), rule: 'gap' };
     const t = r.map(x => clamp(x + 1, lo, hi));
+    const hasStep = stepDisplay(eq, units) > 0;
     if (shortCount >= c.holdsBeforeDrop + 1) {
-      return { weight: gridDown(sess.top, eq, units), reps: t, rule: 'drop' };
+      // A drop never raises: when one step down is not below W the weight holds,
+      // but the short count still restarts.
+      const down = hasStep ? gridDown(sess.top, eq, units) : sess.top;
+      if (down < sess.top - 1e-6) return { weight: down, reps: t, rule: 'drop' };
+      return { weight: sess.top, reps: t, rule: 'reps', restart: true };
     }
-    if (sess.working.every(s => s.reps >= hi && s.effort !== 'hard')) {
+    if (hasStep && sess.working.every(s => s.reps >= hi && s.effort !== 'hard')) {
       return { weight: gridUp(sess.top, eq, units), reps: r.map(() => lo), rule: 'raise' };
     }
     return { weight: sess.top, reps: t, rule: 'reps' };
@@ -100,7 +105,7 @@ const Coach = (function () {
       if (target && Math.abs(sess.top - target.weight) < 1e-6) {
         isShort = sess.working.some((s, i) => s.reps <= repsAt(target.reps, i) - cfg().shortfallReps);
       }
-      const before = target && (target.rule === 'drop' || target.rule === 'gap') ? 0 : shortCount;
+      const before = target && (target.restart || target.rule === 'drop' || target.rule === 'gap') ? 0 : shortCount;
       shortCount = isShort ? before + 1 : 0;
       const nowAt = j + 1 < histSessions.length ? histSessions[j + 1].firstAt : now;
       target = targetAfter(sess, shortCount, nowAt, exercise, units);
@@ -182,7 +187,7 @@ const Coach = (function () {
     const pool = starters.length ? starters : rows;
     const goals = args.goalFocuses || [];
     const focusOf = m => {
-      if (!goals.length) return 2;
+      if (!goals.length) return c.defaultFocus;
       return Math.max(...goals.map(g => (g && has(g, m) ? g[m] : 0)));
     };
     const seen = {};
@@ -202,8 +207,8 @@ const Coach = (function () {
     const ticked = new Set();
     for (const g of args.goalFocuses || []) {
       if (ticked.size >= c.tickCount) break;
-      if (!g || !Object.keys(g).some(m => g[m] === 3)) continue;
-      const serves = r => g[r.muscle] === 3;
+      if (!g || !Object.keys(g).some(m => g[m] === c.goalFocus)) continue;
+      const serves = r => g[r.muscle] === c.goalFocus;
       if (list.some(r => ticked.has(r.id) && serves(r))) continue;
       const hit = list.find(serves);
       if (hit) ticked.add(hit.id);
