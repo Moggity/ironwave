@@ -53,6 +53,17 @@ you.
   resolution, all rendering, and all event handlers. This is the lightly-tested
   half (smoke only).
 
+### UI icons
+
+Icons are inline SVG, never emoji or Unicode symbols. Sources are the SVGs in
+`app/icons/ui/`; `node scripts/build-icons.js` generates `app/icons.js` (the
+`ICONS` map, loaded before `data.js`), and `icon('name')` in `app.js` renders
+one in `currentColor`, sized in em. After adding or changing an SVG, rerun the
+script and commit both (`test/icons.test.js` fails if they disagree). Icons
+cannot go inside catalog strings (those are escaped): add the icon at the call
+site. Rules and the list of symbols still left as text:
+`app/icons/ui/README.md`.
+
 ### State: two globals, `S` and `V`
 
 - **`S`** is the persisted athlete state (`S.program`, `S.profile`,

@@ -18,10 +18,10 @@ const DAY = 864e5;
 // Pump icons: one per level
 // ------------------------------------------------------------
 test('each pump level has its own icon and badge', () => {
-  assert.deepStrictEqual(app.PUMP_ICONS, { 1: '👍', 2: '💪', 3: '🔥' });
-  assert.ok(app.pumpBadge(1).includes('👍') && app.pumpBadge(1).includes('Light'));
-  assert.ok(app.pumpBadge(2).includes('💪') && app.pumpBadge(2).includes('Solid'));
-  assert.ok(app.pumpBadge(3).includes('🔥') && app.pumpBadge(3).includes('Skin splitting'));
+  assert.deepStrictEqual(app.PUMP_ICONS, { 1: 'pump-low', 2: 'pump-medium', 3: 'pump-high' });
+  assert.ok(app.pumpBadge(1).includes('data-ic="pump-low"') && app.pumpBadge(1).includes('Light'));
+  assert.ok(app.pumpBadge(2).includes('data-ic="pump-medium"') && app.pumpBadge(2).includes('Solid'));
+  assert.ok(app.pumpBadge(3).includes('data-ic="pump-high"') && app.pumpBadge(3).includes('Skin splitting'));
   assert.strictEqual(app.pumpBadge(null), '', 'no pump, no badge');
 });
 

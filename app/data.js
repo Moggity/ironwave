@@ -9,7 +9,7 @@
 // repo, and it must be kept in step with CACHE_VERSION in sw.js (the service
 // worker only ships new code to installed PWAs when that cache name changes).
 // Bump this on any shell change (data/engine/app/styles/index/sw).
-const APP_VERSION = '1.22.0';
+const APP_VERSION = '1.23.0';
 
 // Movement categories (used for "Select X Exercise" slots & swaps)
 const MOVEMENTS = {
@@ -90,8 +90,9 @@ const EXERCISE_LIST = [
   // ===== OVERHEAD PRESS VARIATIONS =====
   ['push-press','Push Press','press','bb',0],
   ['z-press','Z Press','press','bb',0],
-  ['seated-db-press','Seated DB Press','press','db',0],
-  ['db-shoulder-press','Standing DB Press','press','db',0],
+  // Named "military" so a search for it finds the dumbbell versions too. Ids are unchanged.
+  ['seated-db-press','DB Military Press (Seated)','press','db',0],
+  ['db-shoulder-press','DB Military Press (Standing)','press','db',0],
   ['arnold-press','Arnold Press','press','db',0],
   ['landmine-press','Landmine Press','press','bb',0],
   ['machine-shoulder-press','Machine Shoulder Press','press','mc',0],

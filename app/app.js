@@ -233,6 +233,15 @@ const $app = document.getElementById('app');
 const $modal = document.getElementById('modal-root');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const byId = id => document.getElementById(id);
+// One UI icon as inline SVG, from the generated ICONS map (icons.js, built by
+// scripts/build-icons.js from icons/ui/). It is sized in em and drawn in
+// currentColor, so it follows the font size and colour of whatever holds it.
+// Decorative: the label or aria-label beside it carries the meaning. An
+// unknown name renders nothing.
+function icon(name) {
+  const body = ICONS[name];
+  return body ? `<svg class="ico" data-ic="${name}" viewBox="${ICON_VIEWBOX}" fill="none" aria-hidden="true" focusable="false">${body}</svg>` : '';
+}
 const fmtDate = ts => new Date(ts).toLocaleDateString(I18N.dateLocale(), { weekday:'short', month:'short', day:'numeric' });
 const fmtDateLong = ts => new Date(ts).toLocaleDateString(I18N.dateLocale(), { weekday:'long', month:'long', day:'numeric', year:'numeric' });
 const kg = w => (w % 1 === 0 ? w : w.toFixed(1));
@@ -266,10 +275,10 @@ const fmtRir = rpe => (rpe == null ? '–'
   : isRpe() ? t('unit.rpe', { n: kg(rpe) })
   : t('unit.rir', { n: kg(Engine.rpeToRir(rpe)) }));
 // One icon per pump level so a glance at history tells the level apart.
-const PUMP_ICONS = { 1: '👍', 2: '💪', 3: '🔥' };
+const PUMP_ICONS = { 1: 'pump-low', 2: 'pump-medium', 3: 'pump-high' };
 // Translated effort description for an RPE value; unknown values render empty.
 const rpeDesc = rpe => (RPE_DESCRIPTIONS[rpe] ? t('rpe.' + rpe) : '');
-const pumpBadge = p => (p ? ` <small class="faint">${PUMP_ICONS[p] || '🔥'} ${esc(PUMP_LABELS[p] ? t('pump.' + p) : t('pump.generic'))}</small>` : '');
+const pumpBadge = p => (p ? ` <small class="faint">${icon(PUMP_ICONS[p] || 'pump-high')} ${esc(PUMP_LABELS[p] ? t('pump.' + p) : t('pump.generic'))}</small>` : '');
 const techniqueBadge = tech => (tech && tech !== 'straight' ? ` <small class="faint">${esc(TECHNIQUE_LABELS[tech] ? t('tech.' + tech) : tech)}</small>` : '');
 // [Cluster B] "70kg×8, 56kg×8" rendering of a set's child mini-sets (drop or myo).
 const dropDetail = (exId, drops) => (drops || []).map(d => `${fmtW(exId, d.weight)}×${d.reps}`).join(', ');
@@ -2295,10 +2304,10 @@ function renderErrorScreen(err) {
 function tabbar() {
   const tab = (id, ic) => `
     <button class="${V.tab === id ? 'on' : ''}" onclick="setTab('${id}')">
-      <span class="ic">${ic}</span>${esc(t('tab.' + id))}</button>`;
+      <span class="ic">${icon(ic)}</span>${esc(t('tab.' + id))}</button>`;
   return `<nav class="tabbar">
-    ${tab('dashboard','▥')}${tab('workout','🏋')}
-    ${tab('history','🗂')}${tab('more','☰')}
+    ${tab('dashboard','dashboard')}${tab('workout','workout')}
+    ${tab('history','history')}${tab('more','more')}
   </nav>`;
 }
 function topbar(title) {
@@ -2752,10 +2761,10 @@ function vOnboarding() {
         ${[0,1,2,3,4,5,6].map(wd => {
           const on = tds.includes(wd), sport = sds.includes(wd);
           return `<div class="wd-row ${on ? 'on' : ''}" role="checkbox" aria-checked="${on}" onclick="obToggleDay(${wd})">
-            <span class="wd-box">${on ? '✓' : ''}</span>
+            <span class="wd-box">${on ? icon('check') : ''}</span>
             <span class="wd-name">${esc(t('wd.' + wd))}</span>
             ${on ? `<button class="wd-pill ${sport ? 'on' : ''}" aria-pressed="${sport}"
-              onclick="obToggleSport(event, ${wd})">${sport ? '⚑ ' : ''}${esc(t('ob.sport_pill'))}</button>` : ''}
+              onclick="obToggleSport(event, ${wd})">${sport ? icon('flag') + ' ' : ''}${esc(t('ob.sport_pill'))}</button>` : ''}
           </div>`;
         }).join('')}
       </div>
@@ -2789,7 +2798,7 @@ function vOnboarding() {
         ${GOAL_ARCHETYPES[ob.goalArchetype] && GOAL_ARCHETYPES[ob.goalArchetype].warn
           ? `<div class="banner-warn mt8">${esc(t('goal.' + ob.goalArchetype + '_warn'))}</div>` : ''}` : ''}
       ${ob.track ? `
-        <button class="browse-toggle mt16" onclick="V.ob.showAdvanced=!V.ob.showAdvanced;render()">${esc(t('ob.advanced'))} ${ob.showAdvanced ? '▴' : '▾'}</button>
+        <button class="browse-toggle mt16" onclick="V.ob.showAdvanced=!V.ob.showAdvanced;render()">${esc(t('ob.advanced'))} ${icon(ob.showAdvanced ? 'chevron-up' : 'chevron-down')}</button>
         ${ob.showAdvanced ? `
           <div class="ob-sub mt8">${esc(t('ob.length_title'))}</div>
           <p class="faint">${esc(t('ob.length_sub'))}</p>
@@ -3399,7 +3408,7 @@ function openWeekPreview(bi, wi) {
         const uncalibrated = rs.sets.length > 0 && rs.sets.every(s => s.calib);
         let right;
         if (uncalibrated) {
-          right = `<span class="subtle calib-tag">${esc(t('calib.waiting'))} <button class="info-dot" onclick="event.stopPropagation();openCalibrationInfo()" aria-label="${esc(t('calib.what_aria'))}">ⓘ</button></span>`;
+          right = `<span class="subtle calib-tag">${esc(t('calib.waiting'))} <button class="info-dot" onclick="event.stopPropagation();openCalibrationInfo()" aria-label="${esc(t('calib.what_aria'))}">${icon('info')}</button></span>`;
         } else {
           const scheme = f ? `${(work.length || rs.sets.length)}×${f.reps}${f.weight != null ? ' @ ' + dispW(f.weight) + wUnit() : (f.rpe ? ' @ ' + fmtRir(f.rpe) : '')}` : '';
           right = `<span class="subtle">${scheme}</span>`;
@@ -3451,7 +3460,7 @@ function renderPlanEditor(anim) {
   const p = P();
   const locked = V.planLocked;
   const lockedRows = p.blocks.slice(0, locked).map((b, i) =>
-    `<div class="plan-row locked"><span class="plan-lock">🔒</span>
+    `<div class="plan-row locked"><span class="plan-lock">${icon('lock')}</span>
       <span class="plan-name">${esc(blockDisplayLabel(b))}</span>
       <span class="faint">${esc(phaseLabel(blockPhase(b)))} · ${esc(t('plan.trained'))}</span></div>`).join('');
   const draft = V.planDraft;
@@ -3470,9 +3479,9 @@ function renderPlanEditor(anim) {
         </select>
       </div>
       <div class="plan-ops">
-        <button onclick="planMove(${i},-1)" ${i === 0 ? 'disabled' : ''} aria-label="${esc(t('a11y.move_up'))}">↑</button>
-        <button onclick="planMove(${i},1)" ${i === draft.length - 1 ? 'disabled' : ''} aria-label="${esc(t('a11y.move_down'))}">↓</button>
-        <button onclick="planRemove(${i})" ${draft.length + locked <= 1 ? 'disabled' : ''} aria-label="${esc(t('common.remove'))}" class="plan-del">✕</button>
+        <button onclick="planMove(${i},-1)" ${i === 0 ? 'disabled' : ''} aria-label="${esc(t('a11y.move_up'))}">${icon('move-up')}</button>
+        <button onclick="planMove(${i},1)" ${i === draft.length - 1 ? 'disabled' : ''} aria-label="${esc(t('a11y.move_down'))}">${icon('move-down')}</button>
+        <button onclick="planRemove(${i})" ${draft.length + locked <= 1 ? 'disabled' : ''} aria-label="${esc(t('common.remove'))}" class="plan-del">${icon('close')}</button>
       </div>
     </div>`;
   }).join('');
@@ -3540,7 +3549,7 @@ function vDashboard() {
   let weekSection = '';
   if (done) {
     weekSection = `<div class="card accent">
-      <h3 style="font-size:1.3rem;margin-bottom:6px">${esc(t('dash.done_title'))}</h3>
+      <h3 style="font-size:1.3rem;margin-bottom:6px">${esc(t('dash.done_title'))} ${icon('trophy')}</h3>
       <p class="subtle">${esc(t('dash.done_body'))}</p>
       <button class="btn btn-blue mt16" onclick="confirmNewProgram()">${esc(t('dash.plan_next'))}</button>
     </div>`;
@@ -3557,10 +3566,10 @@ function vDashboard() {
       // flag on competitive-sport days); an unscheduled one keeps 'Day n'.
       const sch = Array.isArray(p.schedule) ? p.schedule[i] : null;
       const dayLabel = sch && sch.wd != null
-        ? `${t('wd.s' + sch.wd)}${sch.sport ? ' ⚑' : ''}`
+        ? t('wd.s' + sch.wd)
         : t('common.day_n', { n: i + 1 });
       return `<button class="day-row ${cls}" onclick="openDay(${i})">
-        <span class="mark">${mark}</span> <span>${esc(dayLabel)}${dayTheme(d) ? ` <span class="faint">${esc(dayTheme(d))}</span>` : ''}${live ? ` <span class="faint">· ${esc(t('dash.in_progress'))}</span>` : ''}</span> <span class="chev">›</span></button>`;
+        <span class="mark">${mark}</span> <span>${esc(dayLabel)}${sch && sch.wd != null && sch.sport ? ' ' + icon('flag') : ''}${dayTheme(d) ? ` <span class="faint">${esc(dayTheme(d))}</span>` : ''}${live ? ` <span class="faint">· ${esc(t('dash.in_progress'))}</span>` : ''}</span> <span class="chev">›</span></button>`;
     }).join('');
     const allDone = p.days.every((d, i) => p.completedDays[dayKey(p.pointer.block, w, i)]);
     weekSection = `
@@ -3577,7 +3586,7 @@ function vDashboard() {
     ${hasCoach() ? '' : `<div class="banner-warn">${esc(t('tier.free_banner'))}</div>`}
     ${SHOW_READINESS_UI ? `<div class="readiness-hero">
       <div class="row">
-        <span class="label">${esc(t('dash.readiness'))} <span class="faint">ⓘ 0–30</span></span>
+        <span class="label">${esc(t('dash.readiness'))} <span class="faint">${icon('info')} 0–30</span></span>
         <span class="score-sm">${computeReadiness().toFixed(2)}</span>
       </div>
       ${sparklineHTML()}
@@ -3587,9 +3596,9 @@ function vDashboard() {
     <div class="subtle">${fmtDateLong(p.testDate)}</div>
     ${timelineHTML({ editable: false })}
     ${weekSection}
-    ${!done && blockScheme(curBlock()) === 'jm2-peak' ? `<button class="btn btn-outline mt16" onclick="nav('meet')">🏆 ${esc(t('meet.title'))}</button>` : ''}
-    ${done ? '' : `<button class="btn btn-outline mt16" onclick="openVolumeDashboard()">${esc(t('dash.weekly_volume_btn'))}</button>`}
-    ${(done || (p.trainingConfig && p.trainingConfig.track === 'bodybuilding')) ? '' : `<button class="phase-chip mt8" onclick="openPhase()">${esc(t('dash.phase_chip', { phase: phaseLabel(currentPhase()) }))}</button>`}
+    ${!done && blockScheme(curBlock()) === 'jm2-peak' ? `<button class="btn btn-outline mt16" onclick="nav('meet')">${icon('trophy')} ${esc(t('meet.title'))}</button>` : ''}
+    ${done ? '' : `<button class="btn btn-outline mt16" onclick="openVolumeDashboard()">${icon('data')} ${esc(t('dash.weekly_volume_btn'))}</button>`}
+    ${(done || (p.trainingConfig && p.trainingConfig.track === 'bodybuilding')) ? '' : `<button class="phase-chip mt8" onclick="openPhase()">${icon('nutrition')} ${esc(t('dash.phase_chip', { phase: phaseLabel(currentPhase()) }))}</button>`}
   </div>${tabbar()}`;
 }
 // [Cluster D] Estimated direct working sets per muscle for the current week,
@@ -3786,7 +3795,7 @@ function volumeDashboardHTML() {
       const parts = Object.keys(hd).sort((a, b) => hd[b] - hd[a]).map(h => {
         const over = hlm && hd[h] > hlm.mrv;
         const txt = `${esc(headLabel(h))} ${kg(hd[h])}`;
-        return over ? `<b style="color:var(--amber)">${txt} ⚠</b>` : txt;
+        return over ? `<b style="color:var(--amber)">${txt} ${icon('warning')}</b>` : txt;
       });
       if (parts.length) heads = `<div class="vol-heads faint">${esc(t('vol.regions'))} ${parts.join(' · ')}</div>`;
     }
@@ -3824,7 +3833,7 @@ function volumeDashboardHTML() {
         ? (down ? 'vol.overreach_one_sliding' : 'vol.overreach_one')
         : (down ? 'vol.overreach_many_sliding' : 'vol.overreach_many');
       overreach = `<div class="card accent" style="border-left:3px solid var(--red)">
-        <div style="font-weight:700">${esc(t('vol.overreach_title'))}</div>
+        <div style="font-weight:700">${icon('warning')} ${esc(t('vol.overreach_title'))}</div>
         <p class="faint mt8">${esc(t('vol.overreach_body', { reason: t(rk, { n: ovr.over }) }))}</p></div>`;
     }
   }
@@ -4273,7 +4282,7 @@ function vWorkout() {
   if (programDone()) return `${topbar(t('tab.workout'))}<div class="view">
     <div class="card accent mt16"><b>${esc(t('workout.done_title'))}</b><p class="subtle mt8">${esc(t('workout.done_body'))}</p></div>
     ${macroReportHTML()}
-    <button class="btn btn-outline mt16" onclick="nav('progress')">📈 ${esc(t('px.title'))}</button></div>${tabbar()}`;
+    <button class="btn btn-outline mt16" onclick="nav('progress')">${icon('progress')} ${esc(t('px.title'))}</button></div>${tabbar()}`;
   const p = P();
   const di = currentDayIdx();
   const day = p.days[di];
@@ -4297,7 +4306,7 @@ function vWorkout() {
 
   const cards = day.slots.map((slot, si) => {
     const rs = resolveSlot(slot, p.pointer.block, w);
-    const grip = `<span class="grip" onpointerdown="gripDown(event,${di},${si})">⠿</span>`;
+    const grip = `<span class="grip" onpointerdown="gripDown(event,${di},${si})">${icon('drag-grip')}</span>`;
     if (rs.isRemoved) {
       // Dropped by muscle focus (slider 0). Shown muted so it is not a mystery.
       // resolveSlot's removedReason strings are part of its tested output, so
@@ -4323,11 +4332,11 @@ function vWorkout() {
     // in a superset, as its Unlink. There is no create-superset control on
     // the cards any more; toggleSuperset stays for existing links.
     const ssBtn = (ssInfo && slot.superset && !rs.isMain && !rs.isSecondary && bbTrack)
-      ? `<button class="icon-btn" onclick="toggleSuperset(${di},${si})"><span class="ic">⛓</span>${esc(t('workout.unlink'))}</button>`
+      ? `<button class="icon-btn" onclick="toggleSuperset(${di},${si})"><span class="ic">${icon('unlink-superset')}</span>${esc(t('workout.unlink'))}</button>`
       : '';
     // [Cluster B] Within a group, compact up/down controls reorder the member while
     // keeping the group intact (disabled at the group's ends).
-    const ssMove = ssInfo ? `${ssInfo.index > 0 ? `<button class="icon-btn ss-move" onclick="moveSupersetMember(${di},${si},-1)" aria-label="${esc(t('a11y.move_up'))}"><span class="ic">▲</span></button>` : ''}${ssInfo.index < ssInfo.size - 1 ? `<button class="icon-btn ss-move" onclick="moveSupersetMember(${di},${si},1)" aria-label="${esc(t('a11y.move_down'))}"><span class="ic">▼</span></button>` : ''}` : '';
+    const ssMove = ssInfo ? `${ssInfo.index > 0 ? `<button class="icon-btn ss-move" onclick="moveSupersetMember(${di},${si},-1)" aria-label="${esc(t('a11y.move_up'))}"><span class="ic">${icon('move-up')}</span></button>` : ''}${ssInfo.index < ssInfo.size - 1 ? `<button class="icon-btn ss-move" onclick="moveSupersetMember(${di},${si},1)" aria-label="${esc(t('a11y.move_down'))}"><span class="ic">${icon('move-down')}</span></button>` : ''}` : '';
     // Every exercise, main and secondary lifts included, can be removed by
     // swiping the card left to reveal a red "Remove?" action. A removed main's
     // working max stays in P().wm, but only Undo brings the wave slot itself
@@ -4336,9 +4345,9 @@ function vWorkout() {
       ${grip}
       <span class="name">${esc(rs.name)}${opt ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}${ssTag}${setAdjTagHTML(slot)}</span>
       <span class="actions">
-        <button class="icon-btn" onclick="openExDetail('${rs.exId}')"><span class="ic">ⓘ</span>${esc(t('common.info'))}</button>
+        <button class="icon-btn" onclick="openExDetail('${rs.exId}')"><span class="ic">${icon('info')}</span>${esc(t('common.info'))}</button>
         ${ssMove}${ssBtn}
-        <button class="icon-btn" onclick="openSwap(${di},${si})"><span class="ic">⇄</span>${esc(t('common.swap'))}</button>
+        <button class="icon-btn" onclick="openSwap(${di},${si})"><span class="ic">${icon('swap')}</span>${esc(t('common.swap'))}</button>
       </span>
     </div>`;
     return `<div class="ex-swipe" data-si="${si}" onpointerdown="exSwipeDown(event,${di},${si})">
@@ -4521,7 +4530,7 @@ function suppressNextClick() {
 }
 // The red action revealed behind a swiped card (overview and live session).
 function exRemoveBtnHTML(di, si, name) {
-  return `<button class="ex-remove" onclick="removeSlot(${di},${si})" aria-label="${esc(t('common.remove'))} ${esc(name)}"><span class="ic">🗑</span>${esc(t('workout.remove_q'))}</button>`;
+  return `<button class="ex-remove" onclick="removeSlot(${di},${si})" aria-label="${esc(t('common.remove'))} ${esc(name)}"><span class="ic">${icon('remove')}</span>${esc(t('workout.remove_q'))}</button>`;
 }
 function endSwipe() {
   document.removeEventListener('pointermove', exSwipeMove);
@@ -4850,7 +4859,7 @@ function vCheckin() {
     const g = cd.groups[step - 1];
     const val = cd.sliders[g.key];
     body = `${header}
-      <div class="bodymap">🫀</div>
+      <div class="bodymap">${icon('heart')}</div>
       <div class="slider-card">
         <div class="q">${esc(t('ci.group_q', { group: g.muscle ? mvLabel(g.key) : t('ci.group_' + g.key) }))}</div>
         <div class="feeling">${t('ci.feeling', { word: `<b>${esc(feelWord(val))}</b>` })}</div>
@@ -4865,14 +4874,14 @@ function vCheckin() {
       <p class="faint">${esc(t('ci.mindset_body'))}</p>
       <input class="checkin-input" id="ci-mindset" placeholder="${esc(t('ci.mindset_ph'))}" value="${esc(cd.mindset)}">
       <div class="card mt16">
-        <div style="font-weight:600;margin-bottom:6px">${esc(t('ci.injury_q'))}</div>
+        <div style="font-weight:600;margin-bottom:6px">${icon('injury')} ${esc(t('ci.injury_q'))}</div>
         ${[['squat', 'Squat'], ['bench', 'Bench'], ['deadlift', 'Deadlift']].map(([key, l]) => `
           <label class="check-row"><input type="checkbox" ${cd.injuries.includes(l) ? 'checked' : ''}
             onchange="cd_injury('${l}', this.checked)"> ${esc(t('lift.' + key))}</label>`).join('')}
       </div>
       <button class="btn btn-green mt16" onclick="beginSession()">${esc(t('ci.start_workout'))}</button>`;
   }
-  return `<header class="topbar"><button class="btn-ghost" onclick="nav('workout')">‹</button>
+  return `<header class="topbar"><button class="btn-ghost" onclick="nav('workout')" aria-label="${esc(t('a11y.back'))}">${icon('arrow-left')}</button>
     <span style="font-weight:700">${esc(t('ci.title'))}</span><span></span></header>
     <div class="view">${body}</div>`;
 }
@@ -4992,7 +5001,7 @@ function ratingsStripHTML(sliders) {
   const map = ['squat', 'bench', 'deadlift', 'upperpull', 'press', 'lowback'];
   const shown = map.filter(k => sliders[k] != null).slice(0, 4);
   if (!shown.length) return '';
-  return `<div class="section-title" style="font-size:1.25rem">${esc(t('session.readiness_title'))} <span class="faint">ⓘ</span></div>
+  return `<div class="section-title" style="font-size:1.25rem">${esc(t('session.readiness_title'))} <span class="faint">${icon('info')}</span></div>
   <div class="ratings-strip">${shown.map(k =>
     `<div class="r"><div class="k">${esc(t('lift.' + k))}</div><div class="v">${sliders[k]}</div></div>`).join('')}</div>`;
 }
@@ -5088,7 +5097,7 @@ function canDropEntry(e) {
 }
 // Chip icons per finisher; labels and the how-to toast live in the i18n
 // catalog ('tech.<id>' / 'tech.<id>_how'), athlete-facing, no em dashes.
-const FINISHER_ICONS = { drop: '🔥', myo: '🔁', restpause: '⏸', partials: '📐' };
+const FINISHER_ICONS = { drop: 'drop-set', myo: 'myo-reps', restpause: 'rest-pause', partials: 'partials' };
 function techChipHTML(e, ei, dr) {
   if (!canDropEntry(e)) return '';
   // Hard periodization gate (owner call, no placeholder hint): outside the
@@ -5096,7 +5105,7 @@ function techChipHTML(e, ei, dr) {
   if (!dr || !finisherAllowed(dr.b, dr.w)) return '';
   const cur = entryTech(e);
   const chip = (tech) =>
-    `<button class="tech-chip ${cur === tech ? 'on' : ''}" onclick="toggleTechInSession(${ei},'${tech}')">${FINISHER_ICONS[tech]} ${esc(t('tech.chip_' + tech))}${cur === tech ? ' ✓' : ''}</button>`;
+    `<button class="tech-chip ${cur === tech ? 'on' : ''}" onclick="toggleTechInSession(${ei},'${tech}')">${icon(FINISHER_ICONS[tech])} ${esc(t('tech.chip_' + tech))}${cur === tech ? ' ' + icon('check') : ''}</button>`;
   // Tie the chips to the one set they run on, and settle the effort question
   // right where it comes up: the set stops at its RIR cap, the finisher is the
   // part that goes near failure.
@@ -5106,7 +5115,7 @@ function techChipHTML(e, ei, dr) {
     : '';
   return `<div class="tech-row">
     <span class="tech-row-label">${esc(t('tech.add_finisher'))} <small class="faint">${esc(t('tech.optional_last_set'))}</small>
-      <button class="info-dot" onclick="openFinisherInfo()" aria-label="${esc(t('tech.what_is'))}">ⓘ</button></span>
+      <button class="info-dot" onclick="openFinisherInfo()" aria-label="${esc(t('tech.what_is'))}">${icon('info')}</button></span>
     <div class="tech-chips">${FINISHER_TECHS.map(chip).join('')}</div>
     ${note}
   </div>`;
@@ -5115,7 +5124,7 @@ function techChipHTML(e, ei, dr) {
 // finisher chip row; the athlete question it settles: "cap the set at its RIR,
 // or take it to failure before the finisher?" (Answer: cap the set.)
 function openFinisherInfo() {
-  const card = tech => `<div class="card"><b>${FINISHER_ICONS[tech]} ${esc(t('tech.chip_' + tech))}</b><p class="faint mt8">${esc(t('tech.info_' + tech))}</p></div>`;
+  const card = tech => `<div class="card"><b>${icon(FINISHER_ICONS[tech])} ${esc(t('tech.chip_' + tech))}</b><p class="faint mt8">${esc(t('tech.info_' + tech))}</p></div>`;
   showModal(anim => {
     $modal.innerHTML = modalShell(anim, t('tech.info_title'), `
       <p class="subtle">${t('tech.info_intro')}</p>
@@ -5162,7 +5171,7 @@ function vSession() {
   const cards = sessionCardsHTML(dr, shortSleep);
 
   return `<header class="topbar">
-      <button class="btn-ghost" onclick="abandonSession()">‹</button>
+      <button class="btn-ghost" onclick="abandonSession()" aria-label="${esc(t('a11y.back'))}">${icon('arrow-left')}</button>
       <div class="col center"><span style="color:var(--blue);font-weight:600">${esc(blockDisplayLabel(block))}</span>
       <span style="font-weight:700">${esc(t('session.week_day', { week: weeksBefore(dr.b) + dr.w + 1, day: dr.d + 1 }))}</span></div>
       <span></span></header>
@@ -5234,7 +5243,7 @@ function setRowHTML(e, ei, st, si2, shortSleep) {
   // own Remove?; AMRAP/ramp/calibration sets and the last plain set do not.
   if (!canRemoveDraftSet(e, si2)) return row + fatigueFlag;
   return `<div class="set-swipe" data-set="${si2}" onpointerdown="setSwipeDown(event)">
-      <button class="set-remove" onclick="removeSessionSet(${ei},${si2})" aria-label="${esc(t('setadj.remove_row_a11y', { n: si2 + 1, name: e.name }))}"><span class="ic">🗑</span>${esc(t('workout.remove_q'))}</button>
+      <button class="set-remove" onclick="removeSessionSet(${ei},${si2})" aria-label="${esc(t('setadj.remove_row_a11y', { n: si2 + 1, name: e.name }))}"><span class="ic">${icon('remove')}</span>${esc(t('workout.remove_q'))}</button>
       ${row}</div>${fatigueFlag}`;
 }
 // The standard single-exercise session card.
@@ -5247,7 +5256,7 @@ function belowBarWarn(e, dr) {
   if (!L.showPlates) return '';
   const hit = e.sets.some(st => !st.ramp && Engine.coach.belowBarLoad(st.weight, L.barWeight));
   if (!hit) return '';
-  return `<div class="injury-strip">⚖ ${esc(t('session.below_bar', { bar: dispW(L.barWeight), u: wUnit() }))}<button onclick="openSwap(${dr.d},${e.si})">⇄ ${esc(t('common.swap'))}</button></div>`;
+  return `<div class="injury-strip"><span>${icon('weight')} ${esc(t('session.below_bar', { bar: dispW(L.barWeight), u: wUnit() }))}</span><button onclick="openSwap(${dr.d},${e.si})">${icon('swap')} ${esc(t('common.swap'))}</button></div>`;
 }
 function liftCardHTML(e, ei, dr, shortSleep) {
   const setRows = e.sets.map((st, si2) => setRowHTML(e, ei, st, si2, shortSleep)).join('');
@@ -5265,19 +5274,19 @@ function liftCardHTML(e, ei, dr, shortSleep) {
   return `<div class="lift-card ${e.optional ? 'optional' : ''}">
       <h3>${esc(e.name)}${e.optional ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}</h3>
       ${e.optional ? `<p class="faint" style="margin:-4px 0 6px">${esc(t('session.over_time_limit'))}</p>` : ''}
-      ${e.injured ? `<div class="injury-strip">🩹 ${esc(t('session.injury_eased'))}<button onclick="openSwap(${dr.d},${e.si})">⇄ ${esc(t('common.swap'))}</button></div>` : ''}
+      ${e.injured ? `<div class="injury-strip"><span>${icon('injury')} ${esc(t('session.injury_eased'))}</span><button onclick="openSwap(${dr.d},${e.si})">${icon('swap')} ${esc(t('common.swap'))}</button></div>` : ''}
       ${belowBarWarn(e, dr)}
       ${lastSetInfo(e.exId)}
       <div class="head-actions">
-        <button onclick="openSwap(${dr.d},${e.si})" aria-label="${esc(t('session.swap_exercise'))}">⇄</button>
-        <button onclick="openExDetail('${e.exId}')">ⓘ</button>
+        <button onclick="openSwap(${dr.d},${e.si})" aria-label="${esc(t('session.swap_exercise'))}">${icon('swap')}</button>
+        <button onclick="openExDetail('${e.exId}')" aria-label="${esc(t('common.info'))}">${icon('info')}</button>
       </div>
       ${top && loadingFor(e.exId).showPlates ? `<button class="warmup-btn" onclick="openWarmup(${top},'${e.exId}')"><b>＋</b> ${esc(t('session.warmup'))}</button>` : ''}
       <div class="scheme">${schemeTxt}</div>
       ${techChipHTML(e, ei, dr)}
       ${setRows}
       <button class="add-set-btn" onclick="addSessionSet(${ei})" aria-label="${esc(t('setadj.add_a11y', { name: e.name }))}">${esc(t('setadj.add'))}</button>
-      <button class="notes-link" onclick="toggleNotes(${ei})">${esc(t('session.notes'))} ✎</button>
+      <button class="notes-link" onclick="toggleNotes(${ei})">${esc(t('session.notes'))} ${icon('edit')}</button>
       ${e.notesOpen ? `<textarea class="notes-area" oninput="setNotes(${ei}, this.value)" onchange="save()" placeholder="${esc(t('session.notes_placeholder'))}">${esc(e.notes)}</textarea>` : ''}
     </div>`;
 }
@@ -5294,16 +5303,16 @@ function supersetGroupCardHTML(members, dr) {
         <div class="ss-member-row">
           <span class="ss-member-name">${esc(e.name)}</span>
           <span class="head-actions">
-            <button onclick="openSwap(${dr.d},${e.si})" aria-label="${esc(t('session.swap_exercise'))}">⇄</button>
-            <button onclick="openExDetail('${e.exId}')">ⓘ</button>
-            <button onclick="toggleNotes(${ei})" aria-label="${esc(t('session.notes'))}">✎</button>
-            <button onclick="removeSlot(${dr.d},${e.si})" aria-label="${esc(t('common.remove'))} ${esc(e.name)}">🗑</button>
+            <button onclick="openSwap(${dr.d},${e.si})" aria-label="${esc(t('session.swap_exercise'))}">${icon('swap')}</button>
+            <button onclick="openExDetail('${e.exId}')" aria-label="${esc(t('common.info'))}">${icon('info')}</button>
+            <button onclick="toggleNotes(${ei})" aria-label="${esc(t('session.notes'))}">${icon('edit')}</button>
+            <button onclick="removeSlot(${dr.d},${e.si})" aria-label="${esc(t('common.remove'))} ${esc(e.name)}">${icon('remove')}</button>
           </span>
         </div>
         <div class="ss-set-adj">
-          <button class="set-adj-btn" onclick="removeLastSessionSet(${ei})" aria-label="${esc(t('setadj.remove_a11y', { name: e.name }))}"${lastRemovableSetIdx(e) < 0 ? ' disabled' : ''}>−</button>
+          <button class="set-adj-btn" onclick="removeLastSessionSet(${ei})" aria-label="${esc(t('setadj.remove_a11y', { name: e.name }))}"${lastRemovableSetIdx(e) < 0 ? ' disabled' : ''}>${icon('minus')}</button>
           <span class="faint">${esc(t(e.sets.length === 1 ? 'setadj.count_one' : 'setadj.count_other', { n: e.sets.length }))}</span>
-          <button class="set-adj-btn" onclick="addSessionSet(${ei})" aria-label="${esc(t('setadj.add_a11y', { name: e.name }))}">＋</button>
+          <button class="set-adj-btn" onclick="addSessionSet(${ei})" aria-label="${esc(t('setadj.add_a11y', { name: e.name }))}">${icon('plus')}</button>
         </div>
         ${techChipHTML(e, ei, dr)}
         ${e.notesOpen ? `<textarea class="notes-area" oninput="setNotes(${ei}, this.value)" onchange="save()" placeholder="${esc(t('session.notes_placeholder'))}">${esc(e.notes)}</textarea>` : ''}
@@ -5778,7 +5787,7 @@ function renderPerfModal(anim) {
         <div class="stepper" ${pm.drops ? '' : 'style="border-bottom:none"'}>
           <div class="lbl">${esc(t('perf.pump'))} <small class="faint">${esc(t('perf.optional'))}</small></div>
           <div class="pump-row">
-            ${[1, 2, 3].map(n => `<button class="btn ${pm.pump === n ? 'btn-blue' : 'btn-outline'}" onclick="pmPump(${n})">${PUMP_ICONS[n]} ${esc(t('pump.' + n))}</button>`).join('')}
+            ${[1, 2, 3].map(n => `<button class="btn ${pm.pump === n ? 'btn-blue' : 'btn-outline'}" onclick="pmPump(${n})">${icon(PUMP_ICONS[n])} ${esc(t('pump.' + n))}</button>`).join('')}
           </div>
         </div>
         ${pm.drops ? `<div class="stepper" style="border-bottom:none">
@@ -6092,7 +6101,7 @@ function modalShell(anim, title, body, oncloseJs, variant) {
   return `<div class="modal-wrap" onclick="if(event.target===this)${close}">
     <div class="${cls}"${anim ? '' : ' style="animation:none"'}>
       <div class="modal-head"><span class="t">${title}</span>
-        <button class="btn-ghost" onclick="${close}">✕</button></div>
+        <button class="btn-ghost" onclick="${close}" aria-label="${esc(t('a11y.close'))}">${icon('close')}</button></div>
       <div class="modal-body">${body}</div>
     </div></div>`;
 }
@@ -6162,7 +6171,7 @@ function renderConfirm(anim) {
   const danger = !!o.danger;
   $modal.innerHTML = modalShell(anim, o.title || t('confirm.title'), `
         <div class="confirm-body">
-          <div class="confirm-icon ${danger ? 'danger' : ''}">${danger ? '⚠' : '?'}</div>
+          <div class="confirm-icon ${danger ? 'danger' : ''}">${danger ? icon('warning') : '?'}</div>
           <p class="confirm-msg">${esc(o.message)}</p>
         </div>
         <button class="btn ${danger ? 'btn-red' : 'btn-blue'}" onclick="confirmResolve(true)">${esc(o.confirmLabel || t('confirm.ok'))}</button>
@@ -6376,7 +6385,7 @@ function swapBodyHTML() {
       // muscle group the machine they are looking for lives under.
       otherSection = others.length ? `<div class="section-title" style="margin-top:14px">${esc(t('swap.other_groups'))}</div>${others.map(e => swapCardHTML(e, true)).join('')}` : '';
     } else {
-      otherSection = `<button class="browse-toggle" onclick="SW.showOther=!SW.showOther;refreshSwapBody()" style="margin-top:12px">${esc(t(SW.showOther ? 'swap.hide_other' : 'swap.browse_other'))} ${SW.showOther ? '▴' : '▾'}</button>`;
+      otherSection = `<button class="browse-toggle" onclick="SW.showOther=!SW.showOther;refreshSwapBody()" style="margin-top:12px">${esc(t(SW.showOther ? 'swap.hide_other' : 'swap.browse_other'))} ${icon(SW.showOther ? 'chevron-up' : 'chevron-down')}</button>`;
       if (SW.showOther) otherSection += `<div class="section-title" style="margin-top:12px">${esc(t('swap.other_groups'))}</div>${others.map(e => swapCardHTML(e, true)).join('')}`;
     }
   }
@@ -6413,8 +6422,8 @@ function swapCardHTML(e, showGroup, gap, tagKey) {
   return `<div class="ex-card">
       <span class="name">${esc(exDisplayName(e))}${origTag}${costTag}${gapTag}${overTag}${showGroup ? `<span class="sub">${esc(mvLabel(e.movement))}</span>` : ''}${exTagsHTML(e)}</span>
       <span class="actions">
-        <button class="icon-btn" onclick="openExDetail('${e.id}')"><span class="ic">ⓘ</span>${esc(t('common.info'))}</button>
-        <button class="icon-btn" onclick="doSwap(${SW.di},${SW.si},'${e.id}')"><span class="ic">☐</span>${esc(t('common.select'))}</button>
+        <button class="icon-btn" onclick="openExDetail('${e.id}')"><span class="ic">${icon('info')}</span>${esc(t('common.info'))}</button>
+        <button class="icon-btn" onclick="doSwap(${SW.di},${SW.si},'${e.id}')"><span class="ic">${icon('select')}</span>${esc(t('common.select'))}</button>
       </span></div>`;
 }
 function doSwap(di, si, exId) {
@@ -6536,7 +6545,7 @@ function vHistory() {
   return `${topbar(t('tab.history'))}<div class="view">
     <div class="section-title">${esc(t('hist.title'))}</div>
     <p class="faint" style="margin-bottom:14px">${esc(t('hist.sub'))}</p>
-    ${programDone() ? `<button class="btn btn-outline" style="margin-bottom:12px" onclick="nav('report')">🏁 ${esc(t('rp.title'))}</button>` : ''}
+    ${programDone() ? `<button class="btn btn-outline" style="margin-bottom:12px" onclick="nav('report')">${icon('finish-flag')} ${esc(t('rp.title'))}</button>` : ''}
     ${body}</div>${tabbar()}`;
 }
 // [Epic H2] The flags a session was trained under, as compact chips. Empty
@@ -6544,7 +6553,7 @@ function vHistory() {
 function injuryChips(s) {
   if (!s.injuries || !s.injuries.length) return '';
   return `<div class="injury-chips">${s.injuries.map(l =>
-    `<span class="injury-chip">🩹 ${esc(t('lift.' + (INJURY_MV[l] || l)))}</span>`).join('')}</div>`;
+    `<span class="injury-chip">${icon('injury')} ${esc(t('lift.' + (INJURY_MV[l] || l)))}</span>`).join('')}</div>`;
 }
 // Shared per-lift rendering for the history modal and the post-workout summary.
 function sessionSetRowsHTML(e, withTarget) {
@@ -6566,7 +6575,7 @@ function sessionSetRowsHTML(e, withTarget) {
 function sessionLiftCardHTML(e, withTarget) {
   return `<div class="lift-card"><h3 style="font-size:1.15rem">${esc(e.name)}</h3>
     ${sessionSetRowsHTML(e, withTarget)}
-    ${e.notes ? `<p class="faint mt8">✎ ${esc(e.notes)}</p>` : ''}</div>`;
+    ${e.notes ? `<p class="faint mt8">${icon('edit')} ${esc(e.notes)}</p>` : ''}</div>`;
 }
 function openSessionDetail(id) {
   const s = S.sessions.find(x => x.id === id);
@@ -6681,7 +6690,7 @@ function libItemHTML(e) {
   const eq = EQUIP_LABEL[e.equipment] ? t('equip.' + e.equipment) : '';
   const best = Engine.bestE1RM(recordsFor(e.id));
   return `<button class="lib-item" onclick="openExDetail('${e.id}')">
-    <span>${esc(exDisplayName(e))}${e.isMain ? ' <span style="color:var(--blue)">★</span>' : ''}
+    <span>${esc(exDisplayName(e))}${e.isMain ? ` <span style="color:var(--blue)">${icon('star')}</span>` : ''}
       <span class="sub">${esc(mvLabel(e.movement))} · ${esc(eq)}${best ? ' · e1RM ' + dispW(Engine.roundLoad(best, 0.5)) + wUnit() : ''}</span>${exTagsHTML(e)}</span>
     <span>›</span></button>`;
 }
@@ -6790,7 +6799,7 @@ function renderExDetail(anim) {
   let body = '';
   if (XD.tab === 'info') {
     const cues = exCues(e);
-    body = `${exMediaHTML(e.id) || '<div class="placeholder-media">🏋</div>'}
+    body = `${exMediaHTML(e.id) || `<div class="placeholder-media">${icon('exercises')}</div>`}
       <p class="subtle">${esc(mvLabel(e.movement))} · ${EQUIP_LABEL[e.equipment] ? esc(t('equip.' + e.equipment)) : ''}${e.isMain ? ' · ' + esc(t('xd.main_lift')) : ''}</p>
       ${exMetaCardHTML(e)}
       <div class="section-title" style="font-size:1.1rem">${esc(t('xd.cues_title'))}</div>
@@ -6803,7 +6812,7 @@ function renderExDetail(anim) {
       return `<div class="row" style="padding:9px 0;border-bottom:1px solid var(--line)">
         <span class="subtle">${fmtDate(r.ts)}${r.seed ? ' · ' + esc(t('xd.entered_max')) : ''}${techniqueBadge(r.technique)}${pumpBadge(r.pump)}</span>
         <span><b>${fmtW(XD.id, r.weight)} × ${r.reps} · ${fmtRir(r.rpe)}</b>
-          <button class="rec-del" onclick="deleteRecord('${XD.id}',${idx})" aria-label="${esc(t('xd.del_aria'))}">✕</button></span></div>`;
+          <button class="rec-del" onclick="deleteRecord('${XD.id}',${idx})" aria-label="${esc(t('xd.del_aria'))}">${icon('close')}</button></span></div>`;
     }).join('') + `<p class="faint mt8">${esc(t('xd.history_hint'))}</p>`)
       : `<p class="faint mt16">${esc(t('xd.no_sets'))}</p>`;
   } else if (XD.tab === 'trend') {
@@ -7043,7 +7052,7 @@ function vProgress() {
   }
   prs.sort((a, b) => b.ts - a.ts);
   const prRows = prs.slice(0, 8).map(m => `<div class="row" style="padding:7px 0;border-bottom:1px solid var(--line)">
-      <span>🏅 ${esc(m.name)}</span><b>${fmtWU(Engine.roundLoad(m.value, 0.5))} <span class="faint">${fmtDate(m.ts)}</span></b></div>`).join('');
+      <span>${icon('medals')} ${esc(m.name)}</span><b>${fmtWU(Engine.roundLoad(m.value, 0.5))} <span class="faint">${fmtDate(m.ts)}</span></b></div>`).join('');
   const pump = Engine.pumpSeries(S.sessions);
   const sore = Engine.sorenessSeries(S.checkins);
   return `${topbar(t('px.title'))}<div class="view">
@@ -7104,7 +7113,7 @@ function macroReportHTML() {
 function vReport() {
   if (!P()) return vOnboarding();
   return `${topbar(t('rp.title'))}<div class="view">${macroReportHTML()}
-    <button class="btn btn-outline mt16" onclick="nav('progress')">📈 ${esc(t('px.title'))}</button>
+    <button class="btn btn-outline mt16" onclick="nav('progress')">${icon('progress')} ${esc(t('px.title'))}</button>
   </div>${tabbar()}`;
 }
 
@@ -7143,16 +7152,16 @@ function vMeet() {
 
 function vMore() {
   const link = (label, ic, fn) => `<button class="lib-item" onclick="${fn}">
-    <span><span style="margin-right:10px">${ic}</span>${esc(label)}</span><span>›</span></button>`;
+    <span><span style="margin-right:10px">${icon(ic)}</span>${esc(label)}</span><span>›</span></button>`;
   return `${topbar(t('tab.more'))}<div class="view">
     <div class="section-title">${esc(S.profile.name || t('more.lifter'))}</div>
     <p class="faint" style="margin-bottom:14px">${esc(t('more.tagline'))}</p>
-    ${link(t('dash.my_program'), '📈', "nav('program')")}
-    ${link(t('px.title'), '🏅', "nav('progress')")}
-    ${link(t('vol.title'), '📊', 'openVolumeDashboard()')}
-    ${link(t('phase.screen_title'), '🍽', 'openPhase()')}
-    ${link(t('lib.title'), '🏋', "nav('exercises')")}
-    ${link(t('more.settings'), '⚙', "nav('settings')")}
+    ${link(t('dash.my_program'), 'program', "nav('program')")}
+    ${link(t('px.title'), 'progress', "nav('progress')")}
+    ${link(t('vol.title'), 'data', 'openVolumeDashboard()')}
+    ${link(t('phase.screen_title'), 'nutrition', 'openPhase()')}
+    ${link(t('lib.title'), 'exercises', "nav('exercises')")}
+    ${link(t('more.settings'), 'settings', "nav('settings')")}
     <p class="faint" style="margin-top:18px;text-align:center;font-size:12px">${esc(t('more.version', { v: APP_VERSION }))}</p>
   </div>${tabbar()}`;
 }
@@ -7198,7 +7207,7 @@ function renderSplitEditor(anim) {
       if (rs.isRemoved) return '';
       const nm = rs.exId ? exDisplayName(exById(rs.exId)) : mvLabel(sl.cat);
       const anchored = sl.type === 'main' || sl.type === 'secondary';
-      const mover = anchored ? '<span class="faint">⚓</span>'
+      const mover = anchored ? `<span class="faint">${icon('anchor')}</span>`
         : `<select class="se-move" onchange="seMove(${di},${si},this.value)">
             ${p.days.map((_, dj) => `<option value="${dj}" ${dj === di ? 'selected' : ''}>${esc(t('common.day_n', { n: dj + 1 }))}</option>`).join('')}
           </select>`;
@@ -7210,7 +7219,7 @@ function renderSplitEditor(anim) {
         <input class="se-name" value="${esc(dayTheme(d) || '')}" placeholder="${esc(t('common.day_n', { n: di + 1 }))}"
           onchange="seRename(${di}, this.value)">
         <span class="faint" style="white-space:nowrap">~${est}m</span>
-        ${p.days.length > 1 ? `<button class="btn-ghost" style="color:var(--red)" onclick="seRemoveDay(${di})">✕</button>` : ''}
+        ${p.days.length > 1 ? `<button class="btn-ghost" style="color:var(--red)" onclick="seRemoveDay(${di})" aria-label="${esc(t('common.remove'))}">${icon('close')}</button>` : ''}
       </div>
       ${rows}</div>`;
   }).join('');
@@ -7559,7 +7568,7 @@ function vProgram() {
       <div class="row mt8"><span class="subtle">${esc(t('prog.days_week'))}</span><b>${p.daysPerWeek}</b></div>
     </div>
     <div class="btn-row mt8">
-      <button class="btn btn-outline" onclick="openSplitEditor()">✎ ${esc(t('se.title'))}</button>
+      <button class="btn btn-outline" onclick="openSplitEditor()">${icon('edit')} ${esc(t('se.title'))}</button>
       ${track === 'bodybuilding' ? `<button class="btn btn-outline" onclick="openFocusEditor()">${esc(t('fe.title'))}${p.pendingFocus ? ' ●' : ''}</button>` : ''}
     </div>
     <div class="btn-row">

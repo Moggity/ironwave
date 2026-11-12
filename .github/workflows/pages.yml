@@ -55,6 +55,8 @@ jobs:
                  "_site/${PAGES_DIR}/package.json" \
                  "_site/${PAGES_DIR}/package-lock.json"
           rm -f "_site/${PAGES_DIR}"/*.bat
+          # Icon sources: the app loads the generated icons.js, not these files.
+          rm -rf "_site/${PAGES_DIR}/icons/ui"
           # Blank, noindex root so the site root reveals nothing about the app path.
           printf '%s\n' '<!doctype html><meta name="robots" content="noindex,nofollow"><title>.</title>' > _site/index.html
           # robots.txt is best-effort (crawlers honor it at the host root, which a
