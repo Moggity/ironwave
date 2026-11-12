@@ -98,6 +98,14 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 .icon-btn { color: var(--text-dim); font-size: .72rem; text-align: center; line-height: 1.2; }
 .icon-btn .ic { display: block; font-size: 1.05rem; margin-bottom: 2px; }
+/* UI icons (icon() in app.js): inline SVG drawn in currentColor and sized in
+   em, so an icon takes the colour and font size of whatever holds it. Taps go
+   to the button, never to the SVG. */
+.ico { display: inline-block; flex: none; width: 1.15em; height: 1.15em; vertical-align: -.2em; pointer-events: none; }
+.ic > .ico { display: block; margin: 0 auto; }
+.btn-ghost > .ico:only-child { display: block; width: 22px; height: 22px; }
+.grip > .ico { display: block; width: 20px; height: 20px; }
+.set-adj-btn > .ico, .rec-del > .ico, .plan-ops button > .ico { display: block; margin: 0 auto; }
 
 /* ---------- readiness hero ---------- */
 .readiness-hero { padding: 6px 2px 0; }
@@ -561,7 +569,7 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 /* ---------- check-in ---------- */
 .checkin-step-label { color: var(--blue); font-weight: 600; font-size: .9rem; margin: 14px 0 4px; }
 .checkin-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 16px; }
-.bodymap { text-align: center; font-size: 4rem; padding: 10px 0; filter: drop-shadow(0 0 18px rgba(75,141,248,.5)); }
+.bodymap { text-align: center; font-size: 4rem; padding: 10px 0; color: var(--blue); filter: drop-shadow(0 0 18px rgba(75,141,248,.5)); }
 .slider-card { background: var(--card); border-radius: var(--radius); padding: 16px; margin: 14px 0; }
 .slider-card .q { font-weight: 600; margin-bottom: 12px; }
 .slider-card .feeling { margin-bottom: 8px; }
@@ -798,10 +806,12 @@ input[type=range] { width: 100%; accent-color: var(--blue); height: 30px; }
 
 .info-dot {
   flex: none; width: 18px; height: 18px; border-radius: 50%;
-  border: none; background: var(--blue); color: #fff;
+  border: none; background: none; color: var(--blue);
   font-size: .72rem; line-height: 18px; font-style: normal;
   text-align: center; cursor: pointer; padding: 0;
 }
+/* The info icon draws its own circle, so the dot is the icon itself. */
+.info-dot > .ico { display: block; width: 18px; height: 18px; }
 .info-dot:active { filter: brightness(1.25); }
 
 /* [G4] Specialization panel: frequency pips per advanced muscle row.

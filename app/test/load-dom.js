@@ -57,7 +57,8 @@ function loadDom() {
 
   // The i18n runtime + catalogs load before data.js, matching index.html.
   const i18n = ['i18n/i18n.js', 'i18n/en.js', 'i18n/es.js'].map(read);
-  const data = read('data.js');
+  // The generated icon map loads before data.js, matching index.html.
+  const data = read('icons.js') + '\n;\n' + read('data.js');
   const engine = read('engine.js');
   // Strip the whole trailing `boot().catch(...)` statement (see load-app.js:
   // the bare `boot();` pattern stopped matching when the catch was added,

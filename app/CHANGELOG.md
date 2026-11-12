@@ -1,5 +1,49 @@
 # IRONWAVE — Changelog
 
+## [Owner icon set replaces the text symbols] (2026-11-12, v1.23.0)
+
+Owner QoL request. Display only; no state, prescription or copy meaning
+changed (golden master byte-identical).
+
+- **Icon system.** The 48 owner SVGs live in `app/icons/ui/` as sources.
+  `scripts/build-icons.js` turns them into the generated `app/icons.js`
+  (`ICONS`, colours rewritten to `currentColor`, Figma wrappers stripped),
+  loaded before `data.js` and cached in the shell. `icon(name)` in
+  `app.js` renders one as inline SVG sized in em, so it takes the colour
+  and font size of whatever holds it. Sources are not published to Pages.
+  How to add one: `app/icons/ui/README.md`.
+- **Replaced** the Unicode and emoji symbols on the tab bar, the More
+  hub, overview and session cards (info, swap, select, unlink, remove,
+  edit, drag grip, move, add and remove set), modal close and back
+  arrows, the confirm warning, finisher chips, pump levels, injury and
+  below-bar strips, plan editor, onboarding day boxes and the buttons
+  that carried an emoji. `PUMP_ICONS` and `FINISHER_ICONS` now hold icon
+  names.
+- **Catalogs:** five strings lost the emoji they carried (the icon is
+  added where they render); new `a11y.back` and `a11y.close` label the
+  icon-only back and close buttons. The info dot is now the icon itself
+  instead of a filled blue circle.
+- **Left as text** (no matching icon supplied): the linked-superset chain,
+  the readiness and deload bolt, trend arrows, day status marks, and the
+  plus and minus on the weight, reps and plate steppers. `calendar`,
+  `report` and `timer` are in the set but unused.
+- Tests: `icons.test.js` (6); `feedback-round2` and `h3` now look for the
+  icon instead of the emoji. Suite: 615 green.
+
+## [Dumbbell military press is findable] (2026-11-12)
+
+Owner QoL request. Display names only; ids, cues, tags and every
+prescription are unchanged (golden master byte-identical).
+
+- **Renamed** `seated-db-press` to "DB Military Press (Seated)" and
+  `db-shoulder-press` to "DB Military Press (Standing)"; in Spanish,
+  "Press militar con mancuernas sentado" and "de pie". A dumbbell
+  military press is the same lift the library already had under a name
+  that a search for "military" or "militar" could not find. No third
+  entry was added, so logged history stays on one exercise.
+- Sessions already logged keep the old name they were saved with.
+- Tests: `db-military-press.test.js` (3). Suite: 609 green.
+
 ## [Add and remove sets] (2026-11-12)
 
 Owner QoL request. All tracks; inert by absence (golden master

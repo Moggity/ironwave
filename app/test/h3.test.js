@@ -132,7 +132,7 @@ test('the Progress view assembles: overlay, sets band, PR feed', () => {
   const html = app.vProgress();
   assert.ok(/ovl-legend/.test(html), 'e1RM overlay renders');
   assert.ok(/px-chip/.test(html), 'muscle chips render');
-  assert.ok(/🏅/.test(html), 'PR feed has the new-high entry');
+  assert.ok(/data-ic="medals"/.test(html), 'PR feed has the new-high entry');
 });
 
 test('the macro report shows sessions, tonnage, e1RM movement and MRV movement', () => {

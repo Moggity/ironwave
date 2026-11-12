@@ -483,6 +483,8 @@ const I18N_ES = {
   'common.start_program_first': 'Primero crea un programa',
   'a11y.move_up': 'Subir',
   'a11y.move_down': 'Bajar',
+  'a11y.back': 'Volver',
+  'a11y.close': 'Cerrar',
   'unit.min': '{n} min',
 
   // --- tab bar ---
@@ -526,7 +528,7 @@ const I18N_ES = {
   'week.new_block_toast': 'Nuevo bloque: {label}',
 
   // --- dashboard ---
-  'dash.done_title': 'Programa completado 🏆',
+  'dash.done_title': 'Programa completado',
   'dash.done_body': 'Descansa, prueba tus máximos o arranca el siguiente ciclo.',
   'dash.plan_next': 'Planear el siguiente ciclo',
   'dash.readiness': 'Preparación',
@@ -534,8 +536,8 @@ const I18N_ES = {
   'dash.my_program': 'Mi programa',
   'dash.days_out': 'Quedan {n} días',
   'dash.in_progress': 'En curso',
-  'dash.weekly_volume_btn': '📊 Volumen semanal por músculo',
-  'dash.phase_chip': '🍽 Fase: {phase}',
+  'dash.weekly_volume_btn': 'Volumen semanal por músculo',
+  'dash.phase_chip': 'Fase: {phase}',
   'dash.new_program_title': '¿Empezar un programa nuevo?',
   'dash.new_program_msg': 'Tu historial, tus marcas y tus máximos se conservan. El programa vuelve a la semana 1.',
   'dash.new_program_confirm': 'Empezar programa nuevo',
@@ -622,7 +624,7 @@ const I18N_ES = {
   'vol.md_deload': 'descargar este músculo ›',
   'vol.md_full_toast': '{muscle}: vuelve al volumen completo',
   'vol.md_deloaded_toast': '{muscle}: descargado lo que queda de bloque',
-  'vol.overreach_title': '⚠ Pasado de volumen',
+  'vol.overreach_title': 'Pasado de volumen',
   'vol.overreach_body': '{reason}, más de lo que puedes recuperar. Afloja los músculos más cargados con los enlaces de descarga de abajo, o adelanta la descarga del bloque entero desde el panel.',
   'vol.overreach_one': '{n} músculo sobre su MRV',
   'vol.overreach_many': '{n} músculos sobre su MRV',
@@ -736,7 +738,7 @@ const I18N_ES = {
   'ci.mindset_title': 'Mentalidad',
   'ci.mindset_body': '¿Cuál es tu enfoque de hoy?',
   'ci.mindset_ph': 'Hoy voy a…',
-  'ci.injury_q': '🩹 ¿Alguna molestia o lesión con la que estés entrenando con cuidado?',
+  'ci.injury_q': '¿Alguna molestia o lesión con la que estés entrenando con cuidado?',
   'ci.start_workout': 'Empezar a entrenar',
 
   // --- swap / select / add pickers ---
@@ -1095,8 +1097,8 @@ const I18N_ES = {
   'exn.stiff-leg-deadlift': 'Peso muerto piernas rígidas',
   'exn.push-press': 'Push press',
   'exn.z-press': 'Press Z',
-  'exn.seated-db-press': 'Press con mancuernas sentado',
-  'exn.db-shoulder-press': 'Press con mancuernas de pie',
+  'exn.seated-db-press': 'Press militar con mancuernas sentado',
+  'exn.db-shoulder-press': 'Press militar con mancuernas de pie',
   'exn.arnold-press': 'Press Arnold',
   'exn.landmine-press': 'Press landmine',
   'exn.machine-shoulder-press': 'Press de hombros en máquina',

@@ -480,6 +480,8 @@ const I18N_EN = {
   'common.start_program_first': 'Start a program first',
   'a11y.move_up': 'Move up',
   'a11y.move_down': 'Move down',
+  'a11y.back': 'Back',
+  'a11y.close': 'Close',
   'unit.min': '{n} min',
 
   // --- tab bar ---
@@ -523,7 +525,7 @@ const I18N_EN = {
   'week.new_block_toast': 'New block: {label}',
 
   // --- dashboard ---
-  'dash.done_title': 'Program complete 🏆',
+  'dash.done_title': 'Program complete',
   'dash.done_body': 'Rest up, test your maxes, or start the next cycle.',
   'dash.plan_next': 'Plan next cycle',
   'dash.readiness': 'Readiness',
@@ -531,8 +533,8 @@ const I18N_EN = {
   'dash.my_program': 'My Program',
   'dash.days_out': '{n} Days Out',
   'dash.in_progress': 'In progress',
-  'dash.weekly_volume_btn': '📊 Weekly volume per muscle',
-  'dash.phase_chip': '🍽 Phase: {phase}',
+  'dash.weekly_volume_btn': 'Weekly volume per muscle',
+  'dash.phase_chip': 'Phase: {phase}',
   'dash.new_program_title': 'Start a new program?',
   'dash.new_program_msg': 'Your history, records and maxes stay. The current program pointer resets to week 1.',
   'dash.new_program_confirm': 'Start new program',
@@ -619,7 +621,7 @@ const I18N_EN = {
   'vol.md_deload': 'deload this muscle ›',
   'vol.md_full_toast': '{muscle}: back to full volume',
   'vol.md_deloaded_toast': '{muscle}: deloaded for the rest of this block',
-  'vol.overreach_title': '⚠ Overreaching',
+  'vol.overreach_title': 'Overreaching',
   'vol.overreach_body': '{reason}, past what you can recover from. Ease the worst muscles back with the deload links below, or pull the whole block\'s deload in early from the dashboard.',
   'vol.overreach_one': '{n} muscle over MRV',
   'vol.overreach_many': '{n} muscles over MRV',
@@ -733,7 +735,7 @@ const I18N_EN = {
   'ci.mindset_title': 'Mindset',
   'ci.mindset_body': 'What is your focus for today?',
   'ci.mindset_ph': 'Today I am going to…',
-  'ci.injury_q': '🩹 Any aches or injuries you are training around?',
+  'ci.injury_q': 'Any aches or injuries you are training around?',
   'ci.start_workout': 'Start Workout',
 
   // --- swap / select / add pickers ---

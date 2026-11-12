@@ -99,7 +99,7 @@ const EXPORTS = `return {
   BIG_LIFTS, VOL_ORDER, allExercises,
   DEFAULT_ACC, FOCUS_FACTOR, MOVEMENT_SLIDER,
   UPPER_MUSCLES, LOWER_MUSCLES, FOCUS_KEYS,
-  t, I18N,
+  t, I18N, icon, ICONS, FINISHER_ICONS,
   hasCoach, setDebugTier, coachLockHTML, vProgram,
   save, draftIsValid, syncDraftSlots, removeSlot, undoRemove, doAddExercise, commitReorder, finishSession, abandonSession, doSkipWorkout,
   applySetDelta, applySlotSetAdj, isPlainSet, addSessionSet, removeSessionSet, removeLastSessionSet, undoRemoveSet,
@@ -114,7 +114,8 @@ function loadApp() {
 
   // The i18n runtime + catalogs load before data.js, matching index.html.
   const i18n = ['i18n/i18n.js', 'i18n/en.js', 'i18n/es.js'].map(read).join('\n;\n');
-  const data = read('data.js');
+  // The generated icon map loads before data.js, matching index.html.
+  const data = read('icons.js') + '\n;\n' + read('data.js');
   const engine = read('engine.js');
   // Drop the boot() invocation at the end of app.js so loading does not kick
   // off async state loading or a render pass. The file ends with
