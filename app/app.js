@@ -188,6 +188,11 @@ function migrateState(s) {
 // and reports a real failure to the user instead of only console.warn.
 let _saveChain = Promise.resolve();
 function save() {
+  // The in-progress workout (V.draft) rides along as the optional S.draft so a
+  // closed app or a back tap restores it exactly. Absent when no session is
+  // in progress, so it is inert by absence.
+  if (typeof V !== 'undefined' && V && V.draft) S.draft = V.draft;
+  else if (S) delete S.draft;
   // On-device write first: this is the durable store, and it is synchronous so
   // it succeeds with no network. Only a genuine local-write failure (e.g. quota)
   // is real data loss worth surfacing.
@@ -208,6 +213,17 @@ function save() {
     }
   });
   return _saveChain;
+}
+// A stored in-progress workout is only worth restoring while it still points
+// at the program's current week and an unfinished day that exists. Used on
+// boot and on a state import, so a stale draft never resurrects.
+function draftIsValid(draft, s) {
+  const p = s && s.program;
+  if (!draft || typeof draft !== 'object' || !p || !p.pointer || !Array.isArray(p.days)) return false;
+  if (!Array.isArray(draft.entries)) return false;
+  if (draft.b !== p.pointer.block || draft.w !== p.pointer.week) return false;
+  if (!Number.isInteger(draft.d) || !p.days[draft.d]) return false;
+  return !(p.completedDays || {})[dayKey(draft.b, draft.w, draft.d)];
 }
 
 // ------------------------------------------------------------
@@ -1971,6 +1987,7 @@ function toggleSuperset(di, si) {
     if (pos < 0 || pos >= order.length - 1) { toast(t('workout.ss_need_next'), true); return; }
     slot.superset = true;                            // links to the next; chains form giant sets
   }
+  syncDraftSlots(di);
   save(); render();
   toast(slot.superset ? 'Linked into a superset' : 'Superset link removed');
 }
@@ -1991,6 +2008,7 @@ function moveSupersetMember(di, si, dir) {
   const a = groupSis[pos], b = groupSis[tgt];
   const tmp = slots[a]; slots[a] = slots[b]; slots[b] = tmp; // swap the two members
   groupSis.forEach((s, i) => { slots[s].superset = i < groupSis.length - 1; }); // relink the run
+  syncDraftSlots(di);
   save(); render();
 }
 // Heads-up banner in the workout view for athletes with a time cap.
@@ -3100,6 +3118,7 @@ function obNext(step) {
         S.profile.landmarks = Engine.seedLandmarks(ob.experience);
       }
       S.program = makeProgram(ob);
+      V.draft = null; // a new program never inherits a workout in progress
       // [Epic G6] Seed the current training phase from the first block so the
       // autoregulator (Cluster F) knows a lean-fast plan starts in a deficit.
       if (S.program.blocks[0] && S.program.blocks[0].phase) S.profile.phase = S.program.blocks[0].phase;
@@ -3498,8 +3517,9 @@ function vDashboard() {
     const dayRows = p.days.map((d, i) => {
       const k = dayKey(p.pointer.block, w, i);
       const st = p.completedDays[k];
-      const cls = st ? 'done' : '';
-      const mark = st === 'skipped' ? '⤼' : st ? '✓' : '○';
+      const live = !st && V.draft && V.draft.d === i; // workout in progress on this day
+      const cls = st ? 'done' : live ? 'active' : '';
+      const mark = st === 'skipped' ? '⤼' : st ? '✓' : live ? '◐' : '○';
       // [Calendar days] A scheduled program names its days by weekday (with a
       // flag on competitive-sport days); an unscheduled one keeps 'Day n'.
       const sch = Array.isArray(p.schedule) ? p.schedule[i] : null;
@@ -3507,7 +3527,7 @@ function vDashboard() {
         ? `${t('wd.s' + sch.wd)}${sch.sport ? ' ⚑' : ''}`
         : t('common.day_n', { n: i + 1 });
       return `<button class="day-row ${cls}" onclick="openDay(${i})">
-        <span class="mark">${mark}</span> <span>${esc(dayLabel)}${dayTheme(d) ? ` <span class="faint">${esc(dayTheme(d))}</span>` : ''}</span> <span class="chev">›</span></button>`;
+        <span class="mark">${mark}</span> <span>${esc(dayLabel)}${dayTheme(d) ? ` <span class="faint">${esc(dayTheme(d))}</span>` : ''}${live ? ` <span class="faint">· ${esc(t('dash.in_progress'))}</span>` : ''}</span> <span class="chev">›</span></button>`;
     }).join('');
     const allDone = p.days.every((d, i) => p.completedDays[dayKey(p.pointer.block, w, i)]);
     weekSection = `
@@ -3908,6 +3928,8 @@ function openDay(i) {
   // Change 3: a completed (non-skipped) day opens its summary, not a fresh session.
   const st = p.completedDays[dayKey(p.pointer.block, p.pointer.week, i)];
   if (st && st !== 'skipped') { V.summaryId = st; nav('summary'); return; }
+  // The day with a workout in progress reopens that session as it was left.
+  if (!st && V.draft && V.draft.d === i) { nav('session'); return; }
   nav('workout');
 }
 function completeWeek(allDone) {
@@ -3940,6 +3962,9 @@ function advanceWeek() {
   const p = P();
   const finishedBlock = p.pointer.block;
   const bb = (p.trainingConfig || {}).track === 'bodybuilding';
+  // A workout left in progress belongs to the week being closed; it cannot
+  // carry into the next week (or block), so it is dropped here.
+  if (V) V.draft = null;
   updateAutoreg(); // [Cluster E] fold the week's feedback into per-muscle volume
   // [Cluster D] An early (autoregulated) deload ends the block now: the week just
   // trained was the deload, so resensitize and roll to the next block instead of
@@ -4221,6 +4246,8 @@ function vWorkout() {
   const k = dayKey(p.pointer.block, w, di);
   const doneState = p.completedDays[k];
   const locked = doneState && doneState !== 'skipped'; // Change 3
+  // A workout in progress on this day: offer Resume instead of a fresh start.
+  const liveHere = !doneState && !!V.draft && V.draft.d === di;
   // Empty-day safety net: only reachable if the athlete zeroed essentially every
   // muscle (refill cannot find anything to train). Guide them instead of starting
   // an empty session.
@@ -4262,9 +4289,10 @@ function vWorkout() {
     // [Cluster B] Within a group, compact up/down controls reorder the member while
     // keeping the group intact (disabled at the group's ends).
     const ssMove = ssInfo ? `${ssInfo.index > 0 ? `<button class="icon-btn ss-move" onclick="moveSupersetMember(${di},${si},-1)" aria-label="${esc(t('a11y.move_up'))}"><span class="ic">▲</span></button>` : ''}${ssInfo.index < ssInfo.size - 1 ? `<button class="icon-btn ss-move" onclick="moveSupersetMember(${di},${si},1)" aria-label="${esc(t('a11y.move_down'))}"><span class="ic">▼</span></button>` : ''}` : '';
-    // Main and secondary lifts anchor the program (and the working max), so they
-    // are swap-only. Accessories and anything the athlete added can be removed by
-    // swiping the card left to reveal a Remove action.
+    // Every exercise, main and secondary lifts included, can be removed by
+    // swiping the card left to reveal a red "Remove?" action. A removed main's
+    // working max stays in P().wm, but only Undo brings the wave slot itself
+    // back: re-adding the lift later makes it a plain accessory.
     const card = `<div class="ex-card ${opt ? 'optional' : ''}${ssInfo ? ' superset' : ''}" data-si="${si}">
       ${grip}
       <span class="name">${esc(rs.name)}${opt ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}${ssTag}</span>
@@ -4274,9 +4302,8 @@ function vWorkout() {
         <button class="icon-btn" onclick="openSwap(${di},${si})"><span class="ic">⇄</span>${esc(t('common.swap'))}</button>
       </span>
     </div>`;
-    if (rs.isMain || rs.isSecondary) return card;
     return `<div class="ex-swipe" data-si="${si}" onpointerdown="exSwipeDown(event,${di},${si})">
-      <button class="ex-remove" onclick="removeSlot(${di},${si})" aria-label="${esc(t('common.remove'))} ${esc(rs.name)}"><span class="ic">🗑</span>${esc(t('common.remove'))}</button>
+      ${exRemoveBtnHTML(di, si, rs.name)}
       ${card}
     </div>`;
   }).join('');
@@ -4302,7 +4329,9 @@ function vWorkout() {
       <p class="subtle mt8">${esc(t('workout.day_complete_body'))}</p>
       <button class="btn btn-blue mt8" onclick="openSummaryFor('${doneState}')">${esc(t('workout.view_summary'))}</button>
       <button class="btn btn-outline mt8" onclick="redoDay(${di})">${esc(t('workout.redo_day'))}</button>
-    </div>` : emptyDay ? `
+    </div>` : liveHere ? `
+    <button class="btn btn-green mt16" onclick="resumeSession()">${esc(t('workout.resume'))}</button>
+    <button class="btn-ghost" style="margin:6px 2px;color:var(--text-dim)" onclick="discardDraft()">${esc(t('workout.discard_draft'))}</button>` : emptyDay ? `
     <div class="card accent mt16"><b>${esc(t('workout.empty_title'))}</b>
       <p class="subtle mt8">${esc(t('workout.empty_body'))}</p>
       <button class="btn btn-outline mt8" onclick="openAddExercise(${di})">${esc(t('workout.add_exercise'))}</button>
@@ -4363,6 +4392,7 @@ function gripUp() {
 function commitReorder(di, order) {
   const slots = P().days[di].slots;
   P().days[di].slots = order.map(i => slots[i]);
+  syncDraftSlots(di); // a live session follows the new order, logged sets intact
   // Reshuffling the planned order costs a little readiness (fatigue-management drift)
   S.orderPenalty = Math.min(2, decayedOrderPenalty() + 0.3);
   S.lastOrderTs = Date.now();
@@ -4378,14 +4408,21 @@ function commitReorder(di, order) {
 const SWIPE_REVEAL = 92; // px; must match .ex-swipe.open .ex-card transform
 let SWP = null;
 function exSwipeDown(ev, di, si) {
-  // Let the grip (reorder) and the row's own buttons keep their own gestures.
-  if (ev.target.closest('.grip') || ev.target.closest('.icon-btn') || ev.target.closest('.ex-remove')) return;
   const wrap = ev.currentTarget;
-  const card = wrap.querySelector('.ex-card');
+  // A live session card (.ex-swipe.live) is mostly buttons (the per-set
+  // performance buttons), so the swipe may start anywhere on it except text
+  // fields; the click that follows a recognized swipe is eaten in exSwipeUp.
+  // On the overview, the grip (reorder) and the row's buttons keep their own
+  // gestures.
+  const live = wrap.classList.contains('live');
+  if (ev.target.closest('.ex-remove')) return;
+  if (live ? ev.target.closest('input, textarea, select')
+           : (ev.target.closest('.grip') || ev.target.closest('.icon-btn'))) return;
+  const card = wrap.querySelector('.ex-card, .lift-card');
   if (!card) return;
   // A tap on a row while another is open just closes the open one.
   closeOpenSwipes(wrap);
-  SWP = { di, si, wrap, card, x0: ev.clientX, y0: ev.clientY,
+  SWP = { di, si, wrap, card, x0: ev.clientX, y0: ev.clientY, live,
           open: wrap.classList.contains('open'), decided: false };
   document.addEventListener('pointermove', exSwipeMove, { passive: false });
   document.addEventListener('pointerup', exSwipeUp, { once: true });
@@ -4407,13 +4444,25 @@ function exSwipeMove(ev) {
 }
 function exSwipeUp(ev) {
   if (!SWP) return;
-  const { wrap, card, open, decided } = SWP;
+  const { wrap, card, open, decided, live } = SWP;
   const dx = ev.clientX - SWP.x0;
   wrap.classList.remove('swiping');
   card.style.transform = '';
   const nowOpen = decided ? (open ? dx < SWIPE_REVEAL / 2 : dx < -SWIPE_REVEAL / 2) : false;
   wrap.classList.toggle('open', nowOpen);
+  // On a live card the pointer-up lands on a set button: a swipe (or a tap
+  // that only closes an open card) must not also open the set-logging modal.
+  if (live && (decided || open)) suppressNextClick();
   endSwipe();
+}
+function suppressNextClick() {
+  const eat = e => { e.stopPropagation(); e.preventDefault(); };
+  document.addEventListener('click', eat, { capture: true, once: true });
+  setTimeout(() => document.removeEventListener('click', eat, true), 400);
+}
+// The red action revealed behind a swiped card (overview and live session).
+function exRemoveBtnHTML(di, si, name) {
+  return `<button class="ex-remove" onclick="removeSlot(${di},${si})" aria-label="${esc(t('common.remove'))} ${esc(name)}"><span class="ic">🗑</span>${esc(t('workout.remove_q'))}</button>`;
 }
 function endSwipe() {
   document.removeEventListener('pointermove', exSwipeMove);
@@ -4422,6 +4471,39 @@ function endSwipe() {
 function closeOpenSwipes(except) {
   document.querySelectorAll('.ex-swipe.open').forEach(w => { if (w !== except) w.classList.remove('open'); });
 }
+// Keep the live session in step with its day's slots after any edit to them
+// (remove, undo, add, reorder, superset links). Rebuilds the entries in the
+// day's resolved order; an exercise already in the session keeps its logged
+// sets, notes and injury flag exactly, and only takes its new position and
+// grouping. New exercises get a fresh prescription; ones gone from the day
+// drop out. No-op unless the draft is on that day.
+function syncDraftSlots(di) {
+  const dr = V && V.draft;
+  if (!dr || dr.d !== di || !P() || !P().days[di]) return;
+  const items = resolveDayEntries(dr.d, dr.b, dr.w).items;
+  const old = dr.entries || [];
+  const used = new Set();
+  const match = new Array(items.length).fill(-1);
+  // Pass 1: same slot and same exercise. Pass 2: first unused same exercise.
+  items.forEach((x, k) => {
+    const j = old.findIndex((e, i) => !used.has(i) && e.si === x.si && e.exId === x.rs.exId);
+    if (j >= 0) { used.add(j); match[k] = j; }
+  });
+  items.forEach((x, k) => {
+    if (match[k] >= 0) return;
+    const j = old.findIndex((e, i) => !used.has(i) && e.exId === x.rs.exId);
+    if (j >= 0) { used.add(j); match[k] = j; }
+  });
+  const POS = ['si', 'optional', 'superset', 'supersetRole', 'supersetPartner',
+               'supersetGroup', 'supersetIndex', 'supersetSize', 'supersetNames'];
+  dr.entries = items.map((x, k) => {
+    const fresh = sessionEntryFrom(x);
+    if (match[k] < 0) return applyInjuryEasing(fresh, dr.injuries);
+    const e = old[match[k]];
+    for (const f of POS) e[f] = fresh[f];
+    return e;
+  });
+}
 let LAST_REMOVED = null;
 function removeSlot(di, si) {
   const p = P();
@@ -4429,15 +4511,46 @@ function removeSlot(di, si) {
   if (!slot) return;
   const name = resolveSlot(slot, p.pointer.block, p.pointer.week).name || t('common.exercise');
   LAST_REMOVED = { di, si, slot };
+  // Removing a superset's tail: the member before it links "to the next", so
+  // it would silently chain onto the following accessory. Break that link
+  // (Undo relinks it).
+  if (!slot.superset) {
+    const order = accessorySiOrder(di, p.pointer.block, p.pointer.week);
+    const pos = order.indexOf(si);
+    const prev = pos > 0 ? p.days[di].slots[order[pos - 1]] : null;
+    if (prev && prev.superset) { prev.superset = false; LAST_REMOVED.unlinked = prev; }
+  }
+  // Mid-session: lift the removed entry (logged sets, notes and all) out of
+  // the draft first, so Undo can put it back exactly where it was.
+  const dr = V && V.draft;
+  if (dr && dr.d === di) {
+    const ei = dr.entries.findIndex(e => e.si === si);
+    if (ei >= 0) {
+      LAST_REMOVED.draftId = dr.id;
+      LAST_REMOVED.ei = ei;
+      LAST_REMOVED.entry = dr.entries.splice(ei, 1)[0];
+    }
+  }
   p.days[di].slots.splice(si, 1);
+  syncDraftSlots(di);
   save(); render();
   toastAction(t('tech.removed', { name }), t('common.undo'), undoRemove);
 }
 function undoRemove() {
   if (!LAST_REMOVED) return;
-  const { di, si, slot } = LAST_REMOVED;
+  const { di, si, slot, entry, ei, draftId, unlinked } = LAST_REMOVED;
   const slots = P().days[di].slots;
-  slots.splice(Math.min(si, slots.length), 0, slot);
+  const at = Math.min(si, slots.length);
+  slots.splice(at, 0, slot);
+  if (unlinked) unlinked.superset = true;
+  const dr = V && V.draft;
+  if (entry && dr && dr.id === draftId && dr.d === di) {
+    // Back at its original position with its own slot index, so the sync
+    // below matches it exactly and keeps every logged set.
+    entry.si = at;
+    dr.entries.splice(Math.min(ei, dr.entries.length), 0, entry);
+  }
+  syncDraftSlots(di);
   LAST_REMOVED = null;
   save(); render();
   toast(t('workout.removal_undone'));
@@ -4454,6 +4567,7 @@ function skipWorkout(di) {
 function doSkipWorkout(di) {
   const p = P();
   p.completedDays[dayKey(p.pointer.block, p.pointer.week, di)] = 'skipped';
+  if (V.draft && V.draft.d === di) V.draft = null; // a skipped day has no workout in progress
   S.skipPenalty = Math.min(6, decayedSkipPenalty() + 2);
   S.lastSkipTs = Date.now();
   S.sessions.push({ id: 's' + Date.now(), ts: Date.now(), b: p.pointer.block, w: p.pointer.week, d: di,
@@ -4507,6 +4621,7 @@ function checkinGroupsForDay(day) {
 const feelWord = v => t('ci.feel_' + v);
 
 function startCheckin(di) {
+  if (V.draft && V.draft.d !== di) { confirmDiscardDraft(() => startCheckin(di)); return; }
   const day = P().days[di];
   V.checkinData = { di, sleepHours: 7.5, sliders: {}, mindset: '', injuries: [],
                     groups: checkinGroupsForDay(day) };
@@ -4860,7 +4975,8 @@ function vSession() {
       ${shortSleep ? `<div class="banner-warn">${esc(t('session.short_sleep', { hours: dr.sleepHours }))}</div>` : ''}
       ${dr.mindset ? `<div class="card accent"><span class="faint">${esc(t('session.todays_focus'))}</span><div style="font-weight:600">${esc(dr.mindset)}</div></div>` : ''}
       ${ratingsStripHTML(dr.sliders)}
-      ${cards}
+      ${cards || `<div class="card"><span class="faint">${esc(t('session.no_exercises'))}</span></div>`}
+      <button class="btn btn-outline" style="border-radius:24px" onclick="openAddExercise(${dr.d})">${esc(t('workout.add_exercise'))}</button>
       <button class="btn btn-green mt16" onclick="openSessionRating()">${esc(t('session.finish_workout'))}</button>
     </div>`;
 }
@@ -4895,7 +5011,9 @@ function sessionCardsHTML(dr, shortSleep) {
       out.push(supersetGroupCardHTML(members, dr));
       ei = j - 1;
     } else {
-      out.push(liftCardHTML(e, ei, dr, shortSleep));
+      // Swipe left to reveal "Remove?" (same gesture as the overview).
+      out.push(`<div class="ex-swipe live" data-si="${e.si}" onpointerdown="exSwipeDown(event,${dr.d},${e.si})">
+        ${exRemoveBtnHTML(dr.d, e.si, e.name)}${liftCardHTML(e, ei, dr, shortSleep)}</div>`);
     }
   }
   return out.join('');
@@ -4957,7 +5075,7 @@ function liftCardHTML(e, ei, dr, shortSleep) {
       ${techChipHTML(e, ei, dr)}
       ${setRows}
       <button class="notes-link" onclick="toggleNotes(${ei})">${esc(t('session.notes'))} ✎</button>
-      ${e.notesOpen ? `<textarea class="notes-area" oninput="setNotes(${ei}, this.value)" placeholder="${esc(t('session.notes_placeholder'))}">${esc(e.notes)}</textarea>` : ''}
+      ${e.notesOpen ? `<textarea class="notes-area" oninput="setNotes(${ei}, this.value)" onchange="save()" placeholder="${esc(t('session.notes_placeholder'))}">${esc(e.notes)}</textarea>` : ''}
     </div>`;
 }
 // [Cluster B] The combined superset / giant-set card: a compact controls row per
@@ -4976,10 +5094,11 @@ function supersetGroupCardHTML(members, dr) {
             <button onclick="openSwap(${dr.d},${e.si})" aria-label="${esc(t('session.swap_exercise'))}">⇄</button>
             <button onclick="openExDetail('${e.exId}')">ⓘ</button>
             <button onclick="toggleNotes(${ei})" aria-label="${esc(t('session.notes'))}">✎</button>
+            <button onclick="removeSlot(${dr.d},${e.si})" aria-label="${esc(t('common.remove'))} ${esc(e.name)}">🗑</button>
           </span>
         </div>
         ${techChipHTML(e, ei, dr)}
-        ${e.notesOpen ? `<textarea class="notes-area" oninput="setNotes(${ei}, this.value)" placeholder="${esc(t('session.notes_placeholder'))}">${esc(e.notes)}</textarea>` : ''}
+        ${e.notesOpen ? `<textarea class="notes-area" oninput="setNotes(${ei}, this.value)" onchange="save()" placeholder="${esc(t('session.notes_placeholder'))}">${esc(e.notes)}</textarea>` : ''}
       </div>`).join('');
   const rounds = [];
   for (let r = 0; r < maxRounds; r++) {
@@ -5009,14 +5128,48 @@ function topWorkWeight(e) {
   const work = e.sets.filter(s => !s.ramp && s.targetWeight);
   return work.length ? Math.max(...work.map(s => s.targetWeight)) : 0;
 }
-function toggleNotes(ei) { V.draft.entries[ei].notesOpen = !V.draft.entries[ei].notesOpen; render(); }
+function toggleNotes(ei) { V.draft.entries[ei].notesOpen = !V.draft.entries[ei].notesOpen; save(); render(); }
+// Runs on every keystroke, so it only writes the draft; the textarea's
+// onchange (blur) persists it with save().
 function setNotes(ei, v) { V.draft.entries[ei].notes = v; }
+// Back from the session: nothing is lost (the draft is persisted), so no
+// confirmation; land on the overview of the draft's day.
 function abandonSession() {
+  const dr = V.draft;
+  if (dr) V.dayIdx = dr.d;
+  save();
+  nav('workout');
+}
+// Straight back into the workout in progress (no second check-in).
+function resumeSession() {
+  if (!V.draft) return;
+  V.dayIdx = V.draft.d; V.tab = 'workout';
+  nav('session');
+}
+function draftDayLabel(dr) {
+  const d = P() && P().days[dr.d];
+  const theme = dayTheme(d);
+  return t('common.day_n', { n: dr.d + 1 }) + (theme ? ' · ' + theme : '');
+}
+function discardDraft() {
+  if (!V.draft) return;
   confirmModal({
-    title: t('session.leave_title'),
-    message: t('session.leave_message'),
-    confirmLabel: t('session.leave_confirm'),
-  }, () => nav('workout'));
+    title: t('session.discard_title'),
+    message: t('session.discard_msg'),
+    confirmLabel: t('session.discard_confirm'),
+    danger: true,
+  }, () => { V.draft = null; clearRestTimer(); save(); render(); });
+}
+// Starting a different day replaces the workout in progress: confirm, naming
+// its day, then drop it and continue.
+function confirmDiscardDraft(proceed) {
+  const dr = V.draft;
+  confirmModal({
+    title: t('session.replace_title'),
+    message: t('session.replace_msg', { day: draftDayLabel(dr) }),
+    confirmLabel: t('session.replace_confirm'),
+    danger: true,
+  }, () => { V.draft = null; clearRestTimer(); save(); proceed(); });
 }
 
 // ------------------------------------------------------------
@@ -5537,6 +5690,7 @@ function clearPerf() {
   const st = V.draft.entries[PM.ei].sets[PM.si];
   st.done = false; st.weight = st.reps = st.rpe = null; st.pump = null; st.drops = null;
   delete st.skipped; delete st.bw;
+  save();
   closePerf(); render();
 }
 // Skip a set the athlete cannot or should not do today (cardio gone, a tweak,
@@ -5548,6 +5702,7 @@ function skipSet() {
   st.done = false; st.weight = st.reps = st.rpe = null; st.pump = null; st.drops = null;
   st.skipped = true; delete st.bw;
   toast(t('perf.set_skipped'));
+  save();
   closePerf(); render();
 }
 // [Epic H2] Two consecutive below-standard AMRAPs mean the working max is
@@ -5859,8 +6014,8 @@ function openSwap(di, si) {
   const slot = P().days[di].slots[si];
   const cat = slot.cat || exById(slot.ex || slot.def || slot.lift)?.movement;
   const current = slot.ex || slot.def || slot.lift;
-  // Main/secondary slots stay inside their movement: their variations run the
-  // same wave math off the working max, so cross-group picks make no sense there.
+  // Main/secondary: same-movement variations keep the wave math; any other pick
+  // converts the slot to an accessory (doSwap). Accessory biases stay off here.
   const isMain = slot.type === 'main' || slot.type === 'secondary';
   SW = { di, si, cat, current, isMain, equip: 'all', q: '', showOther: false };
   showModal(renderSwap);
@@ -5924,10 +6079,15 @@ function swapBodyHTML() {
     || (sfrBias ? ((b.sfr || 2) - (a.sfr || 2)) : 0)
     || exDisplayName(a).localeCompare(exDisplayName(b));
 
-  // Chips reflect the pool the athlete can actually browse: just the
-  // recommended movement for a main slot, every exercise otherwise.
-  const pool = SW.isMain ? all.filter(e => e.movement === SW.cat) : all;
-  const equips = [...new Set(pool.map(e => e.equipment))].sort((a, b) => EQUIP_ORDER.indexOf(a) - EQUIP_ORDER.indexOf(b));
+  // Any slot can browse every exercise; a main/secondary pick outside its
+  // movement converts the slot to an accessory (see doSwap).
+  const origSlot = P().days[SW.di].slots[SW.si];
+  const origId = origSlot && origSlot.orig ? origSlot.orig.lift : null;
+  const origEx = origId && origId !== SW.current ? exById(origId) : null;
+  const origCard = (origEx && matchText(origEx))
+    ? swapCardHTML(origEx, false, false, 'swap.original_tag') : '';
+  if (origEx) all.splice(all.findIndex(e => e.id === origEx.id), 1);
+  const equips = [...new Set(all.map(e => e.equipment))].sort((a, b) => EQUIP_ORDER.indexOf(a) - EQUIP_ORDER.indexOf(b));
   const chips = equipChips(equips, SW.equip, 'setSwapEquip');
 
   const recommended = all.filter(e => e.movement === SW.cat && matchEquip(e) && matchText(e)).sort(sortFn);
@@ -5938,7 +6098,7 @@ function swapBodyHTML() {
   // Out-of-group browsing lets an athlete fine tune freely: a machine they
   // like, or a muscle they want to bias, regardless of the slot's category.
   let otherSection = '';
-  if (!SW.isMain) {
+  {
     const others = all.filter(e => e.movement !== SW.cat && matchEquip(e) && matchText(e))
       .sort((a, b) => (MOVEMENTS[a.movement]?.label || '').localeCompare(MOVEMENTS[b.movement]?.label || '') || sortFn(a, b));
     if (ql) {
@@ -5950,11 +6110,11 @@ function swapBodyHTML() {
       if (SW.showOther) otherSection += `<div class="section-title" style="margin-top:12px">${esc(t('swap.other_groups'))}</div>${others.map(e => swapCardHTML(e, true)).join('')}`;
     }
   }
-  return `${chips}<div class="section-title" style="margin-top:4px">${esc(t('swap.recommended'))}</div>${recHTML}${otherSection}`;
+  return `${chips}<div class="section-title" style="margin-top:4px">${esc(t('swap.recommended'))}</div>${origCard}${recHTML}${otherSection}`;
 }
 function refreshSwapBody() { const el = byId('swap-body'); if (el) el.innerHTML = swapBodyHTML(); }
 function setSwapEquip(v) { SW.equip = v; refreshSwapBody(); }
-function swapCardHTML(e, showGroup, gap) {
+function swapCardHTML(e, showGroup, gap, tagKey) {
   // Per-candidate time cost: only meaningful for a capped athlete, and only on
   // accessory slots (main/secondary variations all run the same wave math, so
   // their cost is identical and would just be noise).
@@ -5979,8 +6139,9 @@ function swapCardHTML(e, showGroup, gap) {
   // also fills a gap (it cannot both max a region and fill a missing one).
   const overTag = (!gap && e.head && SW.overHeads && SW.overHeads.has(e.head) && HEAD_LABELS[e.head])
     ? ` <span class="ex-tag over">${esc(t('swap.head_maxed', { head: headLabel(e.head) }))}</span>` : '';
+  const origTag = tagKey ? ` <span class="ex-tag">${esc(t(tagKey))}</span>` : '';
   return `<div class="ex-card">
-      <span class="name">${esc(exDisplayName(e))}${costTag}${gapTag}${overTag}${showGroup ? `<span class="sub">${esc(mvLabel(e.movement))}</span>` : ''}${exTagsHTML(e)}</span>
+      <span class="name">${esc(exDisplayName(e))}${origTag}${costTag}${gapTag}${overTag}${showGroup ? `<span class="sub">${esc(mvLabel(e.movement))}</span>` : ''}${exTagsHTML(e)}</span>
       <span class="actions">
         <button class="icon-btn" onclick="openExDetail('${e.id}')"><span class="ic">ⓘ</span>${esc(t('common.info'))}</button>
         <button class="icon-btn" onclick="doSwap(${SW.di},${SW.si},'${e.id}')"><span class="ic">☐</span>${esc(t('common.select'))}</button>
@@ -5988,8 +6149,39 @@ function swapCardHTML(e, showGroup, gap) {
 }
 function doSwap(di, si, exId) {
   const slot = P().days[di].slots[si];
-  slot.ex = exId;
-  if (slot.type === 'select') slot.type = 'acc';
+  const newMv = (exById(exId) || {}).movement;
+  if (slot.type === 'main' || slot.type === 'secondary') {
+    const baseMv = (exById(slot.baseLift || slot.lift) || {}).movement;
+    if (newMv && baseMv && newMv !== baseMv) {
+      // Out-of-movement pick: the wave math off the base lift's working max no
+      // longer applies, so the slot becomes a regular accessory in place. The
+      // original is kept on `orig` so a swap back restores it exactly.
+      const orig = { type: slot.type, lift: slot.lift };
+      if (slot.baseLift) orig.baseLift = slot.baseLift;
+      if (slot.pctMod) orig.pctMod = slot.pctMod;
+      slot.orig = orig;
+      slot.type = 'acc'; slot.cat = newMv; slot.ex = exId;
+      delete slot.lift; delete slot.baseLift; delete slot.pctMod;
+    } else {
+      slot.ex = exId;
+    }
+  } else if (slot.orig) {
+    const o = slot.orig;
+    const origMv = (exById(o.baseLift || o.lift) || {}).movement;
+    if (newMv && origMv && newMv === origMv) {
+      slot.type = o.type; slot.lift = o.lift;
+      if (o.baseLift) slot.baseLift = o.baseLift;
+      if (o.pctMod) slot.pctMod = o.pctMod;
+      if (exId === o.lift) delete slot.ex; else slot.ex = exId;
+      delete slot.orig; delete slot.cat;
+    } else {
+      slot.ex = exId;
+      if (newMv) slot.cat = newMv;
+    }
+  } else {
+    slot.ex = exId;
+    if (slot.type === 'select') slot.type = 'acc';
+  }
   // Mid-session swap: rebuild the affected draft entry so the live session shows
   // the new exercise immediately (the draft is a snapshot taken at session start).
   // Any logged sets on the swapped slot reset, which is correct: it is a different
@@ -6042,6 +6234,7 @@ function setAddEquip(v) { ADDF.equip = v; refreshAddBody(); }
 function doAddExercise(exId) {
   const ex = exById(exId);
   P().days[V.addTarget].slots.push({ type: 'acc', cat: ex.movement, ex: exId, added: true });
+  syncDraftSlots(V.addTarget); // mid-session: it joins the live workout at the bottom
   save(); closeAllModals(); render();
   toast(t('add.added_toast', { name: ex.name }));
 }
@@ -6149,6 +6342,9 @@ function vSummary() {
   </div>${tabbar()}`;
 }
 function redoDay(i) {
+  // Starting another day replaces the workout in progress: ask before any of
+  // the redo's own changes happen, so a cancel loses nothing.
+  if (V.draft && V.draft.d !== i) { confirmDiscardDraft(() => redoDay(i)); return; }
   const p = P();
   const k = dayKey(p.pointer.block, p.pointer.week, i);
   const sid = p.completedDays[k];
@@ -6755,6 +6951,7 @@ function seMove(di, si, dj) {
   const p = P();
   const [sl] = p.days[di].slots.splice(si, 1);
   p.days[dj].slots.push(sl);
+  syncDraftSlots(di); syncDraftSlots(dj);
   save(); rerenderTop();
 }
 function seRename(di, v) {
@@ -6789,6 +6986,9 @@ function seRemoveDay(di) {
       if (v) p.completedDays[dayKey(b, w, i - 1)] = v;
     }
     if (V.dayIdx != null && V.dayIdx >= p.days.length) V.dayIdx = 0;
+    // The workout in progress follows its day: gone with it, or shifted left.
+    if (V.draft && V.draft.d === di) V.draft = null;
+    else if (V.draft && V.draft.d > di) V.draft.d--;
     save(); rerenderTop();
   };
   if (!p.days[di].slots.length) return doIt();
@@ -7048,7 +7248,7 @@ function importTemplate(input) {
         confirmLabel: t('tpl.import_confirm'), danger: true,
       }, () => {
         S.program = programFromTemplate(tpl);
-        V.dayIdx = null; V.draft = null;
+        V.dayIdx = null; V.draft = null; // save() below then drops S.draft too
         save(); render();
         toast(t('tpl.imported'));
       });
@@ -7137,6 +7337,7 @@ function doNewProgram() {
            ...(tr.focusAdv && Object.keys(tr.focusAdv).length
              ? { focusAdv: Object.assign({}, tr.focusAdv) } : {}) };
   S.program = makeProgram(V.ob);
+  V.draft = null; V.dayIdx = null; // the old cycle's workout in progress is gone with it
   save(); toast(t('dash.new_cycle_toast'));
   V.tab = 'dashboard'; nav('dashboard');
 }
@@ -7329,10 +7530,14 @@ function importData(input) {
       const data = JSON.parse(reader.result);
       if (!data || data.v !== 1) throw new Error('not an IRONWAVE backup');
       S = Object.assign(defaultState(), data);
+      // Build V before save(): save() mirrors V.draft into S.draft, so the old
+      // in-memory draft must not leak into the imported state. A draft carried
+      // in the backup is kept only while it still matches the imported program.
+      V = { view: S.program ? 'dashboard' : 'onboarding', tab: 'dashboard', dayIdx: null,
+            libTab: 'alpha', libSearch: '', obStep: 0, ob: null,
+            draft: draftIsValid(S.draft, S) ? S.draft : null };
       save();
       toast(t('set.backup_restored'));
-      V = { view: S.program ? 'dashboard' : 'onboarding', tab: 'dashboard', dayIdx: null,
-            libTab: 'alpha', libSearch: '', obStep: 0, ob: null, draft: null };
       render();
     } catch (e) { toast(t('set.import_failed', { err: e.message }), true); }
   };
@@ -7355,8 +7560,9 @@ function fullReset() {
 }
 function doFullReset() {
   S = defaultState();
-  save();
+  // V first: save() mirrors V.draft, and an erased app has no workout in progress.
   V = { view: 'onboarding', tab: 'dashboard', dayIdx: null, libTab: 'alpha', libSearch: '', obStep: 0, ob: null, draft: null };
+  save();
   render();
 }
 
@@ -7374,6 +7580,10 @@ async function boot() {
   V = { view: S.program ? 'dashboard' : 'onboarding', tab: 'dashboard',
         dayIdx: null, checkinStep: 0, checkinData: null, draft: null,
         libTab: 'alpha', libSearch: '', obStep: 0, ob: null };
+  // An in-progress workout survives a closed app: reopen straight on it.
+  if (draftIsValid(S.draft, S)) {
+    V.draft = S.draft; V.dayIdx = S.draft.d; V.tab = 'workout'; V.view = 'session';
+  } else delete S.draft;
   // Unlock audio on the very first interaction so the timer chime can sound even
   // when the timer was started by something other than a tap (or on iOS, where a
   // standalone PWA will not play synthesized audio until a gesture unlocks it).

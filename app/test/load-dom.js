@@ -29,9 +29,12 @@ const EXPORTS = `
   obNext, obToggleDay, obToggleSport, obDays, obDaysMode, obTrack, obExp, obTimeMode,
   obMeet, obMeetChoice, obTimeInput, obStepList, TRACK_SPEC,
   openSplitEditor, openFocusEditor,
+  save, draftIsValid, syncDraftSlots, removeSlot, undoRemove, doAddExercise, abandonSession, resumeSession, boot,
   get S() { return S; }, set S(v) { S = v; },
   get V() { return V; }, set V(v) { V = v; },
-};`;
+};
+;Object.assign(window.__APP__, { resolveSlot, resolveDayEntries, openSwap, swapBodyHTML });
+;Object.assign(window.__APP__, { exSwipeDown });`;
 
 function loadDom() {
   const appDir = path.join(__dirname, '..');
