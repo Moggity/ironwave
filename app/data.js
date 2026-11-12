@@ -9,7 +9,7 @@
 // repo, and it must be kept in step with CACHE_VERSION in sw.js (the service
 // worker only ships new code to installed PWAs when that cache name changes).
 // Bump this on any shell change (data/engine/app/styles/index/sw).
-const APP_VERSION = '1.20.0';
+const APP_VERSION = '1.21.0';
 
 // Movement categories (used for "Select X Exercise" slots & swaps)
 const MOVEMENTS = {
@@ -139,6 +139,8 @@ const EXERCISE_LIST = [
   ['bulgarian-split-squat','Bulgarian Split Squat','quad','db',0],
   ['split-squat-glute','Split Squat (Glute Emphasis)','glute','db',0],
   ['ffe-split-squat','Front Foot Elevated Split Squat','quad','db',0],
+  ['smith-split-squat-glute','Smith Machine Split Squat (Glute Emphasis)','glute','mc',0],
+  ['smith-split-squat-quad','Smith Machine Split Squat (Quad Emphasis)','quad','mc',0],
   ['walking-lunge','Walking Lunge','quad','db',0],
   ['reverse-lunge','Reverse Lunge','quad','db',0],
   ['barbell-stepup','Barbell Step-up','quad','bb',0],
@@ -369,6 +371,8 @@ const EX_META = {
   'leg-extensions': { sfr: 3 }, 'leg-press': { sfr: 2 },
   'hack-squat-machine': { sfr: 2, stretch: true }, 'sissy-squat': { sfr: 2, stretch: true },
   'bulgarian-split-squat': { sfr: 2, stretch: true },
+  // Smith split squats: the fixed path removes balance work (SFR 2 like smith-squat); both load the front leg deep.
+  'smith-split-squat-glute': { sfr: 2, stretch: true }, 'smith-split-squat-quad': { sfr: 2, stretch: true },
   // Chest: incline = upper, dips/decline = lower; flyes load the stretch.
   'incline-bench': { sfr: 2, head: 'chest-upper' },
   'db-incline-bench': { sfr: 2, stretch: true, head: 'chest-upper' },
@@ -550,6 +554,8 @@ const EX_CUES = {
   'bulgarian-split-squat': ['Place the rear foot on a bench and find a stable stride.', 'Keep most of the weight on the front leg.', 'Lower straight down until the front thigh is parallel.', 'Drive up through the front foot, staying tall.'],
   'split-squat-glute': ['Take a longer stride to bias the glute.', 'Keep a slight forward torso lean over the front leg.', 'Lower straight down with the weight on the front heel.', 'Drive up through the front heel, squeezing the glute.'],
   'ffe-split-squat': ['Elevate the front foot on a small plate or wedge.', 'Keep the torso fairly upright over the front leg.', 'Lower into a deep stretch on the front quad.', 'Drive up through the front foot under control.'],
+  'smith-split-squat-glute': ['Step well forward of the bar with a long stride, rear heel up.', 'Hinge the torso slightly forward and keep the shin close to vertical.', 'Lower straight down, sitting back into the front hip.', 'Drive through the whole front foot and squeeze the glute at the top.'],
+  'smith-split-squat-quad': ['Use a shorter stride with the front foot just under the bar.', 'Stay tall with the torso upright under the bar.', 'Lower straight down, letting the front knee travel forward over the toes.', 'Push through the front foot and keep tension on the quad at the top.'],
   'walking-lunge': ['Step forward into a stride and lower the back knee toward the floor.', 'Keep the front shin fairly vertical and the torso tall.', 'Drive through the front foot to step into the next rep.', 'Control each step and do not let the knee cave in.'],
   'reverse-lunge': ['Step backward into a stride under control.', 'Lower the back knee toward the floor, torso tall.', 'Keep the weight on the front foot.', 'Drive through the front heel to return to standing.'],
   'barbell-stepup': ['Set a box near knee height with the bar on the back.', 'Plant the whole front foot on the box.', 'Drive through the front heel to stand fully on top.', 'Lower under control without pushing off the bottom leg.'],

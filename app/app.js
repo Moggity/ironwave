@@ -4283,8 +4283,11 @@ function vWorkout() {
     // giant set. Every accessory with a following accessory can link.
     const ssInfo = ss.byId[si];
     const ssTag = ssInfo ? ` <span class="ss-tag">⛓ ${esc(t('workout.ss_tag', { kind: t(ssInfo.size > 2 ? 'session.giant_set' : 'session.superset').toLowerCase(), names: ssInfo.others }))}</span>` : '';
-    const ssBtn = (!rs.isMain && !rs.isSecondary && bbTrack && ss.eligible.has(si))
-      ? `<button class="icon-btn" onclick="toggleSuperset(${di},${si})"><span class="ic">⛓</span>${esc(t(slot.superset ? 'workout.unlink' : 'session.superset'))}</button>`
+    // Owner call (2026-11): the chain control shows only on an exercise that IS
+    // in a superset, as its Unlink. There is no create-superset control on
+    // the cards any more; toggleSuperset stays for existing links.
+    const ssBtn = (ssInfo && slot.superset && !rs.isMain && !rs.isSecondary && bbTrack)
+      ? `<button class="icon-btn" onclick="toggleSuperset(${di},${si})"><span class="ic">⛓</span>${esc(t('workout.unlink'))}</button>`
       : '';
     // [Cluster B] Within a group, compact up/down controls reorder the member while
     // keeping the group intact (disabled at the group's ends).
@@ -5874,14 +5877,65 @@ function armTapGuard() { TAP_GUARD_UNTIL = Date.now() + 350; }
 function tapGuardActive(target) {
   return Date.now() < TAP_GUARD_UNTIL && !($modal && $modal.contains && $modal.contains(target));
 }
-function modalShell(anim, title, body, oncloseJs) {
+// `variant` 'search' opts a picker into the search-sheet layout: the sheet takes
+// the full visible height, the header and the caller's `.sheet-search` block
+// stay pinned, and only the caller's `.sheet-results` block scrolls. Every other
+// modal keeps the plain bottom-sheet look.
+function modalShell(anim, title, body, oncloseJs, variant) {
   const close = oncloseJs || 'closeModal()';
+  const cls = variant === 'search' ? 'modal search-sheet' : 'modal';
   return `<div class="modal-wrap" onclick="if(event.target===this)${close}">
-    <div class="modal"${anim ? '' : ' style="animation:none"'}>
+    <div class="${cls}"${anim ? '' : ' style="animation:none"'}>
       <div class="modal-head"><span class="t">${title}</span>
         <button class="btn-ghost" onclick="${close}">✕</button></div>
       <div class="modal-body">${body}</div>
     </div></div>`;
+}
+// Attributes shared by the picker search fields: a "search" Enter key, no
+// autocorrect/autofill (which also discourages the keyboard's password/card/
+// address suggestion bar), and Enter blurs so the keyboard closes and the full
+// result list can be browsed. Typing still only re-renders the results body, so
+// focus stays in the field.
+const SEARCH_INPUT_ATTRS = 'enterkeyhint="search" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"'
+  + ` onkeydown="if(event.key==='Enter'||event.keyCode===13){event.preventDefault();this.blur()}"`;
+// After a keystroke re-renders a search sheet's results, show the best matches
+// from the top rather than wherever the list happened to be scrolled.
+function sheetResultsTop() {
+  const r = $modal && $modal.querySelector && $modal.querySelector('.sheet-results');
+  if (r) r.scrollTop = 0;
+}
+// Visible-viewport tracker. Writes the visual viewport's height and top offset to
+// --vvh / --vv-top on <html> so the modal layer can sit inside the area the
+// on-screen keyboard leaves visible. Android Chrome also shrinks the layout
+// viewport (interactive-widget=resizes-content), where these simply equal it;
+// iOS Safari never resizes the layout viewport, so there this is the only signal.
+// rAF-throttled; a no-op where visualViewport is missing (old browsers, tests).
+function syncVisualViewport(win) {
+  const w = win || (typeof window !== 'undefined' ? window : null);
+  const vv = w && w.visualViewport;
+  const root = w && w.document && w.document.documentElement;
+  if (!vv || !root || !root.style || typeof root.style.setProperty !== 'function') return false;
+  // floor: a fractional height rounded up would overhang the visible area by 1px.
+  root.style.setProperty('--vvh', Math.floor(vv.height) + 'px');
+  root.style.setProperty('--vv-top', Math.max(0, Math.round(vv.offsetTop || 0)) + 'px');
+  return true;
+}
+function initVisualViewport(win) {
+  const w = win || (typeof window !== 'undefined' ? window : null);
+  const vv = w && w.visualViewport;
+  if (!vv || typeof vv.addEventListener !== 'function') return false;
+  let queued = false;
+  const raf = typeof w.requestAnimationFrame === 'function' ? w.requestAnimationFrame.bind(w) : (fn => setTimeout(fn, 16));
+  const schedule = () => {
+    if (queued) return;
+    queued = true;
+    raf(() => { queued = false; syncVisualViewport(w); });
+  };
+  vv.addEventListener('resize', schedule);
+  vv.addEventListener('scroll', schedule);
+  if (typeof w.addEventListener === 'function') w.addEventListener('orientationchange', schedule);
+  syncVisualViewport(w);
+  return true;
 }
 
 // ------------------------------------------------------------
@@ -6026,9 +6080,10 @@ function renderSwap(anim) {
     ? `<p class="faint" style="margin-bottom:8px">${esc(t('swap.main_note', { name: exName(slot.baseLift || slot.lift) }))}</p>`
     : (timeCapMin() ? timeBudgetHTML(SW.di) : '');
   $modal.innerHTML = modalShell(anim, t(slot.type === 'select' ? 'swap.select_title' : 'swap.title'),
-    `${note}
-     <input class="search-input" placeholder="${esc(t('swap.search_ph'))}" value="${esc(SW.q)}" oninput="SW.q=this.value;refreshSwapBody()">
-     <div id="swap-body">${swapBodyHTML()}</div>`);
+    `<div class="sheet-search">
+       <input class="search-input" placeholder="${esc(t('swap.search_ph'))}" value="${esc(SW.q)}" ${SEARCH_INPUT_ATTRS} oninput="SW.q=this.value;refreshSwapBody();sheetResultsTop()">
+     </div>
+     <div class="sheet-results">${note}<div id="swap-body">${swapBodyHTML()}</div></div>`, null, 'search');
 }
 // [Cluster C] Muscle heads already trained on a day, for the same movement group
 // as the slot being swapped (the swapped slot itself excluded). Lets the picker
@@ -6202,9 +6257,10 @@ function openAddExercise(di) {
   ADDF = { equip: 'all', q: '' };
   showModal(anim => {
     $modal.innerHTML = modalShell(anim, t('add.title'), `
-        ${timeCapMin() ? timeBudgetHTML(di) : ''}
-        <input class="search-input" placeholder="${esc(t('add.search_ph'))}" oninput="ADDF.q=this.value;refreshAddBody()">
-        <div id="add-body">${addBodyHTML()}</div>`);
+        <div class="sheet-search">
+          <input class="search-input" placeholder="${esc(t('add.search_ph'))}" value="${esc(ADDF.q)}" ${SEARCH_INPUT_ATTRS} oninput="ADDF.q=this.value;refreshAddBody();sheetResultsTop()">
+        </div>
+        <div class="sheet-results">${timeCapMin() ? timeBudgetHTML(di) : ''}<div id="add-body">${addBodyHTML()}</div></div>`, null, 'search');
   });
 }
 function addBodyHTML() {
@@ -7606,6 +7662,8 @@ async function boot() {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && V && V.restTimer && !V.restTimer.rung) restTick();
   });
+  // Keep the modal layer inside the area the on-screen keyboard leaves visible.
+  try { initVisualViewport(); } catch (_) {}
   render();
 }
 // Last-resort net for anything that throws before/around the first render (load,
