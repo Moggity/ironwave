@@ -1511,10 +1511,12 @@ function resolveSlot(slot, blockIdx, wIdx) {
     if (exId !== wmKey && bbTrack() && sch.mainE1RM) {
       let sets = sch.mainE1RM(block, eIdx, recordsFor(exId), r, S.profile.experience);
       if (mod) sets = applySetDelta(sets, mod.mainSetDelta || 0);
+      sets = applySlotSetAdj(slot, sets);
       return { exId, name: exName(exId), sets, isMain: true, wmKey, e1Anchor: true };
     }
     let sets = sch.main(block, eIdx, P().wm[wmKey], r, modPct, S.profile.experience);
     if (mod) sets = applySetDelta(sets, mod.mainSetDelta || 0);
+    sets = applySlotSetAdj(slot, sets);
     return { exId, name: exName(exId), sets, isMain: true, wmKey };
   }
   if (slot.type === 'secondary') {
@@ -1531,6 +1533,7 @@ function resolveSlot(slot, blockIdx, wIdx) {
     if (sdld) sets = applySetDelta(sets, sdld);
     const srpd = deloadIntensityDelta(blockIdx, eIdx);
     if (srpd) sets = applyDeloadIntensity(sets, srpd);
+    sets = applySlotSetAdj(slot, sets);
     return { exId, name: exName(exId), sets, isSecondary: true, wmKey };
   }
   const exId = slot.ex || slot.def || null; // select slots may be unfilled
@@ -1576,8 +1579,38 @@ function resolveSlot(slot, blockIdx, wIdx) {
   } else {
     sets = applyTechnique(exId, sets, r, blockIdx, wIdx);
   }
+  // [set-adjust] Last step: the athlete's own added/removed sets ride on top of
+  // everything the coach prescribed. Removing the finisher's set moves the
+  // finisher to the new last working set (it lives on the last working set).
+  sets = applySlotSetAdj(slot, sets, s => applyTechnique(exId, s, r, blockIdx, wIdx));
   return { exId, name: exName(exId), sets, cat: slot.cat };
 }
+// [set-adjust] The athlete's per-slot set adjustment (`slot.setAdj`, net plain
+// working sets added; negative = removed). Lives until the block ends (endBlock)
+// or the slot's exercise is swapped (doSwap). Absent means zero, so every
+// existing routine is byte-identical (golden master). Added sets are plain
+// straight sets cloned from the last plain set (no finisher, no rep-PR flag),
+// inserted where applySetDelta puts them: after the last plain set, before a
+// trailing AMRAP. `reTech` re-places a finisher whose set was removed.
+function applySlotSetAdj(slot, sets, reTech) {
+  const adj = slot && slot.setAdj;
+  if (!adj || !sets || !sets.length) return sets;
+  const hadTech = sets.some(s => FINISHER_TECHS.includes(s.technique));
+  const before = sets.length;
+  let out = applySetDelta(sets.slice(), adj);
+  if (adj > 0 && out.length === before + adj) {
+    let last = -1;
+    out.forEach((s, i) => { if (isPlainSet(s)) last = i; });
+    for (let i = last - adj + 1; i <= last; i++) {
+      delete out[i].technique; delete out[i].drops; delete out[i].repPR;
+    }
+  }
+  if (adj < 0 && hadTech && reTech && !out.some(s => FINISHER_TECHS.includes(s.technique))) out = reTech(out);
+  return out;
+}
+// A plain working set: not an AMRAP, ramp or calibration set (the sets
+// applySetDelta may add or drop). Works on engine sets and draft sets alike.
+function isPlainSet(s) { return !s.amrap && !s.ramp && !s.calib; }
 // [Cluster D] Autoregulated deload depth applied to a bodybuilding accessory on
 // the deload week: the per-block plan (sized to accumulated fatigue at the end of
 // the peak week, stored on P().deloadPlan) deepens or lightens the scheme's
@@ -3997,6 +4030,9 @@ function endBlock(finishedBlock, bb) {
   p.deloadPlan = null;
   p.earlyDeload = null; // spent with the block
   p.muscleDeload = []; // [Cluster D] per-muscle deloads end with the block (resensitize)
+  // [set-adjust] Athlete-added/removed sets last until the block ends, on every
+  // track (bodybuilding days may be regenerated below; strength days are kept).
+  for (const day of p.days || []) for (const sl of day.slots || []) delete sl.setAdj;
   p.pointer.week = 0;
   p.pointer.block++;
   if (p.pointer.block < p.blocks.length) {
@@ -4298,7 +4334,7 @@ function vWorkout() {
     // back: re-adding the lift later makes it a plain accessory.
     const card = `<div class="ex-card ${opt ? 'optional' : ''}${ssInfo ? ' superset' : ''}" data-si="${si}">
       ${grip}
-      <span class="name">${esc(rs.name)}${opt ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}${ssTag}</span>
+      <span class="name">${esc(rs.name)}${opt ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}${ssTag}${setAdjTagHTML(slot)}</span>
       <span class="actions">
         <button class="icon-btn" onclick="openExDetail('${rs.exId}')"><span class="ic">ⓘ</span>${esc(t('common.info'))}</button>
         ${ssMove}${ssBtn}
@@ -4421,11 +4457,31 @@ function exSwipeDown(ev, di, si) {
   if (ev.target.closest('.ex-remove')) return;
   if (live ? ev.target.closest('input, textarea, select')
            : (ev.target.closest('.grip') || ev.target.closest('.icon-btn'))) return;
+  // [set-adjust] A swipe that starts on a removable set row belongs to that row
+  // (setSwipeDown), not the card. While the card itself is open, any touch on
+  // it stays the card's (it closes the card and eats the click).
+  if (live && !wrap.classList.contains('open') && ev.target.closest('.set-swipe')) return;
   const card = wrap.querySelector('.ex-card, .lift-card');
   if (!card) return;
+  swipeBegin(ev, wrap, card, live);
+}
+// [set-adjust] Swipe-left-to-remove on one plain working set row of a live
+// session card. Same machinery as the card swipe; only the row moves.
+function setSwipeDown(ev) {
+  const wrap = ev.currentTarget;
+  if (ev.target.closest('.set-remove')) return;
+  const outer = wrap.closest('.ex-swipe');
+  if (outer && outer.classList.contains('open')) return; // the card's touch (see exSwipeDown)
+  const row = wrap.querySelector('.set-row');
+  if (!row) return;
+  swipeBegin(ev, wrap, row, true);
+}
+// Shared start of a swipe: `wrap` toggles .swiping/.open, `mover` is the element
+// that slides. `live` = a session surface, where the click after a swipe is eaten.
+function swipeBegin(ev, wrap, mover, live) {
   // A tap on a row while another is open just closes the open one.
   closeOpenSwipes(wrap);
-  SWP = { di, si, wrap, card, x0: ev.clientX, y0: ev.clientY, live,
+  SWP = { wrap, card: mover, x0: ev.clientX, y0: ev.clientY, live,
           open: wrap.classList.contains('open'), decided: false };
   document.addEventListener('pointermove', exSwipeMove, { passive: false });
   document.addEventListener('pointerup', exSwipeUp, { once: true });
@@ -4472,7 +4528,7 @@ function endSwipe() {
   SWP = null;
 }
 function closeOpenSwipes(except) {
-  document.querySelectorAll('.ex-swipe.open').forEach(w => { if (w !== except) w.classList.remove('open'); });
+  document.querySelectorAll('.ex-swipe.open, .set-swipe.open').forEach(w => { if (w !== except) w.classList.remove('open'); });
 }
 // Keep the live session in step with its day's slots after any edit to them
 // (remove, undo, add, reorder, superset links). Rebuilds the entries in the
@@ -4557,6 +4613,143 @@ function undoRemove() {
   LAST_REMOVED = null;
   save(); render();
   toast(t('workout.removal_undone'));
+}
+
+// --- [set-adjust] the athlete adds or removes a set ---
+// The count lives on the slot (`slot.setAdj`, see applySlotSetAdj) so every
+// later session of the block gets it; the live entry is edited in place so
+// logged and skipped sets never move or re-prescribe.
+function bumpSetAdj(slot, d) {
+  if (!slot) return;
+  const n = (slot.setAdj || 0) + d;
+  if (n) slot.setAdj = n; else delete slot.setAdj;
+}
+function plainSetCount(sets) { return (sets || []).filter(isPlainSet).length; }
+// A fresh, unlogged plain straight set cloned from a draft set's targets (the
+// draft-shape twin of applySetDelta's clone, built like sessionEntryFrom).
+function freshDraftSet(src) {
+  return Object.assign({
+    targetWeight: src.targetWeight ?? null, targetReps: src.targetReps, targetRpe: src.targetRpe ?? null,
+    amrap: false, ramp: false, calib: false, note: null, noteKey: null, noteParams: null,
+    technique: null, dropTargets: null,
+    weight: null, reps: null, rpe: null, drops: null, done: false,
+  }, src.repRange ? { repRange: src.repRange } : null);
+}
+// Insert one set into a draft entry where applySetDelta would: right after the
+// last plain set (so before a trailing AMRAP). With no plain set at all (a
+// calibration week, a ramp-to-AMRAP day) clone the last non-ramp set as a plain
+// set and append it. Returns the new set's index, or -1.
+function insertDraftSet(e) {
+  const sets = e.sets;
+  let last = -1;
+  sets.forEach((s, i) => { if (isPlainSet(s)) last = i; });
+  if (last >= 0) { sets.splice(last + 1, 0, freshDraftSet(sets[last])); return last + 1; }
+  let src = null;
+  for (let i = sets.length - 1; i >= 0 && !src; i--) if (!sets[i].ramp) src = sets[i];
+  src = src || sets[sets.length - 1];
+  if (!src) return -1;
+  sets.push(freshDraftSet(src));
+  return sets.length - 1;
+}
+function draftSlotFor(e) {
+  const dr = V && V.draft;
+  const day = dr && P() && P().days[dr.d];
+  return day && e ? day.slots[e.si] || null : null;
+}
+function addSessionSet(ei) {
+  const dr = V && V.draft;
+  const e = dr && dr.entries[ei];
+  if (!e || insertDraftSet(e) < 0) return;
+  bumpSetAdj(draftSlotFor(e), 1);
+  save(); render();
+}
+// Only a plain working set can go, and never the last plain one (removing the
+// exercise is the way to drop it entirely).
+function canRemoveDraftSet(e, j) {
+  const st = e && e.sets[j];
+  return !!st && isPlainSet(st) && plainSetCount(e.sets) > 1;
+}
+// The set a "−" control removes: the last unlogged plain set, else the last
+// plain set. -1 when nothing is removable.
+function lastRemovableSetIdx(e) {
+  if (!e || plainSetCount(e.sets) <= 1) return -1;
+  let lastPlain = -1;
+  for (let i = e.sets.length - 1; i >= 0; i--) {
+    if (!isPlainSet(e.sets[i])) continue;
+    if (lastPlain < 0) lastPlain = i;
+    if (!e.sets[i].done) return i;
+  }
+  return lastPlain;
+}
+let LAST_SET_REMOVED = null;
+// Remove set j from draft entry ei. A logged set is treated like a cleared one
+// (clearPerf): its record stays in S.records. If it carried the finisher, the
+// finisher moves to the new last working set (where toggleTechInSession and
+// applyTechnique put it). Undo puts back the set, its logged data, setAdj and
+// the finisher.
+function removeSessionSet(ei, j) {
+  const dr = V && V.draft;
+  const e = dr && dr.entries[ei];
+  if (!canRemoveDraftSet(e, j)) return;
+  const slot = draftSlotFor(e);
+  const st = e.sets.splice(j, 1)[0];
+  bumpSetAdj(slot, -1);
+  const rec = { draftId: dr.id, entry: e, slot, j, set: st, moved: null };
+  if (FINISHER_TECHS.includes(st.technique) && !entryTech(e)) {
+    const k = lastWorkingSetIdx(e.sets);
+    if (k >= 0) {
+      const s = e.sets[k];
+      rec.moved = { set: s, technique: s.technique, dropTargets: s.dropTargets };
+      const built = buildTechnique(st.technique, { weight: s.done ? s.weight : s.targetWeight, reps: s.targetReps || s.reps || 8 }, loadingFor(e.exId).totalInc);
+      s.technique = st.technique; s.dropTargets = built.drops || null;
+    }
+  }
+  LAST_SET_REMOVED = rec;
+  save(); render();
+  toastAction(t('setadj.removed_toast', { n: j + 1, name: e.name }), t('common.undo'), undoRemoveSet);
+}
+function removeLastSessionSet(ei) {
+  const e = V && V.draft && V.draft.entries[ei];
+  const j = lastRemovableSetIdx(e);
+  if (j >= 0) removeSessionSet(ei, j);
+}
+function undoRemoveSet() {
+  const r = LAST_SET_REMOVED;
+  LAST_SET_REMOVED = null;
+  if (!r) return;
+  const dr = V && V.draft;
+  if (dr && dr.id === r.draftId && dr.entries.includes(r.entry)) {
+    if (r.moved) { r.moved.set.technique = r.moved.technique; r.moved.set.dropTargets = r.moved.dropTargets; }
+    r.entry.sets.splice(Math.min(r.j, r.entry.sets.length), 0, r.set);
+  }
+  bumpSetAdj(r.slot, 1);
+  save(); render();
+  toast(t('workout.removal_undone'));
+}
+// Preview (before training): change the slot's set count. With this day's
+// session in progress, route through the session controls so the draft stays
+// consistent (and the removal gets its Undo).
+function previewSetAdj(di, si, d) {
+  const p = P();
+  const slot = p.days[di] && p.days[di].slots[si];
+  if (!slot) return;
+  const dr = V && V.draft;
+  const ei = dr && dr.d === di ? dr.entries.findIndex(e => e.si === si) : -1;
+  if (ei >= 0) {
+    if (d > 0) addSessionSet(ei); else removeLastSessionSet(ei);
+  } else {
+    if (d < 0 && plainSetCount(resolveSlot(slot, p.pointer.block, p.pointer.week).sets) <= 1) return;
+    bumpSetAdj(slot, d);
+    save(); render();
+  }
+  rerenderTop();
+}
+// The small muted "+1 set" / "-2 sets" tag for a slot with a set adjustment.
+function setAdjTagHTML(slot) {
+  const n = slot && slot.setAdj;
+  if (!n) return '';
+  const key = (n > 0 ? 'setadj.adj_plus_' : 'setadj.adj_minus_') + (Math.abs(n) === 1 ? 'one' : 'other');
+  return ` <span class="set-adj-tag">${esc(t(key, { n: Math.abs(n) }))}</span>`;
 }
 
 function skipWorkout(di) {
@@ -5032,11 +5225,17 @@ function setRowHTML(e, ei, st, si2, shortSleep) {
   const hasTech = FINISHER_TECHS.includes(st.technique);
   // Per-set prescription notes are no longer rendered (owner feedback: noise);
   // displaySetNote/cardHintFor stay for tests and possible detail surfaces.
-  return `<div class="set-row ${st.done ? 'done' : ''} ${st.amrap ? 'amrap' : ''} ${st.skipped ? 'skipped' : ''} ${hasTech ? 'tech' : ''}">
+  const row = `<div class="set-row ${st.done ? 'done' : ''} ${st.amrap ? 'amrap' : ''} ${st.skipped ? 'skipped' : ''} ${hasTech ? 'tech' : ''}">
       <span class="num">${st.skipped ? '–' : si2 + 1}</span>
       <span class="target">${setTargetLabel(st, e.exId)}${loggedDrops}</span>
       <button class="perf ${st.done ? 'filled' : ''}" onclick="openPerf(${ei},${si2})">${perfLabel}</button>
-    </div>${fatigueFlag}`;
+    </div>`;
+  // [set-adjust] A plain working set (logged or not) swipes left to reveal its
+  // own Remove?; AMRAP/ramp/calibration sets and the last plain set do not.
+  if (!canRemoveDraftSet(e, si2)) return row + fatigueFlag;
+  return `<div class="set-swipe" data-set="${si2}" onpointerdown="setSwipeDown(event)">
+      <button class="set-remove" onclick="removeSessionSet(${ei},${si2})" aria-label="${esc(t('setadj.remove_row_a11y', { n: si2 + 1, name: e.name }))}"><span class="ic">🗑</span>${esc(t('workout.remove_q'))}</button>
+      ${row}</div>${fatigueFlag}`;
 }
 // The standard single-exercise session card.
 // [B3/FPL1] A barbell prescription below the empty bar cannot be loaded, and
@@ -5077,6 +5276,7 @@ function liftCardHTML(e, ei, dr, shortSleep) {
       <div class="scheme">${schemeTxt}</div>
       ${techChipHTML(e, ei, dr)}
       ${setRows}
+      <button class="add-set-btn" onclick="addSessionSet(${ei})" aria-label="${esc(t('setadj.add_a11y', { name: e.name }))}">${esc(t('setadj.add'))}</button>
       <button class="notes-link" onclick="toggleNotes(${ei})">${esc(t('session.notes'))} ✎</button>
       ${e.notesOpen ? `<textarea class="notes-area" oninput="setNotes(${ei}, this.value)" onchange="save()" placeholder="${esc(t('session.notes_placeholder'))}">${esc(e.notes)}</textarea>` : ''}
     </div>`;
@@ -5099,6 +5299,11 @@ function supersetGroupCardHTML(members, dr) {
             <button onclick="toggleNotes(${ei})" aria-label="${esc(t('session.notes'))}">✎</button>
             <button onclick="removeSlot(${dr.d},${e.si})" aria-label="${esc(t('common.remove'))} ${esc(e.name)}">🗑</button>
           </span>
+        </div>
+        <div class="ss-set-adj">
+          <button class="set-adj-btn" onclick="removeLastSessionSet(${ei})" aria-label="${esc(t('setadj.remove_a11y', { name: e.name }))}"${lastRemovableSetIdx(e) < 0 ? ' disabled' : ''}>−</button>
+          <span class="faint">${esc(t(e.sets.length === 1 ? 'setadj.count_one' : 'setadj.count_other', { n: e.sets.length }))}</span>
+          <button class="set-adj-btn" onclick="addSessionSet(${ei})" aria-label="${esc(t('setadj.add_a11y', { name: e.name }))}">＋</button>
         </div>
         ${techChipHTML(e, ei, dr)}
         ${e.notesOpen ? `<textarea class="notes-area" oninput="setNotes(${ei}, this.value)" onchange="save()" placeholder="${esc(t('session.notes_placeholder'))}">${esc(e.notes)}</textarea>` : ''}
@@ -6039,19 +6244,29 @@ function previewSetLabel(s, exId) {
   return `${s.weight != null ? fmtW(exId, s.weight) + ' × ' : ''}${s.amrap ? 'AMRAP' : s.reps}${s.rpe ? ' @ ' + fmtRir(s.rpe) : ''}`;
 }
 function openPreview(di) {
-  const built = resolveDayEntries(di, P().pointer.block, P().pointer.week);
-  const timeNote = built.capMin
-    ? `<p class="faint" style="margin-bottom:10px">${esc(t('preview.core_within', { core: built.coreMin, cap: built.capMin }))}${built.optItems.length ? ' ' + esc(t('preview.optional_note', { list: built.optionalNames.join(', '), extra: built.fullMin - built.coreMin })) : ''}</p>`
-    : '';
+  // Rebuilt on every render so the set controls ([set-adjust]) show the new count.
   showModal(anim => {
+    const built = resolveDayEntries(di, P().pointer.block, P().pointer.week);
+    const timeNote = built.capMin
+      ? `<p class="faint" style="margin-bottom:10px">${esc(t('preview.core_within', { core: built.coreMin, cap: built.capMin }))}${built.optItems.length ? ' ' + esc(t('preview.optional_note', { list: built.optionalNames.join(', '), extra: built.fullMin - built.coreMin })) : ''}</p>`
+      : '';
+    const slots = P().days[di].slots;
     $modal.innerHTML = modalShell(anim, t('preview.title'), timeNote +
       built.items.map(x => {
         const rs = x.rs, work = rs.sets.filter(s => !s.ramp);
-        return `<div class="lift-card ${rs.optional ? 'optional' : ''}"><h3 style="font-size:1.2rem">${esc(rs.name)}${rs.optional ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}</h3>
+        // No plain set to clone this week (calibration / ramp-to-AMRAP): the
+        // session's own ＋ handles that day, so the preview offers no control.
+        const plain = plainSetCount(rs.sets);
+        const adj = plain ? `<div class="preview-set-adj">
+            <button class="btn-ghost set-adj-text" onclick="previewSetAdj(${di},${x.si},-1)" aria-label="${esc(t('setadj.remove_a11y', { name: rs.name }))}"${plain <= 1 ? ' disabled' : ''}>${esc(t('setadj.remove'))}</button>
+            <button class="btn-ghost set-adj-text" onclick="previewSetAdj(${di},${x.si},1)" aria-label="${esc(t('setadj.add_a11y', { name: rs.name }))}">${esc(t('setadj.add'))}</button>
+          </div>` : '';
+        return `<div class="lift-card ${rs.optional ? 'optional' : ''}"><h3 style="font-size:1.2rem">${esc(rs.name)}${rs.optional ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}${setAdjTagHTML(slots[x.si])}</h3>
           <div class="scheme">${esc(t('session.sets_x_reps', { sets: work.length, reps: work[0]?.reps ?? '' }))}</div>
           ${rs.sets.map((s, i) => `<div class="set-row"><span class="num">${i + 1}</span>
             <span class="target">${previewSetLabel(s, rs.exId)}</span>
           </div>`).join('')}
+          ${adj}
         </div>`;
       }).join(''));
   });
@@ -6205,6 +6420,8 @@ function swapCardHTML(e, showGroup, gap, tagKey) {
 function doSwap(di, si, exId) {
   const slot = P().days[di].slots[si];
   const newMv = (exById(exId) || {}).movement;
+  // [set-adjust] A different lift does not inherit the athlete's set adjustment.
+  if ((slot.ex || slot.lift || slot.def || null) !== exId) delete slot.setAdj;
   if (slot.type === 'main' || slot.type === 'secondary') {
     const baseMv = (exById(slot.baseLift || slot.lift) || {}).movement;
     if (newMv && baseMv && newMv !== baseMv) {
