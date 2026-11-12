@@ -35,6 +35,7 @@ const EXPORTS = `
 };
 ;Object.assign(window.__APP__, { resolveSlot, resolveDayEntries, openSwap, swapBodyHTML });
 ;Object.assign(window.__APP__, { exSwipeDown });
+;Object.assign(window.__APP__, { setSwipeDown, addSessionSet, removeSessionSet, removeLastSessionSet, undoRemoveSet, previewSetAdj });
 ;Object.assign(window.__APP__, { openAddExercise, openPreview, rerenderTop, refreshSwapBody, refreshAddBody,
   syncVisualViewport, initVisualViewport });`;
 

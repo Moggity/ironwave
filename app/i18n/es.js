@@ -74,6 +74,18 @@ const I18N_ES = {
   'set.cap_at': 'tope en {rir}',
   'set.then': 'luego {detail}',
   'set.reps_at_rir': '{reps} reps @ {rir}',
+  'setadj.add': '＋ Agregar serie',
+  'setadj.remove': '− Quitar serie',
+  'setadj.add_a11y': 'Agregar una serie a {name}',
+  'setadj.remove_a11y': 'Quitar una serie de {name}',
+  'setadj.remove_row_a11y': 'Quitar la serie {n} de {name}',
+  'setadj.removed_toast': 'Serie {n} quitada',
+  'setadj.count_one': '{n} serie',
+  'setadj.count_other': '{n} series',
+  'setadj.adj_plus_one': '+{n} serie',
+  'setadj.adj_plus_other': '+{n} series',
+  'setadj.adj_minus_one': '-{n} serie',
+  'setadj.adj_minus_other': '-{n} series',
 
   // --- RIR intro card (one-time) ---
   'rir.intro_title': 'Nuevo: el esfuerzo se registra como RIR',

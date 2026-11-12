@@ -1,5 +1,30 @@
 # IRONWAVE — Changelog
 
+## [Add and remove sets] (2026-11-12)
+
+Owner QoL request. All tracks; inert by absence (golden master
+byte-identical, not regenerated).
+
+- **`slot.setAdj`**: one optional integer per slot (net sets added,
+  negative when removed, deleted at zero). `applySlotSetAdj` applies it
+  as the LAST step of `resolveSlot` for mains, secondaries and
+  accessories, so session, preview, time estimate and volume agree. It
+  lasts until the block ends (`endBlock` clears it) and resets when the
+  slot's exercise changes in `doSwap`. Never exported in templates.
+- **In the session**: "Add set" under the set rows adds an unlogged copy
+  of the last plain set (before a trailing AMRAP); logged sets are never
+  touched. A plain set row swipes left for "Remove?" with an Undo toast;
+  AMRAP, ramp and calibration sets and the last plain set are not
+  removable. A finisher on a removed set moves to the new last working
+  set. Superset members get a compact minus/plus control instead.
+- **Before training**: the Preview modal has Add set / Remove set per
+  exercise, and an adjusted exercise shows a "+1 set" tag on its overview
+  card.
+- Known interactions (unchanged by design): adjusted sets count in the
+  weekly volume tally the autoregulator reads and in the time-cap
+  estimate; a removed logged set keeps its record, like a cleared set.
+- Tests: `set-adjust.test.js` (15). Suite: 606 green.
+
 ## [QoL round 2: search sheets, two Smith split squats, superset icon] (2026-11-12)
 
 - **The keyboard no longer covers exercise search.** The swap and

@@ -71,6 +71,18 @@ const I18N_EN = {
   'set.cap_at': 'cap at {rir}',
   'set.then': 'then {detail}',
   'set.reps_at_rir': '{reps} reps @ {rir}',
+  'setadj.add': '＋ Add set',
+  'setadj.remove': '− Remove set',
+  'setadj.add_a11y': 'Add a set to {name}',
+  'setadj.remove_a11y': 'Remove a set from {name}',
+  'setadj.remove_row_a11y': 'Remove set {n} of {name}',
+  'setadj.removed_toast': 'Set {n} removed',
+  'setadj.count_one': '{n} set',
+  'setadj.count_other': '{n} sets',
+  'setadj.adj_plus_one': '+{n} set',
+  'setadj.adj_plus_other': '+{n} sets',
+  'setadj.adj_minus_one': '-{n} set',
+  'setadj.adj_minus_other': '-{n} sets',
 
   // --- RIR intro card (one-time) ---
   'rir.intro_title': 'New: effort is logged as RIR',
