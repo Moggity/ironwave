@@ -1,5 +1,40 @@
 # IRONWAVE — Changelog
 
+## [Session quality of life: resume, remove, add, swap anything] (2026-11-12)
+
+Owner QoL list, four items. Default prescriptions untouched (golden master
+byte-identical, not regenerated).
+
+- **A workout in progress survives everything.** The draft rides along as
+  the optional `S.draft` (written by `save()`, absent when no session is
+  open). Closing the app, going back, or a reload restores it exactly:
+  `boot()` reopens straight into the session when `draftIsValid` (same
+  block and week, day exists, day not completed). The back button no
+  longer asks to confirm; the overview shows "Resume workout" plus a
+  confirm-gated discard, and the dashboard marks the day "In progress".
+  Starting another day asks before replacing it. The draft is dropped on
+  week advance, skip, new program, reset, and a non-matching import.
+- **Remove any exercise, in the session too.** Swipe a card left for a red
+  "Remove?" button, on the overview and now on the live session cards;
+  mains and secondaries are removable as well. The toast keeps its Undo,
+  which puts the exercise back at its position with its logged sets and
+  notes. Superset members get a per-member remove button. A removed main
+  lift only returns as a wave slot through Undo; re-adding it later makes
+  it an accessory.
+- **Add exercise from the session.** The "Add exercise" button sits at the
+  bottom of the live session; the new exercise appears with its sets and
+  everything already logged stays. `syncDraftSlots(di)` is the one place
+  that keeps a live session in step with its day's slots (remove, undo,
+  add, reorder, superset links).
+- **Swap for anything.** Main and secondary slots can now browse and
+  search every exercise. Same-movement variations keep the wave math; any
+  other pick converts the slot to an accessory in place and remembers the
+  original on `slot.orig`, so picking the original lift (first card,
+  tagged "Original") or one of its variations restores the wave slot.
+  The picker toggle now reads "Browse all exercises".
+- Tests: `session-resume.test.js` (19) and `swap-any.test.js` (6). Suite:
+  582 green.
+
 ## [The Specialization panel (G4): the advanced tab ships] (2026-07-24)
 
 Final slice of the advanced frequency epic (owner ruling 2026-07-24).

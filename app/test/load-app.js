@@ -101,6 +101,7 @@ const EXPORTS = `return {
   UPPER_MUSCLES, LOWER_MUSCLES, FOCUS_KEYS,
   t, I18N,
   hasCoach, setDebugTier, coachLockHTML, vProgram,
+  save, draftIsValid, syncDraftSlots, removeSlot, undoRemove, doAddExercise, commitReorder, finishSession, abandonSession, doSkipWorkout,
   get S() { return S; }, set S(v) { S = v; },
   get V() { return V; }, set V(v) { V = v; },
 };`;

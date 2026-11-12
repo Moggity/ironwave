@@ -207,6 +207,17 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
   background: var(--red); color: #fff; border: none; font-size: .72rem; font-weight: 700;
 }
 .ex-remove .ic { font-size: 1.05rem; }
+/* The red action exists only while a card is swiped or open; at rest it is
+   hidden so no red edge shows around the card's rounded corners. The delay
+   keeps it visible while the card slides shut. */
+.ex-swipe .ex-remove { visibility: hidden; transition: visibility 0s .2s; }
+.ex-swipe.swiping .ex-remove, .ex-swipe.open .ex-remove { visibility: visible; transition: none; }
+/* the same swipe on a live session card: the wrapper owns the gap below */
+.ex-swipe.live { margin-bottom: 14px; }
+.ex-swipe .lift-card { margin-bottom: 0; z-index: 1; touch-action: pan-y;
+  transition: transform .2s ease; will-change: transform; }
+.ex-swipe.swiping .lift-card { transition: none; }
+.ex-swipe.open .lift-card { transform: translateX(-92px); }
 /* per-candidate time cost shown in the swap picker */
 .cost-tag {
   display: inline-block; padding: 1px 7px; border-radius: 8px;
