@@ -34,7 +34,9 @@ const EXPORTS = `
   get V() { return V; }, set V(v) { V = v; },
 };
 ;Object.assign(window.__APP__, { resolveSlot, resolveDayEntries, openSwap, swapBodyHTML });
-;Object.assign(window.__APP__, { exSwipeDown });`;
+;Object.assign(window.__APP__, { exSwipeDown });
+;Object.assign(window.__APP__, { openAddExercise, openPreview, rerenderTop, refreshSwapBody, refreshAddBody,
+  syncVisualViewport, initVisualViewport });`;
 
 function loadDom() {
   const appDir = path.join(__dirname, '..');

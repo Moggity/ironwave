@@ -335,17 +335,50 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 }
 
 /* ---------- modal ---------- */
+/* The modal layer covers the VISIBLE viewport, not the full screen, so a bottom
+   sheet sits above the on-screen keyboard instead of under it. --vvh / --vv-top
+   come from window.visualViewport (syncVisualViewport in app.js): on iOS, where
+   the keyboard never resizes the layout viewport, they are the only signal; on
+   Android Chrome (interactive-widget=resizes-content) they match the shrunken
+   layout viewport. Without them the layer falls back to the full screen. */
 .modal-wrap {
-  position: fixed; inset: 0; z-index: 50; background: rgba(2,4,10,.7);
+  position: fixed; left: 0; right: 0; z-index: 50;
+  top: var(--vv-top, 0px); height: var(--vvh, 100dvh);
   display: flex; align-items: flex-end; justify-content: center;
-  animation: backdrop-in .2s ease;
+}
+/* The dimmed backdrop overhangs the layer so no undimmed strip shows while the
+   keyboard animates (visualViewport events land after the animation on iOS).
+   A tap on it targets .modal-wrap itself, so backdrop-tap-to-close still works. */
+.modal-wrap::before {
+  content: ''; position: absolute; left: 0; right: 0; top: -100vh; bottom: -100vh; z-index: -1;
+  background: rgba(2,4,10,.7); animation: backdrop-in .2s ease;
 }
 @keyframes backdrop-in { from { background: rgba(2,4,10,0); } to { background: rgba(2,4,10,.7); } }
 .modal {
   background: var(--bg-2); width: 100%; max-width: 520px; border-radius: 18px 18px 0 0;
-  max-height: 92dvh; overflow-y: auto; padding-bottom: calc(18px + var(--safe-bottom));
+  max-height: calc(var(--vvh, 100dvh) * .92); overflow-y: auto; padding-bottom: calc(18px + var(--safe-bottom));
   animation: slideup .22s ease;
 }
+/* Search sheet (swap / add-exercise pickers): full visible height, header and
+   search field pinned, only the results list scrolls. */
+.modal.search-sheet {
+  display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0;
+  height: calc(var(--vvh, 100dvh) - var(--safe-top) - 8px); max-height: none;
+}
+.search-sheet .modal-head { flex: none; }
+.search-sheet .modal-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 0; }
+.search-sheet .sheet-search { flex: none; padding: 12px 18px 0; }
+.search-sheet .sheet-results {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch; padding: 0 18px calc(18px + var(--safe-bottom));
+}
+/* One horizontally scrolling chip row instead of two wrapped rows. */
+.search-sheet .filter-chips {
+  flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain;
+  scrollbar-width: none; margin: 0 -18px 10px; padding: 0 18px;
+}
+.search-sheet .filter-chips::-webkit-scrollbar { display: none; }
+.search-sheet .fchip { flex: none; white-space: nowrap; }
 @keyframes slideup { from { transform: translateY(40px); opacity: .5; } to { transform: none; opacity: 1; } }
 .modal-head {
   position: sticky; top: 0; background: var(--bg-2); z-index: 5;
@@ -533,6 +566,8 @@ input[type=range] { width: 100%; accent-color: var(--blue); height: 30px; }
 .search-input {
   width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 10px;
   color: var(--text); padding: 12px 14px; font: inherit; margin-bottom: 10px;
+  /* iOS zooms the page when a focused field's text is under 16px. */
+  font-size: max(16px, 1rem);
 }
 .lib-letter { font-weight: 800; font-size: 1.1rem; margin: 16px 0 6px; }
 .lib-item {
@@ -572,6 +607,12 @@ input[type=range] { width: 100%; accent-color: var(--blue); height: 30px; }
 .tabbar button { flex: 1; text-align: center; color: var(--text-dim); font-size: .72rem; }
 .tabbar button .ic { display: block; font-size: 1.35rem; margin-bottom: 3px; }
 .tabbar button.on { color: var(--blue); }
+/* With interactive-widget=resizes-content (Android Chrome) the fixed tab bar
+   would ride up on top of the on-screen keyboard and eat the space above it.
+   Hide it while a text field has focus on touch screens, as native apps do. */
+@media (pointer: coarse) {
+  body:has(:is(textarea, input:not([type=range]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit])):focus) .tabbar { display: none; }
+}
 
 /* ---------- toast ---------- */
 .toast {

@@ -1,5 +1,25 @@
 # IRONWAVE — Changelog
 
+## [QoL round 2: search sheets, two Smith split squats, superset icon] (2026-11-12)
+
+- **The keyboard no longer covers exercise search.** The swap and
+  add-exercise pickers are search sheets (`modalShell(..., 'search')`):
+  full visible height, header and search field pinned, only the results
+  scroll, equipment chips on one horizontally scrolling row. The modal
+  layer is sized to the visible viewport (`--vvh` / `--vv-top`, written
+  by `syncVisualViewport` from `window.visualViewport`; the viewport meta
+  gains `interactive-widget=resizes-content` for Android Chrome), so
+  every bottom sheet sits above the keyboard. Enter closes the keyboard;
+  the tab bar hides while a text field has focus on touch screens.
+- **Library:** Smith Machine Split Squat (Glute Emphasis) and (Quad
+  Emphasis), machine, with cues and Spanish names. Library only; no
+  curated list or template changed.
+- **Superset control (owner call):** the chain button on overview cards
+  shows only on an exercise that is in a superset, as Unlink. There is no
+  create-superset control on the cards any more.
+- Tests: `search-sheet.test.js` (5), `smith-split-squats.test.js` (4).
+  Suite: 591 green.
+
 ## [Session quality of life: resume, remove, add, swap anything] (2026-11-12)
 
 Owner QoL list, four items. Default prescriptions untouched (golden master
