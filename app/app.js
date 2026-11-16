@@ -4757,7 +4757,7 @@ function vWorkout() {
     // back: re-adding the lift later makes it a plain accessory.
     const card = `<div class="ex-card ${opt ? 'optional' : ''}${ssInfo ? ' superset' : ''}" data-si="${si}">
       ${grip}
-      <span class="name">${esc(rs.name)}${opt ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}${ssTag}${setAdjTagHTML(slot)}</span>
+      <span class="name">${esc(rs.name)}${opt ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}${ssTag}</span>
       <span class="actions">
         <button class="icon-btn" onclick="openExDetail('${rs.exId}')"><span class="ic">${icon('info')}</span>${esc(t('common.info'))}</button>
         ${ssMove}${ssBtn}
@@ -5166,13 +5166,6 @@ function previewSetAdj(di, si, d) {
     save(); render();
   }
   rerenderTop();
-}
-// The small muted "+1 set" / "-2 sets" tag for a slot with a set adjustment.
-function setAdjTagHTML(slot) {
-  const n = slot && slot.setAdj;
-  if (!n) return '';
-  const key = (n > 0 ? 'setadj.adj_plus_' : 'setadj.adj_minus_') + (Math.abs(n) === 1 ? 'one' : 'other');
-  return ` <span class="set-adj-tag">${esc(t(key, { n: Math.abs(n) }))}</span>`;
 }
 
 function skipWorkout(di) {
@@ -6695,7 +6688,7 @@ function openPreview(di) {
             <button class="btn-ghost set-adj-text" onclick="previewSetAdj(${di},${x.si},-1)" aria-label="${esc(t('setadj.remove_a11y', { name: rs.name }))}"${plain <= 1 ? ' disabled' : ''}>${esc(t('setadj.remove'))}</button>
             <button class="btn-ghost set-adj-text" onclick="previewSetAdj(${di},${x.si},1)" aria-label="${esc(t('setadj.add_a11y', { name: rs.name }))}">${esc(t('setadj.add'))}</button>
           </div>` : '';
-        return `<div class="lift-card ${rs.optional ? 'optional' : ''}"><h3 style="font-size:1.2rem">${esc(rs.name)}${rs.optional ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}${setAdjTagHTML(slots[x.si])}</h3>
+        return `<div class="lift-card ${rs.optional ? 'optional' : ''}"><h3 style="font-size:1.2rem">${esc(rs.name)}${rs.optional ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}</h3>
           <div class="scheme">${esc(rangeSchemeLine(work) || t('session.sets_x_reps', { sets: work.length, reps: work[0]?.reps ?? '' }))}</div>
           ${rs.sets.map((s, i) => `<div class="set-row"><span class="num">${i + 1}</span>
             <span class="target">${previewSetLabel(s, rs.exId)}</span>

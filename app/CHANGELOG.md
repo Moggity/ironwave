@@ -1,5 +1,14 @@
 # IRONWAVE — Changelog
 
+## [No set-adjust tag] (2026-11-16, v1.24.1)
+
+Owner feedback: the app carries no added text unless asked for. The muted
+"+1 set" / "-2 sets" tag that the set-adjust feature (v1.22) put beside an
+exercise name, on the overview card and in the preview, is removed with its
+four strings per language and its style. The add and remove controls and
+`slot.setAdj` itself are unchanged; the set rows already show the count.
+Display only (golden master byte-identical).
+
 ## [Week-2 prescriptions: bodybuilding + recomp spec path] (2026-11-16, v1.24.0)
 
 Fixes the atypical week 2+ prescriptions reported for bodybuilding with the

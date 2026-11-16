@@ -81,10 +81,6 @@ const I18N_EN = {
   'setadj.removed_toast': 'Set {n} removed',
   'setadj.count_one': '{n} set',
   'setadj.count_other': '{n} sets',
-  'setadj.adj_plus_one': '+{n} set',
-  'setadj.adj_plus_other': '+{n} sets',
-  'setadj.adj_minus_one': '-{n} set',
-  'setadj.adj_minus_other': '-{n} sets',
 
   // --- RIR intro card (one-time) ---
   'rir.intro_title': 'New: effort is logged as RIR',

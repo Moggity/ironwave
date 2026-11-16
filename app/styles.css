@@ -252,7 +252,6 @@ button { font: inherit; color: inherit; background: none; border: none; cursor: 
 .set-adj-btn:disabled, .set-adj-text:disabled { opacity: .35; cursor: default; }
 .preview-set-adj { display: flex; gap: 16px; margin-top: 4px; }
 .set-adj-text { color: var(--text-dim); font-size: .88rem; font-weight: 600; padding: 6px 0; }
-.set-adj-tag { display: inline-block; margin-left: 4px; color: var(--text-faint); font-size: .72rem; font-weight: 500; }
 /* per-candidate time cost shown in the swap picker */
 .cost-tag {
   display: inline-block; padding: 1px 7px; border-radius: 8px;
