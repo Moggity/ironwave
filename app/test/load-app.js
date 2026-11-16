@@ -105,7 +105,7 @@ const EXPORTS = `return {
   hasCoach, setDebugTier, coachLockHTML, vProgram,
   save, draftIsValid, syncDraftSlots, removeSlot, undoRemove, doAddExercise, commitReorder, finishSession, abandonSession, doSkipWorkout,
   applySetDelta, applySlotSetAdj, isPlainSet, addSessionSet, removeSessionSet, removeLastSessionSet, undoRemoveSet,
-  canRemoveDraftSet, lastRemovableSetIdx, previewSetAdj, setAdjTagHTML, endBlock, doSwap,
+  canRemoveDraftSet, lastRemovableSetIdx, previewSetAdj, endBlock, doSwap,
   get S() { return S; }, set S(v) { S = v; },
   get V() { return V; }, set V(v) { V = v; },
 };`;

@@ -84,10 +84,6 @@ const I18N_ES = {
   'setadj.removed_toast': 'Serie {n} quitada',
   'setadj.count_one': '{n} serie',
   'setadj.count_other': '{n} series',
-  'setadj.adj_plus_one': '+{n} serie',
-  'setadj.adj_plus_other': '+{n} series',
-  'setadj.adj_minus_one': '-{n} serie',
-  'setadj.adj_minus_other': '-{n} series',
 
   // --- RIR intro card (one-time) ---
   'rir.intro_title': 'Nuevo: el esfuerzo se registra como RIR',

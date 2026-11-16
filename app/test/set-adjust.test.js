@@ -303,10 +303,8 @@ test('preview controls change the count (no draft) and route through the draft w
   assert.ok(!('setAdj' in slot));
 });
 
-test('the overview tag reads +n / -n sets in both languages', () => {
-  assert.strictEqual(app.setAdjTagHTML({}), '');
-  assert.ok(app.setAdjTagHTML({ setAdj: 1 }).includes(app.t('setadj.adj_plus_one', { n: 1 })));
-  assert.ok(app.setAdjTagHTML({ setAdj: -2 }).includes(app.t('setadj.adj_minus_other', { n: 2 })));
+test('an adjusted slot shows no extra tag; set-adjust strings exist in both languages', () => {
+  assert.strictEqual(typeof app.setAdjTagHTML, 'undefined', 'the +n / -n sets tag is gone (owner: no added text)');
   const en = app.I18N.catalogs.en.strings, es = app.I18N.catalogs.es.strings;
   for (const k of Object.keys(en).filter(k => k.startsWith('setadj.'))) {
     assert.ok(es[k], `es has ${k}`);
@@ -399,8 +397,7 @@ if (NODE_MAJOR < 20) {
     const n = rows();
     a.previewSetAdj(0, si, 1);
     assert.strictEqual(rows(), n + 1, 'preview re-rendered with the new count');
-    assert.ok(modal().includes(a.t('setadj.adj_plus_one', { n: 1 })), 'tag in the preview');
-    assert.ok(d.getElementById('app').innerHTML.includes(a.t('setadj.adj_plus_one', { n: 1 })), 'tag on the overview card');
+    assert.ok(!/set-adj-tag/.test(modal() + d.getElementById('app').innerHTML), 'no +n sets tag anywhere');
   });
 
   test('superset card: each member has ＋/− set controls', () => {
