@@ -148,6 +148,22 @@ function assertRirCoherence(p, label) {
     const inc = app.loadingFor(rs.exId).totalInc || 2.5;
     for (const s of rs.sets) {
       if (!(s.weight > 0) || s.ramp || s.calib || s.amrap || s.rpe == null) continue;
+      // A range-form set (bodybuilding spec path) prescribes "lo-hi at an RIR
+      // target"; its `reps` is only the bottom of the range. Judge it by the
+      // reps the load allows at the target RIR: they must land in the range
+      // (one rep of rounding either side), which is the same coherence claim.
+      if (s.repForm === 'range' && s.repRange && s.rirRange) {
+        const mid = Math.round((s.repRange[0] + s.repRange[1]) / 2);
+        const eR = anchorFor(p, slot, rs, mid);
+        if (!eR) continue;
+        const rirMid = (s.rirRange[0] + s.rirRange[1]) / 2;
+        const repsAtTarget = 30 * (eR / s.weight - 1) - rirMid;
+        const slack = (inc / 2) * 30 * eR / (s.weight * s.weight) + 1;
+        assert.ok(repsAtTarget >= s.repRange[0] - slack && repsAtTarget <= s.repRange[1] + slack,
+          `${label} ${rs.exId} wk${wi}: ${s.weight}kg for ${s.repRange.join('-')} at ${s.rirRange.join('-')} RIR ` +
+          `allows ${repsAtTarget.toFixed(1)} reps at the target effort`);
+        continue;
+      }
       const e1 = anchorFor(p, slot, rs, s.reps);
       if (!e1) continue;
       const imp = impliedRIR(e1, s.weight, s.reps);

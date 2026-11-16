@@ -274,6 +274,23 @@ const isRpe = () => S && S.profile && S.profile.intensityDisplay === 'rpe';
 const fmtRir = rpe => (rpe == null ? '–'
   : isRpe() ? t('unit.rpe', { n: kg(rpe) })
   : t('unit.rir', { n: kg(Engine.rpeToRir(rpe)) }));
+// [Week-2 prescriptions R9] A range-form set's effort as text: "1-2 RIR" (or the
+// RPE range for RPE-native athletes). Storage stays RPE; this is display only.
+const fmtRirRange = rr => (isRpe()
+  ? t('unit.rpe', { n: rr[0] === rr[1] ? 10 - rr[1] : (10 - rr[1]) + '-' + (10 - rr[0]) })
+  : t('unit.rir', { n: rr[0] === rr[1] ? rr[0] : rr[0] + '-' + rr[1] }));
+// [R9] The card's scheme line for range-form sets ("3 x 8-12 · 1-2 RIR"), or null
+// when the sets are not one uniform range prescription (every other path).
+function rangeSchemeLine(work) {
+  if (!work.length || work.some(s => s.repForm !== 'range' || !s.repRange || s.calib)) return null;
+  const rr = s => s.repRange[0] + '-' + s.repRange[1];
+  if (work.some(s => rr(s) !== rr(work[0]))) return null;
+  const sig = s => (s.rirRange ? s.rirRange.join('-') : '');
+  if (work[0].rirRange && work.every(s => sig(s) === sig(work[0]))) {
+    return t('session.sets_x_range_rir', { sets: work.length, range: rr(work[0]), rir: fmtRirRange(work[0].rirRange) });
+  }
+  return t('session.sets_x_range', { sets: work.length, range: rr(work[0]) });
+}
 // One icon per pump level so a glance at history tells the level apart.
 const PUMP_ICONS = { 1: 'pump-low', 2: 'pump-medium', 3: 'pump-high' };
 // Translated effort description for an RPE value; unknown values render empty.
@@ -318,7 +335,13 @@ function exMetaCardHTML(e) {
 }
 
 function allExercises() { return EXERCISES.concat(S.customEx); }
-function exById(id) { return allExercises().find(e => e.id === id); }
+function exById(id) {
+  const e = allExercises().find(x => x.id === id);
+  // [Week-2 prescriptions R1] A custom exercise (or one from an old save) has no
+  // stored kind: resolve it from its movement without touching saved state.
+  if (e && !e.kind) return Object.assign({}, e, { kind: exKindFor(e.id, e.movement) });
+  return e;
+}
 // [i18n phase 4] Translated exercise display name: an 'exn.<id>' catalog key
 // layered over EXERCISES, falling back to the English name for any id a
 // catalog does not cover. Custom exercises are the athlete's own text and are
@@ -1494,6 +1517,363 @@ function bbLiftRemoval(exId) {
   if (key && tc.muscleFocus && tc.muscleFocus[key] === 0) return 'removed by focus';
   return null;
 }
+// ------------------------------------------------------------
+// [Week-2 prescriptions] BODYBUILDING + RECOMP SPEC PATH (R1-R9)
+// docs/week2-prescriptions/phase2-rules.md. Everything below is reached only
+// through bbSpecPath(), the ONE gate; off it every function returns exactly
+// what it did before (golden master). State is optional and absent by default:
+//   program.plan[exId]    { load, setAdj, miss }  written only by advanceWeek()
+//   program.planReasons   { b, w, byEx: { exId: [codes] } } for the week entered
+// resolveSlot stays a pure read of that stored state.
+// ------------------------------------------------------------
+function bbSpecPath() {
+  const p = P();
+  const tc = p && p.trainingConfig;
+  return !!(tc && tc.track === 'bodybuilding' && BB_GOAL_PROFILE[tc.goalArchetype]);
+}
+// [Phase 3] What the program's goal changes for one block (see BB_GOAL_PROFILE).
+function bbGoalProfile(block) {
+  const tc = (P() || {}).trainingConfig || {};
+  const g = BB_GOAL_PROFILE[tc.goalArchetype] || BB_GOAL_PROFILE.recomp;
+  const deficit = !!PHASE_DEFICIT[block && blockPhase(block)];
+  return { maxSetAdj: deficit ? g.deficitMaxSetAdj : g.maxSetAdj, rirFloor: deficit ? g.deficitRirFloor : 0, ceil: g.ceil, deficit };
+}
+// The week's RIR target for a kind, lifted to the block's floor when the goal
+// keeps a deficit block one rep further from failure.
+function bbRirAt(kind, wIdx, blockIdx) {
+  const r = Engine.bbRir(kind, wIdx);
+  const floor = bbGoalProfile(blockOf(blockIdx)).rirFloor;
+  return r[0] >= floor ? r : [floor, Math.max(r[1], floor + (r[1] - r[0]))];
+}
+// Slider value for a movement on this program (null = none, 2 when unset).
+function bbSliderLevel(movement) {
+  const tc = (P() || {}).trainingConfig || {};
+  const key = MOVEMENT_SLIDER[movement];
+  if (!key) return { key: null, v: null };
+  const raw = tc.muscleFocus ? tc.muscleFocus[key] : null;
+  return { key, v: raw == null ? 2 : Math.min(FOCUS_MAX, raw) };
+}
+// Volume credit one set of this movement gives, exactly as weeklyVolumeByMuscle.
+function bbCredit(movement) {
+  if (VOLUME_LANDMARKS[movement]) return { [movement]: 1 };
+  const out = {};
+  const cov = SYNERGIST_COVERAGE[movement];
+  if (cov) for (const mv in cov) if (VOLUME_LANDMARKS[mv]) out[mv] = cov[mv];
+  return out;
+}
+// The e1RM an exercise is priced from before it has a stored plan: an entered
+// 1RM / 10RM (seed records) at any time; from the second block on, its history.
+function bbPricingE1(exId, blockIdx, range) {
+  const recs = recordsFor(exId);
+  const seeds = recs.filter(r => r.seed);
+  // History from earlier blocks only: a price must not drift as this block's own
+  // sets are logged (the week's rows and the reasons are compared against it).
+  const firstTs = (S.sessions || []).reduce((m, s) => (s.b === blockIdx && !s.skipped ? Math.min(m, s.ts) : m), Infinity);
+  // An entered max counts together with what was logged AFTER it in earlier
+  // blocks, so a stale max does not pull a later block's price back down.
+  const seedTs = seeds.reduce((m, r) => Math.max(m, r.ts), -Infinity);
+  let pool = recs.filter(r => r.seed || (blockIdx > 0 && r.ts > seedTs && r.ts < firstTs));
+  // A save from before plans existed, opened mid-block: no plan anywhere, yet
+  // earlier weeks were logged. Price from those weeks, not a second calibration.
+  const p = P();
+  if (!pool.length && !p.plan && blockIdx === p.pointer.block && p.pointer.week > 0) {
+    const weekTs = (S.sessions || []).reduce((m, s) => (s.b === blockIdx && s.w === p.pointer.week && !s.skipped ? Math.min(m, s.ts) : m), Infinity);
+    const before = (S.sessions || []).some(s => s.b === blockIdx && s.w < p.pointer.week && !s.skipped);
+    if (before) pool = recs.filter(r => r.ts < weekTs);
+  }
+  return pool.length ? Engine.anchorE1RM(pool, Math.floor((range[0] + range[1]) / 2)) : null;
+}
+// The exercise's plan entry for a block: the stored one (current block), else
+// one priced from an entered max or earlier history, else null (calibration).
+function bbPlanOf(exId, blockIdx) {
+  const p = P();
+  if (blockIdx === p.pointer.block && p.plan && p.plan[exId]) return p.plan[exId];
+  const ex = exById(exId);
+  if (!ex) return null;
+  const spec = Engine.bbRepSpec(ex.kind, ex.movement);
+  const e1 = bbPricingE1(exId, blockIdx, spec.range);
+  if (!e1) return null;
+  const load = Engine.priceLoad(e1, spec.range, Engine.bbRir(ex.kind, 0), loadingFor(exId).totalInc);
+  return { load, setAdj: 0, miss: 0, derived: true };
+}
+function bbReasonsFor(exId, blockIdx, wIdx) {
+  const pr = P().planReasons;
+  return pr && pr.b === blockIdx && pr.w === wIdx && pr.byEx && pr.byEx[exId] ? pr.byEx[exId].slice() : [];
+}
+// [R6] Base set counts for every accessory slot of a week (Map slot -> sets):
+// the allocator over the whole program, mains and secondaries credited as the
+// volume tally credits them.
+let BB_ALLOC_BUSY = false;
+function bbAllocation(blockIdx) {
+  // One allocation per block, taken at the first work week (index 1, where the
+  // main lifts contribute least), so set counts hold steady through the block
+  // and only plan.setAdj (R4) or the athlete moves them.
+  const wIdx = 1;
+  if (BB_ALLOC_BUSY) return new Map();
+  BB_ALLOC_BUSY = true;
+  try { return bbAllocationInner(blockIdx, wIdx); } finally { BB_ALLOC_BUSY = false; }
+}
+function bbAllocationInner(blockIdx, wIdx) {
+  const p = P();
+  const tc = p.trainingConfig || {};
+  const fixed = [], accs = [], slotOf = [], mainOf = [], adjOf = [];
+  const groupSeen = {};
+  for (const day of p.days) for (const slot of day.slots) {
+    if (slot.type === 'main' || slot.type === 'secondary') {
+      const rs = resolveSlot(slot, blockIdx, wIdx);
+      const ex = rs && exById(rs.exId);
+      if (!ex || !rs.sets) continue;
+      const n = rs.sets.filter(s => !s.ramp).length;
+      if (n) {
+        const f = { sets: n, credit: bbCredit(ex.movement) };
+        // The lift's heaviest work week in this block, for the ceiling.
+        f.peak = Math.max(n, ...[2, 3].map(i => resolveSlot(slot, blockIdx, i).sets.filter(s => !s.ramp).length));
+        f.key = 'm' + mainOf.length; f.maxExtra = BB_MAIN_MAX_EXTRA; mainOf.push(slot); // mains and secondaries
+        fixed.push(f);
+      }
+      continue;
+    }
+    const exId = slot.ex || slot.def;
+    const ex = exId && exById(exId);
+    if (!ex) continue;
+    const lv = bbSliderLevel(ex.movement);
+    if (lv.v === 0) continue;
+    const plan = bbPlanOf(exId, blockIdx);
+    if (lv.key) groupSeen[lv.key] = true;
+    accs.push({ key: slotOf.length, group: lv.key, base: lv.v === 1 ? 2 : BB_ACC_BASE_SETS,
+      adj: 0, cap: lv.v === 1 ? 2 : BB_ACC_MAX_SETS,
+      locked: lv.v === 1 || !lv.key, credit: bbCredit(ex.movement) });
+    slotOf.push(slot);
+    adjOf.push(lv.v === 1 ? 0 : (plan ? plan.setAdj || 0 : 0));
+  }
+  const groups = Object.keys(SLIDER_MOVEMENTS).filter(k => {
+    const raw = tc.muscleFocus ? tc.muscleFocus[k] : null;
+    return (raw == null ? 2 : Math.min(FOCUS_MAX, raw)) >= 2;
+  });
+  const days = p.daysPerWeek || p.days.length || 4;
+  const sets = Engine.coach.allocateVolume({
+    fixed, accs, groupOf: MOVEMENT_SLIDER, groups,
+    floor: BB_VOL_FLOOR * Math.min(1, days / 4), ceil: bbGoalProfile(blockOf(blockIdx)).ceil,
+  });
+  const out = new Map();
+  // The performance-based adjustment (R4 ADD_SET) rides on top of the base.
+  slotOf.forEach((slot, i) => out.set(slot, Math.max(1, Math.min(BB_ACC_MAX_SETS, sets[i] + adjOf[i]))));
+  mainOf.forEach((slot, i) => { if (sets['m' + i]) out.set(slot, sets['m' + i]); });
+  return out;
+}
+// A rep range set's shared fields.
+function bbRangeFields(spec, rir) {
+  return { repForm: 'range', repRange: spec.range.slice(), repRationale: spec.rationale, rirRange: rir.slice() };
+}
+// [R1-R8] An accessory on the spec path. Returns the resolved slot object.
+function bbResolveAccessory(slot, exId, blockIdx, wIdx, eIdx) {
+  const ex = exById(exId);
+  const lv = bbSliderLevel(ex.movement);
+  if (lv.v === 0) return { exId, name: exName(exId), sets: [], cat: slot.cat, isRemoved: true };
+  const r = loadingFor(exId).totalInc;
+  const spec = Engine.bbRepSpec(ex.kind, ex.movement);
+  const deload = Engine.weekType(eIdx) === 'deload';
+  const plan = bbPlanOf(exId, blockIdx);
+  let sets, scheme = null;
+  if (!plan || plan.load == null) {
+    // R3/R5: never logged and no entered max: the declared calibration scheme.
+    sets = Engine.bbCalibration(spec.range, S.profile.experience).map(s =>
+      Object.assign(s, bbRangeFields(spec, s.rirRange)));
+    scheme = 'CALIBRATION';
+  } else {
+    const alloc = bbAllocation(blockIdx);
+    let n = alloc.has(slot) ? alloc.get(slot)
+      : Math.max(1, Math.min(BB_ACC_MAX_SETS, BB_ACC_BASE_SETS + (plan.setAdj || 0)));
+    let rir = bbRirAt(ex.kind, eIdx, blockIdx), load = plan.load, noteKey = null;
+    if (deload) {
+      n = Engine.bbDeloadSets(n); load = Engine.bbDeloadLoad(plan.load, r);
+      rir = BB_DELOAD_RIR.slice(); scheme = 'DELOAD'; noteKey = 'deload_half';
+    }
+    sets = Array.from({ length: n }, () => Object.assign({
+      weight: load, reps: spec.range[0], rpe: 10 - rir[1], noteKey }, bbRangeFields(spec, rir)));
+  }
+  // Per-muscle deload (kept): halve the sets and ease one RIR; the RIR range
+  // follows the eased effort. Otherwise the athlete's finisher technique.
+  if (!deload && isAccessoryMuscleDeloaded(exId)) {
+    sets = applyMuscleDeload(sets).map(s => {
+      if (!s.rirRange || s.rpe == null) return s;
+      const shift = (10 - s.rirRange[1]) - s.rpe;
+      return shift ? Object.assign({}, s, { rirRange: [s.rirRange[0] + shift, s.rirRange[1] + shift] }) : s;
+    });
+  } else {
+    sets = applyTechnique(exId, sets, r, blockIdx, wIdx);
+  }
+  sets = applySlotSetAdj(slot, sets, s => applyTechnique(exId, s, r, blockIdx, wIdx));
+  const out = { exId, name: exName(exId), sets, cat: slot.cat, reasons: bbReasonsFor(exId, blockIdx, wIdx) };
+  if (scheme) out.setScheme = scheme;
+  return out;
+}
+// [R1-R3, R6, R8] A main or secondary on the spec path: the scheme's own sets,
+// re-expressed as fixed-form sets with the week's RIR, a named scheme where one
+// applies and the 5% load ramp. `weekFn(i)` is the scheme's output for week i.
+function bbLiftSets(sets, weekFn, eIdx, r) {
+  const range = BB_MAIN_RANGE.slice();
+  const rationale = BB_REP_RATIONALE.compoundHeavy;
+  const fields = rir => ({ repForm: 'fixed', repRange: range.slice(), repRationale: rationale, rirRange: rir.slice() });
+  if (sets.some(s => s.calib)) {
+    const std = sets.find(s => s.calib).reps;
+    const cal = Engine.bbCalibration(range, S.profile.experience);
+    if (std < 10) cal[0].reps = std; // keep the lift's own first rep target (8s)
+    return { sets: cal.map(c => Object.assign(c, fields(c.rirRange))), scheme: 'CALIBRATION' };
+  }
+  const isPlain = s => !s.amrap && !s.ramp && !s.calib && !s.repPR;
+  const rawLoad = i => { const s = weekFn(i).find(x => isPlain(x) && x.weight > 0); return s ? s.weight : null; };
+  if (Engine.weekType(eIdx) === 'deload') {
+    const last = weekFn(3).filter(isPlain);
+    const base = Math.min(3, eIdx);
+    let load = rawLoad(0);
+    for (let i = 1; i <= base; i++) { const raw = rawLoad(i); load = Engine.bbCapMainLoad(raw, load, r); }
+    const rir = BB_DELOAD_RIR.slice();
+    const n = Engine.bbDeloadSets(last.length || 3);
+    const reps = last.length ? last[0].reps : range[1];
+    const w = Engine.bbDeloadLoad(load, r);
+    return { sets: Array.from({ length: n }, () => Object.assign(
+      { weight: w, reps, rpe: 10 - rir[1], noteKey: 'deload_main' }, fields(rir))), scheme: 'DELOAD' };
+  }
+  const idx = Math.min(eIdx, 3);
+  const loads = [rawLoad(0)];
+  for (let i = 1; i <= idx; i++) loads.push(Engine.bbCapMainLoad(rawLoad(i), loads[i - 1], r));
+  const raw = rawLoad(idx), capped = loads[idx];
+  const out = sets.map(s => {
+    const peak = s.amrap || s.repPR;
+    // The barbell AMRAP is all-out (it calibrates the working max). A rep-PR
+    // top set on a swapped lead stops one rep short: it calibrates nothing.
+    const rir = s.amrap ? [0, 0] : s.repPR ? [1, 1] : Engine.bbRir('compound', eIdx);
+    const o = Object.assign({}, s, fields(rir));
+    if (!s.amrap) o.rpe = 10 - rir[1];
+    if (isPlain(s) && raw != null && s.weight === raw && capped != null) o.weight = capped;
+    return o;
+  });
+  return { sets: out, scheme: out.some(s => s.amrap) ? 'AMRAP_FINISH' : out.some(s => s.repPR) ? 'REP_PR_FINISH' : null };
+}
+// [R6] Extra plain sets the allocator gave a main lift (a group with no
+// accessory left to reach the floor). Constant through the block; not on the
+// calibration scheme (no plain set) and not on the deload.
+function bbMainExtra(slot, blockIdx, eIdx, sets) {
+  if (BB_ALLOC_BUSY || Engine.weekType(eIdx) === 'deload') return sets;
+  const extra = bbAllocation(blockIdx).get(slot) || 0;
+  return extra ? applySetDelta(sets, extra) : sets;
+}
+// What changed for one exercise between the week just finished and the week
+// entered, as reason codes from the closed enum (R4). Compared once, in advanceWeek.
+function bbDiffReasons(out, inn, weekTypeIn, have) {
+  const C = Engine.REASON_CODES;
+  const codes = [];
+  if (!out || !inn) return codes;
+  if (weekTypeIn === 'deload') return [C.DELOAD];
+  const work = rs => rs.sets.filter(s => !s.ramp);
+  const plain = rs => work(rs).filter(s => !s.amrap && !s.calib && !s.repPR);
+  const calOut = out.setScheme === 'CALIBRATION', calIn = inn.setScheme === 'CALIBRATION';
+  if (calOut && !calIn) codes.push(C.CALIBRATED);
+  if (!calOut && !calIn) {
+    const a = plain(out), b = plain(inn);
+    if (b.length > a.length) codes.push(C.ADD_SET); else if (b.length < a.length) codes.push(C.REMOVE_SET);
+    if (a[0] && b[0]) {
+      if (!have.load && a[0].weight > 0 && b[0].weight > 0) {
+        if (b[0].weight > a[0].weight) codes.push(C.LOAD_UP); else if (b[0].weight < a[0].weight) codes.push(C.LOAD_DOWN);
+      }
+      const ra = a[0].rirRange, rb = b[0].rirRange;
+      if (ra && rb && (ra[0] !== rb[0] || ra[1] !== rb[1])) {
+        codes.push(rb[1] < ra[1] || rb[0] < ra[0] ? C.RIR_TIGHTEN : C.RIR_EASE);
+      }
+    }
+  }
+  const peak = rs => work(rs).some(s => s.amrap || s.repPR);
+  if (peak(inn) && !peak(out)) codes.push(C.PEAK_SET);
+  return codes;
+}
+// Resolve every slot of a week into { exId: [resolvedSlot, ...] } in slot order
+// (spec path only; one exercise can sit in two slots).
+function bbRowsForWeek(bi, wi) {
+  const rows = {};
+  for (const day of P().days) for (const slot of day.slots) {
+    const rs = resolveSlot(slot, bi, wi);
+    if (rs && rs.exId && rs.sets && rs.sets.length) (rows[rs.exId] = rows[rs.exId] || []).push(rs);
+  }
+  return rows;
+}
+// [R4] Run the progression for the week just finished: once per accessory, the
+// result stored on program.plan. Returns { exId: [codes] } for the week entered.
+function bbProgress(b, wOld, outRows) {
+  const p = P();
+  const nextType = Engine.weekType(wOld + 1);
+  const sess = S.sessions.filter(s => !s.skipped && s.b === b && s.w === wOld);
+  const reasons = {};
+  for (const day of p.days) for (const slot of day.slots) {
+    if (slot.type === 'main' || slot.type === 'secondary') continue;
+    const exId = slot.ex || slot.def;
+    // Once per EXERCISE: one sitting in two slots must not progress twice.
+    if (!exId || exId in reasons) continue;
+    const rs = outRows[exId] && outRows[exId][0];
+    if (!rs) continue;
+    const ex = exById(exId);
+    const spec = Engine.bbRepSpec(ex.kind, ex.movement);
+    const prev = bbPlanOf(exId, b);
+    const logged = [];
+    for (const s of sess) for (const e of (s.entries || [])) {
+      if (e.exId !== exId) continue;
+      for (const st of (e.sets || [])) {
+        if (st.done && !st.ramp) logged.push({ reps: st.reps, rpe: st.rpe, calib: !!st.calib, weight: st.weight });
+      }
+    }
+    const feeler = rs.setScheme === 'CALIBRATION';
+    const rir = feeler ? bbRirAt(ex.kind, wOld + 1, b)
+      : ((rs.sets.find(s => s.rirRange) || {}).rirRange || bbRirAt(ex.kind, wOld, b)).slice();
+    const e1 = logged.reduce((m, s) => (s.weight > 0 && s.reps > 0
+      ? Math.max(m, Engine.e1rm(s.weight, s.reps, s.rpe)) : m), 0) || null;
+    const res = Engine.coach.progress(prev, logged,
+      { range: spec.range, rir, inc: loadingFor(exId).totalInc, e1, maxSetAdj: bbGoalProfile(blockOf(b)).maxSetAdj },
+      { weekType: nextType });
+    if (res.load != null && !(prev && prev.derived && !logged.length)) {
+      p.plan = p.plan || {};
+      p.plan[exId] = { load: res.load, setAdj: res.setAdj, miss: res.miss };
+    }
+    reasons[exId] = res.reasons;
+  }
+  return reasons;
+}
+// Store the reasons for the week just entered: the decision codes plus what else
+// moved against the week just finished (R4).
+function bbStoreReasons(b, wNew, outRows, decided) {
+  const inRows = bbRowsForWeek(b, wNew);
+  const type = Engine.weekType(wNew);
+  const byEx = {};
+  for (const exId in inRows) {
+    const list = new Set(decided[exId] || []);
+    const have = { load: ['LOAD_UP', 'LOAD_UP_EARNED', 'LOAD_DOWN'].some(c => list.has(c)) };
+    inRows[exId].forEach((rs, i) => bbDiffReasons((outRows[exId] || [])[i], rs, type, have).forEach(c => list.add(c)));
+    if (list.size) byEx[exId] = [...list];
+  }
+  P().planReasons = { b, w: wNew, byEx };
+}
+// [R8] A new block starts clean: the code every slot carries into week 1.
+function bbBlockTransition() {
+  const p = P();
+  if (!bbSpecPath() || p.pointer.block >= p.blocks.length) return;
+  const byEx = {};
+  for (const day of p.days) for (const slot of day.slots) {
+    const id = slot.ex || slot.def || slot.lift;
+    if (id) byEx[id] = ['BLOCK_TRANSITION'];
+  }
+  p.planReasons = { b: p.pointer.block, w: 0, byEx };
+}
+// [R7] A saved 1RM / 10RM clears the exercise's plan: the next resolve prices it
+// from the entered max with no calibration week.
+function bbMaxUpdated(exId) {
+  const p = P();
+  if (!p) return;
+  if (p.plan) delete p.plan[exId];
+  if (!bbSpecPath()) return;
+  const b = p.pointer.block, w = p.pointer.week;
+  if (!p.planReasons || p.planReasons.b !== b || p.planReasons.w !== w) p.planReasons = { b, w, byEx: {} };
+  p.planReasons.byEx[exId] = [...new Set((p.planReasons.byEx[exId] || []).concat('MAX_UPDATED'))];
+}
+
 function resolveSlot(slot, blockIdx, wIdx) {
   const block = blockOf(blockIdx);
   const sch = Engine.schemeFor(block);
@@ -1517,16 +1897,25 @@ function resolveSlot(slot, blockIdx, wIdx) {
     // off its OWN e1RM and peaks on a rep-PR top set; the barbell WM wave (and
     // its calibrating AMRAP) applies only while the barbell anchors the day.
     // Other tracks and un-swapped mains take the WM path, byte-identical.
+    const spec = bbSpecPath();
     if (exId !== wmKey && bbTrack() && sch.mainE1RM) {
-      let sets = sch.mainE1RM(block, eIdx, recordsFor(exId), r, S.profile.experience);
-      if (mod) sets = applySetDelta(sets, mod.mainSetDelta || 0);
+      const e1Fn = i => sch.mainE1RM(block, i, recordsFor(exId), r, S.profile.experience);
+      let sets = e1Fn(eIdx), scheme = null;
+      if (spec) { ({ sets, scheme } = bbLiftSets(sets, e1Fn, eIdx, r)); sets = bbMainExtra(slot, blockIdx, eIdx, sets); }
+      if (mod && !BB_ALLOC_BUSY) sets = applySetDelta(sets, mod.mainSetDelta || 0);
       sets = applySlotSetAdj(slot, sets);
-      return { exId, name: exName(exId), sets, isMain: true, wmKey, e1Anchor: true };
+      const out = { exId, name: exName(exId), sets, isMain: true, wmKey, e1Anchor: true };
+      if (spec) { out.reasons = bbReasonsFor(exId, blockIdx, wIdx); if (scheme) out.setScheme = scheme; }
+      return out;
     }
-    let sets = sch.main(block, eIdx, P().wm[wmKey], r, modPct, S.profile.experience);
-    if (mod) sets = applySetDelta(sets, mod.mainSetDelta || 0);
+    const mainFn = i => sch.main(block, i, P().wm[wmKey], r, modPct, S.profile.experience);
+    let sets = mainFn(eIdx), scheme = null;
+    if (spec) { ({ sets, scheme } = bbLiftSets(sets, mainFn, eIdx, r)); sets = bbMainExtra(slot, blockIdx, eIdx, sets); }
+    if (mod && !BB_ALLOC_BUSY) sets = applySetDelta(sets, mod.mainSetDelta || 0);
     sets = applySlotSetAdj(slot, sets);
-    return { exId, name: exName(exId), sets, isMain: true, wmKey };
+    const out = { exId, name: exName(exId), sets, isMain: true, wmKey };
+    if (spec) { out.reasons = bbReasonsFor(exId, blockIdx, wIdx); if (scheme) out.setScheme = scheme; }
+    return out;
   }
   if (slot.type === 'secondary') {
     const wmKey = slot.baseLift || slot.lift;
@@ -1534,7 +1923,17 @@ function resolveSlot(slot, blockIdx, wIdx) {
     const rm = bbLiftRemoval(exId);
     if (rm) return { exId, name: exName(exId), sets: [], isSecondary: true, wmKey, isRemoved: true, removedReason: rm };
     const r = loadingFor(exId).totalInc;
-    let sets = sch.secondary(block, eIdx, P().wm[wmKey], r, (slot.pctMod || 1) * modPct, S.profile.experience);
+    const secFn = i => sch.secondary(block, i, P().wm[wmKey], r, (slot.pctMod || 1) * modPct, S.profile.experience);
+    let sets = secFn(eIdx);
+    if (bbSpecPath()) {
+      // [Week-2 prescriptions] Spec path: the deload is defined by R8, so the
+      // autoregulated depth/intensity layers below do not apply.
+      const lift = bbLiftSets(sets, secFn, eIdx, r);
+      sets = applySlotSetAdj(slot, bbMainExtra(slot, blockIdx, eIdx, lift.sets));
+      const out = { exId, name: exName(exId), sets, isSecondary: true, wmKey, reasons: bbReasonsFor(exId, blockIdx, wIdx) };
+      if (lift.scheme) out.setScheme = lift.scheme;
+      return out;
+    }
     // [Cluster D] Extend the autoregulated deload depth/intensity to the secondary
     // on the deload week (it previously only reached accessories). Inert off the
     // bodybuilding track / off the deload week, so the golden master is unchanged.
@@ -1558,6 +1957,7 @@ function resolveSlot(slot, blockIdx, wIdx) {
     }
     return { exId: null, name: null, isSelect: true, cat: slot.cat, sets: [] };
   }
+  if (bbSpecPath() && exById(exId)) return bbResolveAccessory(slot, exId, blockIdx, wIdx, eIdx);
   const r = loadingFor(exId).totalInc;
   // [Epic H4] Bodybuilding accessories train a real rep range (movement + SFR
   // band, shifted per meso) with double progression inside it. Passed into the
@@ -3950,6 +4350,7 @@ function logBodyweight() {
 function updateAutoreg() {
   const p = P();
   if (!p || !p.trainingConfig || p.trainingConfig.track !== 'bodybuilding') return;
+  if (bbSpecPath()) return; // [Week-2 prescriptions R6] one volume owner: the allocator
   p.volAdj = p.volAdj || {};
   const tally = weeklyVolumeByMuscle();
   const lm = S.profile.landmarks || {};
@@ -4019,9 +4420,19 @@ function advanceWeek() {
   if (bb && Engine.weekType(p.pointer.week + 1) === 'deload') {
     p.deloadPlan = Engine.deloadDepth(fatigueStatuses(), readinessTrendingDown());
   }
+  // [Week-2 prescriptions R4] Spec path: compare the outgoing week BEFORE the
+  // plan moves, run the one progression writer, then store the reasons for the
+  // week entered. Only while the block continues (a block end clears the plans).
+  const wOld = p.pointer.week;
+  const spec = bbSpecPath() && wOld + 1 < blockWeeks(blockOf(finishedBlock));
+  const outRows = spec ? bbRowsForWeek(finishedBlock, wOld) : null;
+  const decided = spec ? bbProgress(finishedBlock, wOld, outRows) : null;
   p.pointer.week++;
   if (p.pointer.week >= blockWeeks(blockOf(finishedBlock))) endBlock(finishedBlock, bb);
-  else { V.dayIdx = null; save(); render(); }
+  else {
+    if (spec) bbStoreReasons(finishedBlock, p.pointer.week, outRows, decided);
+    V.dayIdx = null; save(); render();
+  }
 }
 // [Cluster D] Close out a finished block: evolve the athlete's volume landmarks
 // from how the block actually went (Step 5), drop never-trained optional
@@ -4037,6 +4448,7 @@ function endBlock(finishedBlock, bb) {
   if (dropped.length) toast(t('week.dropped_toast', { list: dropped.join(', ') }));
   if (bb && p.volAdj) for (const mv in p.volAdj) p.volAdj[mv] = 0;
   p.deloadPlan = null;
+  delete p.plan; delete p.planReasons; // [Week-2 prescriptions R8] plans are cleared at a block transition
   p.earlyDeload = null; // spent with the block
   p.muscleDeload = []; // [Cluster D] per-muscle deloads end with the block (resensitize)
   // [set-adjust] Athlete-added/removed sets last until the block ends, on every
@@ -4086,6 +4498,7 @@ function endBlock(finishedBlock, bb) {
         toast(t('fe.applied'));
         toast(t('week.new_block_toast', { label: blockDisplayLabel(p.blocks[p.pointer.block]) }));
         V.dayIdx = null;
+        bbBlockTransition();
         save(); render();
         return;
       }
@@ -4114,6 +4527,7 @@ function endBlock(finishedBlock, bb) {
     toast(t('week.new_block_toast', { label: blockDisplayLabel(p.blocks[p.pointer.block]) }));
   }
   V.dayIdx = null;
+  bbBlockTransition();
   save(); render();
 }
 // ------------------------------------------------------------
@@ -4965,6 +5379,8 @@ function sessionEntryFrom(x) {
       weight: null, reps: null, rpe: null, drops: null, done: false,
     }, // [Epic H4] optional fields, written only when the range/e1RM path set them
     t.repRange ? { repRange: t.repRange } : null,
+    t.repForm ? { repForm: t.repForm } : null,   // [Week-2 prescriptions] spec path fields, absent elsewhere
+    t.rirRange ? { rirRange: t.rirRange } : null,
     t.repPR ? { repPR: true } : null))),
   };
 }
@@ -5028,7 +5444,12 @@ function setTargetLabel(st, exId) {
   if (st.calib) return `${esc(t('set.reps_at_rir', { reps: st.targetReps, rir: fmtRir(st.targetRpe) }))}${tech}`;
   // [Epic H4] A ranged set shows today's double-progression target with its
   // band right on the row: "40kg × 9 (8-12)".
-  const rng = st.repRange ? ` <small class="faint">(${st.repRange[0]}-${st.repRange[1]})</small>` : '';
+  // [Week-2 prescriptions R9] A range-form set reads "load x lo-hi" (the RIR range
+  // is on the card's scheme line).
+  if (st.repForm === 'range' && st.repRange && st.targetWeight != null) {
+    return `${fmtW(exId, st.targetWeight)} × ${st.repRange[0]}-${st.repRange[1]}${tech}`;
+  }
+  const rng = st.repRange && st.repForm !== 'fixed' ? ` <small class="faint">(${st.repRange[0]}-${st.repRange[1]})</small>` : '';
   // The per-set RIR cap moved up to the card's scheme line (owner feedback:
   // repeating it on every row is noise); rows show weight × reps only.
   if (st.targetWeight != null) return `${fmtW(exId, st.targetWeight)} × ${st.targetReps}${rng}${tech}`;
@@ -5265,7 +5686,8 @@ function liftCardHTML(e, ei, dr, shortSleep) {
   // the sets x reps scheme, instead of repeating on each row.
   const rpes = [...new Set(schemeWork.filter(s => !s.amrap && s.targetRpe != null).map(s => s.targetRpe))];
   const uniformRir = rpes.length === 1 && schemeWork.every(s => s.amrap || s.targetRpe != null) ? rpes[0] : null;
-  const schemeTxt = schemeWork.length
+  const rangeLine = rangeSchemeLine(schemeWork);
+  const schemeTxt = rangeLine ? esc(rangeLine) : schemeWork.length
     ? esc(uniformRir != null
         ? t('session.sets_x_reps_rir', { sets: schemeWork.length, reps: schemeWork[0].targetReps, rir: fmtRir(uniformRir) })
         : t('session.sets_x_reps', { sets: schemeWork.length, reps: schemeWork[0].targetReps }))
@@ -6250,7 +6672,10 @@ function finishSession() {
 // athlete sees it (RPE stays the stored value; owner feedback: the preview was
 // the one surface still speaking RPE).
 function previewSetLabel(s, exId) {
-  return `${s.weight != null ? fmtW(exId, s.weight) + ' × ' : ''}${s.amrap ? 'AMRAP' : s.reps}${s.rpe ? ' @ ' + fmtRir(s.rpe) : ''}`;
+  if (s.repForm === 'range' && s.repRange && !s.calib) { // [Week-2 prescriptions R9]
+    return `${s.weight != null ? fmtW(exId, s.weight) + ' × ' : ''}${s.repRange[0]}-${s.repRange[1]}${s.rirRange ? ' @ ' + fmtRirRange(s.rirRange) : ''}`;
+  }
+  return `${s.weight != null ? fmtW(exId, s.weight) + ' × ' : ''}${s.amrap ? 'AMRAP' : s.reps}${s.rirRange && !s.amrap ? ' @ ' + fmtRirRange(s.rirRange) : s.rpe ? ' @ ' + fmtRir(s.rpe) : ''}`;
 }
 function openPreview(di) {
   // Rebuilt on every render so the set controls ([set-adjust]) show the new count.
@@ -6271,7 +6696,7 @@ function openPreview(di) {
             <button class="btn-ghost set-adj-text" onclick="previewSetAdj(${di},${x.si},1)" aria-label="${esc(t('setadj.add_a11y', { name: rs.name }))}">${esc(t('setadj.add'))}</button>
           </div>` : '';
         return `<div class="lift-card ${rs.optional ? 'optional' : ''}"><h3 style="font-size:1.2rem">${esc(rs.name)}${rs.optional ? ` <span class="opt-tag">${esc(t('session.optional_tag'))}</span>` : ''}${setAdjTagHTML(slots[x.si])}</h3>
-          <div class="scheme">${esc(t('session.sets_x_reps', { sets: work.length, reps: work[0]?.reps ?? '' }))}</div>
+          <div class="scheme">${esc(rangeSchemeLine(work) || t('session.sets_x_reps', { sets: work.length, reps: work[0]?.reps ?? '' }))}</div>
           ${rs.sets.map((s, i) => `<div class="set-row"><span class="num">${i + 1}</span>
             <span class="target">${previewSetLabel(s, rs.exId)}</span>
           </div>`).join('')}
@@ -6719,6 +7144,7 @@ function saveCustomEx() {
   const r10 = fromDispW(parseFloat(document.getElementById('cx-10rm').value));
   if (r1 > 0) pushRecord(id, { ts: Date.now(), weight: r1, reps: 1, rpe: 10, seed: true });
   if (r10 > 0) pushRecord(id, { ts: Date.now(), weight: r10, reps: 10, rpe: 10, seed: true });
+  if (r1 > 0 || r10 > 0) bbMaxUpdated(id); // [Week-2 prescriptions R7]
   save(); closeAllModals(); render();
   toast(t(r1 || r10 ? 'cx.created_seeded_toast' : 'cx.created_toast', { name }));
 }
@@ -6935,6 +7361,7 @@ function saveExMaxes(id) {
   S.records[id] = recordsFor(id).filter(r => !r.seed); // replace, not append
   if (r1 > 0) pushRecord(id, { ts: Date.now(), weight: r1, reps: 1, rpe: 10, seed: true });
   if (r10 > 0) pushRecord(id, { ts: Date.now(), weight: r10, reps: 10, rpe: 10, seed: true });
+  bbMaxUpdated(id); // [Week-2 prescriptions R7] re-price from the entered max, no calibration week
   // A main lift's wave weights hang off the working max, so an empty one is
   // seeded too (book guidance: train off about 90 percent of your real max).
   let wmNote = '';

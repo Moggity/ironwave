@@ -36,6 +36,8 @@ const I18N_EN = {
   'session.below_bar': 'Prescribed below your {bar} {u} bar. Use a lighter bar in the lift settings or swap the lift.',
   'session.sets_x_reps': '{sets} sets x {reps} reps',
   'session.sets_x_reps_rir': '{sets} sets x {reps} reps @ {rir}',
+  'session.sets_x_range': '{sets} x {range}',
+  'session.sets_x_range_rir': '{sets} x {range} · {rir}',
   'session.notes': 'Notes',
   'session.notes_placeholder': 'Session notes…',
   'session.warmup': 'Warmup',

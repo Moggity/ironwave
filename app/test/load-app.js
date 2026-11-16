@@ -91,6 +91,8 @@ const EXPORTS = `return {
   ADV_MUSCLES, advRowExercises, advRowPool, advTargets, applyAdvOverrides,
   openAdvPanel, advPanelHTML, apAsk, apSave, advWeekdayPreview, advCtx,
   BB_DAY_TEMPLATES,
+  bbSpecPath, bbGoalProfile, BB_GOAL_PROFILE, bbAllocation, bbPlanOf, bbMaxUpdated, bbRowsForWeek, bbLiftSets, rangeSchemeLine, fmtRirRange,
+  exKindFor, EX_KIND_BY_MOVEMENT, EX_KIND_OVERRIDE, BB_REP_RANGES, BB_RIR, BB_CALIB_REPS,
   programTemplate, validateTemplate, programFromTemplate,
   TEMPLATE_SCHEMA_VERSION,
   ensureMediaManifest, exMediaSrc, exMediaHTML, openExDetail,
