@@ -140,6 +140,26 @@ untouched so the contract holds. The contract is enforced on every build by
 `musclePool` (curated order, then the full library by SFR). The tuning tables
 are `ANCHOR_RANK`/`PRIMARY_ANCHOR`/`FOCUS_HEAD_ROTATION`.
 
+### Bodybuilding spec path (v1.24.0): read before touching bodybuilding prescriptions
+
+Every bodybuilding program WITH a goal (`recomp`, `serious-macro`,
+`lean-asap`) runs through `bbSpecPath()` in `app.js`, the one gate. On it,
+accessories are a fixed whitelisted rep RANGE with an RIR range (never a
+computed rep count), progression moves load and sets only, and the old
+layers described below (double progression, `impliedRpe`, the `JBB_HYP.accSets`
+ramp, `weekMod.accSetDelta`, focus set scaling, `volAdj` autoreg, deload depth)
+do NOT apply. The pieces: `Engine.coach.progress` (pure, the single writer,
+run once per exercise in `advanceWeek()` into `program.plan`),
+`Engine.coach.allocateVolume` (base sets per block), `Engine.REASON_CODES`
+(closed enum, surfaced as `rs.reasons`), `rs.setScheme` for mixed sets, and
+`BB_GOAL_PROFILE` for what each goal changes. Rules and their reasoning:
+`docs/week2-prescriptions/phase2-rules.md` and `acceptance_criteria.md`.
+The invariants are asserted by `test/bb-invariants-helper.js` (shared
+checkers; do not loosen them) across `bb-recomp-*`, `bb-progress-rules`,
+`bb-single-writer` and `acceptance-matrix`. A bodybuilding program with no
+goal (legacy save, imported template) and every strength track stay on the
+old engine, byte-identical; the strength math is deliberately untouched.
+
 ### Hypertrophy clusters (A-F): the one invariant
 
 The hypertrophy roadmap (`docs/pending-future-work.md`) ships as clusters A-F.

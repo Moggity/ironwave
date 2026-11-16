@@ -39,6 +39,8 @@ const I18N_ES = {
   'session.below_bar': 'Prescrito por debajo de tu barra de {bar} {u}. Usa una barra más ligera en los ajustes del ejercicio o cambia el ejercicio.',
   'session.sets_x_reps': '{sets} series x {reps} reps',
   'session.sets_x_reps_rir': '{sets} series x {reps} reps @ {rir}',
+  'session.sets_x_range': '{sets} x {range}',
+  'session.sets_x_range_rir': '{sets} x {range} · {rir}',
   'session.notes': 'Notas',
   'session.notes_placeholder': 'Notas de la sesión…',
   'session.warmup': 'Calentamiento',

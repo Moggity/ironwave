@@ -1269,6 +1269,211 @@ Engine.schemeFor = function (block) {
 };
 
 /* ============================================================
+   [Week-2 prescriptions] Bodybuilding + recomp spec path (R1-R8).
+   Pure and stateless like the rest of the engine: every input comes in as an
+   argument. app.js gates the whole path behind bbSpecPath(); nothing here is
+   reached on any other track or goal, and no existing function above was
+   changed, so the golden master is untouched.
+   ============================================================ */
+
+// [R4] Closed enum of reasons a prescription changed (key === value).
+Engine.REASON_CODES = Object.freeze(['CALIBRATED', 'LOAD_UP', 'LOAD_UP_EARNED', 'LOAD_DOWN', 'HOLD',
+  'STEP_TOO_BIG', 'ADD_SET', 'REMOVE_SET', 'RIR_TIGHTEN', 'RIR_EASE', 'PEAK_SET', 'DELOAD',
+  'BLOCK_TRANSITION', 'MAX_UPDATED'].reduce((o, c) => { o[c] = c; return o; }, {}));
+
+// [R1] The whitelisted rep range (and its stored rationale) for an exercise.
+Engine.bbRepSpec = function (kind, movement) {
+  let key;
+  if (kind === 'compound') key = BB_HEAVY_MOVEMENTS.includes(movement) ? 'compoundHeavy' : 'compound';
+  else key = BB_LONG_MOVEMENTS.includes(movement) ? 'isolationLong' : 'isolation';
+  return { range: BB_REP_RANGES[key].slice(), rationale: BB_REP_RATIONALE[key] };
+};
+// [R2] Target RIR range for a kind in week `weekIdx` of the block (0-based).
+Engine.bbRir = function (kind, weekIdx) {
+  const row = BB_RIR[kind] || BB_RIR.compound;
+  return row[Math.max(0, Math.min(weekIdx || 0, row.length - 1))].slice();
+};
+// [R3] Calibration feeler sets for a range: whitelisted reps, RIR 4, 3, then 2
+// (3 for a beginner, as the shared ramp does). Weightless, flagged `calib`.
+Engine.bbCalibration = function (range, experience) {
+  const reps = BB_CALIB_REPS[range[0] + '-' + range[1]] || BB_CALIB_REPS['8-12'];
+  const topRir = experience === 'beginner' ? 3 : 2;
+  const noteKeys = ['calib_build', 'calib', 'calib_top'];
+  return [4, 3, topRir].map((rir, i) => ({
+    reps: reps[i], rpe: 10 - rir, rirRange: [rir, rir], calib: true, noteKey: noteKeys[i],
+  }));
+};
+// Round down to a whole number of implement steps.
+Engine.floorStep = function (x, step) {
+  const s = step || 2.5;
+  return Math.floor(x / s + 1e-9) * s;
+};
+// [R4] Load for the middle of a rep range at the top of the RIR target, from an e1RM.
+Engine.priceLoad = function (e1, range, rir, inc) {
+  const step = inc || 2.5;
+  const reps = Math.floor((range[0] + range[1]) / 2);
+  return Math.max(step, Engine.weightFor(e1, reps, 10 - rir[1], step));
+};
+// [R8] Deload week sets (half, rounded up, at least 2) and load (x0.9, rounded
+// down to a step). The 0.9 is the app's own number, no source found.
+Engine.bbDeloadSets = function (n) { return Math.max(2, Math.ceil(n / 2)); };
+Engine.bbDeloadLoad = function (load, inc) {
+  const step = inc || 2.5;
+  return Math.max(step, Engine.floorStep(load * 0.9, step));
+};
+// [R6] Main-lift load ramp limit: a week's load may not exceed last week's by
+// more than 5% rounded DOWN to whole steps; when that is zero the load holds.
+Engine.bbCapMainLoad = function (raw, prev, inc) {
+  if (!(prev > 0) || !(raw > 0)) return raw;
+  const step = inc || 2.5;
+  const allowed = Math.floor((prev * 0.05) / step) * step;
+  return Math.min(raw, prev + allowed);
+};
+
+// [R4] Weekly progression: the ONE writer of an accessory's load and its
+// performance-based set count. Pure.
+//   prev   { load, setAdj, miss } | null
+//   logged last week's done sets for the exercise [{ reps, rpe, calib }]
+//   spec   { range, rir, inc, e1, maxSetAdj }  (rir = the target the logged sets were prescribed at)
+//   ctx    { weekType } of the week being entered
+// Returns { load, setAdj, miss, reasons }.
+Engine.coach.progress = function (prev, logged, spec, ctx) {
+  const C = Engine.REASON_CODES;
+  const out = {
+    load: prev && prev.load != null ? prev.load : null,
+    setAdj: (prev && prev.setAdj) || 0,
+    miss: (prev && prev.miss) || 0,
+    reasons: [],
+  };
+  // Entering the deload: the working load and sets are kept on the plan; the
+  // deload week itself is derived from them by the resolver (R8).
+  if (ctx && ctx.weekType === 'deload') { out.reasons.push(C.DELOAD); return out; }
+  const rows = (logged || []).filter(s => s && s.reps > 0);
+  if (!rows.length) return out; // nothing logged: unchanged (R5)
+  const [lo, hi] = spec.range, [r0, r1] = spec.rir;
+  const inc = spec.inc || 2.5;
+  const work = rows.filter(s => !s.calib);
+  if (!work.length) {
+    // Only feeler sets: price the working load from the e1RM they imply.
+    if (spec.e1 > 0) {
+      out.load = Engine.priceLoad(spec.e1, spec.range, spec.rir, inc);
+      out.miss = 0;
+      out.reasons.push(C.CALIBRATED);
+    }
+    return out;
+  }
+  if (out.load == null) {
+    // No load yet but working sets were logged (e.g. a save from before plans
+    // existed): price from the e1RM they imply, as after calibration.
+    if (spec.e1 > 0) {
+      out.load = Engine.priceLoad(spec.e1, spec.range, spec.rir, inc);
+      out.miss = 0;
+      out.reasons.push(C.CALIBRATED);
+    }
+    return out;
+  }
+  const rirOf = s => (s.rpe == null ? null : 10 - s.rpe);
+  const below = work.some(s => s.reps < lo);
+  const hard = work.some(s => { const x = rirOf(s); return x != null && x < r0; });
+  if (below || hard) {
+    out.miss += 1;
+    if (out.miss >= 2) {
+      out.load = Math.max(inc, out.load - inc);
+      out.miss = 0;
+      out.reasons.push(C.LOAD_DOWN);
+    } else {
+      out.reasons.push(C.HOLD);
+    }
+    return out;
+  }
+  out.miss = 0;
+  let rose = false;
+  if (work.every(s => s.reps >= hi)) {
+    const steps = Math.floor((out.load * 0.05) / inc);
+    if (steps >= 1) {
+      out.load += steps * inc; rose = true; out.reasons.push(C.LOAD_UP);
+    } else if (inc <= out.load * 0.10 + 1e-9) {
+      out.load += inc; rose = true; out.reasons.push(C.LOAD_UP_EARNED);
+    } else {
+      out.reasons.push(C.HOLD, C.STEP_TOO_BIG); // the jump waits for the block transition
+    }
+  }
+  if (!rose) {
+    const maxAdj = spec.maxSetAdj == null ? BB_MAX_SET_ADJ : spec.maxSetAdj;
+    const easy = work.every(s => { const x = rirOf(s); return x != null && x >= r1 + 1; });
+    if (easy && out.setAdj < maxAdj) { out.setAdj += 1; out.reasons.push(C.ADD_SET); }
+  }
+  return out;
+};
+
+// [R6] Weekly set allocator (pure). Every accessory starts at its base (3);
+// while a slider-2/3 group is under the floor, one set goes to that group's
+// accessory with the fewest sets (cap per exercise); a group is never pushed
+// past the ceiling. Credits follow weeklyVolumeByMuscle exactly (per-movement
+// tallies rounded to the nearest half set, then rolled up by `groupOf`).
+//   fixed  [{ sets, credit: { movement: fraction } }]   mains and secondaries
+//   accs   [{ key, group, base, adj, cap, locked, credit }]
+//   groupOf { movement: sliderKey }, groups [sliderKey] needing the floor
+//   floor, ceil
+// Returns { [key]: sets }.
+Engine.coach.allocateVolume = function (o) {
+  const sets = {};
+  for (const a of o.accs) sets[a.key] = Math.max(1, Math.min(a.cap, a.base + (a.adj || 0)));
+  // peak = true tallies the block's heaviest week for the main lifts (f.peak),
+  // so the ceiling holds on every week, not just the one the floor is set on.
+  const tally = (peak) => {
+    const mv = {};
+    const add = (credit, n) => { for (const m in credit) mv[m] = (mv[m] || 0) + n * credit[m]; };
+    for (const f of o.fixed) add(f.credit, (peak && f.peak > f.sets ? f.peak : f.sets) + (f.key != null ? sets[f.key] || 0 : 0));
+    for (const a of o.accs) add(a.credit, sets[a.key]);
+    const g = {};
+    for (const m in mv) {
+      const key = o.groupOf[m];
+      if (key) g[key] = (g[key] || 0) + Math.round(mv[m] * 2) / 2;
+    }
+    return g;
+  };
+  for (const g of o.groups) {
+    for (let guard = 0; guard < 200 && (tally()[g] || 0) < o.floor; guard++) {
+      const cands = o.accs.filter(a => !a.locked && a.group === g && sets[a.key] < a.cap);
+      if (!cands.length) break;
+      const pick = cands.reduce((b, a) => (sets[a.key] < sets[b.key] ? a : b));
+      sets[pick.key]++;
+    }
+    // No accessory left to absorb the floor (e.g. a group trained only through
+    // its main lifts): the group's own main lifts take up to maxExtra sets each.
+    for (let guard = 0; guard < 200 && (tally()[g] || 0) < o.floor; guard++) {
+      const cands = o.fixed.filter(f => f.key != null && (sets[f.key] || 0) < (f.maxExtra || 0)
+        && Object.keys(f.credit).some(m => o.groupOf[m] === g && f.credit[m] >= 1));
+      if (!cands.length) break;
+      const pick = cands.reduce((b, a) => ((sets[a.key] || 0) < (sets[b.key] || 0) ? a : b));
+      sets[pick.key] = (sets[pick.key] || 0) + 1;
+    }
+  }
+  for (const g of o.groups) {
+    for (let guard = 0; guard < 200 && (tally(true)[g] || 0) > o.ceil; guard++) {
+      // Trim the group's OWN accessories first, and never take a set whose loss
+      // would drop any group under its floor (the floor wins over the ceiling).
+      const safe = a => {
+        sets[a.key]--;
+        const t = tally();
+        const ok = o.groups.every(k => (t[k] || 0) >= o.floor);
+        sets[a.key]++;
+        return ok;
+      };
+      const all = o.accs.filter(a => !a.locked && sets[a.key] > 1
+        && Object.keys(a.credit).some(m => o.groupOf[m] === g) && safe(a));
+      const own = all.filter(a => a.group === g);
+      const cands = own.length ? own : all;
+      if (!cands.length) break;
+      const pick = cands.reduce((b, a) => (sets[a.key] >= sets[b.key] ? a : b));
+      sets[pick.key]--;
+    }
+  }
+  return sets;
+};
+
+/* ============================================================
    DYNAMIC ROUTINE ADAPTATION ENGINE — per-athlete landmarks
    See docs/dynamic-routine-engine-design.md (5.5-5.7). These read
    the data tables in data.js. Nothing here runs for a default

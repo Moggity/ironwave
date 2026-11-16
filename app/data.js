@@ -9,7 +9,7 @@
 // repo, and it must be kept in step with CACHE_VERSION in sw.js (the service
 // worker only ships new code to installed PWAs when that cache name changes).
 // Bump this on any shell change (data/engine/app/styles/index/sw).
-const APP_VERSION = '1.23.0';
+const APP_VERSION = '1.24.0';
 
 // Movement categories (used for "Select X Exercise" slots & swaps)
 const MOVEMENTS = {
@@ -443,11 +443,42 @@ const EX_META = {
   'db-kickback': { sfr: 2, head: 'tri-lateral' },
 };
 
+// [Week-2 prescriptions R1] Exercise kind: 'compound' (multi-joint) or
+// 'isolation'. Default by movement, with per-exercise overrides where a movement
+// holds both (dips vs cable fly, leg press vs leg extension, RDL vs leg curl).
+// Read only by the bodybuilding + recomp spec path (rep range and RIR tables
+// below); every other path ignores it, so the golden master does not move.
+// Our own classification (training practice, not a published table).
+const EX_KIND_BY_MOVEMENT = {
+  squat: 'compound', bench: 'compound', deadlift: 'compound', press: 'compound',
+  vpull: 'compound', hpull: 'compound', quad: 'compound', ham: 'compound',
+  glute: 'compound', chest: 'compound',
+  upperback: 'isolation', shoulder: 'isolation', tricep: 'isolation', bicep: 'isolation',
+  calf: 'isolation', abs: 'isolation', lowback: 'isolation',
+};
+const EX_KIND_OVERRIDE = {
+  'belt-squat': 'compound', // listed under the machine code as its movement
+  'straight-arm-pulldown': 'isolation', 'db-pullover': 'isolation',
+  'leg-extensions': 'isolation', 'sissy-squat': 'isolation', 'wall-sit': 'isolation',
+  'hip-adduction-machine': 'isolation',
+  'hamstring-curls': 'isolation', 'seated-leg-curl': 'isolation', 'standing-leg-curl': 'isolation',
+  'nordic-curl': 'isolation', 'ghr': 'isolation',
+  'cable-kickback': 'isolation', 'hip-abduction-machine': 'isolation',
+  'cable-fly': 'isolation', 'db-fly': 'isolation', 'pec-deck': 'isolation',
+  'upright-row': 'compound',
+  'jm-press': 'compound', 'close-grip-pushup': 'compound', 'bench-dips': 'compound',
+};
+// Kind of an exercise given its id and movement (a custom exercise has no table row).
+function exKindFor(id, movement) {
+  return EX_KIND_OVERRIDE[id] || EX_KIND_BY_MOVEMENT[movement] || 'isolation';
+}
+
 const EXERCISES = EXERCISE_LIST.map(e => {
   const m = EX_META[e[0]] || EX_META_DEFAULT;
   return {
     id: e[0], name: e[1], movement: e[2], equipment: e[3], isMain: !!e[4],
     sfr: m.sfr ?? EX_META_DEFAULT.sfr, stretch: !!m.stretch, head: m.head || null,
+    kind: exKindFor(e[0], e[2]),
   };
 });
 
@@ -846,6 +877,53 @@ const REP_RANGES = {
   shoulder: [10, 15], bicep: [10, 15], tricep: [10, 15],
   calf: [12, 20], abs: [12, 20],
 };
+
+// [Week-2 prescriptions R1-R3] Bodybuilding + recomp spec tables. Ranges come
+// from the whitelist only (6-10, 8-12, 10-15, 12-20). Principle: similar
+// hypertrophy across roughly 6-20+ reps when sets are taken near failure,
+// CONSENSUS (Schoenfeld et al. 2017, 2021); which band suits which lift is
+// practice, CONTESTED. The rationale strings are stored on the prescription
+// (data, not shown anywhere yet), so they stay English.
+const BB_HEAVY_MOVEMENTS = ['squat', 'bench', 'press', 'deadlift'];
+const BB_LONG_MOVEMENTS = ['calf', 'abs'];
+const BB_REP_RANGES = {
+  compoundHeavy: [6, 10], compound: [8, 12], isolationLong: [12, 20], isolation: [10, 15],
+};
+const BB_REP_RATIONALE = {
+  compoundHeavy: 'Heavy compound lift: 6-10 reps near failure (growth is similar from about 6 to 20+ reps close to failure; the best band per lift is practice).',
+  compound: 'Compound lift: 8-12 reps near failure (growth is similar from about 6 to 20+ reps close to failure; the best band per lift is practice).',
+  isolationLong: 'Calf or core work: 12-20 reps near failure (growth is similar from about 6 to 20+ reps close to failure; the best band per lift is practice).',
+  isolation: 'Isolation lift: 10-15 reps near failure (growth is similar from about 6 to 20+ reps close to failure; the best band per lift is practice).',
+};
+// Mains and secondaries keep their wave reps (10 or 8) as a fixed target.
+const BB_MAIN_RANGE = [6, 10];
+// [R2] Target reps in reserve by kind and week of the block (index 0 = week 1).
+// Proximity to failure: 0-3 RIR effective, CONSENSUS (Refalo et al. 2023);
+// tightening across a block is practice, CONTESTED. Deload: RIR 4-5.
+const BB_RIR = {
+  compound:  [[2, 3], [2, 3], [1, 2], [1, 2]],
+  isolation: [[1, 2], [1, 2], [1, 2], [0, 1]],
+};
+const BB_DELOAD_RIR = [4, 5];
+// [R3] Calibration (feeler) reps by range key 'lo-hi'; RIR 4, 3, 2 as today.
+const BB_CALIB_REPS = {
+  '6-10': [10, 8, 6], '8-12': [12, 10, 8], '10-15': [15, 12, 10], '12-20': [15, 15, 12],
+};
+const BB_ACC_BASE_SETS = 3;      // [R6] allocator start per accessory
+const BB_ACC_MAX_SETS = 6;       // [R6] per-exercise cap
+const BB_MAIN_MAX_EXTRA = 1;     // [R6] sets a main lift may take when its group has no accessory left
+const BB_VOL_FLOOR = 10;         // [R6] weekly hard sets per group at slider 2-3, x min(1, days / 4)
+const BB_VOL_CEIL = 20;
+// [Phase 3] The bodybuilding goals on the spec path, and what each changes.
+// maxSetAdj: most sets progress() may add to an exercise in a block (0 in a
+// deficit: volume is held, not grown). rirFloor: the closest to failure a
+// working set may be prescribed in a deficit. ceil: weekly sets per group.
+const BB_GOAL_PROFILE = {
+  'recomp':        { maxSetAdj: 2, deficitMaxSetAdj: 2, deficitRirFloor: 0, ceil: 20 },
+  'serious-macro': { maxSetAdj: 3, deficitMaxSetAdj: 0, deficitRirFloor: 0, ceil: 20 },
+  'lean-asap':     { maxSetAdj: 2, deficitMaxSetAdj: 0, deficitRirFloor: 1, ceil: 16 },
+};
+const BB_MAX_SET_ADJ = 2;        // [R4] most sets progress() may add to an exercise
 
 // Accessory prescriptions by block type
 const ACC_SCHEMES = {

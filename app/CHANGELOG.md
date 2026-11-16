@@ -1,5 +1,75 @@
 # IRONWAVE — Changelog
 
+## [Week-2 prescriptions: bodybuilding + recomp spec path] (2026-11-16, v1.24.0)
+
+Fixes the atypical week 2+ prescriptions reported for bodybuilding with the
+Recomp goal (docs/week2-prescriptions/diagnosis.md, rules R1-R9 in
+phase2-rules.md). Everything is gated behind ONE predicate, `bbSpecPath()`
+(track `bodybuilding` AND goal `recomp`); off that path every function returns
+what it did before (golden master byte-identical, no existing test touched).
+
+- **Exercise kind (R1).** Every exercise resolves to `compound` or
+  `isolation` (`EXERCISES[].kind`, movement default plus overrides; a custom
+  exercise resolves through `exById`). Whitelisted rep ranges by kind and
+  movement (6-10, 8-12, 10-15, 12-20), no +2 shifts. Accessories are
+  range-form sets (`repForm`, `repRange`, `reps` = bottom of the range,
+  `repRationale`); mains keep their wave reps as fixed-form sets.
+- **Effort (R2).** `rirRange` by kind and block week (`BB_RIR`), `rpe` stays
+  stored as 10 minus the top of the range. Calibration reps are whitelisted
+  per range (R3); schemes are named on the slot (`setScheme`: CALIBRATION,
+  AMRAP_FINISH, DELOAD).
+- **One progression writer (R4).** `Engine.coach.progress` (pure) runs once per
+  accessory in `advanceWeek()` and stores `program.plan[exId]` (load, setAdj,
+  miss); `resolveSlot` only reads it. `Engine.REASON_CODES` is the closed enum;
+  the reasons for the week entered are stored on `program.planReasons` and
+  surface as `rs.reasons`. Double progression, `impliedRpe`, the table set ramp,
+  `weekMod.accSetDelta`, focus set scaling and the volume autoreg no longer
+  touch this path (`updateAutoreg` skips it).
+- **Volume (R6).** `Engine.coach.allocateVolume` starts every accessory at 3
+  sets and tops groups at slider 2-3 up to 10 x min(1, days / 4) weekly hard
+  sets (cap 6 per exercise, never past 20). Main lift loads rise at most 5% a
+  week, rounded down to whole steps.
+- **Maxes on the fly (R7).** Saving a 1RM / 10RM clears the exercise's plan; the
+  next resolve prices it from the entered max with no calibration week
+  (`MAX_UPDATED`). **Deload and blocks (R8).** Deload week: same range, load x0.9
+  rounded down to a step, half the sets (min 2), RIR 4-5. A block transition
+  clears the plans (`BLOCK_TRANSITION`).
+- **Labels (R9).** Range sets read "45kg × 8-12" on the session row and the
+  preview, and "3 x 8-12 · 1-2 RIR" on both scheme lines (new keys
+  `session.sets_x_range` / `session.sets_x_range_rir`, English and Spanish).
+- **After review.** The allocation is taken once per block (set counts no
+  longer drop mid-block); a main or secondary lift takes one extra set when
+  its group has no accessory left to reach the floor (7-day plans); an
+  exercise sitting in two slots progresses once, not twice; the week-feel
+  main set delta no longer reaches the allocator; a save from before plans
+  existed is priced from its logged weeks, not sent back to calibration; an
+  entered max counts together with later history; a rep-PR top set on a
+  swapped lead targets RIR 1 (`REP_PR_FINISH`).
+- Tests: `bb-recomp-invariants.test.js` (6, written before the fix, shared
+  assertions in `bb-invariants-helper.js`), `bb-recomp-regression.test.js`
+  (38: weeks 1-8, every experience x 1-7 days sweep, maxes on the fly, scope
+  guards, labels), `bb-progress-rules.test.js` (22, one per decision row),
+  `bb-single-writer.test.js` (11), `bb-recomp-full-program.test.js` (6,
+  whole program on 4, 5 and 6 days), `acceptance-matrix.test.js` (37 todo
+  entries naming the proposed criteria for the other tracks and goals; no
+  bodies yet). Suite: 698 green, 37 todo.
+- **All three bodybuilding goals (owner ruling).** The spec path now covers
+  `serious-macro` and `lean-asap` as well as `recomp`, through
+  `BB_GOAL_PROFILE` / `bbGoalProfile(block)`: serious-macro may add up to 3
+  sets per exercise in gain blocks and none in a cut or minicut; lean-asap
+  adds none in a deficit, never prescribes RIR 0 there, and caps weekly volume
+  at 16 sets per group. The strength tracks are untouched (golden master
+  byte-identical); `acceptance-matrix.test.js` (19) asserts the two goals and
+  guards that no strength-track accessory changes its rep target week to
+  week. A bodybuilding program with no goal (legacy save) stays on the old
+  engine. `prescription-sanity` now judges a range-form set by the reps its
+  load allows at the target effort. Suite: 717 green.
+- **Ceiling on the heaviest week.** The weekly ceiling of 20 is checked
+  against the block's heaviest week for the main lifts (arms reached 20.5 in
+  block 2 week 4 on 5 and 6 day plans), and trimming never pushes another
+  group under its floor. New harness exports in
+  `test/load-app.js`. `APP_VERSION` and the shell cache bump to 1.24.0.
+
 ## [Owner icon set replaces the text symbols] (2026-11-12, v1.23.0)
 
 Owner QoL request. Display only; no state, prescription or copy meaning
